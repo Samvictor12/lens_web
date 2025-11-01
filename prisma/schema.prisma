@@ -1,0 +1,244 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://neondb_owner:npg_jsmMcHkAtD76@ep-tiny-feather-adnrzgye-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  roleId    Int
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique // "Admin", "Sales", "Inventory", "Accounts"
+  permissions Permission[]
+  users       User[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Permission {
+  id        Int      @id @default(autoincrement())
+  action    String // "create", "read", "update", "delete"
+  subject   String // "SaleOrder", "PurchaseOrder", etc.
+  roleId    Int
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id            Int           @id @default(autoincrement())
+  name          String
+  phone         String?
+  email         String?       @unique
+  address       String?
+  saleOrders    SaleOrder[]
+  dispatchCopies DispatchCopy[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Vendor {
+  id             Int             @id @default(autoincrement())
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?         @unique
+  address        String?
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model LensType {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique // e.g., "Single Vision", "Progressive"
+  description String?
+  variants    LensVariant[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model LensVariant {
+  id           Int              @id @default(autoincrement())
+  name         String           // e.g., "Acuvue Oasys"
+  description  String?
+  lensType     LensType         @relation(fields: [lensTypeId], references: [id])
+  lensTypeId   Int
+  price        Float
+  isRx         Boolean          @default(false) // true = requires PO
+  stock        Int              @default(0)     // for in-stock items
+  minStock     Int              @default(5)     // minimum stock threshold
+  saleOrders   SaleOrderItem[]
+  poItems      POItem[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([lensTypeId])
+}
+
+// Forward declarations for related models
+enum SaleOrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PRODUCTION
+  READY_FOR_DISPATCH
+  DELIVERED
+}
+
+model SaleOrder {
+  id             Int             @id @default(autoincrement())
+  customerId     Int
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  status         SaleOrderStatus @default(DRAFT)
+  fittingType    String?        // "Free Fitting" or null
+  items          SaleOrderItem[]
+  invoice        Invoice?        @relation(fields: [invoiceId], references: [id])
+  invoiceId      Int?
+  purchaseOrders PurchaseOrder[]
+  dispatch       DispatchCopy?   @relation(fields: [dispatchId], references: [id])
+  dispatchId     Int?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([invoiceId])
+  @@index([dispatchId])
+}
+
+model SaleOrderItem {
+  id            Int         @id @default(autoincrement())
+  saleOrderId   Int
+  saleOrder     SaleOrder   @relation(fields: [saleOrderId], references: [id])
+  lensVariantId Int
+  lensVariant   LensVariant @relation(fields: [lensVariantId], references: [id])
+  quantity      Int         @default(1)
+  price         Float       // Price at time of sale
+  discount      Float       @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([saleOrderId])
+  @@index([lensVariantId])
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  CHECK
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  invoiceNo   String        @unique // e.g., INV-2025-001
+  status      InvoiceStatus @default(DRAFT)
+  saleOrders  SaleOrder[]
+  totalAmount Float
+  paidAmount  Float         @default(0)
+  dueDate     DateTime
+  payments    Payment[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  invoiceId     Int
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  amount        Float
+  method        PaymentMethod
+  referenceNo   String?       // For UPI/Card/Bank transactions
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([invoiceId])
+}
+
+enum POStatus {
+  PENDING
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id          Int         @id @default(autoincrement())
+  poNumber    String      @unique  // e.g., PO-2025-001
+  vendorId    Int
+  vendor      Vendor      @relation(fields: [vendorId], references: [id])
+  status      POStatus    @default(PENDING)
+  totalValue  Float
+  notes       String?
+  items       POItem[]
+  saleOrderId Int?
+  saleOrder   SaleOrder?  @relation(fields: [saleOrderId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([vendorId])
+  @@index([saleOrderId])
+}
+
+enum DispatchStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+}
+
+model DispatchCopy {
+  id            Int            @id @default(autoincrement())
+  dcNumber      String         @unique // e.g., DC-2025-001
+  customerId    Int
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  status        DispatchStatus @default(PENDING)
+  notes         String?
+  vehicleNumber String?
+  driverName    String?
+  driverContact String?
+  deliveryNotes String?
+  saleOrders    SaleOrder[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([customerId])
+}
+
+model POItem {
+  id              Int           @id @default(autoincrement())
+  purchaseOrderId Int
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  lensVariantId   Int
+  lensVariant     LensVariant   @relation(fields: [lensVariantId], references: [id])
+  quantity        Int
+  price           Float         // Purchase price
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([lensVariantId])
+}

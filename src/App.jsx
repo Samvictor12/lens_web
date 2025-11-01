@@ -1,0 +1,67 @@
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AppLayout } from "@/components/layout/AppLayout";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import SaleOrders from "./pages/SaleOrders";
+import Customers from "./pages/Customers";
+import Inventory from "./pages/Inventory";
+import PurchaseOrders from "./pages/PurchaseOrders";
+import Dispatch from "./pages/Dispatch";
+import Billing from "./pages/Billing";
+import Payments from "./pages/Payments";
+import Expenses from "./pages/Expenses";
+import Reports from "./pages/Reports";
+import Vendors from "./pages/Vendors";
+import NotFound from "./pages/NotFound";
+
+const queryClient = new QueryClient();
+
+const ProtectedRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return <AppLayout>{children}</AppLayout>;
+};
+
+const AppRoutes = () => (
+  <BrowserRouter>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
+      <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+      <Route path="/inventory/stock" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+      <Route path="/inventory/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
+      <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
+      <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
+      <Route path="/accounts/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+      <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  </BrowserRouter>
+);
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <AppRoutes />
+      </AuthProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
+
+
+
+
