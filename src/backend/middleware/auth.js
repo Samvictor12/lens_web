@@ -10,7 +10,7 @@ export const authenticateToken = async (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({
-        success,
+        success: false,
         message: 'Authentication token is required'
       });
     }
@@ -19,11 +19,11 @@ export const authenticateToken = async (req, res, next) => {
 
     // Get user with role and permissions
     const user = await prisma.user.findUnique({
-      where: { id.userId },
+      where: { id: decoded.userId },
       include: {
         role: {
           include: {
-            permissions
+            permissions: true
           }
         }
       }
@@ -31,7 +31,7 @@ export const authenticateToken = async (req, res, next) => {
 
     if (!user) {
       return res.status(401).json({
-        success,
+        success: false,
         message: 'User not found'
       });
     }
@@ -41,14 +41,14 @@ export const authenticateToken = async (req, res, next) => {
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
       return res.status(401).json({
-        success,
+        success: false,
         message: 'Invalid token'
       });
     }
     
     console.error('Authentication error:', error);
     return res.status(500).json({
-      success,
+      success: false,
       message: 'Internal server error'
     });
   }
@@ -58,14 +58,14 @@ export const requireRole = (allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
-        success,
+        success: false,
         message: 'Authentication required'
       });
     }
 
     if (!allowedRoles.includes(req.user.role.name)) {
       return res.status(403).json({
-        success,
+        success: false,
         message: 'Insufficient permissions'
       });
     }
@@ -78,7 +78,7 @@ export const checkPermission = (action, subject) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
-        success,
+        success: false,
         message: 'Authentication required'
       });
     }
@@ -92,7 +92,7 @@ export const checkPermission = (action, subject) => {
 
     if (!hasPermission) {
       return res.status(403).json({
-        success,
+        success: false,
         message: 'Insufficient permissions'
       });
     }

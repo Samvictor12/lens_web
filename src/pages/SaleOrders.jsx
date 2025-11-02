@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import SaleOrderForm from "@/components/forms/SaleOrderForm";
 import { dummySaleOrders, dummyCustomers } from "@/lib/dummyData";
 
 export default function SaleOrders() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const navigate = useNavigate();
 
   const orders = dummySaleOrders.map((order) => ({
     ...order,
@@ -40,20 +39,8 @@ export default function SaleOrders() {
     returned: "bg-destructive/10 text-destructive border-destructive/20",
   };
 
-  const handleCreateOrder = (orderData) => {
-    // Here you would typically send the data to your API
-    console.log("Creating order:", orderData);
-    
-    // For now, just show a success message and close the form
-    alert("Sale order created successfully!");
-    setShowForm(false);
-    
-    // In a real app, you would refresh the orders list
-    // or update the local state with the new order
-  };
-
-  const handleCancelForm = () => {
-    setShowForm(false);
+  const handleCreateNewOrder = () => {
+    navigate("/sales/orders/new");
   };
 
   return (
@@ -65,20 +52,10 @@ export default function SaleOrders() {
             Manage all customer orders
           </p>
         </div>
-        <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[90%] w-fit max-h-[90%]  overflow-y-auto p-0">
-            <SaleOrderForm 
-              onSubmit={handleCreateOrder}
-              onCancel={handleCancelForm}
-            />
-          </DialogContent>
-        </Dialog>
+        <Button className="gap-2" onClick={handleCreateNewOrder}>
+          <Plus className="h-4 w-4" />
+          New Order
+        </Button>
       </div>
 
       <Card className="p-4">

@@ -44,7 +44,7 @@ export const AppHeader = () => {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2">
+            <Button variant="ghost" className="flex items-center gap-2 hover:bg-sidebar-accent/50">
               <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
                 {user?.name.charAt(0)}
               </div>

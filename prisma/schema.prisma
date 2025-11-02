@@ -105,18 +105,79 @@ model SaleOrder {
   customerId     Int
   customer       Customer        @relation(fields: [customerId], references: [id])
   status         SaleOrderStatus @default(DRAFT)
-  fittingType    String?        // "Free Fitting" or null
+  
+  // Basic order information
+  customerRefNo  String?         // Customer reference number
+  orderDate      DateTime        @default(now())
+  type           String?         // "Normal Processing", "Rush Processing", "Premium Processing"
+  deliverySchedule DateTime?
+  remark         String?
+  itemRefNo      String?
+  freeLens       Boolean         @default(false)
+  
+  // Lens details
+  lensName       String?
+  category       String?         // "Single Vision", "BiFocal", "Progressive", "Reading"
+  lensType       String?         // "Glass", "Plastic", "Polycarbonate", "Trivex"
+  dia            String?
+  fittingType    String?         // "Standard", "Premium", "Custom"
+  coatingType    String?         // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
+  coatingName    String?         // "CLAIRITE", "CRIZAL", "ULTRA", "PREMIUM"
+  tintingName    String?         // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
+  
+  // Eye selection
+  rightEye       Boolean         @default(false)
+  leftEye        Boolean         @default(false)
+  
+  // Right eye specifications
+  rightSpherical   String?
+  rightCylindrical String?
+  rightAxis        String?
+  rightAdd         String?
+  rightDia         String?
+  rightBase        String?
+  rightBaseSize    String?
+  rightBled        String?
+  
+  // Left eye specifications
+  leftSpherical    String?
+  leftCylindrical  String?
+  leftAxis         String?
+  leftAdd          String?
+  leftDia          String?
+  leftBase         String?
+  leftBaseSize     String?
+  leftBled         String?
+  
+  // Dispatch information
+  dispatchStatus   String?         @default("Pending") // "Pending", "Assigned", "In Transit", "Delivered"
+  assignedPerson   String?
+  dispatchId       String?
+  estimatedDate    DateTime?
+  estimatedTime    String?
+  actualDate       DateTime?
+  actualTime       String?
+  dispatchNotes    String?
+  
+  // Billing information
+  lensPrice        Float           @default(0)
+  coatingPrice     Float           @default(0)
+  fittingPrice     Float           @default(0)
+  tintingPrice     Float           @default(0)
+  discount         Float           @default(0) // Percentage discount
+  
+  // Relations
   items          SaleOrderItem[]
   invoice        Invoice?        @relation(fields: [invoiceId], references: [id])
   invoiceId      Int?
   purchaseOrders PurchaseOrder[]
-  dispatch       DispatchCopy?   @relation(fields: [dispatchId], references: [id])
-  dispatchId     Int?
+  dispatch       DispatchCopy?   @relation(fields: [dispatchCopyId], references: [id])
+  dispatchCopyId Int?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@index([invoiceId])
-  @@index([dispatchId])
+  @@index([dispatchCopyId])
 }
 
 model SaleOrderItem {

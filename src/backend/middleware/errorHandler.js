@@ -1,26 +1,18 @@
-import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 
 // Custom error class for API errors
 export class APIError extends Error {
-  constructor(
-    public statusCode,
-    message,
-    public code?,
-    public details?
-  ) {
+  constructor(statusCode, message, code, details) {
     super(message);
     this.name = 'APIError';
+    this.statusCode = statusCode;
+    this.code = code;
+    this.details = details;
   }
 }
 
-export const errorHandler = (
-  error,
-  req,
-  res,
-  next
-) => {
+export const errorHandler = (error, req, res, next) => {
   console.error('Error:', error);
 
   // Handle Prisma errors
@@ -31,7 +23,7 @@ export const errorHandler = (
           status: 'error',
           code: 'UNIQUE_CONSTRAINT_VIOLATION',
           message: 'A record with this value already exists.',
-          details.meta
+          details: error.meta
         });
       
       case 'P2014': // Required relation violation
@@ -39,7 +31,7 @@ export const errorHandler = (
           status: 'error',
           code: 'INVALID_RELATION',
           message: 'Invalid or missing required relation.',
-          details.meta
+          details: error.meta
         });
       
       case 'P2003': // Foreign key constraint violation
@@ -47,7 +39,7 @@ export const errorHandler = (
           status: 'error',
           code: 'FOREIGN_KEY_VIOLATION',
           message: 'Invalid reference to a related record.',
-          details.meta
+          details: error.meta
         });
       
       case 'P2025': // Record not found
@@ -55,7 +47,7 @@ export const errorHandler = (
           status: 'error',
           code: 'RECORD_NOT_FOUND',
           message: 'The requested record was not found.',
-          details.meta
+          details: error.meta
         });
 
       default:
@@ -63,11 +55,11 @@ export const errorHandler = (
           status: 'error',
           code: 'DATABASE_ERROR',
           message: 'An error occurred while accessing the database.',
-          details.env.NODE_ENV === 'development' ? {
-            code.code,
-            meta.meta,
-            message.message
-          } 
+          details: process.env.NODE_ENV === 'development' ? {
+            code: error.code,
+            meta: error.meta,
+            message: error.message
+          } : undefined
         });
     }
   }
@@ -78,7 +70,7 @@ export const errorHandler = (
       status: 'error',
       code: 'VALIDATION_ERROR',
       message: 'Invalid request data.',
-      details.errors.map(e => ({
+      details: error.errors.map(e => ({
         field: e.path.join('.'),
         message: e.message,
         code: e.code
@@ -90,9 +82,9 @@ export const errorHandler = (
   if (error instanceof APIError) {
     return res.status(error.statusCode).json({
       status: 'error',
-      code.code || 'API_ERROR',
-      message.message,
-      details.details
+      code: error.code || 'API_ERROR',
+      message: error.message,
+      details: error.details
     });
   }
 
@@ -117,13 +109,13 @@ export const errorHandler = (
   return res.status(500).json({
     status: 'error',
     code: 'INTERNAL_SERVER_ERROR',
-    message.env.NODE_ENV === 'development' 
+    message: process.env.NODE_ENV === 'development' 
       ? error.message 
       : 'An unexpected error occurred.',
-    details.env.NODE_ENV === 'development' ? {
-      name.name,
-      stack.stack
-    } 
+    details: process.env.NODE_ENV === 'development' ? {
+      name: error.name,
+      stack: error.stack
+    } : undefined
   });
 };
 

@@ -8,6 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import SaleOrders from "./pages/SaleOrders";
+import CreateSaleOrder from "./pages/CreateSaleOrder";
 import Customers from "./pages/Customers";
 import Inventory from "./pages/Inventory";
 import PurchaseOrders from "./pages/PurchaseOrders";
@@ -34,6 +35,7 @@ const AppRoutes = () => (
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
+      <Route path="/sales/orders/new" element={<ProtectedRoute><CreateSaleOrder /></ProtectedRoute>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/inventory/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />

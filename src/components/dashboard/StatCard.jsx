@@ -15,8 +15,8 @@ export const StatCard = ({
   
   return (
     <Card className={finalCardClasses}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground w-fit">
           {title}
         </CardTitle>
         <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
