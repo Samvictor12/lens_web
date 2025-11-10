@@ -8,23 +8,23 @@ export const StatCard = ({
   trend,
   className,
 }) => {
-  const cardClasses = "shadow-card hover:shadow-md transition-shadow";
+  const cardClasses = "shadow-sm hover:shadow-md transition-shadow";
   const finalCardClasses = className ? `${cardClasses} ${className}` : cardClasses;
   
-  const trendClasses = trend?.isPositive ? "text-xs mt-1 text-success" : "text-xs mt-1 text-destructive";
+  const trendClasses = trend?.isPositive ? "text-xs mt-0.5 text-success" : "text-xs mt-0.5 text-destructive";
   
   return (
     <Card className={finalCardClasses}>
-      <CardHeader className="flex flex-row pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground w-fit">
+      <CardHeader className="flex flex-row pb-1.5 p-3">
+        <CardTitle className="text-xs font-medium text-muted-foreground w-fit">
           {title}
         </CardTitle>
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          <CiAirportSign1 />
+        <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+          <CiAirportSign1 className="h-3.5 w-3.5" />
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-foreground">{value}</div>
+      <CardContent className="p-3 pt-0">
+        <div className="text-lg sm:text-xl font-bold text-foreground">{value}</div>
         {trend && (
           <p className={trendClasses}>
             {trend.isPositive ? "↑" : "↓"} {trend.value}
