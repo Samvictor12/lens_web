@@ -1,7 +1,7 @@
 import * as React from "react";
 
 const Card = React.forwardRef(({ className, ...props }, ref) => {
-  const cardClasses = "rounded-lg border bg-card text-card-foreground shadow-sm";
+  const cardClasses = "rounded-lg border bg-card text-card-foreground shadow-sm p-6";
   const finalClasses = className ? `${cardClasses} ${className}` : cardClasses;
   
   return (

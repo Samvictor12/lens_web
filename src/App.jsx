@@ -9,7 +9,8 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import SaleOrders from "./pages/SaleOrders";
 import CreateSaleOrder from "./pages/CreateSaleOrder";
-import Customers from "./pages/Customers";
+import Customers from "./pages/Customer/Customers";
+import CustomerForm from "./pages/Customer/CustomerForm";
 import Inventory from "./pages/Inventory";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Dispatch from "./pages/Dispatch";
@@ -37,6 +38,8 @@ const AppRoutes = () => (
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
       <Route path="/sales/orders/new" element={<ProtectedRoute><CreateSaleOrder /></ProtectedRoute>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+      <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
+      <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/inventory/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
