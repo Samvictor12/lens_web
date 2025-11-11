@@ -168,52 +168,113 @@ async function main() {
     }),
   ]);
 
+  // Get admin user for relationships
+  const adminUser = await prisma.user.findFirst({
+    where: { email: 'admin@lensbilling.com' }
+  });
+
   // Create Vendors
   const vendors = await Promise.all([
     prisma.vendor.create({
       data: {
         name: 'OptiLens Suppliers',
-        contactPerson: 'John Smith',
+        code: 'VEND-001',
+        shopname: 'OptiLens Store',
         phone: '+91-9876543210',
         email: 'john@optilens.com',
         address: '123 Lens Street, Mumbai',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pincode: '400001',
+        category: 'Lens Supplier',
+        gstin: '27AAAAA0000A1Z5',
+        active_status: true,
+        delete_status: false,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
       },
     }),
     prisma.vendor.create({
       data: {
         name: 'Vision Care Products',
-        contactPerson: 'Sarah Johnson',
+        code: 'VEND-002',
+        shopname: 'Vision Care Hub',
         phone: '+91-9876543211',
         email: 'sarah@visioncare.com',
         address: '456 Eye Road, Delhi',
+        city: 'Delhi',
+        state: 'Delhi',
+        pincode: '110001',
+        category: 'Eye Care Products',
+        gstin: '07BBBBB0000B2Z6',
+        active_status: true,
+        delete_status: false,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
       },
     }),
   ]);
 
-  // Create Customers
+  // Create Customers  
   await Promise.all([
     prisma.customer.create({
       data: {
         name: 'Rahul Kumar',
+        code: 'CUST-001',
+        shopname: 'Rahul Opticals',
         phone: '+91-9876543212',
         email: 'rahul@gmail.com',
         address: '789 Customer Lane, Chennai',
+        city: 'Chennai',
+        state: 'Tamil Nadu',
+        pincode: '600001',
+        gstin: '33CCCCC0000C3Z7',
+        credit_limit: 50000,
+        outstanding_credit: 15000,
+        active_status: true,
+        delete_status: false,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
       },
     }),
     prisma.customer.create({
       data: {
         name: 'Priya Singh',
+        code: 'CUST-002',
+        shopname: 'Priya Eye Care',
         phone: '+91-9876543213',
         email: 'priya@gmail.com',
         address: '321 Client Road, Bangalore',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        pincode: '560001',
+        gstin: '29DDDDD0000D4Z8',
+        credit_limit: 30000,
+        outstanding_credit: 8000,
+        active_status: true,
+        delete_status: false,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
       },
     }),
     prisma.customer.create({
       data: {
         name: 'Amit Patel',
+        code: 'CUST-003',
+        shopname: 'Amit Vision Center',
         phone: '+91-9876543214',
         email: 'amit@gmail.com',
         address: '654 Buyer Street, Hyderabad',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        pincode: '500001',
+        gstin: '36EEEEE0000E5Z9',
+        credit_limit: 75000,
+        outstanding_credit: 22000,
+        active_status: true,
+        delete_status: false,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
       },
     }),
   ]);

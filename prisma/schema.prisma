@@ -11,14 +11,20 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  roleId    Int
-  role      Role     @relation(fields: [roleId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 Int        @id @default(autoincrement())
+  name               String
+  email              String     @unique
+  password           String
+  roleId             Int
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  // Relationship Fields
+  role               Role       @relation(fields: [roleId], references: [id])
+  // Relationship Tables
+  vendorUserCreate   Vendor[]   @relation("vendorUserCreate")
+  vendorUserUpdate   Vendor[]   @relation("vendorUserUpdate")
+  customerUserCreate Customer[] @relation("customerUserCreate")
+  customerUserUpdate Customer[] @relation("customerUserUpdate")
 }
 
 model Role {
@@ -40,43 +46,72 @@ model Permission {
   updatedAt DateTime @updatedAt
 }
 
+model businessCategory {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  customers Customer[] @relation("customerCategory")
+}
+
 model Customer {
-  id             Int            @id @default(autoincrement())
-  name           String
-  phone          String?
-  email          String?        @unique
-  address        String?
-  city           String?
-  state          String?
-  pincode        String?
-  catagory       String?
-  gstin          String?
-  credit_limit   String?
-  status         String?
-  notes          String?
-  saleOrders     SaleOrder[]
-  dispatchCopies DispatchCopy[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                  Int               @id @default(autoincrement())
+  code                String            @unique // e.g., "CUST-001"
+  name                String
+  shopname            String?
+  phone               String?
+  email               String
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
+  businessCategory_id Int?
+  gstin               String?
+  credit_limit        Int?
+  outstanding_credit  Int?
+  notes               String?
+  // Default fields
+  active_status       Boolean           @default(true)
+  delete_status       Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  createdBy           Int
+  updatedAt           DateTime          @updatedAt
+  updatedBy           Int?
+  // Relationship Fields
+  categoryRel         businessCategory? @relation("customerCategory", fields: [businessCategory_id], references: [id])
+  usercreate          User              @relation("customerUserCreate", fields: [createdBy], references: [id])
+  userupdate          User?             @relation("customerUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  saleOrders          SaleOrder[]
+  dispatchCopies      DispatchCopy[]
 }
 
 model Vendor {
   id             Int             @id @default(autoincrement())
+  code           String          @unique // e.g., "VEND-001"
   name           String
+  shopname       String?
   phone          String?
-  email          String?         @unique
+  email          String
   address        String?
   city           String?
   state          String?
   pincode        String?
-  catagory       String?
+  category       String?
   gstin          String?
-  credit_limit   String?
-  status         String?
+  // Default fields
+  active_status  Boolean         @default(true)
+  delete_status  Boolean         @default(false)
   notes          String?
-  purchaseOrders PurchaseOrder[]
   createdAt      DateTime        @default(now())
+  createdBy      Int
   updatedAt      DateTime        @updatedAt
+  updatedBy      Int
+  // Relationship Fields
+  usercreate     User            @relation("vendorUserCreate", fields: [createdBy], references: [id])
+  userupdate     User            @relation("vendorUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  purchaseOrders PurchaseOrder[]
 }
 
 model LensType {

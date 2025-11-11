@@ -31,17 +31,34 @@ export class CustomerMasterService {
       const customerMaster = await prisma.customer.create({
         data: {
           name: customerData.name,
+          code: customerData.code,
+          shopname: customerData.shopname,
           phone: customerData.phone,
           email: customerData.email,
           address: customerData.address,
           city: customerData.city,
           state: customerData.state,
           pincode: customerData.pincode,
-          catagory: customerData.catagory,
+          businessCategory_id: customerData.businessCategory_id,
           gstin: customerData.gstin,
           credit_limit: customerData.credit_limit,
-          status: customerData.status,
-          notes: customerData.notes
+          outstanding_credit: customerData.outstanding_credit,
+          active_status: customerData.active_status,
+          delete_status: customerData.delete_status || false,
+          notes: customerData.notes,
+          createdBy: customerData.createdBy,
+          updatedBy: customerData.updatedBy
+        },
+        include: {
+          usercreate: {
+            select: { id: true, name: true, email: true }
+          },
+          userupdate: {
+            select: { id: true, name: true, email: true }
+          },
+          categoryRel: {
+            select: { id: true, name: true }
+          }
         }
       });
 
@@ -74,6 +91,13 @@ export class CustomerMasterService {
         };
       }
       
+      if (filters.code) {
+        where.code = {
+          contains: filters.code,
+          mode: 'insensitive'
+        };
+      }
+      
       if (filters.city) {
         where.city = {
           contains: filters.city,
@@ -81,11 +105,8 @@ export class CustomerMasterService {
         };
       }
       
-      if (filters.catagory) {
-        where.catagory = {
-          contains: filters.catagory,
-          mode: 'insensitive'
-        };
+      if (filters.businessCategory_id) {
+        where.businessCategory_id = filters.businessCategory_id;
       }
       
       if (filters.email) {
@@ -101,11 +122,13 @@ export class CustomerMasterService {
         };
       }
 
-      if (filters.status) {
-        where.status = {
-          contains: filters.status,
-          mode: 'insensitive'
-        };
+      if (filters.active_status !== undefined) {
+        where.active_status = filters.active_status;
+      }
+
+      // Always filter out deleted records unless specifically requested
+      if (!filters.includeDeleted) {
+        where.delete_status = false;
       }
 
       // Calculate offset
@@ -121,6 +144,17 @@ export class CustomerMasterService {
         take: limit,
         orderBy: {
           [sortBy]: sortOrder
+        },
+        include: {
+          usercreate: {
+            select: { id: true, name: true, email: true }
+          },
+          userupdate: {
+            select: { id: true, name: true, email: true }
+          },
+          categoryRel: {
+            select: { id: true, name: true }
+          }
         }
       });
 
@@ -152,6 +186,15 @@ export class CustomerMasterService {
       const customerMaster = await prisma.customer.findUnique({
         where: { id },
         include: {
+          usercreate: {
+            select: { id: true, name: true, email: true }
+          },
+          userupdate: {
+            select: { id: true, name: true, email: true }
+          },
+          categoryRel: {
+            select: { id: true, name: true }
+          },
           _count: {
             select: {
               saleOrders: true
@@ -208,10 +251,7 @@ export class CustomerMasterService {
       // Update the customer master
       const updatedCustomer = await prisma.customer.update({
         where: { id },
-        data: {
-          ...updateData,
-          credit_limit: updateData.credit_limit?.toString() || existingCustomer.credit_limit
-        }
+        data: updateData
       });
 
       return updatedCustomer;
@@ -225,11 +265,12 @@ export class CustomerMasterService {
   }
 
   /**
-   * Delete customer master
+   * Delete customer master (soft delete)
    * @param {number} id - Customer master ID
+   * @param {number} updatedBy - User ID performing the deletion
    * @returns {Promise<boolean>} Deletion success
    */
-  async deleteCustomerMaster(id) {
+  async deleteCustomerMaster(id, updatedBy) {
     try {
       // Check if customer master exists
       const existingCustomer = await prisma.customer.findUnique({
@@ -247,14 +288,23 @@ export class CustomerMasterService {
         throw new APIError(404, 'Customer master not found', 'CUSTOMER_MASTER_NOT_FOUND');
       }
 
+      if (existingCustomer.delete_status) {
+        throw new APIError(400, 'Customer is already deleted', 'CUSTOMER_ALREADY_DELETED');
+      }
+
       // Check if customer has any sale orders
       if (existingCustomer._count.saleOrders > 0) {
         throw new APIError(400, 'Cannot delete customer with existing sale orders', 'CUSTOMER_HAS_ORDERS');
       }
 
-      // Delete the customer master
-      await prisma.customer.delete({
-        where: { id }
+      // Soft delete the customer master
+      await prisma.customer.update({
+        where: { id },
+        data: {
+          delete_status: true,
+          active_status: false,
+          updatedBy: updatedBy
+        }
       });
 
       return true;
@@ -295,9 +345,14 @@ export class CustomerMasterService {
   async getCustomerDropdown() {
     try {
       const customers = await prisma.customer.findMany({
+        where: {
+          active_status: true,
+          delete_status: false
+        },
         select: {
           id: true,
           name: true,
+          code: true,
           city: true,
           phone: true
         },
@@ -308,8 +363,9 @@ export class CustomerMasterService {
 
       return customers.map(customer => ({
         id: customer.id,
-        label: `${customer.name}${customer.city ? ` (${customer.city})` : ''}`,
+        label: `${customer.name} (${customer.code})${customer.city ? ` - ${customer.city}` : ''}`,
         value: customer.id,
+        code: customer.code,
         phone: customer.phone
       }));
     } catch (error) {

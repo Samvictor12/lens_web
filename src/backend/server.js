@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 // Route imports
 import saleOrderRoutes from './routes/saleOrders.js';
 import customerMasterRoutes from './routes/customerMaster.js';
+import vendorMasterRoutes from './routes/vendorMaster.js';
 
 // Load environment variables
 dotenv.config();
@@ -68,6 +69,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // Routes
 app.use('/api/sale-orders', saleOrderRoutes);
 app.use('/api/customer-master', customerMasterRoutes);
+app.use('/api/vendor-master', vendorMasterRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
@@ -93,6 +95,7 @@ app.listen(PORT, () => {
   console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
   console.log(`Sale Orders API: http://localhost:${PORT}/api/sale-orders`);
   console.log(`Customer Master API: http://localhost:${PORT}/api/customer-master`);
+  console.log(`Vendor Master API: http://localhost:${PORT}/api/vendor-master`);
 });
 
 

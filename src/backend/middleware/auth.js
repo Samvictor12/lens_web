@@ -45,7 +45,7 @@ export const authenticateToken = async (req, res, next) => {
         message: 'Invalid token'
       });
     }
-    
+
     console.error('Authentication error:', error);
     return res.status(500).json({
       success: false,
