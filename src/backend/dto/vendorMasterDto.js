@@ -1,6 +1,6 @@
 /**
- * Customer Master DTO Validation Functions
- * Manual validation for Customer Master API operations
+ * Vendor Master DTO Validation Functions
+ * Manual validation for Vendor Master API operations
  */
 
 /**
@@ -29,9 +29,9 @@ const isValidLength = (str, min = 0, max = Number.MAX_SAFE_INTEGER) => {
 };
 
 /**
- * Validate create customer master data
+ * Validate create vendor master data
  */
-export const validateCreateCustomerMaster = (data) => {
+export const validateCreateVendorMaster = (data) => {
     const errors = [];
 
     // Required fields validation
@@ -42,9 +42,9 @@ export const validateCreateCustomerMaster = (data) => {
     }
 
     if (!data.code || data.code.trim() === '') {
-        errors.push({ field: 'code', message: 'Customer code is required' });
+        errors.push({ field: 'code', message: 'Vendor code is required' });
     } else if (!isValidLength(data.code, 1, 50)) {
-        errors.push({ field: 'code', message: 'Customer code must be between 1 and 50 characters' });
+        errors.push({ field: 'code', message: 'Vendor code must be between 1 and 50 characters' });
     }
 
     if (!data.email || data.email.trim() === '') {
@@ -87,11 +87,8 @@ export const validateCreateCustomerMaster = (data) => {
         errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
     }
 
-    if (data.businessCategory_id !== undefined && data.businessCategory_id !== null && data.businessCategory_id !== '') {
-        const categoryId = parseInt(data.businessCategory_id);
-        if (isNaN(categoryId) || categoryId <= 0) {
-            errors.push({ field: 'businessCategory_id', message: 'Business category ID must be a valid positive number' });
-        }
+    if (data.category && !isValidLength(data.category, 0, 100)) {
+        errors.push({ field: 'category', message: 'Category must not exceed 100 characters' });
     }
 
     if (data.gstin && !isValidLength(data.gstin, 0, 15)) {
@@ -104,22 +101,6 @@ export const validateCreateCustomerMaster = (data) => {
 
     if (data.notes && !isValidLength(data.notes, 0, 1000)) {
         errors.push({ field: 'notes', message: 'Notes must not exceed 1000 characters' });
-    }
-
-    // Validate credit_limit if provided
-    if (data.credit_limit !== undefined && data.credit_limit !== null && data.credit_limit !== '') {
-        const creditLimit = parseInt(data.credit_limit);
-        if (isNaN(creditLimit) || creditLimit < 0) {
-            errors.push({ field: 'credit_limit', message: 'Credit limit must be a valid positive number' });
-        }
-    }
-
-    // Validate outstanding_credit if provided
-    if (data.outstanding_credit !== undefined && data.outstanding_credit !== null && data.outstanding_credit !== '') {
-        const outstandingCredit = parseInt(data.outstanding_credit);
-        if (isNaN(outstandingCredit) || outstandingCredit < 0) {
-            errors.push({ field: 'outstanding_credit', message: 'Outstanding credit must be a valid positive number' });
-        }
     }
 
     return {
@@ -135,22 +116,20 @@ export const validateCreateCustomerMaster = (data) => {
             city: data.city?.trim() || null,
             state: data.state?.trim() || null,
             pincode: data.pincode?.trim() || null,
-            businessCategory_id: data.businessCategory_id ? parseInt(data.businessCategory_id) : null,
+            category: data.category?.trim() || null,
             gstin: data.gstin?.trim() || null,
-            credit_limit: data.credit_limit ? parseInt(data.credit_limit) : null,
-            outstanding_credit: data.outstanding_credit ? parseInt(data.outstanding_credit) : null,
             active_status: data.active_status !== undefined ? data.active_status : true, // Default to true
             delete_status: false, // Default to false for new records
             notes: data.notes?.trim() || null,
-            createdBy: parseInt(data.createdBy),
+            createdBy: parseInt(data.createdBy)
         } : null
     };
 };
 
 /**
- * Validate update customer master data
+ * Validate update vendor master data
  */
-export const validateUpdateCustomerMaster = (data) => {
+export const validateUpdateVendorMaster = (data) => {
     const errors = [];
 
     // updatedBy is required for updates
@@ -204,11 +183,8 @@ export const validateUpdateCustomerMaster = (data) => {
         errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
     }
 
-    if (data.businessCategory_id !== undefined && data.businessCategory_id !== null && data.businessCategory_id !== '') {
-        const categoryId = parseInt(data.businessCategory_id);
-        if (isNaN(categoryId) || categoryId <= 0) {
-            errors.push({ field: 'businessCategory_id', message: 'Business category ID must be a valid positive number' });
-        }
+    if (data.category !== undefined && data.category && !isValidLength(data.category, 0, 100)) {
+        errors.push({ field: 'category', message: 'Category must not exceed 100 characters' });
     }
 
     if (data.gstin !== undefined && data.gstin && !isValidLength(data.gstin, 0, 15)) {
@@ -223,33 +199,15 @@ export const validateUpdateCustomerMaster = (data) => {
         errors.push({ field: 'notes', message: 'Notes must not exceed 1000 characters' });
     }
 
-    // Validate credit_limit if provided
-    if (data.credit_limit !== undefined && data.credit_limit !== null && data.credit_limit !== '') {
-        const creditLimit = parseInt(data.credit_limit);
-        if (isNaN(creditLimit) || creditLimit < 0) {
-            errors.push({ field: 'credit_limit', message: 'Credit limit must be a valid positive number' });
-        }
-    }
-
-    // Validate outstanding_credit if provided
-    if (data.outstanding_credit !== undefined && data.outstanding_credit !== null && data.outstanding_credit !== '') {
-        const outstandingCredit = parseInt(data.outstanding_credit);
-        if (isNaN(outstandingCredit) || outstandingCredit < 0) {
-            errors.push({ field: 'outstanding_credit', message: 'Outstanding credit must be a valid positive number' });
-        }
-    }
-
     const cleanedData = {};
     Object.keys(data).forEach(key => {
         if (data[key] !== undefined) {
             if (key === 'updatedBy') {
                 cleanedData[key] = parseInt(data[key]);
-            } else if (key === 'credit_limit' || key === 'outstanding_credit' || key === 'businessCategory_id') {
-                cleanedData[key] = (data[key] ? parseInt(data[key]) : null);
             } else if (typeof data[key] === 'string') {
                 cleanedData[key] = data[key].trim();
                 // Set null for empty strings on optional fields
-                if ((key === 'shopname' || key === 'phone' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode' || key === 'gstin' || key === 'notes') && !cleanedData[key]) {
+                if ((key === 'shopname' || key === 'phone' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode' || key === 'category' || key === 'gstin' || key === 'notes') && !cleanedData[key]) {
                     cleanedData[key] = null;
                 }
             } else if (key === 'active_status' || key === 'delete_status') {
@@ -284,7 +242,7 @@ export const validateQueryParams = (query) => {
         errors.push({ field: 'limit', message: 'Limit must be between 1 and 100' });
     }
 
-    const validSortFields = ['name', 'code', 'email', 'city', 'active_status', 'createdAt'];
+    const validSortFields = ['name', 'code', 'email', 'city', 'category', 'active_status', 'createdAt'];
     const sortBy = query.sortBy || 'createdAt';
     if (!validSortFields.includes(sortBy)) {
         errors.push({ field: 'sortBy', message: 'sort field must be one of ' + validSortFields.join(', ') });
@@ -305,7 +263,7 @@ export const validateQueryParams = (query) => {
             email: query.email,
             phone: query.phone,
             city: query.city,
-            businessCategory_id: query.businessCategory_id ? parseInt(query.businessCategory_id) : undefined,
+            category: query.category,
             active_status: query.active_status === 'true' ? true : query.active_status === 'false' ? false : undefined,
             page,
             limit,
@@ -336,9 +294,9 @@ export const validateIdParam = (id) => {
 };
 
 /**
- * Validate customer email check request
+ * Validate vendor email check request
  */
-export const validateCheckCustomerEmail = (data) => {
+export const validateCheckVendorEmail = (data) => {
     const errors = [];
 
     if (!data.email || data.email.trim() === '') {
@@ -365,9 +323,9 @@ export const validateCheckCustomerEmail = (data) => {
 };
 
 export default {
-    validateCreateCustomerMaster,
-    validateUpdateCustomerMaster,
+    validateCreateVendorMaster,
+    validateUpdateVendorMaster,
     validateQueryParams,
     validateIdParam,
-    validateCheckCustomerEmail
+    validateCheckVendorEmail
 };

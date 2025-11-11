@@ -1,30 +1,30 @@
-import CustomerMasterService from '../services/customerMasterService.js';
+import VendorMasterService from '../services/vendorMasterService.js';
 import {
-  validateCreateCustomerMaster,
-  validateUpdateCustomerMaster,
+  validateCreateVendorMaster,
+  validateUpdateVendorMaster,
   validateQueryParams,
   validateIdParam,
-  validateCheckCustomerEmail
-} from '../dto/customerMasterDto.js';
+  validateCheckVendorEmail
+} from '../dto/vendorMasterDto.js';
 import { APIError } from '../middleware/errorHandler.js';
 
 /**
- * Customer Master Controller
- * Handles HTTP requests for Customer Master operations
+ * Vendor Master Controller
+ * Handles HTTP requests for Vendor Master operations
  */
-export class CustomerMasterController {
+export class VendorMasterController {
   constructor() {
-    this.customerMasterService = new CustomerMasterService();
+    this.vendorMasterService = new VendorMasterService();
   }
 
   /**
-   * Create a new customer master
-   * @route POST /api/customer-master
+   * Create a new vendor master
+   * @route POST /api/vendor-master
    */
   async create(req, res, next) {
     try {
       // Validate request body
-      const validation = validateCreateCustomerMaster(req.body);
+      const validation = validateCreateVendorMaster(req.body);
       
       if (!validation.isValid) {
         return res.status(400).json({
@@ -34,12 +34,12 @@ export class CustomerMasterController {
         });
       }
 
-      // Create customer master
-      const customerMaster = await this.customerMasterService.createCustomerMaster(validation.data);
+      // Create vendor master
+      const vendorMaster = await this.vendorMasterService.createVendorMaster(validation.data);
 
       res.status(201).json({
         success: true,
-        data: customerMaster
+        data: vendorMaster
       });
     } catch (error) {
       next(error);
@@ -47,8 +47,8 @@ export class CustomerMasterController {
   }
 
   /**
-   * Get paginated list of customer masters
-   * @route GET /api/customer-master
+   * Get paginated list of vendor masters
+   * @route GET /api/vendor-master
    */
   async list(req, res, next) {
     try {
@@ -63,8 +63,8 @@ export class CustomerMasterController {
         });
       }
 
-      // Get customer masters with pagination
-      const result = await this.customerMasterService.getCustomerMasters(validation.data);
+      // Get vendor masters with pagination
+      const result = await this.vendorMasterService.getVendorMasters(validation.data);
 
       res.json({
         success: true,
@@ -77,8 +77,8 @@ export class CustomerMasterController {
   }
 
   /**
-   * Get customer master by ID
-   * @route GET /api/customer-master/:id
+   * Get vendor master by ID
+   * @route GET /api/vendor-master/:id
    */
   async getById(req, res, next) {
     try {
@@ -93,12 +93,12 @@ export class CustomerMasterController {
         });
       }
 
-      // Get customer master by ID
-      const customerMaster = await this.customerMasterService.getCustomerMasterById(validation.data);
+      // Get vendor master by ID
+      const vendorMaster = await this.vendorMasterService.getVendorMasterById(validation.data);
 
       res.json({
         success: true,
-        data: customerMaster
+        data: vendorMaster
       });
     } catch (error) {
       next(error);
@@ -106,8 +106,8 @@ export class CustomerMasterController {
   }
 
   /**
-   * Update customer master
-   * @route PUT /api/customer-master/:id
+   * Update vendor master
+   * @route PUT /api/vendor-master/:id
    */
   async update(req, res, next) {
     try {
@@ -122,7 +122,7 @@ export class CustomerMasterController {
       }
 
       // Validate request body
-      const validation = validateUpdateCustomerMaster(req.body);
+      const validation = validateUpdateVendorMaster(req.body);
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -131,12 +131,12 @@ export class CustomerMasterController {
         });
       }
 
-      // Update customer master
-      const updatedCustomer = await this.customerMasterService.updateCustomerMaster(idValidation.data, validation.data);
+      // Update vendor master
+      const updatedVendor = await this.vendorMasterService.updateVendorMaster(idValidation.data, validation.data);
 
       res.json({
         success: true,
-        data: updatedCustomer
+        data: updatedVendor
       });
     } catch (error) {
       next(error);
@@ -144,8 +144,8 @@ export class CustomerMasterController {
   }
 
   /**
-   * Delete customer master
-   * @route DELETE /api/customer-master/:id
+   * Delete vendor master
+   * @route DELETE /api/vendor-master/:id
    */
   async delete(req, res, next) {
     try {
@@ -169,12 +169,12 @@ export class CustomerMasterController {
         });
       }
 
-      // Delete customer master
-      await this.customerMasterService.deleteCustomerMaster(validation.data, updatedBy);
+      // Delete vendor master
+      await this.vendorMasterService.deleteVendorMaster(validation.data, updatedBy);
 
       res.json({
         success: true,
-        message: 'Customer master deleted successfully'
+        message: 'Vendor master deleted successfully'
       });
     } catch (error) {
       next(error);
@@ -182,17 +182,17 @@ export class CustomerMasterController {
   }
 
   /**
-   * Get customer dropdown list
-   * @route GET /api/customer-master/dropdown
+   * Get vendor dropdown list
+   * @route GET /api/vendor-master/dropdown
    */
   async getDropdown(req, res, next) {
     try {
-      // Get customer dropdown list
-      const customers = await this.customerMasterService.getCustomerDropdown();
+      // Get vendor dropdown list
+      const vendors = await this.vendorMasterService.getVendorDropdown();
 
       res.json({
         success: true,
-        data: customers
+        data: vendors
       });
     } catch (error) {
       next(error);
@@ -200,13 +200,13 @@ export class CustomerMasterController {
   }
 
   /**
-   * Check if customer email exists
-   * @route POST /api/customer-master/check-email
+   * Check if vendor email exists
+   * @route POST /api/vendor-master/check-email
    */
-  async checkCustomerEmail(req, res, next) {
+  async checkVendorEmail(req, res, next) {
     try {
       // Validate request body
-      const validation = validateCheckCustomerEmail(req.body);
+      const validation = validateCheckVendorEmail(req.body);
       
       if (!validation.isValid) {
         return res.status(400).json({
@@ -216,7 +216,7 @@ export class CustomerMasterController {
         });
       }
 
-      const exists = await this.customerMasterService.isCustomerEmailExists(
+      const exists = await this.vendorMasterService.isVendorEmailExists(
         validation.data.email, 
         validation.data.excludeId
       );
@@ -234,18 +234,18 @@ export class CustomerMasterController {
   }
 
   /**
-   * Get customer statistics
-   * @route GET /api/customer-master/stats
+   * Get vendor statistics
+   * @route GET /api/vendor-master/stats
    */
   async getStats(req, res, next) {
     try {
-      // This could be extended to include various customer statistics
-      const totalCustomers = await this.customerMasterService.getCustomerMasters({ page: 1, limit: 1 });
+      // This could be extended to include various vendor statistics
+      const totalVendors = await this.vendorMasterService.getVendorMasters({ page: 1, limit: 1 });
       
       res.json({
         success: true,
         data: {
-          totalCustomers: totalCustomers.pagination.total,
+          totalVendors: totalVendors.pagination.total,
           // Add more statistics as needed
         }
       });
@@ -255,4 +255,4 @@ export class CustomerMasterController {
   }
 }
 
-export default CustomerMasterController;
+export default VendorMasterController;

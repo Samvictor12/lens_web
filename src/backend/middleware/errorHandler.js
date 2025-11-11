@@ -25,7 +25,7 @@ export const errorHandler = (error, req, res, next) => {
           message: 'A record with this value already exists.',
           details: error.meta
         });
-      
+
       case 'P2014': // Required relation violation
         return res.status(400).json({
           status: 'error',
@@ -33,7 +33,7 @@ export const errorHandler = (error, req, res, next) => {
           message: 'Invalid or missing required relation.',
           details: error.meta
         });
-      
+
       case 'P2003': // Foreign key constraint violation
         return res.status(400).json({
           status: 'error',
@@ -41,7 +41,7 @@ export const errorHandler = (error, req, res, next) => {
           message: 'Invalid reference to a related record.',
           details: error.meta
         });
-      
+
       case 'P2025': // Record not found
         return res.status(404).json({
           status: 'error',
@@ -109,8 +109,8 @@ export const errorHandler = (error, req, res, next) => {
   return res.status(500).json({
     status: 'error',
     code: 'INTERNAL_SERVER_ERROR',
-    message: process.env.NODE_ENV === 'development' 
-      ? error.message 
+    message: process.env.NODE_ENV === 'development'
+      ? error.message
       : 'An unexpected error occurred.',
     details: process.env.NODE_ENV === 'development' ? {
       name: error.name,
