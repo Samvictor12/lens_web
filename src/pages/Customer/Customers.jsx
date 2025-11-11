@@ -136,6 +136,13 @@ export default function Customers() {
     });
   }, [searchQuery, filters]);
 
+  // Paginated data for current view
+  const paginatedCustomers = useMemo(() => {
+    const startIndex = pageIndex * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredCustomers.slice(startIndex, endIndex);
+  }, [filteredCustomers, pageIndex, pageSize]);
+
   const handleUpload = () => {
     const input = document.createElement("input");
     input.type = "file";
@@ -234,7 +241,7 @@ export default function Customers() {
       {view === "table" && (
         <div className="flex-1 min-h-0">
           <Table
-            data={filteredCustomers}
+            data={paginatedCustomers}
             columns={columns}
             pageIndex={pageIndex}
             pageSize={pageSize}
@@ -255,9 +262,9 @@ export default function Customers() {
 
       {/* Card View */}
       {view === "card" && (
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 min-h-0">
           <CardGrid
-            items={filteredCustomers}
+            items={paginatedCustomers}
             renderCard={(customer) => (
               <CustomerCard
                 customer={customer}
@@ -266,6 +273,15 @@ export default function Customers() {
             )}
             isLoading={isLoading}
             emptyMessage="No customers found"
+            pagination={true}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalCount={filteredCustomers.length}
+            onPageChange={setPageIndex}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPageIndex(0);
+            }}
           />
         </div>
       )}

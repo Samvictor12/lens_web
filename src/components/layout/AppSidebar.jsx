@@ -25,11 +25,14 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 // import { UserRole } from "@/types";
-
-
 
 const navItems = [
   {
@@ -44,12 +47,7 @@ const navItems = [
     icon: ShoppingCart,
     allowedRoles: ["admin", "sales"],
   },
-  {
-    title: "Customers",
-    url: "/sales/customers",
-    icon: Users,
-    allowedRoles: ["admin", "sales", "accounts"],
-  },
+
   {
     title: "Inventory",
     url: "/inventory/stock",
@@ -96,6 +94,12 @@ const navItems = [
 
 const masterItems = [
   {
+    title: "Customers",
+    url: "/sales/customers",
+    icon: Users,
+    allowedRoles: ["admin", "sales", "accounts"],
+  },
+  {
     title: "Vendors",
     url: "/masters/vendors",
     icon: Building,
@@ -138,16 +142,28 @@ export const AppSidebar = () => {
 
   return (
     <TooltipProvider>
-      <Sidebar className={state === "collapsed" ? "w-14" : "w-64"} collapsible="icon">
+      <Sidebar
+        className={state === "collapsed" ? "w-14" : "w-64"}
+        collapsible="icon"
+      >
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+            <SidebarGroupLabel
+              className={state === "collapsed" ? "hidden" : ""}
+            >
               Main Menu
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredNavItems.map((item) => (
-                  <SidebarMenuItem key={item.title} className={isActive(item.url) ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : ""}>
+                  <SidebarMenuItem
+                    key={item.title}
+                    className={
+                      isActive(item.url)
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        : ""
+                    }
+                  >
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <SidebarMenuButton asChild>
@@ -178,7 +194,9 @@ export const AppSidebar = () => {
 
           {filteredMasterItems.length > 0 && (
             <SidebarGroup>
-              <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+              <SidebarGroupLabel
+                className={state === "collapsed" ? "hidden" : ""}
+              >
                 Masters
               </SidebarGroupLabel>
               <SidebarGroupContent>
@@ -197,7 +215,9 @@ export const AppSidebar = () => {
                               }
                             >
                               <item.icon className="h-4 w-4" />
-                              {state !== "collapsed" && <span>{item.title}</span>}
+                              {state !== "collapsed" && (
+                                <span>{item.title}</span>
+                              )}
                             </NavLink>
                           </SidebarMenuButton>
                         </TooltipTrigger>
@@ -218,7 +238,3 @@ export const AppSidebar = () => {
     </TooltipProvider>
   );
 };
-
-
-
-
