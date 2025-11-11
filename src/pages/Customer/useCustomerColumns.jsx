@@ -1,12 +1,13 @@
-import { Building } from "lucide-react";
+import { Building, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
  * Custom hook that returns the table columns configuration for the customer list
  * @param {Function} navigate - React Router navigate function
+ * @param {Function} onDelete - Delete handler function
  * @returns {Array} Array of column definitions
  */
-export const useCustomerColumns = (navigate) => {
+export const useCustomerColumns = (navigate, onDelete) => {
   return [
     {
       accessorKey: "customerCode",
@@ -87,11 +88,19 @@ export const useCustomerColumns = (navigate) => {
         <div className="flex gap-1">
           <Button
             variant="ghost"
-            size="sm"
+            size="xs"
             className="h-7 px-2 text-xs"
             onClick={() => navigate(`/sales/customers/view/${customer.id}`)}
           >
             View
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => onDelete && onDelete(customer)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),
