@@ -12,8 +12,8 @@ export const AppLayout = ({ children }) => {
         <AppSidebar />
         <div className="flex-1 flex flex-col w-full min-w-0">
           <AppHeader />
-          <main className="flex-1 overflow-auto">
-            <div className="max-w-[1920px] mx-auto">
+          <main className="flex-1 overflow-auto h-full">
+            <div className="max-w-[1920px] mx-auto h-full">
               {children}
             </div>
           </main>

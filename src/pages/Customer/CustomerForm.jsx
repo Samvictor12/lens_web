@@ -191,57 +191,86 @@ export default function CustomerForm() {
     <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 p-0"
-            onClick={handleCancel}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-              {mode === "add" ? "Add New Customer" : mode === "edit" ? "Edit Customer" : "Customer Details"}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {mode === "add"
-                ? "Fill in the customer information below"
-                : mode === "edit"
-                ? "Update customer information"
-                : "View customer information"}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
+            {mode === "add" ? "Add New Customer" : mode === "edit" ? "Edit Customer" : "Customer Details"}
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {mode === "add"
+              ? "Fill in the customer information below"
+              : mode === "edit"
+              ? "Update customer information"
+              : "View customer information"}
+          </p>
         </div>
         
-        {mode === "view" && (
-          <Button
-            size="sm"
-            className="h-8 gap-1.5"
-            variant={isEditing ? "outline" : "default"}
-            onClick={toggleEdit}
-          >
-            {isEditing ? (
-              <>
-                <X className="h-3.5 w-3.5" />
-                Cancel Edit
-              </>
-            ) : (
-              <>
-                <Edit className="h-3.5 w-3.5" />
-                Edit
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {mode === "view" && (
+            <Button
+              size="xs"
+              className="h-8 gap-1.5"
+              variant={isEditing ? "outline" : "default"}
+              onClick={toggleEdit}
+            >
+              {isEditing ? (
+                <>
+                  <X className="h-3.5 w-3.5" />
+                  Cancel Edit
+                </>
+              ) : (
+                <>
+                  <Edit className="h-3.5 w-3.5" />
+                  Edit
+                </>
+              )}
+            </Button>
+          )}
+          
+          {(mode !== "view" || isEditing) && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className="h-8 gap-1.5"
+                onClick={handleCancel}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back
+              </Button>
+              <Button
+                type="submit"
+                size="xs"
+                className="h-8 gap-1.5"
+                onClick={handleSubmit}
+              >
+                <Save className="h-3.5 w-3.5" />
+                {mode === "add" ? "Add Customer" : "Save Changes"}
+              </Button>
+            </>
+          )}
+          
+          {mode === "view" && !isEditing && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              className="h-8 gap-1.5"
+              onClick={handleCancel}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
         <Card>
-          <CardHeader className="p-3 pb-2">
+          {/* <CardHeader className="p-3 pb-2">
             <CardTitle className="text-sm">Customer Information</CardTitle>
-          </CardHeader>
+          </CardHeader> */}
           <CardContent className="p-3 pt-0 space-y-4">
             {/* Customer Code & Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -251,7 +280,7 @@ export default function CustomerForm() {
                 value={formData.customerCode}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                placeholder="e.g., CUST001"
+                // // placeholder="e.g., CUST001"
                 required
                 error={errors.customerCode}
               />
@@ -262,7 +291,7 @@ export default function CustomerForm() {
                 value={formData.name}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                placeholder="e.g., Raj Opticals"
+                // placeholder="e.g., Raj Opticals"
                 required
                 error={errors.name}
               />
@@ -275,7 +304,7 @@ export default function CustomerForm() {
               value={formData.shopName}
               onChange={handleChange}
               disabled={isReadOnly}
-              placeholder="e.g., Raj's Vision Center"
+              // placeholder="e.g., Raj's Vision Center"
             />
 
             {/* Phone Numbers */}
@@ -287,7 +316,7 @@ export default function CustomerForm() {
                 value={formData.phone}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                placeholder="9876543210"
+                // placeholder="9876543210"
                 maxLength={10}
                 prefix="+91"
                 required
@@ -302,7 +331,7 @@ export default function CustomerForm() {
                 value={formData.alternatePhone}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                placeholder="9876543211"
+                // placeholder="9876543211"
                 maxLength={10}
                 prefix="+91"
                 error={errors.alternatePhone}
@@ -318,7 +347,7 @@ export default function CustomerForm() {
               value={formData.email}
               onChange={handleChange}
               disabled={isReadOnly}
-              placeholder="contact@example.com"
+              // placeholder="contact@example.com"
               prefix="@"
               error={errors.email}
             />
@@ -330,7 +359,7 @@ export default function CustomerForm() {
               value={formData.address}
               onChange={handleChange}
               disabled={isReadOnly}
-              placeholder="123 MG Road, Mumbai, Maharashtra 400001"
+              // placeholder="123 MG Road, Mumbai, Maharashtra 400001"
               rows={3}
             />
 
@@ -342,7 +371,7 @@ export default function CustomerForm() {
                 value={formData.gstNumber}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                placeholder="27AABCU9603R1Z5"
+                // placeholder="27AABCU9603R1Z5"
                 maxLength={15}
                 className="uppercase"
                 error={errors.gstNumber}
@@ -358,7 +387,7 @@ export default function CustomerForm() {
                 value={formData.creditLimit}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                placeholder="50000"
+                // placeholder="50000"
                 prefix="₹"
                 error={errors.creditLimit}
                 helperText={!errors.creditLimit && "Maximum outstanding amount allowed"}
@@ -375,25 +404,6 @@ export default function CustomerForm() {
             )}
           </CardContent>
         </Card>
-
-        {/* Action Buttons */}
-        {(mode !== "view" || isEditing) && (
-          <div className="flex gap-2 justify-end mt-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8"
-              onClick={handleCancel}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" className="h-8 gap-1.5">
-              <Save className="h-3.5 w-3.5" />
-              {mode === "add" ? "Add Customer" : "Save Changes"}
-            </Button>
-          </div>
-        )}
       </form>
     </div>
   );
