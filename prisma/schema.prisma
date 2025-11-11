@@ -22,12 +22,12 @@ model User {
 }
 
 model Role {
-  id          Int         @id @default(autoincrement())
-  name        String      @unique // "Admin", "Sales", "Inventory", "Accounts"
+  id          Int          @id @default(autoincrement())
+  name        String       @unique // "Admin", "Sales", "Inventory", "Accounts"
   permissions Permission[]
   users       User[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Permission {
@@ -41,24 +41,39 @@ model Permission {
 }
 
 model Customer {
-  id            Int           @id @default(autoincrement())
-  name          String
-  phone         String?
-  email         String?       @unique
-  address       String?
-  saleOrders    SaleOrder[]
+  id             Int            @id @default(autoincrement())
+  name           String
+  phone          String?
+  email          String?        @unique
+  address        String?
+  city           String?
+  state          String?
+  pincode        String?
+  catagory       String?
+  gstin          String?
+  credit_limit   String?
+  status         String?
+  notes          String?
+  saleOrders     SaleOrder[]
   dispatchCopies DispatchCopy[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model Vendor {
   id             Int             @id @default(autoincrement())
   name           String
-  contactPerson  String?
   phone          String?
   email          String?         @unique
   address        String?
+  city           String?
+  state          String?
+  pincode        String?
+  catagory       String?
+  gstin          String?
+  credit_limit   String?
+  status         String?
+  notes          String?
   purchaseOrders PurchaseOrder[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -74,19 +89,19 @@ model LensType {
 }
 
 model LensVariant {
-  id           Int              @id @default(autoincrement())
-  name         String           // e.g., "Acuvue Oasys"
-  description  String?
-  lensType     LensType         @relation(fields: [lensTypeId], references: [id])
-  lensTypeId   Int
-  price        Float
-  isRx         Boolean          @default(false) // true = requires PO
-  stock        Int              @default(0)     // for in-stock items
-  minStock     Int              @default(5)     // minimum stock threshold
-  saleOrders   SaleOrderItem[]
-  poItems      POItem[]
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id          Int             @id @default(autoincrement())
+  name        String // e.g., "Acuvue Oasys"
+  description String?
+  lensType    LensType        @relation(fields: [lensTypeId], references: [id])
+  lensTypeId  Int
+  price       Float
+  isRx        Boolean         @default(false) // true = requires PO
+  stock       Int             @default(0) // for in-stock items
+  minStock    Int             @default(5) // minimum stock threshold
+  saleOrders  SaleOrderItem[]
+  poItems     POItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([lensTypeId])
 }
@@ -101,34 +116,30 @@ enum SaleOrderStatus {
 }
 
 model SaleOrder {
-  id             Int             @id @default(autoincrement())
-  customerId     Int
-  customer       Customer        @relation(fields: [customerId], references: [id])
-  status         SaleOrderStatus @default(DRAFT)
-  
+  id               Int             @id @default(autoincrement())
+  customerId       Int
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  status           SaleOrderStatus @default(DRAFT)
   // Basic order information
-  customerRefNo  String?         // Customer reference number
-  orderDate      DateTime        @default(now())
-  type           String?         // "Normal Processing", "Rush Processing", "Premium Processing"
+  customerRefNo    String? // Customer reference number
+  orderDate        DateTime        @default(now())
+  type             String? // "Normal Processing", "Rush Processing", "Premium Processing"
   deliverySchedule DateTime?
-  remark         String?
-  itemRefNo      String?
-  freeLens       Boolean         @default(false)
-  
+  remark           String?
+  itemRefNo        String?
+  freeLens         Boolean         @default(false)
   // Lens details
-  lensName       String?
-  category       String?         // "Single Vision", "BiFocal", "Progressive", "Reading"
-  lensType       String?         // "Glass", "Plastic", "Polycarbonate", "Trivex"
-  dia            String?
-  fittingType    String?         // "Standard", "Premium", "Custom"
-  coatingType    String?         // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
-  coatingName    String?         // "CLAIRITE", "CRIZAL", "ULTRA", "PREMIUM"
-  tintingName    String?         // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
-  
+  lensName         String?
+  category         String? // "Single Vision", "BiFocal", "Progressive", "Reading"
+  lensType         String? // "Glass", "Plastic", "Polycarbonate", "Trivex"
+  dia              String?
+  fittingType      String? // "Standard", "Premium", "Custom"
+  coatingType      String? // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
+  coatingName      String? // "CLAIRITE", "CRIZAL", "ULTRA", "PREMIUM"
+  tintingName      String? // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
   // Eye selection
-  rightEye       Boolean         @default(false)
-  leftEye        Boolean         @default(false)
-  
+  rightEye         Boolean         @default(false)
+  leftEye          Boolean         @default(false)
   // Right eye specifications
   rightSpherical   String?
   rightCylindrical String?
@@ -138,7 +149,6 @@ model SaleOrder {
   rightBase        String?
   rightBaseSize    String?
   rightBled        String?
-  
   // Left eye specifications
   leftSpherical    String?
   leftCylindrical  String?
@@ -148,7 +158,6 @@ model SaleOrder {
   leftBase         String?
   leftBaseSize     String?
   leftBled         String?
-  
   // Dispatch information
   dispatchStatus   String?         @default("Pending") // "Pending", "Assigned", "In Transit", "Delivered"
   assignedPerson   String?
@@ -158,23 +167,21 @@ model SaleOrder {
   actualDate       DateTime?
   actualTime       String?
   dispatchNotes    String?
-  
   // Billing information
   lensPrice        Float           @default(0)
   coatingPrice     Float           @default(0)
   fittingPrice     Float           @default(0)
   tintingPrice     Float           @default(0)
   discount         Float           @default(0) // Percentage discount
-  
   // Relations
-  items          SaleOrderItem[]
-  invoice        Invoice?        @relation(fields: [invoiceId], references: [id])
-  invoiceId      Int?
-  purchaseOrders PurchaseOrder[]
-  dispatch       DispatchCopy?   @relation(fields: [dispatchCopyId], references: [id])
-  dispatchCopyId Int?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  items            SaleOrderItem[]
+  invoice          Invoice?        @relation(fields: [invoiceId], references: [id])
+  invoiceId        Int?
+  purchaseOrders   PurchaseOrder[]
+  dispatch         DispatchCopy?   @relation(fields: [dispatchCopyId], references: [id])
+  dispatchCopyId   Int?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([invoiceId])
   @@index([dispatchCopyId])
@@ -187,7 +194,7 @@ model SaleOrderItem {
   lensVariantId Int
   lensVariant   LensVariant @relation(fields: [lensVariantId], references: [id])
   quantity      Int         @default(1)
-  price         Float       // Price at time of sale
+  price         Float // Price at time of sale
   discount      Float       @default(0)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -226,15 +233,15 @@ model Invoice {
 }
 
 model Payment {
-  id            Int           @id @default(autoincrement())
-  invoiceId     Int
-  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
-  amount        Float
-  method        PaymentMethod
-  referenceNo   String?       // For UPI/Card/Bank transactions
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id          Int           @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id])
+  amount      Float
+  method      PaymentMethod
+  referenceNo String? // For UPI/Card/Bank transactions
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([invoiceId])
 }
@@ -247,18 +254,18 @@ enum POStatus {
 }
 
 model PurchaseOrder {
-  id          Int         @id @default(autoincrement())
-  poNumber    String      @unique  // e.g., PO-2025-001
+  id          Int        @id @default(autoincrement())
+  poNumber    String     @unique // e.g., PO-2025-001
   vendorId    Int
-  vendor      Vendor      @relation(fields: [vendorId], references: [id])
-  status      POStatus    @default(PENDING)
+  vendor      Vendor     @relation(fields: [vendorId], references: [id])
+  status      POStatus   @default(PENDING)
   totalValue  Float
   notes       String?
   items       POItem[]
   saleOrderId Int?
-  saleOrder   SaleOrder?  @relation(fields: [saleOrderId], references: [id])
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  saleOrder   SaleOrder? @relation(fields: [saleOrderId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([vendorId])
   @@index([saleOrderId])
@@ -295,7 +302,7 @@ model POItem {
   lensVariantId   Int
   lensVariant     LensVariant   @relation(fields: [lensVariantId], references: [id])
   quantity        Int
-  price           Float         // Purchase price
+  price           Float // Purchase price
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
