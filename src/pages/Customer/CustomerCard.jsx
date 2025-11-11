@@ -1,4 +1,4 @@
-import { Phone, Mail, Building } from "lucide-react";
+import { Phone, Mail, Building, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
  * @param {Object} customer - Customer data object
  * @param {Function} onView - Callback function when view button is clicked
  * @param {Function} onEdit - Callback function when edit button is clicked
+ * @param {Function} onDelete - Callback function when delete button is clicked
  */
-export default function CustomerCard({ customer, onView, onEdit }) {
+export default function CustomerCard({ customer, onView, onEdit, onDelete }) {
   return (
     <Card
       key={customer.id}
@@ -84,11 +85,19 @@ export default function CustomerCard({ customer, onView, onEdit }) {
       <div className="flex gap-1.5 pt-2 mt-auto">
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           className="flex-1 h-7 text-xs"
           onClick={() => onView(customer.id)}
         >
           View
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          className="h-7 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => onDelete && onDelete(customer)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
     </Card>

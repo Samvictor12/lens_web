@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -12,7 +12,9 @@ import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { ViewToggle } from "@/components/ui/view-toggle";
 import { CardGrid } from "@/components/ui/card-grid";
-import { dummyCustomers } from "@/lib/dummyData";
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { getCustomers, deleteCustomer } from "@/services/customer";
 import {
   downloadCustomerTemplate,
   exportCustomersToExcel,
@@ -25,6 +27,7 @@ import CustomerCard from "./CustomerCard";
 
 export default function Customers() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState(
     () => localStorage.getItem("customersView") || "card"
@@ -42,9 +45,93 @@ export default function Customers() {
   // Filter states
   const [filters, setFilters] = useState(customerFilters);
   const [tempFilters, setTempFilters] = useState(customerFilters);
+  
+  // Customer data
+  const [customers, setCustomers] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Get table columns
-  const columns = useCustomerColumns(navigate);
+  // Handle delete customer click
+  const handleDeleteClick = (customer) => {
+    setCustomerToDelete(customer);
+    setDeleteDialogOpen(true);
+  };
+
+  // Get table columns with delete handler
+  const columns = useCustomerColumns(navigate, handleDeleteClick);
+
+  // Fetch customers from API
+  const fetchCustomers = async () => {
+    try {
+      setIsLoading(true);
+      const sortField = sorting[0]?.id || "createdAt";
+      const sortDirection = sorting[0]?.desc ? "desc" : "asc";
+      
+      const response = await getCustomers(
+        pageIndex + 1, // Backend uses 1-indexed pages
+        pageSize,
+        searchQuery,
+        filters,
+        sortField,
+        sortDirection
+      );
+      
+      if (response.success) {
+        setCustomers(response.data);
+        setTotalCount(response.pagination.total);
+      }
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch customers",
+        variant: "destructive",
+      });
+      setCustomers([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch customers on mount and when dependencies change
+  useEffect(() => {
+    fetchCustomers();
+  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+
+  // Handle delete customer
+  const handleDeleteConfirm = async () => {
+    if (!customerToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await deleteCustomer(customerToDelete.id);
+      
+      toast({
+        title: "Success",
+        description: `Customer "${customerToDelete.name}" has been deleted successfully.`,
+      });
+      
+      setDeleteDialogOpen(false);
+      setCustomerToDelete(null);
+      
+      // Refresh customer list
+      fetchCustomers();
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete customer. The customer may have existing orders.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
@@ -82,66 +169,9 @@ export default function Customers() {
     setShowFilterDialog(false);
   };
 
-  const filteredCustomers = useMemo(() => {
-    return dummyCustomers.filter((customer) => {
-      // Search filter
-      const matchesSearch =
-        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.customerCode
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        customer.phone.includes(searchQuery) ||
-        customer.email?.toLowerCase().includes(searchQuery.toLowerCase());
-
-      // Status filter
-      const matchesStatus =
-        filters.status === "all" ||
-        (filters.status === "outstanding" && customer.outstandingBalance > 0) ||
-        (filters.status === "clear" && customer.outstandingBalance === 0);
-
-      // Credit limit filter
-      const matchesCreditLimit =
-        (filters.minCreditLimit === "" ||
-          customer.creditLimit >= parseFloat(filters.minCreditLimit)) &&
-        (filters.maxCreditLimit === "" ||
-          customer.creditLimit <= parseFloat(filters.maxCreditLimit));
-
-      // Outstanding balance filter
-      const matchesOutstanding =
-        (filters.minOutstanding === "" ||
-          customer.outstandingBalance >= parseFloat(filters.minOutstanding)) &&
-        (filters.maxOutstanding === "" ||
-          customer.outstandingBalance <= parseFloat(filters.maxOutstanding));
-
-      // Email filter
-      const matchesEmail =
-        filters.hasEmail === "all" ||
-        (filters.hasEmail === "yes" && customer.email) ||
-        (filters.hasEmail === "no" && !customer.email);
-
-      // GST filter
-      const matchesGST =
-        filters.hasGST === "all" ||
-        (filters.hasGST === "yes" && customer.gstNumber) ||
-        (filters.hasGST === "no" && !customer.gstNumber);
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesCreditLimit &&
-        matchesOutstanding &&
-        matchesEmail &&
-        matchesGST
-      );
-    });
-  }, [searchQuery, filters]);
-
-  // Paginated data for current view
-  const paginatedCustomers = useMemo(() => {
-    const startIndex = pageIndex * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredCustomers.slice(startIndex, endIndex);
-  }, [filteredCustomers, pageIndex, pageSize]);
+  // For client-side display, we use the customers directly from API
+  // Backend handles filtering, so we just display what we receive
+  const displayCustomers = customers;
 
   const handleUpload = () => {
     const input = document.createElement("input");
@@ -241,11 +271,11 @@ export default function Customers() {
       {view === "table" && (
         <div className="flex-1 min-h-0">
           <Table
-            data={paginatedCustomers}
+            data={displayCustomers}
             columns={columns}
             pageIndex={pageIndex}
             pageSize={pageSize}
-            totalCount={filteredCustomers.length}
+            totalCount={totalCount}
             onPageChange={setPageIndex}
             loading={isLoading}
             onPageSizeChange={(size) => {
@@ -264,11 +294,12 @@ export default function Customers() {
       {view === "card" && (
         <div className="flex-1 min-h-0">
           <CardGrid
-            items={paginatedCustomers}
+            items={displayCustomers}
             renderCard={(customer) => (
               <CustomerCard
                 customer={customer}
                 onView={(id) => navigate(`/sales/customers/view/${id}`)}
+                onDelete={handleDeleteClick}
               />
             )}
             isLoading={isLoading}
@@ -276,7 +307,7 @@ export default function Customers() {
             pagination={true}
             pageIndex={pageIndex}
             pageSize={pageSize}
-            totalCount={filteredCustomers.length}
+            totalCount={totalCount}
             onPageChange={setPageIndex}
             onPageSizeChange={(size) => {
               setPageSize(size);
@@ -285,6 +316,20 @@ export default function Customers() {
           />
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Customer?"
+        description={
+          customerToDelete
+            ? `Are you sure you want to delete "${customerToDelete.name}"? This action cannot be undone and will fail if the customer has existing orders.`
+            : "Are you sure you want to delete this customer?"
+        }
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }
