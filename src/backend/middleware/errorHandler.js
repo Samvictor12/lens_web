@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 
 // Custom error class for API errors
 export class APIError extends Error {
-  constructor(statusCode, message, code, details) {
+  constructor(message, statusCode, code, details) {
     super(message);
     this.name = 'APIError';
     this.statusCode = statusCode;

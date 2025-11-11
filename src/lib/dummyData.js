@@ -30,17 +30,6 @@ export const dummyUsers = [
 export const dummyCustomers = [
   {
     id: 1,
-<<<<<<< HEAD
-    customerCode: "CUS001",
-    name: "Rajesh Kumar",
-    shopName: "Raj Opticals",
-    phone: "9876543210",
-    alternatePhone: "8765432109",
-    email: "contact@rajopticals.com",
-    address: "123 MG Road, Mumbai, Maharashtra 400001",
-    gstNumber: "27AABCU9603R1Z5",
-    creditLimit: "50000",
-=======
     customerCode: "CUST001",
     name: "Raj Opticals",
     shopName: "Raj's Vision Center",
@@ -51,22 +40,10 @@ export const dummyCustomers = [
     gstNumber: "27AABCU9603R1Z5",
     creditLimit: 100000,
     outstandingBalance: 45000,
->>>>>>> e35dc6c545fa8d751224d4306921c063df81b9d5
     createdAt: "2024-01-15T10:00:00Z",
   },
   {
     id: 2,
-<<<<<<< HEAD
-    customerCode: "CUS002", 
-    name: "Priya Sharma",
-    shopName: "Vision Plus",
-    phone: "9876543211",
-    alternatePhone: null,
-    email: "info@visionplus.com",
-    address: "456 Park Street, Kolkata, West Bengal 700016",
-    gstNumber: "19AABCV5678M1Z4",
-    creditLimit: "30000",
-=======
     customerCode: "CUST002",
     name: "Vision Plus",
     shopName: "Vision Plus Optics",
@@ -77,22 +54,10 @@ export const dummyCustomers = [
     gstNumber: "19AABCV5678M1Z4",
     creditLimit: 150000,
     outstandingBalance: 0,
->>>>>>> e35dc6c545fa8d751224d4306921c063df81b9d5
     createdAt: "2024-02-20T10:00:00Z",
   },
   {
     id: 3,
-<<<<<<< HEAD
-    customerCode: "CUS003",
-    name: "Amit Patel",
-    shopName: "Clear View Optics", 
-    phone: "9876543212",
-    alternatePhone: "8876543212",
-    email: "clearview@gmail.com",
-    address: "789 Brigade Road, Bangalore, Karnataka 560025",
-    gstNumber: "29AACCD7890N1Z3",
-    creditLimit: "40000",
-=======
     customerCode: "CUST003",
     name: "Clear View Optics",
     shopName: "",
@@ -103,22 +68,10 @@ export const dummyCustomers = [
     gstNumber: "29AACCD7890N1Z3",
     creditLimit: 75000,
     outstandingBalance: 28500,
->>>>>>> e35dc6c545fa8d751224d4306921c063df81b9d5
     createdAt: "2024-03-10T10:00:00Z",
   },
   {
     id: 4,
-<<<<<<< HEAD
-    customerCode: "CUS004",
-    name: "Sunita Reddy",
-    shopName: "Eye Care Centre",
-    phone: "9876543213",
-    alternatePhone: null,
-    email: "eyecare@center.com", 
-    address: "321 Anna Salai, Chennai, Tamil Nadu 600002",
-    gstNumber: null,
-    creditLimit: "25000",
-=======
     customerCode: "CUST004",
     name: "Eye Care Centre",
     shopName: "Eye Care Centre",
@@ -126,25 +79,13 @@ export const dummyCustomers = [
     alternatePhone: "",
     email: "eyecare@center.com",
     address: "321 Anna Salai, Chennai, Tamil Nadu 600002",
+    gstNumber: "",
     creditLimit: 50000,
     outstandingBalance: 12000,
->>>>>>> e35dc6c545fa8d751224d4306921c063df81b9d5
     createdAt: "2024-04-05T10:00:00Z",
   },
   {
     id: 5,
-<<<<<<< HEAD
-    customerCode: "CUS005",
-    name: "Surash Kumar",
-    shopName: "ABC Opticals",
-    phone: "8988778899",
-    alternatePhone: "9988778899",
-    email: "surash@abcopticals.com",
-    address: "Madhuranthagam, Tamil Nadu 603306",
-    gstNumber: "33AAAAA0000A1Z5",
-    creditLimit: "20000",
-    createdAt: "2024-05-01T10:00:00Z",
-=======
     customerCode: "CUST005",
     name: "Optical World",
     shopName: "Optical World",
@@ -254,7 +195,6 @@ export const dummyCustomers = [
     creditLimit: 70000,
     outstandingBalance: 0,
     createdAt: "2024-11-01T10:00:00Z",
->>>>>>> e35dc6c545fa8d751224d4306921c063df81b9d5
   },
 ];
 
