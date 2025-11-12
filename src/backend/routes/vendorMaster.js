@@ -1,9 +1,9 @@
 import express from 'express';
 import VendorMasterController from '../controllers/vendorMasterController.js';
-// import {
-//     authenticateToken 
-// } from '../middleware/auth.js';
-// import { handleAsync } from '../middleware/errorHandler.js';
+import {
+    authenticateToken,
+    requireRole
+} from '../middleware/auth.js';
 
 const router = express.Router();
 const vendorMasterController = new VendorMasterController();
@@ -287,7 +287,8 @@ const vendorMasterController = new VendorMasterController();
  *         description: Internal server error
  */
 router.post('/',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory']),
     vendorMasterController.create.bind(vendorMasterController));
 
 /**
@@ -357,7 +358,8 @@ router.post('/',
  *         description: Internal server error
  */
 router.get('/',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory', 'Sales']),
     vendorMasterController.list.bind(vendorMasterController));
 
 /**
@@ -393,7 +395,8 @@ router.get('/',
  *         description: Internal server error
  */
 router.get('/dropdown',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory', 'Sales']),
     vendorMasterController.getDropdown.bind(vendorMasterController));
 
 /**
@@ -442,7 +445,8 @@ router.get('/dropdown',
  *         description: Internal server error
  */
 router.post('/check-email',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory']),
     vendorMasterController.checkVendorEmail.bind(vendorMasterController));
 
 /**
@@ -472,7 +476,8 @@ router.post('/check-email',
  *         description: Internal server error
  */
 router.get('/stats',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin']),
     vendorMasterController.getStats.bind(vendorMasterController));
 
 /**
@@ -510,7 +515,8 @@ router.get('/stats',
  *         description: Internal server error
  */
 router.get('/:id',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory', 'Sales']),
     vendorMasterController.getById.bind(vendorMasterController));
 
 /**
@@ -556,7 +562,8 @@ router.get('/:id',
  *         description: Internal server error
  */
 router.put('/:id',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory']),
     vendorMasterController.update.bind(vendorMasterController));
 
 /**
@@ -606,7 +613,8 @@ router.put('/:id',
  *         description: Internal server error
  */
 router.delete('/:id',
-    // authenticateToken,
+    authenticateToken,
+    requireRole(['Admin', 'Inventory']),
     vendorMasterController.delete.bind(vendorMasterController));
 
 export default router;

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -14,8 +15,33 @@ async function main() {
     prisma.customer.deleteMany(),
     prisma.vendor.deleteMany(),
     prisma.permission.deleteMany(),
+    prisma.refreshToken.deleteMany(),
     prisma.user.deleteMany(),
     prisma.role.deleteMany(),
+  ]);
+
+  // Create Departments first
+  const departments = await Promise.all([
+    prisma.departmentDetails.create({
+      data: {
+        department: 'Administration',
+      },
+    }),
+    prisma.departmentDetails.create({
+      data: {
+        department: 'Sales',
+      },
+    }),
+    prisma.departmentDetails.create({
+      data: {
+        department: 'Inventory',
+      },
+    }),
+    prisma.departmentDetails.create({
+      data: {
+        department: 'Accounts',
+      },
+    }),
   ]);
 
   // Create Roles
@@ -80,38 +106,57 @@ async function main() {
     }),
   ]);
 
+  // Hash passwords
+  const hashedPassword = await bcrypt.hash('demo123', 10);
+
   // Create demo users
   await Promise.all([
     prisma.user.create({
       data: {
         name: 'Admin User',
         email: 'admin@lensbilling.com',
-        password: 'demo123', // In production, use hashed passwords
+        usercode: 'ADM001',
+        password: hashedPassword,
         roleId: roles[0].id,
+        createdBy: 1,
+        phonenumber: '+1234567890',
+        department_id: departments[0].id,
       },
     }),
     prisma.user.create({
       data: {
         name: 'Sales User',
         email: 'sales@lensbilling.com',
-        password: 'demo123',
+        usercode: 'SAL001',
+        password: hashedPassword,
         roleId: roles[1].id,
+        createdBy: 1,
+        phonenumber: '+1234567891',
+        department_id: departments[1].id,
       },
     }),
     prisma.user.create({
       data: {
         name: 'Inventory User',
         email: 'inventory@lensbilling.com',
-        password: 'demo123',
+        usercode: 'INV001',
+        password: hashedPassword,
         roleId: roles[2].id,
+        createdBy: 1,
+        phonenumber: '+1234567892',
+        department_id: departments[2].id,
       },
     }),
     prisma.user.create({
       data: {
         name: 'Accounts User',
         email: 'accounts@lensbilling.com',
-        password: 'demo123',
+        usercode: 'ACC001',
+        password: hashedPassword,
         roleId: roles[3].id,
+        createdBy: 1,
+        phonenumber: '+1234567893',
+        department_id: departments[3].id,
       },
     }),
   ]);

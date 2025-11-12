@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import CustomerMasterController from '../controllers/customerMasterController.js';
-// import { requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 const controller = new CustomerMasterController();
@@ -283,7 +283,8 @@ const controller = new CustomerMasterController();
  *         description: Customer code or email already exists
  */
 router.post('/',
-    //requireRole(['Sales', 'Admin']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin']),
     controller.create.bind(controller)
 );
 
@@ -375,7 +376,8 @@ router.post('/',
  *         description: Forbidden
  */
 router.get('/',
-    //requireRole(['Sales', 'Admin', 'Inventory']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin', 'Inventory']),
     controller.list.bind(controller)
 );
 
@@ -413,7 +415,8 @@ router.get('/',
  *                         type: string
  */
 router.get('/dropdown',
-    //requireRole(['Sales', 'Admin', 'Inventory']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin', 'Inventory']),
     controller.getDropdown.bind(controller)
 );
 
@@ -443,7 +446,8 @@ router.get('/dropdown',
  *                       type: integer
  */
 router.get('/stats',
-    //requireRole(['Admin']),
+    authenticateToken,
+    requireRole(['Admin']),
     controller.getStats.bind(controller)
 );
 
@@ -490,7 +494,8 @@ router.get('/stats',
  *                       type: string
  */
 router.post('/check-email',
-    //requireRole(['Sales', 'Admin']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin']),
     controller.checkCustomerEmail.bind(controller)
 );
 
@@ -530,7 +535,8 @@ router.post('/check-email',
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id',
-    //requireRole(['Sales', 'Admin', 'Inventory']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin', 'Inventory']),
     controller.getById.bind(controller)
 );
 
@@ -576,7 +582,8 @@ router.get('/:id',
  *         description: Customer code or email already exists
  */
 router.put('/:id',
-    //requireRole(['Sales', 'Admin']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin']),
     controller.update.bind(controller)
 );
 
@@ -615,7 +622,8 @@ router.put('/:id',
  *         description: Customer master not found
  */
 router.delete('/:id',
-    //requireRole(['Sales', 'Admin']),
+    authenticateToken,
+    requireRole(['Sales', 'Admin']),
     controller.delete.bind(controller)
 );
 

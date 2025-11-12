@@ -8,9 +8,11 @@ import swaggerUi from 'swagger-ui-express';
 import { errorHandler } from './middleware/errorHandler.js';
 
 // Route imports
+import authRoutes from './routes/auth.js';
 import saleOrderRoutes from './routes/saleOrders.js';
 import customerMasterRoutes from './routes/customerMaster.js';
 import vendorMasterRoutes from './routes/vendorMaster.js';
+import userMasterRoutes from './routes/userMaster.js';
 
 // Load environment variables
 dotenv.config();
@@ -67,9 +69,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/sale-orders', saleOrderRoutes);
 app.use('/api/customer-master', customerMasterRoutes);
 app.use('/api/vendor-master', vendorMasterRoutes);
+app.use('/api/user-master', userMasterRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
@@ -93,9 +97,11 @@ app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
+  console.log(`Authentication API: http://localhost:${PORT}/api/auth`);
   console.log(`Sale Orders API: http://localhost:${PORT}/api/sale-orders`);
   console.log(`Customer Master API: http://localhost:${PORT}/api/customer-master`);
   console.log(`Vendor Master API: http://localhost:${PORT}/api/vendor-master`);
+  console.log(`User Master API: http://localhost:${PORT}/api/user-master`);
 });
 
 

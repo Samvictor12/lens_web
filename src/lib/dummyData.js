@@ -79,6 +79,7 @@ export const dummyCustomers = [
     alternatePhone: "",
     email: "eyecare@center.com",
     address: "321 Anna Salai, Chennai, Tamil Nadu 600002",
+    gstNumber: "",
     creditLimit: 50000,
     outstandingBalance: 12000,
     createdAt: "2024-04-05T10:00:00Z",
