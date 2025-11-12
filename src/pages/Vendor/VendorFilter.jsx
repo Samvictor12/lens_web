@@ -11,9 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { businessCategories } from "./Customer.constants";
 
-export default function CustomerFilter({
+export default function VendorFilter({
   filters,
   tempFilters,
   setTempFilters,
@@ -69,9 +68,9 @@ export default function CustomerFilter({
       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg">Filter Customers</DialogTitle>
+            <DialogTitle className="text-lg">Filter Vendors</DialogTitle>
             <DialogDescription className="text-xs">
-              Apply filters to refine your customer list
+              Apply filters to refine your vendor list
             </DialogDescription>
           </DialogHeader>
 
@@ -88,26 +87,25 @@ export default function CustomerFilter({
                   active_status: value,
                 });
               }}
-              placeholder="All customers"
+              placeholder="All vendors"
               isSearchable={false}
               isClearable={false}
             />
 
-            {/* Business Category Filter */}
-            <FormSelect
-              label="Business Category"
-              name="businessCategory_id"
-              options={businessCategories}
-              value={tempFilters.businessCategory_id}
-              onChange={(value) => {
+            {/* Category Filter */}
+            <FormInput
+              label="Category"
+              name="category"
+              type="text"
+              placeholder="Enter category"
+              value={tempFilters.category}
+              onChange={(e) =>
                 setTempFilters({
                   ...tempFilters,
-                  businessCategory_id: value,
-                });
-              }}
-              placeholder="All categories"
-              isSearchable={true}
-              isClearable={true}
+                  category: e.target.value,
+                })
+              }
+              helperText="Search by vendor category (case insensitive)"
             />
 
             {/* City Filter */}
@@ -123,20 +121,24 @@ export default function CustomerFilter({
                   city: e.target.value,
                 })
               }
-              helperText="Search customers by city (case insensitive)"
+              helperText="Search vendors by city (case insensitive)"
             />
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
+              type="button"
               variant="outline"
-              size="xs"
+              size="sm"
               onClick={onCancelFilters}
-              className="h-8"
             >
               Cancel
             </Button>
-            <Button size="xs" onClick={onApplyFilters} className="h-8">
+            <Button
+              type="button"
+              size="sm"
+              onClick={onApplyFilters}
+            >
               Apply Filters
             </Button>
           </DialogFooter>

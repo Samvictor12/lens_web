@@ -1,11 +1,10 @@
+// Backend-supported filters only
 export const customerFilters = {
-  status: "all",
-  minCreditLimit: "",
-  maxCreditLimit: "",
-  minOutstanding: "",
-  maxOutstanding: "",
-  hasEmail: "all",
-  hasGST: "all",
+  // Backend query params
+  active_status: "all", // all/true/false - maps to active_status filter
+  businessCategory_id: null, // number - exact match
+  city: "", // string - contains search (case insensitive)
+  // Note: name, code, email, phone are handled via search/query params, not filters
 };
 
 export const defaultCustomer = {

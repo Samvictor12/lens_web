@@ -1,0 +1,113 @@
+import { useMemo } from "react";
+import { Eye, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+
+export default function useVendorColumns({ onView, onDelete, sortBy, sortOrder, onSort }) {
+  return useMemo(
+    () => [
+      {
+        id: "vendorCode",
+        header: "Vendor Code",
+        sortable: true,
+        cell: (vendor) => (
+          <span className="font-medium text-xs">{vendor.vendorCode}</span>
+        ),
+      },
+      {
+        id: "name",
+        header: "Vendor Name",
+        sortable: true,
+        cell: (vendor) => (
+          <div>
+            <p className="font-medium text-xs">{vendor.name}</p>
+            {vendor.shopName && (
+              <p className="text-xs text-muted-foreground">
+                {vendor.shopName}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "category",
+        header: "Category",
+        sortable: true,
+        cell: (vendor) => (
+          <span className="text-xs">
+            {vendor.category || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "city",
+        header: "Location",
+        sortable: false,
+        cell: (vendor) => (
+          <span className="text-xs">
+            {[vendor.city, vendor.state]
+              .filter(Boolean)
+              .join(", ") || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "phone",
+        header: "Phone",
+        sortable: false,
+        cell: (vendor) => (
+          <span className="text-xs">{vendor.phone || "-"}</span>
+        ),
+      },
+      {
+        id: "email",
+        header: "Email",
+        sortable: false,
+        cell: (vendor) => (
+          <span className="text-xs truncate max-w-[200px] block">
+            {vendor.email || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "activeStatus",
+        header: "Status",
+        sortable: false,
+        cell: (vendor) => (
+          <Badge
+            variant={vendor.activeStatus ? "default" : "secondary"}
+            className="text-xs"
+          >
+            {vendor.activeStatus ? "Active" : "Inactive"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        sortable: false,
+        cell: (vendor) => (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => onView(vendor.id)}
+              className="h-7 w-7 p-0"
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => onDelete(vendor.id, vendor.name)}
+              className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [onView, onDelete]
+  );
+}

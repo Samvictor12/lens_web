@@ -18,7 +18,9 @@ import Billing from "./pages/Billing";
 import Payments from "./pages/Payments";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
-import Vendors from "./pages/Vendors";
+import VendorsOld from "./pages/Vendors";
+import Vendors from "./pages/Vendor/Vendors";
+import VendorForm from "./pages/Vendor/VendorForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +50,8 @@ const AppRoutes = () => (
       <Route path="/accounts/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
+      <Route path="/masters/vendors/:mode" element={<ProtectedRoute><VendorForm /></ProtectedRoute>} />
+      <Route path="/masters/vendors/:mode/:id" element={<ProtectedRoute><VendorForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

@@ -246,3 +246,204 @@ export const validateCustomerData = (customer) => {
 
   return errors;
 };
+
+/**
+ * Download a sample Excel template for vendor import
+ */
+export const downloadVendorTemplate = () => {
+  const headers = [
+    "Vendor Code",
+    "Vendor Name",
+    "Shop Name",
+    "Phone",
+    "Email",
+    "Address",
+    "City",
+    "State",
+    "Pincode",
+    "Category",
+    "GST Number",
+    "Remarks",
+  ];
+
+  const sampleData = [
+    [
+      "VEND001",
+      "Essilor India",
+      "Essilor Manufacturing",
+      "+91 98765 43210",
+      "contact@essilor.in",
+      "123 Industrial Area, Mumbai",
+      "Mumbai",
+      "Maharashtra",
+      "400001",
+      "Lens Manufacturer",
+      "27AABCE1234M1Z5",
+      "Premium lens supplier",
+    ],
+    [
+      "VEND002",
+      "Ray-Ban Frames",
+      "Ray-Ban Distribution",
+      "+91 98765 43212",
+      "info@rayban.in",
+      "456 Commercial Street, Bangalore",
+      "Bangalore",
+      "Karnataka",
+      "560001",
+      "Frame Supplier",
+      "29AABCR5678N1Z4",
+      "Authorized distributor",
+    ],
+  ];
+
+  // Create CSV content
+  const csvContent = [
+    headers.join(","),
+    ...sampleData.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+  ].join("\n");
+
+  // Create and download file
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", "vendor_template.csv");
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+/**
+ * Export vendors data to Excel/CSV
+ */
+export const exportVendorsToExcel = (vendors) => {
+  const headers = [
+    "Vendor Code",
+    "Vendor Name",
+    "Shop Name",
+    "Phone",
+    "Email",
+    "Address",
+    "City",
+    "State",
+    "Pincode",
+    "Category",
+    "GST Number",
+    "Remarks",
+    "Status",
+  ];
+
+  const rows = vendors.map((vendor) => [
+    vendor.vendorCode || "",
+    vendor.name || "",
+    vendor.shopName || "",
+    vendor.phone || "",
+    vendor.email || "",
+    vendor.address || "",
+    vendor.city || "",
+    vendor.state || "",
+    vendor.pincode || "",
+    vendor.category || "",
+    vendor.gstNumber || "",
+    vendor.remarks || "",
+    vendor.activeStatus ? "Active" : "Inactive",
+  ]);
+
+  // Create CSV content
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+  ].join("\n");
+
+  // Create and download file
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", `vendors_export_${new Date().toISOString().split("T")[0]}.csv`);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+/**
+ * Import vendors from Excel/CSV file
+ */
+export const importVendorsFromExcel = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split("\n").filter((line) => line.trim());
+
+        if (lines.length < 2) {
+          throw new Error("File is empty or contains no data rows");
+        }
+
+        // Parse CSV
+        const parseCSVLine = (line) => {
+          const result = [];
+          let current = "";
+          let inQuotes = false;
+
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === "," && !inQuotes) {
+              result.push(current.trim());
+              current = "";
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        // Skip header row
+        const dataLines = lines.slice(1);
+
+        const vendors = dataLines.map((line, index) => {
+          const values = parseCSVLine(line);
+
+          if (values.length < 5) {
+            throw new Error(`Invalid data format at row ${index + 2}`);
+          }
+
+          return {
+            vendorCode: values[0] || "",
+            name: values[1] || "",
+            shopName: values[2] || "",
+            phone: values[3] || "",
+            email: values[4] || "",
+            address: values[5] || "",
+            city: values[6] || "",
+            state: values[7] || "",
+            pincode: values[8] || "",
+            category: values[9] || "",
+            gstNumber: values[10] || "",
+            remarks: values[11] || "",
+            activeStatus: values[12]?.toLowerCase() !== "inactive",
+          };
+        });
+
+        resolve(vendors);
+      } catch (error) {
+        reject(new Error(`Failed to parse file: ${error.message}`));
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Failed to read file"));
+    };
+
+    reader.readAsText(file);
+  });
+};

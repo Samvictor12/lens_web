@@ -41,5 +41,10 @@ const Button = React.forwardRef(
 );
 Button.displayName = "Button";
 
-export { Button, getButtonClasses };
+const buttonVariants = (props = {}) => {
+  const { variant = "default", size = "default", className = "" } = props;
+  return getButtonClasses(variant, size) + (className ? ` ${className}` : "");
+};
+
+export { Button, getButtonClasses, buttonVariants };
 
