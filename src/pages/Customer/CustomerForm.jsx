@@ -8,8 +8,13 @@ import { FormSelect } from "@/components/ui/form-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { createCustomer, getCustomerById, updateCustomer } from "@/services/customer";
-import { defaultCustomer, businessCategories, activeStatusOptions } from "./Customer.constants";
+import {
+  createCustomer,
+  getCustomerById,
+  updateCustomer,
+} from "@/services/customer";
+import { getBusinessCategoryDropdown } from "@/services/businessCategory";
+import { defaultCustomer, activeStatusOptions } from "./Customer.constants";
 
 export default function CustomerForm() {
   const navigate = useNavigate();
@@ -21,6 +26,30 @@ export default function CustomerForm() {
   const [originalData, setOriginalData] = useState(defaultCustomer);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [businessCategories, setBusinessCategories] = useState([]);
+
+  // Fetch business categories on mount
+  useEffect(() => {
+    const fetchBusinessCategories = async () => {
+      try {
+        const response = await getBusinessCategoryDropdown();
+        console.log("Fetched business categories:", response);
+
+        if (response.success) {
+          setBusinessCategories(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching business categories:", error);
+        toast({
+          title: "Warning",
+          description: "Failed to load business categories",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchBusinessCategories();
+  }, []);
 
   useEffect(() => {
     const fetchCustomer = async () => {
@@ -28,7 +57,7 @@ export default function CustomerForm() {
         try {
           setIsLoading(true);
           const response = await getCustomerById(parseInt(id));
-          
+
           if (response.success) {
             const customer = response.data;
             const customerData = {
@@ -45,7 +74,10 @@ export default function CustomerForm() {
               gstNumber: customer.gstNumber || "",
               creditLimit: customer.creditLimit || "",
               remarks: customer.remarks || "",
-              activeStatus: customer.activeStatus !== undefined ? customer.activeStatus : true,
+              activeStatus:
+                customer.activeStatus !== undefined
+                  ? customer.activeStatus
+                  : true,
             };
             setFormData(customerData);
             setOriginalData(customerData);
@@ -89,7 +121,8 @@ export default function CustomerForm() {
 
   const validateGST = (gst) => {
     if (!gst) return true; // GST is optional
-    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    const gstRegex =
+      /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
     return gstRegex.test(gst.toUpperCase());
   };
 
@@ -124,7 +157,10 @@ export default function CustomerForm() {
     }
 
     // Credit Limit validation (must be a number if provided)
-    if (formData.creditLimit && (isNaN(formData.creditLimit) || parseFloat(formData.creditLimit) < 0)) {
+    if (
+      formData.creditLimit &&
+      (isNaN(formData.creditLimit) || parseFloat(formData.creditLimit) < 0)
+    ) {
       newErrors.creditLimit = "Credit limit must be a valid positive number";
     }
 
@@ -134,7 +170,7 @@ export default function CustomerForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Handle phone number input - allow only digits
     if (name === "phone") {
       const cleaned = value.replace(/\D/g, "");
@@ -163,7 +199,7 @@ export default function CustomerForm() {
     else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
-    
+
     // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -172,18 +208,18 @@ export default function CustomerForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     try {
       setIsSaving(true);
-      
+
       if (mode === "add") {
         // Create new customer
         const response = await createCustomer(formData);
-        
+
         if (response.success) {
           toast({
             title: "Success",
@@ -194,13 +230,13 @@ export default function CustomerForm() {
       } else if (mode === "edit" || isEditing) {
         // Update existing customer
         const response = await updateCustomer(parseInt(id), formData);
-        
+
         if (response.success) {
           toast({
             title: "Success",
             description: "Customer updated successfully!",
           });
-          
+
           if (mode === "view") {
             // Update local data and exit edit mode
             setOriginalData(formData);
@@ -214,7 +250,8 @@ export default function CustomerForm() {
       console.error("Error saving customer:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save customer. Please try again.",
+        description:
+          error.message || "Failed to save customer. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -226,16 +263,18 @@ export default function CustomerForm() {
     if (mode === "view" && !isEditing) {
       navigate("/sales/customers");
     } else {
-      const confirmCancel = window.confirm("Are you sure? Any unsaved changes will be lost.");
+      const confirmCancel = window.confirm(
+        "Are you sure? Any unsaved changes will be lost."
+      );
       if (confirmCancel) {
-        if (mode === "view") {
-          // Reset to original data and exit edit mode
-          setFormData(originalData);
-          setIsEditing(false);
-          setErrors({});
-        } else {
-          navigate("/sales/customers");
-        }
+        // if (mode === "view") {
+        // Reset to original data and exit edit mode
+        setFormData(originalData);
+        setIsEditing(false);
+        setErrors({});
+        // } else {
+        navigate("/sales/customers");
+        // }
       }
     }
   };
@@ -257,7 +296,11 @@ export default function CustomerForm() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            {mode === "add" ? "Add New Customer" : mode === "edit" ? "Edit Customer" : "Customer Details"}
+            {mode === "add"
+              ? "Add New Customer"
+              : mode === "edit"
+              ? "Edit Customer"
+              : "Customer Details"}
           </h1>
           <p className="text-xs text-muted-foreground">
             {mode === "add"
@@ -267,8 +310,19 @@ export default function CustomerForm() {
               : "View customer information"}
           </p>
         </div>
-        
+
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="h-8 gap-1.5"
+            onClick={handleCancel}
+            disabled={isSaving}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </Button>
           {mode === "view" && (
             <Button
               size="xs"
@@ -289,20 +343,9 @@ export default function CustomerForm() {
               )}
             </Button>
           )}
-          
+
           {(mode !== "view" || isEditing) && (
             <>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                className="h-8 gap-1.5"
-                onClick={handleCancel}
-                disabled={isSaving}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Back
-              </Button>
               <Button
                 type="submit"
                 size="xs"
@@ -324,19 +367,6 @@ export default function CustomerForm() {
               </Button>
             </>
           )}
-          
-          {mode === "view" && !isEditing && (
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              className="h-8 gap-1.5"
-              onClick={handleCancel}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back
-            </Button>
-          )}
         </div>
       </div>
 
@@ -346,229 +376,239 @@ export default function CustomerForm() {
           <CardContent className="p-8 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              <p className="text-sm text-muted-foreground">Loading customer details...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading customer details...
+              </p>
             </div>
           </CardContent>
         </Card>
       ) : (
         <form onSubmit={handleSubmit}>
           <Card>
-          {/* <CardHeader className="p-3 pb-2">
+            {/* <CardHeader className="p-3 pb-2">
             <CardTitle className="text-sm">Customer Information</CardTitle>
           </CardHeader> */}
-          <CardContent className="p-3 pt-0 space-y-4">
-            {/* Customer Code & Name */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <CardContent className="p-3 pt-0 space-y-4">
+              {/* Customer Code & Name */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormInput
+                  label="Customer Code"
+                  name="customerCode"
+                  value={formData.customerCode}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  // placeholder="e.g., CUST-001"
+                  required
+                  error={errors.customerCode}
+                />
+
+                <FormInput
+                  label="Customer Name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  // placeholder="e.g., Raj Kumar"
+                  required
+                  error={errors.name}
+                />
+              </div>
+
+              {/* Shop Name */}
               <FormInput
-                label="Customer Code"
-                name="customerCode"
-                value={formData.customerCode}
+                label="Shop Name (Optional)"
+                name="shopName"
+                value={formData.shopName}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                // placeholder="e.g., CUST-001"
-                required
-                error={errors.customerCode}
+                // placeholder="e.g., Raj's Vision Center"
               />
 
-              <FormInput
-                label="Customer Name"
-                name="name"
-                value={formData.name}
+              {/* Business Category & Status */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Business Category - React Select */}
+                <FormSelect
+                  label="Business Category"
+                  name="categoryId"
+                  options={businessCategories}
+                  value={formData.categoryId}
+                  onChange={(value) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      categoryId: value,
+                    }));
+                    // Clear error when value changes
+                    if (errors.categoryId) {
+                      setErrors((prev) => ({ ...prev, categoryId: "" }));
+                    }
+                  }}
+                  placeholder="Select category"
+                  isSearchable={true}
+                  isClearable={true}
+                  disabled={isReadOnly}
+                  error={errors.categoryId}
+                />
+
+                {/* Active Status - React Select */}
+                <FormSelect
+                  label="Status"
+                  name="activeStatus"
+                  options={activeStatusOptions.map((opt) => ({
+                    id: opt.value,
+                    name: opt.label,
+                  }))}
+                  value={formData.activeStatus}
+                  onChange={(value) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      activeStatus: value,
+                    }));
+                    // Clear error when value changes
+                    if (errors.activeStatus) {
+                      setErrors((prev) => ({ ...prev, activeStatus: "" }));
+                    }
+                  }}
+                  placeholder="Select status"
+                  isSearchable={false}
+                  isClearable={false}
+                  disabled={isReadOnly}
+                  required
+                  error={errors.activeStatus}
+                />
+              </div>
+
+              {/* Phone & Email */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormInput
+                  label="Phone Number (Optional)"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  // placeholder="9876543210"
+                  maxLength={10}
+                  prefix="+91"
+                  error={errors.phone}
+                  showCharCount={!!formData.phone}
+                />
+
+                <FormInput
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  // placeholder="customer@example.com"
+                  prefix="@"
+                  required
+                  error={errors.email}
+                />
+              </div>
+
+              {/* Address */}
+              <FormTextarea
+                label="Address (Optional)"
+                name="address"
+                value={formData.address}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                // placeholder="e.g., Raj Kumar"
-                required
-                error={errors.name}
+                // placeholder="123 MG Road, Mumbai, Maharashtra 400001"
+                rows={3}
               />
-            </div>
 
-            {/* Shop Name */}
-            <FormInput
-              label="Shop Name (Optional)"
-              name="shopName"
-              value={formData.shopName}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              // placeholder="e.g., Raj's Vision Center"
-            />
+              {/* City, State & Pincode */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <FormInput
+                  label="City (Optional)"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  error={errors.city}
+                />
 
-            {/* Business Category & Status */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Business Category - React Select */}
-              <FormSelect
-                label="Business Category"
-                name="categoryId"
-                options={businessCategories}
-                value={formData.categoryId}
-                onChange={(value) => {
-                  setFormData((prev) => ({ 
-                    ...prev, 
-                    categoryId: value 
-                  }));
-                  // Clear error when value changes
-                  if (errors.categoryId) {
-                    setErrors((prev) => ({ ...prev, categoryId: "" }));
+                <FormInput
+                  label="State (Optional)"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  error={errors.state}
+                />
+
+                <FormInput
+                  label="Pincode (Optional)"
+                  name="pincode"
+                  type="text"
+                  value={formData.pincode}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  maxLength={6}
+                  error={errors.pincode}
+                  showCharCount={!!formData.pincode}
+                />
+              </div>
+
+              {/* GST & Credit Limit */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormInput
+                  label="GST Number (Optional)"
+                  name="gstNumber"
+                  value={formData.gstNumber}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  // placeholder="27AABCU9603R1Z5"
+                  maxLength={15}
+                  className="uppercase"
+                  error={errors.gstNumber}
+                  showCharCount={!!formData.gstNumber}
+                />
+
+                <FormInput
+                  label="Credit Limit (Optional)"
+                  name="creditLimit"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={formData.creditLimit}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  // placeholder="30010"
+                  prefix="₹"
+                  error={errors.creditLimit}
+                  helperText={
+                    !errors.creditLimit && "Maximum outstanding amount allowed"
                   }
-                }}
-                placeholder="Select category"
-                isSearchable={true}
-                isClearable={true}
-                disabled={isReadOnly}
-                error={errors.categoryId}
-              />
+                />
+              </div>
 
-              {/* Active Status - React Select */}
-              <FormSelect
-                label="Status"
-                name="activeStatus"
-                options={activeStatusOptions.map(opt => ({ id: opt.value, name: opt.label }))}
-                value={formData.activeStatus}
-                onChange={(value) => {
-                  setFormData((prev) => ({ 
-                    ...prev, 
-                    activeStatus: value 
-                  }));
-                  // Clear error when value changes
-                  if (errors.activeStatus) {
-                    setErrors((prev) => ({ ...prev, activeStatus: "" }));
-                  }
-                }}
-                placeholder="Select status"
-                isSearchable={false}
-                isClearable={false}
-                disabled={isReadOnly}
-                required
-                error={errors.activeStatus}
-              />
-            </div>
-
-            {/* Phone & Email */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FormInput
-                label="Phone Number (Optional)"
-                name="phone"
-                type="tel"
-                value={formData.phone}
+              {/* Remarks */}
+              <FormTextarea
+                label="Remarks (Optional)"
+                name="remarks"
+                value={formData.remarks}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                // placeholder="9876543210"
-                maxLength={10}
-                prefix="+91"
-                error={errors.phone}
-                showCharCount={!!formData.phone}
+                rows={2}
+                placeholder="Any additional notes about the customer"
               />
 
-              <FormInput
-                label="Email Address"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                placeholder="customer@example.com"
-                prefix="@"
-                required
-                error={errors.email}
-              />
-            </div>
-
-            {/* Address */}
-            <FormTextarea
-              label="Address (Optional)"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              // placeholder="123 MG Road, Mumbai, Maharashtra 400001"
-              rows={3}
-            />
-
-            {/* City, State & Pincode */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <FormInput
-                label="City (Optional)"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                error={errors.city}
-              />
-
-              <FormInput
-                label="State (Optional)"
-                name="state"
-                value={formData.state}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                error={errors.state}
-              />
-
-              <FormInput
-                label="Pincode (Optional)"
-                name="pincode"
-                type="text"
-                value={formData.pincode}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                maxLength={6}
-                error={errors.pincode}
-                showCharCount={!!formData.pincode}
-              />
-            </div>
-
-            {/* GST & Credit Limit */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FormInput
-                label="GST Number (Optional)"
-                name="gstNumber"
-                value={formData.gstNumber}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                // placeholder="27AABCU9603R1Z5"
-                maxLength={15}
-                className="uppercase"
-                error={errors.gstNumber}
-                showCharCount={!!formData.gstNumber}
-              />
-
-              <FormInput
-                label="Credit Limit (Optional)"
-                name="creditLimit"
-                type="number"
-                min="0"
-                step="1000"
-                value={formData.creditLimit}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                // placeholder="30010"
-                prefix="₹"
-                error={errors.creditLimit}
-                helperText={!errors.creditLimit && "Maximum outstanding amount allowed"}
-              />
-            </div>
-
-            {/* Remarks */}
-            <FormTextarea
-              label="Remarks (Optional)"
-              name="remarks"
-              value={formData.remarks}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              rows={2}
-              placeholder="Any additional notes about the customer"
-            />
-
-            {/* Info Alert */}
-            {mode === "add" && (
-              <Alert className="bg-primary/5 border-primary/20">
-                <AlertDescription className="text-xs">
-                  Fields marked with <span className="text-destructive">*</span> are required. Outstanding balance will be calculated automatically based on billing.
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      </form>
+              {/* Info Alert */}
+              {mode === "add" && (
+                <Alert className="bg-primary/5 border-primary/20">
+                  <AlertDescription className="text-xs">
+                    Fields marked with{" "}
+                    <span className="text-destructive">*</span> are required.
+                    Outstanding balance will be calculated automatically based
+                    on billing.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </form>
       )}
     </div>
   );

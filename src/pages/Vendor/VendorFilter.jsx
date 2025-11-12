@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
@@ -11,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getBusinessCategoryDropdown } from "@/services/businessCategory";
 
 export default function VendorFilter({
   filters,
@@ -23,6 +25,24 @@ export default function VendorFilter({
   onClearFilters,
   onCancelFilters,
 }) {
+  const [vendorCategories, setVendorCategories] = useState([]);
+
+  // Fetch business categories on mount
+  useEffect(() => {
+    const fetchBusinessCategories = async () => {
+      try {
+        const response = await getBusinessCategoryDropdown();
+        if (response.success) {
+          setVendorCategories(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching business categories:", error);
+      }
+    };
+
+    fetchBusinessCategories();
+  }, []);
+
   // Active status options for dropdown
   const activeStatusOptions = [
     { id: "all", name: "All" },
@@ -92,20 +112,21 @@ export default function VendorFilter({
               isClearable={false}
             />
 
-            {/* Category Filter */}
-            <FormInput
-              label="Category"
+            {/* Business Category Filter */}
+            <FormSelect
+              label="Business Category"
               name="category"
-              type="text"
-              placeholder="Enter category"
+              options={vendorCategories}
               value={tempFilters.category}
-              onChange={(e) =>
+              onChange={(value) => {
                 setTempFilters({
                   ...tempFilters,
-                  category: e.target.value,
-                })
-              }
-              helperText="Search by vendor category (case insensitive)"
+                  category: value,
+                });
+              }}
+              placeholder="All categories"
+              isSearchable={true}
+              isClearable={true}
             />
 
             {/* City Filter */}

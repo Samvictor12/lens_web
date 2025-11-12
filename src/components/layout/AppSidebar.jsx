@@ -106,6 +106,12 @@ const masterItems = [
     allowedRoles: ["admin", "inventory"],
   },
   {
+    title: "Business Categories",
+    url: "/masters/business-categories",
+    icon: Tag,
+    allowedRoles: ["admin", "sales"],
+  },
+  {
     title: "Lens Types",
     url: "/masters/lens-types",
     icon: Eye,

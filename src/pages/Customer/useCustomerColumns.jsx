@@ -86,14 +86,14 @@ export const useCustomerColumns = (navigate, onDelete) => {
       sortable: false,
       cell: (customer) => (
         <div className="flex gap-1">
-          <Button
+          {/* <Button
             variant="ghost"
             size="xs"
             className="h-7 px-2 text-xs"
             onClick={() => navigate(`/sales/customers/view/${customer.id}`)}
           >
             View
-          </Button>
+          </Button> */}
           <Button
             variant="ghost"
             size="xs"

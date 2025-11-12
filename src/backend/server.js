@@ -13,6 +13,7 @@ import saleOrderRoutes from './routes/saleOrders.js';
 import customerMasterRoutes from './routes/customerMaster.js';
 import vendorMasterRoutes from './routes/vendorMaster.js';
 import userMasterRoutes from './routes/userMaster.js';
+import businessCategoryRoutes from './routes/businessCategory.js';
 
 // Load environment variables
 dotenv.config();
@@ -80,6 +81,7 @@ app.use('/api/sale-orders', saleOrderRoutes);
 app.use('/api/customer-master', customerMasterRoutes);
 app.use('/api/vendor-master', vendorMasterRoutes);
 app.use('/api/user-master', userMasterRoutes);
+app.use('/api/business-category', businessCategoryRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
@@ -108,6 +110,7 @@ const server = app.listen(PORT, () => {
   console.log(`Customer Master API: http://localhost:${PORT}/api/customer-master`);
   console.log(`Vendor Master API: http://localhost:${PORT}/api/vendor-master`);
   console.log(`User Master API: http://localhost:${PORT}/api/user-master`);
+  console.log(`Business Category API: http://localhost:${PORT}/api/business-category`);
 });
 
 server.on('error', (error) => {

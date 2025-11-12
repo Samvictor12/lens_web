@@ -1,7 +1,5 @@
-import { useState, useEffect } from "react";
 import { X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FormInput } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,9 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getBusinessCategoryDropdown } from "@/services/businessCategory";
 
-export default function CustomerFilter({
+export default function BusinessCategoryFilter({
   filters,
   tempFilters,
   setTempFilters,
@@ -25,24 +22,6 @@ export default function CustomerFilter({
   onClearFilters,
   onCancelFilters,
 }) {
-  const [businessCategories, setBusinessCategories] = useState([]);
-
-  // Fetch business categories on mount
-  useEffect(() => {
-    const fetchBusinessCategories = async () => {
-      try {
-        const response = await getBusinessCategoryDropdown();
-        if (response.success) {
-          setBusinessCategories(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching business categories:", error);
-      }
-    };
-
-    fetchBusinessCategories();
-  }, []);
-
   // Active status options for dropdown
   const activeStatusOptions = [
     { id: "all", name: "All" },
@@ -88,9 +67,9 @@ export default function CustomerFilter({
       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg">Filter Customers</DialogTitle>
+            <DialogTitle className="text-lg">Filter Business Categories</DialogTitle>
             <DialogDescription className="text-xs">
-              Apply filters to refine your customer list
+              Apply filters to refine your category list
             </DialogDescription>
           </DialogHeader>
 
@@ -107,55 +86,30 @@ export default function CustomerFilter({
                   active_status: value,
                 });
               }}
-              placeholder="All customers"
+              placeholder="All categories"
               isSearchable={false}
               isClearable={false}
             />
-
-            {/* Business Category Filter */}
-            <FormSelect
-              label="Business Category"
-              name="businessCategory_id"
-              options={businessCategories}
-              value={tempFilters.businessCategory_id}
-              onChange={(value) => {
-                setTempFilters({
-                  ...tempFilters,
-                  businessCategory_id: value,
-                });
-              }}
-              placeholder="All categories"
-              isSearchable={true}
-              isClearable={true}
-            />
-
-            {/* City Filter */}
-            <FormInput
-              label="City"
-              name="city"
-              type="text"
-              placeholder="Enter city name"
-              value={tempFilters.city}
-              onChange={(e) =>
-                setTempFilters({
-                  ...tempFilters,
-                  city: e.target.value,
-                })
-              }
-              helperText="Search customers by city (case insensitive)"
-            />
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
+              type="button"
               variant="outline"
-              size="xs"
+              size="sm"
               onClick={onCancelFilters}
-              className="h-8"
             >
               Cancel
             </Button>
-            <Button size="xs" onClick={onApplyFilters} className="h-8">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClearFilters}
+            >
+              Clear All
+            </Button>
+            <Button type="button" size="sm" onClick={onApplyFilters}>
               Apply Filters
             </Button>
           </DialogFooter>

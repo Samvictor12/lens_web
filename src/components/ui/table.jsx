@@ -60,7 +60,7 @@ const TableRow = React.forwardRef(({ className, ...props }, ref) => (
   <tr
     ref={ref}
     className={cn(
-      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted even:bg-muted/30",
+      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted even:bg-zinc-100",
       className
     )}
     {...props}
@@ -72,7 +72,7 @@ const TableHead = React.forwardRef(({ className, ...props }, ref) => (
   <th
     ref={ref}
     className={cn(
-      "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 border-r last:border-r-0",
+      "h-10 px-4 bg-slate-200 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 border-b last:border-r-0",
       className
     )}
     {...props}
@@ -83,7 +83,7 @@ TableHead.displayName = "TableHead";
 const TableCell = React.forwardRef(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("p-2 px-4 align-middle [&:has([role=checkbox])]:pr-0 border-r last:border-r-0", className)}
+    className={cn("p-2 px-4 align-middle [&:has([role=checkbox])]:pr-0 border-y last:border-r-0", className)}
     {...props}
   />
 ));
@@ -283,7 +283,7 @@ const Table = React.forwardRef(
 
         {/* Pagination - Sticky at bottom */}
         {pagination && totalCount > 0 && (
-          <div className="flex items-center justify-between px-2 pt-2 border-t bg-background">
+          <div className="flex items-center justify-between px-2 pt-2 bg-background">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>
                 Showing {startIndex} to {endIndex} of {totalCount} results

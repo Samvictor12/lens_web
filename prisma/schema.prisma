@@ -42,12 +42,14 @@ model User {
   // Relationship Fields
   role               Role?              @relation(fields: [roleId], references: [id])
   departmentDetails  DepartmentDetails? @relation(fields: [department_id], references: [id])
-  refreshToken       RefreshToken?
+  refreshToken                 RefreshToken?
   // Relationship Tables
-  vendorUserCreate   Vendor[]           @relation("vendorUserCreate")
-  vendorUserUpdate   Vendor[]           @relation("vendorUserUpdate")
-  customerUserCreate Customer[]         @relation("customerUserCreate")
-  customerUserUpdate Customer[]         @relation("customerUserUpdate")
+  vendorUserCreate             Vendor[]           @relation("vendorUserCreate")
+  vendorUserUpdate             Vendor[]           @relation("vendorUserUpdate")
+  customerUserCreate           Customer[]         @relation("customerUserCreate")
+  customerUserUpdate           Customer[]         @relation("customerUserUpdate")
+  businessCategoryUserCreate   businessCategory[] @relation("businessCategoryUserCreate")
+  businessCategoryUserUpdate   businessCategory[] @relation("businessCategoryUserUpdate")
 }
 
 model Role {
@@ -82,11 +84,19 @@ model RefreshToken {
 }
 
 model businessCategory {
-  id        Int        @id @default(autoincrement())
-  name      String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  customers Customer[] @relation("customerCategory")
+  id            Int        @id @default(autoincrement())
+  name          String     @unique
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  active_status Boolean    @default(true)
+  delete_status Boolean    @default(false)
+  createdBy     Int
+  updatedBy     Int?
+  // Relationship Fields
+  usercreate    User       @relation("businessCategoryUserCreate", fields: [createdBy], references: [id])
+  userupdate    User?      @relation("businessCategoryUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  customers     Customer[] @relation("customerCategory")
 }
 
 model Customer {

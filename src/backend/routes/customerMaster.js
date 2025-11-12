@@ -415,8 +415,8 @@ router.get('/',
  *                         type: string
  */
 router.get('/dropdown',
-    authenticateToken,
-    requireRole(['Sales', 'Admin', 'Inventory']),
+    // authenticateToken,
+    // requireRole(['Sales', 'Admin', 'Inventory']),
     controller.getDropdown.bind(controller)
 );
 
@@ -446,8 +446,8 @@ router.get('/dropdown',
  *                       type: integer
  */
 router.get('/stats',
-    authenticateToken,
-    requireRole(['Admin']),
+    // authenticateToken,
+    // requireRole(['Admin']),
     controller.getStats.bind(controller)
 );
 
@@ -494,8 +494,8 @@ router.get('/stats',
  *                       type: string
  */
 router.post('/check-email',
-    authenticateToken,
-    requireRole(['Sales', 'Admin']),
+    // authenticateToken,
+    // requireRole(['Sales', 'Admin']),
     controller.checkCustomerEmail.bind(controller)
 );
 
@@ -535,8 +535,8 @@ router.post('/check-email',
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id',
-    authenticateToken,
-    requireRole(['Sales', 'Admin', 'Inventory']),
+    // authenticateToken,
+    // requireRole(['Sales', 'Admin', 'Inventory']),
     controller.getById.bind(controller)
 );
 
