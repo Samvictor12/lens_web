@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { getBusinessCategoryDropdown } from "@/services/businessCategory";
 
-export default function CustomerFilter({
+export default function VendorFilter({
   filters,
   tempFilters,
   setTempFilters,
@@ -25,7 +25,7 @@ export default function CustomerFilter({
   onClearFilters,
   onCancelFilters,
 }) {
-  const [businessCategories, setBusinessCategories] = useState([]);
+  const [vendorCategories, setVendorCategories] = useState([]);
 
   // Fetch business categories on mount
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function CustomerFilter({
       try {
         const response = await getBusinessCategoryDropdown();
         if (response.success) {
-          setBusinessCategories(response.data);
+          setVendorCategories(response.data);
         }
       } catch (error) {
         console.error("Error fetching business categories:", error);
@@ -88,9 +88,9 @@ export default function CustomerFilter({
       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg">Filter Customers</DialogTitle>
+            <DialogTitle className="text-lg">Filter Vendors</DialogTitle>
             <DialogDescription className="text-xs">
-              Apply filters to refine your customer list
+              Apply filters to refine your vendor list
             </DialogDescription>
           </DialogHeader>
 
@@ -107,7 +107,7 @@ export default function CustomerFilter({
                   active_status: value,
                 });
               }}
-              placeholder="All customers"
+              placeholder="All vendors"
               isSearchable={false}
               isClearable={false}
             />
@@ -115,13 +115,13 @@ export default function CustomerFilter({
             {/* Business Category Filter */}
             <FormSelect
               label="Business Category"
-              name="businessCategory_id"
-              options={businessCategories}
-              value={tempFilters.businessCategory_id}
+              name="category"
+              options={vendorCategories}
+              value={tempFilters.category}
               onChange={(value) => {
                 setTempFilters({
                   ...tempFilters,
-                  businessCategory_id: value,
+                  category: value,
                 });
               }}
               placeholder="All categories"
@@ -142,20 +142,24 @@ export default function CustomerFilter({
                   city: e.target.value,
                 })
               }
-              helperText="Search customers by city (case insensitive)"
+              helperText="Search vendors by city (case insensitive)"
             />
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
+              type="button"
               variant="outline"
-              size="xs"
+              size="sm"
               onClick={onCancelFilters}
-              className="h-8"
             >
               Cancel
             </Button>
-            <Button size="xs" onClick={onApplyFilters} className="h-8">
+            <Button
+              type="button"
+              size="sm"
+              onClick={onApplyFilters}
+            >
               Apply Filters
             </Button>
           </DialogFooter>

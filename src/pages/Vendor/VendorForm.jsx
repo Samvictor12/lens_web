@@ -8,35 +8,32 @@ import { FormSelect } from "@/components/ui/form-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import {
-  createCustomer,
-  getCustomerById,
-  updateCustomer,
-} from "@/services/customer";
+import { createVendor, getVendorById, updateVendor } from "@/services/vendor";
 import { getBusinessCategoryDropdown } from "@/services/businessCategory";
-import { defaultCustomer, activeStatusOptions } from "./Customer.constants";
+import {
+  defaultVendor,
+  activeStatusOptions,
+} from "./Vendor.constants";
 
-export default function CustomerForm() {
+export default function VendorForm() {
   const navigate = useNavigate();
   const { mode, id } = useParams();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(mode === "add" || mode === "edit");
   const [errors, setErrors] = useState({});
-  const [formData, setFormData] = useState(defaultCustomer);
-  const [originalData, setOriginalData] = useState(defaultCustomer);
+  const [formData, setFormData] = useState(defaultVendor);
+  const [originalData, setOriginalData] = useState(defaultVendor);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [businessCategories, setBusinessCategories] = useState([]);
+  const [vendorCategories, setVendorCategories] = useState([]);
 
   // Fetch business categories on mount
   useEffect(() => {
     const fetchBusinessCategories = async () => {
       try {
         const response = await getBusinessCategoryDropdown();
-        console.log("Fetched business categories:", response);
-
         if (response.success) {
-          setBusinessCategories(response.data);
+          setVendorCategories(response.data);
         }
       } catch (error) {
         console.error("Error fetching business categories:", error);
@@ -52,58 +49,55 @@ export default function CustomerForm() {
   }, []);
 
   useEffect(() => {
-    const fetchCustomer = async () => {
+    const fetchVendor = async () => {
       if (id && (mode === "view" || mode === "edit")) {
         try {
           setIsLoading(true);
-          const response = await getCustomerById(parseInt(id));
+          const response = await getVendorById(parseInt(id));
 
           if (response.success) {
-            const customer = response.data;
-            const customerData = {
-              customerCode: customer.customerCode || "",
-              name: customer.name || "",
-              shopName: customer.shopName || "",
-              phone: customer.phone || "",
-              email: customer.email || "",
-              address: customer.address || "",
-              city: customer.city || "",
-              state: customer.state || "",
-              pincode: customer.pincode || "",
-              categoryId: customer.categoryId || null,
-              gstNumber: customer.gstNumber || "",
-              creditLimit: customer.creditLimit || "",
-              remarks: customer.remarks || "",
+            const vendor = response.data;
+            const vendorData = {
+              vendorCode: vendor.vendorCode || "",
+              name: vendor.name || "",
+              shopName: vendor.shopName || "",
+              phone: vendor.phone || "",
+              email: vendor.email || "",
+              address: vendor.address || "",
+              city: vendor.city || "",
+              state: vendor.state || "",
+              pincode: vendor.pincode || "",
+              category: vendor.category || "",
+              gstNumber: vendor.gstNumber || "",
+              remarks: vendor.remarks || "",
               activeStatus:
-                customer.activeStatus !== undefined
-                  ? customer.activeStatus
-                  : true,
+                vendor.activeStatus !== undefined ? vendor.activeStatus : true,
             };
-            setFormData(customerData);
-            setOriginalData(customerData);
+            setFormData(vendorData);
+            setOriginalData(vendorData);
           } else {
             toast({
               title: "Error",
-              description: "Customer not found",
+              description: "Vendor not found",
               variant: "destructive",
             });
-            navigate("/sales/customers");
+            navigate("/masters/vendors");
           }
         } catch (error) {
-          console.error("Error fetching customer:", error);
+          console.error("Error fetching vendor:", error);
           toast({
             title: "Error",
-            description: error.message || "Failed to fetch customer details",
+            description: error.message || "Failed to fetch vendor details",
             variant: "destructive",
           });
-          navigate("/sales/customers");
+          navigate("/masters/vendors");
         } finally {
           setIsLoading(false);
         }
       }
     };
 
-    fetchCustomer();
+    fetchVendor();
   }, [id, mode, navigate]);
 
   const validatePhone = (phone) => {
@@ -129,39 +123,36 @@ export default function CustomerForm() {
   const validateForm = () => {
     const newErrors = {};
 
-    // Customer Code validation (required)
-    if (!formData.customerCode.trim()) {
-      newErrors.customerCode = "Customer code is required";
+    // Vendor Code validation (required)
+    if (!formData.vendorCode.trim()) {
+      newErrors.vendorCode = "Vendor code is required";
     }
 
     // Name validation (required)
     if (!formData.name.trim()) {
-      newErrors.name = "Customer name is required";
+      newErrors.name = "Vendor name is required";
     }
 
-    // Phone validation (optional in backend)
+    // Phone validation (optional but must be valid if provided)
     if (formData.phone && !validatePhone(formData.phone)) {
-      newErrors.phone = "Phone number must be exactly 10 digits";
+      newErrors.phone = "Phone number must be 10 digits";
     }
 
-    // Email validation (required in backend)
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!validateEmail(formData.email)) {
-      newErrors.email = "Invalid email format";
+    // Email validation (required)
+    if (!validateEmail(formData.email)) {
+      newErrors.email = formData.email
+        ? "Invalid email address"
+        : "Email is required";
     }
 
-    // GST validation
-    if (!validateGST(formData.gstNumber)) {
-      newErrors.gstNumber = "Invalid GST number format (e.g., 27AABCU9603R1Z5)";
+    // GST validation (optional but must be valid if provided)
+    if (formData.gstNumber && !validateGST(formData.gstNumber)) {
+      newErrors.gstNumber = "Invalid GST number format";
     }
 
-    // Credit Limit validation (must be a number if provided)
-    if (
-      formData.creditLimit &&
-      (isNaN(formData.creditLimit) || parseFloat(formData.creditLimit) < 0)
-    ) {
-      newErrors.creditLimit = "Credit limit must be a valid positive number";
+    // Pincode validation (optional but must be 6 digits if provided)
+    if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
+      newErrors.pincode = "Pincode must be 6 digits";
     }
 
     setErrors(newErrors);
@@ -171,21 +162,18 @@ export default function CustomerForm() {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Handle phone number input - allow only digits
+    // Handle phone - allow only numbers up to 10 digits
     if (name === "phone") {
       const cleaned = value.replace(/\D/g, "");
       if (cleaned.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: cleaned }));
       }
     }
-    // Handle GST - convert to uppercase
+    // Handle GST number - convert to uppercase
     else if (name === "gstNumber") {
-      setFormData((prev) => ({ ...prev, [name]: value.toUpperCase() }));
-    }
-    // Handle credit limit - allow only numbers
-    else if (name === "creditLimit") {
-      if (value === "" || (!isNaN(value) && parseFloat(value) >= 0)) {
-        setFormData((prev) => ({ ...prev, [name]: value }));
+      const uppercased = value.toUpperCase();
+      if (uppercased.length <= 15) {
+        setFormData((prev) => ({ ...prev, [name]: uppercased }));
       }
     }
     // Handle pincode - allow only digits up to 6
@@ -217,24 +205,24 @@ export default function CustomerForm() {
       setIsSaving(true);
 
       if (mode === "add") {
-        // Create new customer
-        const response = await createCustomer(formData);
+        // Create new vendor
+        const response = await createVendor(formData);
 
         if (response.success) {
           toast({
             title: "Success",
-            description: "Customer added successfully!",
+            description: "Vendor added successfully!",
           });
-          navigate("/sales/customers");
+          navigate("/masters/vendors");
         }
       } else if (mode === "edit" || isEditing) {
-        // Update existing customer
-        const response = await updateCustomer(parseInt(id), formData);
+        // Update existing vendor
+        const response = await updateVendor(parseInt(id), formData);
 
         if (response.success) {
           toast({
             title: "Success",
-            description: "Customer updated successfully!",
+            description: "Vendor updated successfully!",
           });
 
           if (mode === "view") {
@@ -242,16 +230,16 @@ export default function CustomerForm() {
             setOriginalData(formData);
             setIsEditing(false);
           } else {
-            navigate("/sales/customers");
+            navigate("/masters/vendors");
           }
         }
       }
     } catch (error) {
-      console.error("Error saving customer:", error);
+      console.error("Error saving vendor:", error);
       toast({
         title: "Error",
         description:
-          error.message || "Failed to save customer. Please try again.",
+          error.message || "Failed to save vendor. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -261,20 +249,20 @@ export default function CustomerForm() {
 
   const handleCancel = () => {
     if (mode === "view" && !isEditing) {
-      navigate("/sales/customers");
+      navigate("/masters/vendors");
     } else {
       const confirmCancel = window.confirm(
         "Are you sure? Any unsaved changes will be lost."
       );
       if (confirmCancel) {
-        // if (mode === "view") {
-        // Reset to original data and exit edit mode
-        setFormData(originalData);
-        setIsEditing(false);
-        setErrors({});
-        // } else {
-        navigate("/sales/customers");
-        // }
+        if (mode === "view") {
+          // Reset to original data and exit edit mode
+          setFormData(originalData);
+          setIsEditing(false);
+          setErrors({});
+        } else {
+          navigate("/masters/vendors");
+        }
       }
     }
   };
@@ -297,17 +285,17 @@ export default function CustomerForm() {
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
             {mode === "add"
-              ? "Add New Customer"
+              ? "Add New Vendor"
               : mode === "edit"
-              ? "Edit Customer"
-              : "Customer Details"}
+              ? "Edit Vendor"
+              : "Vendor Details"}
           </h1>
           <p className="text-xs text-muted-foreground">
             {mode === "add"
-              ? "Fill in the customer information below"
+              ? "Fill in the vendor information below"
               : mode === "edit"
-              ? "Update customer information"
-              : "View customer information"}
+              ? "Update vendor information"
+              : "View vendor information"}
           </p>
         </div>
 
@@ -377,7 +365,7 @@ export default function CustomerForm() {
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
               <p className="text-sm text-muted-foreground">
-                Loading customer details...
+                Loading vendor details...
               </p>
             </div>
           </CardContent>
@@ -385,30 +373,25 @@ export default function CustomerForm() {
       ) : (
         <form onSubmit={handleSubmit}>
           <Card>
-            {/* <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Customer Information</CardTitle>
-          </CardHeader> */}
             <CardContent className="p-3 pt-0 space-y-4">
-              {/* Customer Code & Name */}
+              {/* Vendor Code & Name */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="Customer Code"
-                  name="customerCode"
-                  value={formData.customerCode}
+                  label="Vendor Code"
+                  name="vendorCode"
+                  value={formData.vendorCode}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  // placeholder="e.g., CUST-001"
                   required
-                  error={errors.customerCode}
+                  error={errors.vendorCode}
                 />
 
                 <FormInput
-                  label="Customer Name"
+                  label="Vendor Name"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  // placeholder="e.g., Raj Kumar"
                   required
                   error={errors.name}
                 />
@@ -421,33 +404,27 @@ export default function CustomerForm() {
                 value={formData.shopName}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                // placeholder="e.g., Raj's Vision Center"
               />
 
-              {/* Business Category & Status */}
+              {/* Category & Status */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Business Category - React Select */}
-                <FormSelect
-                  label="Business Category"
-                  name="categoryId"
-                  options={businessCategories}
-                  value={formData.categoryId}
-                  onChange={(value) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      categoryId: value,
-                    }));
-                    // Clear error when value changes
-                    if (errors.categoryId) {
-                      setErrors((prev) => ({ ...prev, categoryId: "" }));
-                    }
-                  }}
-                  placeholder="Select category"
-                  isSearchable={true}
-                  isClearable={true}
-                  disabled={isReadOnly}
-                  error={errors.categoryId}
-                />
+                {/* Category - Text Input with datalist */}
+                <div className="space-y-1.5">
+                  <FormInput
+                    label="Category (Optional)"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    disabled={isReadOnly}
+                    helperText="e.g., Lens Manufacturer, Frame Supplier"
+                    list="vendor-categories"
+                  />
+                  <datalist id="vendor-categories">
+                    {vendorCategories.map((cat) => (
+                      <option key={cat.id} value={cat.name} />
+                    ))}
+                  </datalist>
+                </div>
 
                 {/* Active Status - React Select */}
                 <FormSelect
@@ -486,7 +463,6 @@ export default function CustomerForm() {
                   value={formData.phone}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  // placeholder="9876543210"
                   maxLength={10}
                   prefix="+91"
                   error={errors.phone}
@@ -500,7 +476,7 @@ export default function CustomerForm() {
                   value={formData.email}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  // placeholder="customer@example.com"
+                  // placeholder="vendor@example.com"
                   prefix="@"
                   required
                   error={errors.email}
@@ -514,7 +490,6 @@ export default function CustomerForm() {
                 value={formData.address}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                // placeholder="123 MG Road, Mumbai, Maharashtra 400001"
                 rows={3}
               />
 
@@ -551,38 +526,18 @@ export default function CustomerForm() {
                 />
               </div>
 
-              {/* GST & Credit Limit */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormInput
-                  label="GST Number (Optional)"
-                  name="gstNumber"
-                  value={formData.gstNumber}
-                  onChange={handleChange}
-                  disabled={isReadOnly}
-                  // placeholder="27AABCU9603R1Z5"
-                  maxLength={15}
-                  className="uppercase"
-                  error={errors.gstNumber}
-                  showCharCount={!!formData.gstNumber}
-                />
-
-                <FormInput
-                  label="Credit Limit (Optional)"
-                  name="creditLimit"
-                  type="number"
-                  min="0"
-                  step="1000"
-                  value={formData.creditLimit}
-                  onChange={handleChange}
-                  disabled={isReadOnly}
-                  // placeholder="30010"
-                  prefix="₹"
-                  error={errors.creditLimit}
-                  helperText={
-                    !errors.creditLimit && "Maximum outstanding amount allowed"
-                  }
-                />
-              </div>
+              {/* GST Number */}
+              <FormInput
+                label="GST Number (Optional)"
+                name="gstNumber"
+                value={formData.gstNumber}
+                onChange={handleChange}
+                disabled={isReadOnly}
+                maxLength={15}
+                className="uppercase"
+                error={errors.gstNumber}
+                showCharCount={!!formData.gstNumber}
+              />
 
               {/* Remarks */}
               <FormTextarea
@@ -592,7 +547,7 @@ export default function CustomerForm() {
                 onChange={handleChange}
                 disabled={isReadOnly}
                 rows={2}
-                placeholder="Any additional notes about the customer"
+                placeholder="Any additional notes about the vendor"
               />
 
               {/* Info Alert */}
@@ -601,8 +556,6 @@ export default function CustomerForm() {
                   <AlertDescription className="text-xs">
                     Fields marked with{" "}
                     <span className="text-destructive">*</span> are required.
-                    Outstanding balance will be calculated automatically based
-                    on billing.
                   </AlertDescription>
                 </Alert>
               )}

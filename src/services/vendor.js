@@ -6,7 +6,7 @@ import { apiClient } from "./apiClient";
  */
 const mapToBackend = (frontendData) => {
   return {
-    code: frontendData.customerCode || null,
+    code: frontendData.vendorCode || null,
     name: frontendData.name,
     shopname: frontendData.shopName || null,
     phone: frontendData.phone || null,
@@ -15,16 +15,10 @@ const mapToBackend = (frontendData) => {
     city: frontendData.city || null,
     state: frontendData.state || null,
     pincode: frontendData.pincode || null,
-    businessCategory_id: frontendData.categoryId || null,
+    category: frontendData.category || null,
     gstin: frontendData.gstNumber || null,
-    credit_limit: frontendData.creditLimit
-      ? parseInt(frontendData.creditLimit)
-      : null,
     notes: frontendData.remarks || null,
-    active_status:
-      frontendData.activeStatus !== undefined
-        ? frontendData.activeStatus
-        : true,
+    active_status: frontendData.activeStatus !== undefined ? frontendData.activeStatus : true,
     createdBy: 1, // TODO: Get from auth context
     updatedBy: 1, // TODO: Get from auth context
   };
@@ -33,8 +27,7 @@ const mapToBackend = (frontendData) => {
 const mapFromBackend = (backendData) => {
   return {
     id: backendData.id,
-    customerCode:
-      backendData.code || `CUST-${String(backendData.id).padStart(3, "0")}`,
+    vendorCode: backendData.code || `VEND-${String(backendData.id).padStart(3, '0')}`,
     name: backendData.name,
     shopName: backendData.shopname || "",
     phone: backendData.phone || "",
@@ -43,15 +36,10 @@ const mapFromBackend = (backendData) => {
     city: backendData.city || "",
     state: backendData.state || "",
     pincode: backendData.pincode || "",
-    categoryId: backendData.businessCategory_id || null,
+    category: backendData.category || "",
     gstNumber: backendData.gstin || "",
-    creditLimit: backendData.credit_limit || 0,
-    outstandingBalance: backendData.outstanding_credit || 0,
     remarks: backendData.notes || "",
-    activeStatus:
-      backendData.active_status !== undefined
-        ? backendData.active_status
-        : true,
+    activeStatus: backendData.active_status !== undefined ? backendData.active_status : true,
     createdAt: backendData.createdAt,
     updatedAt: backendData.updatedAt,
   };
@@ -77,19 +65,13 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
   // Map frontend filters to backend query params (exact backend field names)
   if (filters) {
     // Active status filter
-    if (
-      filters.active_status !== "all" &&
-      filters.active_status !== undefined
-    ) {
+    if (filters.active_status !== "all" && filters.active_status !== undefined) {
       params.active_status = filters.active_status;
     }
 
-    // Business category filter (exact match)
-    if (
-      filters.businessCategory_id !== null &&
-      filters.businessCategory_id !== undefined
-    ) {
-      params.businessCategory_id = filters.businessCategory_id;
+    // Category filter (contains search, case insensitive)
+    if (filters.category && filters.category.trim()) {
+      params.category = filters.category.trim();
     }
 
     // City filter (contains search, case insensitive)
@@ -102,7 +84,7 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
 };
 
 /**
- * Get paginated list of customers with filtering
+ * Get paginated list of vendors with filtering
  * @param {number} page - Page number (1-indexed for backend)
  * @param {number} limit - Items per page
  * @param {string} search - Search term
@@ -111,7 +93,7 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
  * @param {string} sortOrder - Sort direction (asc/desc)
  * @returns {Promise<Object>} Response with data and pagination info
  */
-export async function getCustomers(
+export async function getVendors(
   page = 1,
   limit = 10,
   search = "",
@@ -119,16 +101,9 @@ export async function getCustomers(
   sortBy = "createdAt",
   sortOrder = "desc"
 ) {
-  const params = buildQueryParams(
-    page,
-    limit,
-    search,
-    filters,
-    sortBy,
-    sortOrder
-  );
-
-  const response = await apiClient("get", "/customer-master", {
+  const params = buildQueryParams(page, limit, search, filters, sortBy, sortOrder);
+  
+  const response = await apiClient("get", "/vendor-master", {
     params,
   });
 
@@ -141,13 +116,13 @@ export async function getCustomers(
 }
 
 /**
- * Get single customer by ID
- * @param {number} id - Customer ID
- * @returns {Promise<Object>} Customer data
+ * Get single vendor by ID
+ * @param {number} id - Vendor ID
+ * @returns {Promise<Object>} Vendor data
  */
-export async function getCustomerById(id) {
-  const response = await apiClient("get", `/customer-master/${id}`);
-
+export async function getVendorById(id) {
+  const response = await apiClient("get", `/vendor-master/${id}`);
+  
   return {
     success: response.success,
     data: mapFromBackend(response.data),
@@ -155,49 +130,14 @@ export async function getCustomerById(id) {
 }
 
 /**
- * Create a new customer
- * @param {Object} customerData - Customer data in frontend format
- * @returns {Promise<Object>} Created customer data
+ * Create a new vendor
+ * @param {Object} vendorData - Vendor data in frontend format
+ * @returns {Promise<Object>} Created vendor data
  */
-export async function createCustomer(customerData) {
-  const backendData = mapToBackend(customerData);
-
-  const response = await apiClient("post", "/customer-master", {
-    data: {
-      code: "CUST001",
-      name: "Test Customer",
-      shopname: "Test Shop",
-      phone: "9876543210",
-      email: "test@customer.com",
-      address: "123 Test Street",
-      city: "Mumbai",
-      state: "Maharashtra",
-      pincode: "400001",
-      businessCategory_id: 1,
-      gstin: "27AABCT1234M1Z5",
-      credit_limit: 30010,
-      notes: "Test customer for verification",
-      active_status: true,
-      createdBy: 5,
-    },
-  });
-
-  return {
-    success: response.success,
-    data: mapFromBackend(response.data),
-  };
-}
-
-/**
- * Update existing customer
- * @param {number} id - Customer ID
- * @param {Object} customerData - Updated customer data in frontend format
- * @returns {Promise<Object>} Updated customer data
- */
-export async function updateCustomer(id, customerData) {
-  const backendData = mapToBackend(customerData);
-
-  const response = await apiClient("put", `/customer-master/${id}`, {
+export async function createVendor(vendorData) {
+  const backendData = mapToBackend(vendorData);
+  
+  const response = await apiClient("post", "/vendor-master", {
     data: backendData,
   });
 
@@ -208,12 +148,31 @@ export async function updateCustomer(id, customerData) {
 }
 
 /**
- * Delete customer (soft delete)
- * @param {number} id - Customer ID
+ * Update existing vendor
+ * @param {number} id - Vendor ID
+ * @param {Object} vendorData - Updated vendor data in frontend format
+ * @returns {Promise<Object>} Updated vendor data
+ */
+export async function updateVendor(id, vendorData) {
+  const backendData = mapToBackend(vendorData);
+  
+  const response = await apiClient("put", `/vendor-master/${id}`, {
+    data: backendData,
+  });
+
+  return {
+    success: response.success,
+    data: mapFromBackend(response.data),
+  };
+}
+
+/**
+ * Delete vendor (soft delete)
+ * @param {number} id - Vendor ID
  * @returns {Promise<Object>} Success response
  */
-export async function deleteCustomer(id) {
-  return await apiClient("delete", `/customer-master/${id}`, {
+export async function deleteVendor(id) {
+  return await apiClient("delete", `/vendor-master/${id}`, {
     data: {
       updatedBy: 1, // TODO: Get from auth context
     },
@@ -221,12 +180,12 @@ export async function deleteCustomer(id) {
 }
 
 /**
- * Get customer dropdown list (for use in other forms)
- * @returns {Promise<Object>} List of customers for dropdown
+ * Get vendor dropdown list (for use in other forms)
+ * @returns {Promise<Object>} List of vendors for dropdown
  */
-export async function getCustomerDropdown() {
-  const response = await apiClient("get", "/customer-master/dropdown");
-
+export async function getVendorDropdown() {
+  const response = await apiClient("get", "/vendor-master/dropdown");
+  
   return {
     success: response.success,
     data: response.data, // Already in the correct format from backend
@@ -234,13 +193,13 @@ export async function getCustomerDropdown() {
 }
 
 /**
- * Check if customer email exists
+ * Check if vendor email exists
  * @param {string} email - Email to check
- * @param {number} excludeId - Customer ID to exclude from check (for updates)
+ * @param {number} excludeId - Vendor ID to exclude from check (for updates)
  * @returns {Promise<Object>} Response with exists flag
  */
-export async function checkCustomerEmail(email, excludeId = null) {
-  return await apiClient("post", "/customer-master/check-email", {
+export async function checkVendorEmail(email, excludeId = null) {
+  return await apiClient("post", "/vendor-master/check-email", {
     data: { email, excludeId },
   });
 }

@@ -4,7 +4,7 @@
  */
 
 // Base URL for the API
-const API_BASE_URL = 'http://localhost:5000/api/customer-master';
+const API_BASE_URL = 'http://localhost:3001/api/customer-master';
 
 // Sample authentication token (replace with actual token)
 const AUTH_TOKEN = 'your-jwt-token-here';

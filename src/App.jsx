@@ -9,7 +9,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import SaleOrders from "./pages/SaleOrders";
 import CreateSaleOrder from "./pages/CreateSaleOrder";
-import Customers from "./pages/Customer/Customers";
+import Customers from "./pages/Customer/CustomersMain";
 import CustomerForm from "./pages/Customer/CustomerForm";
 import Inventory from "./pages/Inventory";
 import PurchaseOrders from "./pages/PurchaseOrders";
@@ -18,7 +18,11 @@ import Billing from "./pages/Billing";
 import Payments from "./pages/Payments";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
-import Vendors from "./pages/Vendors";
+import VendorsOld from "./pages/Vendors";
+import Vendors from "./pages/Vendor/VendorsMain";
+import VendorForm from "./pages/Vendor/VendorForm";
+import BusinessCategories from "./pages/BusinessCategory/BusinessCategories";
+import BusinessCategoryForm from "./pages/BusinessCategory/BusinessCategoryForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +52,11 @@ const AppRoutes = () => (
       <Route path="/accounts/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
+      <Route path="/masters/vendors/:mode" element={<ProtectedRoute><VendorForm /></ProtectedRoute>} />
+      <Route path="/masters/vendors/:mode/:id" element={<ProtectedRoute><VendorForm /></ProtectedRoute>} />
+      <Route path="/masters/business-categories" element={<ProtectedRoute><BusinessCategories /></ProtectedRoute>} />
+      <Route path="/masters/business-categories/:mode" element={<ProtectedRoute><BusinessCategoryForm /></ProtectedRoute>} />
+      <Route path="/masters/business-categories/:mode/:id" element={<ProtectedRoute><BusinessCategoryForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

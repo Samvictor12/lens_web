@@ -10,7 +10,7 @@
 import fetch from 'node-fetch';
 import chalk from 'chalk';
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = 'http://localhost:3001/api';
 const AUTH_URL = `${BASE_URL}/auth`;
 
 // Test configuration
@@ -600,7 +600,7 @@ async function checkServerStatus() {
     }
     return true;
   } catch (error) {
-    log.error('❌ Server is not running or not accessible at http://localhost:5000');
+    log.error('❌ Server is not running or not accessible at http://localhost:3001');
     log.info('Please start the server with: node src/backend/server.js');
     return false;
   }

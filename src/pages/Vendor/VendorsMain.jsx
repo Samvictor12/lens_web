@@ -14,23 +14,23 @@ import { ViewToggle } from "@/components/ui/view-toggle";
 import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getCustomers, deleteCustomer } from "@/services/customer";
+import { getVendors, deleteVendor } from "@/services/vendor";
 import {
-  downloadCustomerTemplate,
-  exportCustomersToExcel,
-  importCustomersFromExcel,
+  downloadVendorTemplate,
+  exportVendorsToExcel,
+  importVendorsFromExcel,
 } from "@/lib/excelUtils";
-import { customerFilters } from "./Customer.constants";
-import CustomerFilter from "./CustomerFilter";
-import { useCustomerColumns } from "./useCustomerColumns";
-import CustomerCard from "./CustomerCard";
+import { vendorFilters } from "./Vendor.constants";
+import VendorFilter from "./VendorFilter";
+import { useVendorColumns } from "./useVendorColumns";
+import VendorCard from "./VendorCard";
 
-export default function Customers() {
+export default function Vendors() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState(
-    () => localStorage.getItem("customersView") || "card"
+    () => localStorage.getItem("vendorsView") || "card"
   );
   const [isLoading, setIsLoading] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
@@ -43,35 +43,35 @@ export default function Customers() {
   const [sorting, setSorting] = useState([]);
 
   // Filter states
-  const [filters, setFilters] = useState(customerFilters);
-  const [tempFilters, setTempFilters] = useState(customerFilters);
+  const [filters, setFilters] = useState(vendorFilters);
+  const [tempFilters, setTempFilters] = useState(vendorFilters);
   
-  // Customer data
-  const [customers, setCustomers] = useState([]);
+  // Vendor data
+  const [vendors, setVendors] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [vendorToDelete, setVendorToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Handle delete customer click
-  const handleDeleteClick = (customer) => {
-    setCustomerToDelete(customer);
+  // Handle delete vendor click
+  const handleDeleteClick = (vendor) => {
+    setVendorToDelete(vendor);
     setDeleteDialogOpen(true);
   };
 
   // Get table columns with delete handler
-  const columns = useCustomerColumns(navigate, handleDeleteClick);
+  const columns = useVendorColumns(navigate, handleDeleteClick);
 
-  // Fetch customers from API
-  const fetchCustomers = async () => {
+  // Fetch vendors from API
+  const fetchVendors = async () => {
     try {
       setIsLoading(true);
       const sortField = sorting[0]?.id || "createdAt";
       const sortDirection = sorting[0]?.desc ? "desc" : "asc";
       
-      const response = await getCustomers(
+      const response = await getVendors(
         pageIndex + 1, // Backend uses 1-indexed pages
         pageSize,
         searchQuery,
@@ -81,51 +81,51 @@ export default function Customers() {
       );
       
       if (response.success) {
-        setCustomers(response.data);
+        setVendors(response.data);
         setTotalCount(response.pagination.total);
       }
     } catch (error) {
-      console.error("Error fetching customers:", error);
+      console.error("Error fetching vendors:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch customers",
+        description: error.message || "Failed to fetch vendors",
         variant: "destructive",
       });
-      setCustomers([]);
+      setVendors([]);
       setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch customers on mount and when dependencies change
+  // Fetch vendors on mount and when dependencies change
   useEffect(() => {
-    fetchCustomers();
+    fetchVendors();
   }, [pageIndex, pageSize, searchQuery, filters, sorting]);
 
-  // Handle delete customer
+  // Handle delete vendor
   const handleDeleteConfirm = async () => {
-    if (!customerToDelete) return;
+    if (!vendorToDelete) return;
 
     try {
       setIsDeleting(true);
-      await deleteCustomer(customerToDelete.id);
+      await deleteVendor(vendorToDelete.id);
       
       toast({
         title: "Success",
-        description: `Customer "${customerToDelete.name}" has been deleted successfully.`,
+        description: `Vendor "${vendorToDelete.name}" has been deleted successfully.`,
       });
       
       setDeleteDialogOpen(false);
-      setCustomerToDelete(null);
+      setVendorToDelete(null);
       
-      // Refresh customer list
-      fetchCustomers();
+      // Refresh vendor list
+      fetchVendors();
     } catch (error) {
-      console.error("Error deleting customer:", error);
+      console.error("Error deleting vendor:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete customer. The customer may have existing orders.",
+        description: error.message || "Failed to delete vendor. The vendor may have existing orders.",
         variant: "destructive",
       });
     } finally {
@@ -136,20 +136,16 @@ export default function Customers() {
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
     return (
-      filters.status !== "all" ||
-      filters.minCreditLimit !== "" ||
-      filters.maxCreditLimit !== "" ||
-      filters.minOutstanding !== "" ||
-      filters.maxOutstanding !== "" ||
-      filters.hasEmail !== "all" ||
-      filters.hasGST !== "all"
+      filters.active_status !== "all" ||
+      filters.category !== "" ||
+      filters.city !== ""
     );
   }, [filters]);
 
   // Save view preference
   const handleViewChange = (newView) => {
     setView(newView);
-    localStorage.setItem("customersView", newView);
+    localStorage.setItem("vendorsView", newView);
   };
 
   const handleApplyFilters = () => {
@@ -158,7 +154,7 @@ export default function Customers() {
   };
 
   const handleClearFilters = () => {
-    const clearedFilters = customerFilters;
+    const clearedFilters = vendorFilters;
     setTempFilters(clearedFilters);
     setFilters(clearedFilters);
     setShowFilterDialog(false);
@@ -169,9 +165,9 @@ export default function Customers() {
     setShowFilterDialog(false);
   };
 
-  // For client-side display, we use the customers directly from API
+  // For client-side display, we use the vendors directly from API
   // Backend handles filtering, so we just display what we receive
-  const displayCustomers = customers;
+  const displayVendors = vendors;
 
   const handleUpload = () => {
     const input = document.createElement("input");
@@ -181,10 +177,11 @@ export default function Customers() {
       const file = e.target.files[0];
       if (file) {
         try {
-          const customers = await importCustomersFromExcel(file);
-          console.log("Imported customers:", customers);
-          alert(`Successfully imported ${customers.length} customers!`);
-          // Here you would typically update your state or refetch data
+          const vendors = await importVendorsFromExcel(file);
+          console.log("Imported vendors:", vendors);
+          alert(`Successfully imported ${vendors.length} vendors!`);
+          // Refresh vendor list
+          fetchVendors();
         } catch (error) {
           alert("Error importing file: " + error.message);
         }
@@ -194,7 +191,7 @@ export default function Customers() {
   };
 
   const handleDownloadSample = () => {
-    downloadCustomerTemplate();
+    downloadVendorTemplate();
   };
 
   return (
@@ -202,10 +199,10 @@ export default function Customers() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            Customers
+            Vendors
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage customer information and accounts
+            Manage vendor information and accounts
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -230,10 +227,10 @@ export default function Customers() {
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => navigate("/sales/customers/add")}
+            onClick={() => navigate("/masters/vendors/add")}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Customer</span>
+            <span className="hidden sm:inline">Add Vendor</span>
           </Button>
         </div>
       </div>
@@ -244,7 +241,7 @@ export default function Customers() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search customers..."
+              placeholder="Search vendors..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-8 text-sm"
@@ -252,7 +249,7 @@ export default function Customers() {
           </div>
           <div className="flex items-center gap-1.5">
             <ViewToggle view={view} onViewChange={handleViewChange} />
-            <CustomerFilter
+            <VendorFilter
               filters={filters}
               tempFilters={tempFilters}
               setTempFilters={setTempFilters}
@@ -271,7 +268,7 @@ export default function Customers() {
       {view === "table" && (
         <div className="flex-1 min-h-0">
           <Table
-            data={displayCustomers}
+            data={displayVendors}
             columns={columns}
             pageIndex={pageIndex}
             pageSize={pageSize}
@@ -285,7 +282,7 @@ export default function Customers() {
             setSorting={setSorting}
             sorting={sorting}
             pagination={true}
-            emptyMessage="No customers found"
+            emptyMessage="No vendors found"
           />
         </div>
       )}
@@ -294,16 +291,16 @@ export default function Customers() {
       {view === "card" && (
         <div className="flex-1 min-h-0">
           <CardGrid
-            items={displayCustomers}
-            renderCard={(customer) => (
-              <CustomerCard
-                customer={customer}
-                onView={(id) => navigate(`/sales/customers/view/${id}`)}
+            items={displayVendors}
+            renderCard={(vendor) => (
+              <VendorCard
+                vendor={vendor}
+                onView={(id) => navigate(`/masters/vendors/view/${id}`)}
                 onDelete={handleDeleteClick}
               />
             )}
             isLoading={isLoading}
-            emptyMessage="No customers found"
+            emptyMessage="No vendors found"
             pagination={true}
             pageIndex={pageIndex}
             pageSize={pageSize}
@@ -322,11 +319,11 @@ export default function Customers() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDeleteConfirm}
-        title="Delete Customer?"
+        title="Delete Vendor?"
         description={
-          customerToDelete
-            ? `Are you sure you want to delete "${customerToDelete.name}"? This action cannot be undone and will fail if the customer has existing orders.`
-            : "Are you sure you want to delete this customer?"
+          vendorToDelete
+            ? `Are you sure you want to delete "${vendorToDelete.name}"? This action cannot be undone and will fail if the vendor has existing orders.`
+            : "Are you sure you want to delete this vendor?"
         }
         isDeleting={isDeleting}
       />

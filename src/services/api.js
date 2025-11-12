@@ -2,7 +2,7 @@ import axios from "axios";
 
 // In Vite, env variables must be prefixed with VITE_
 const api = axios.create({
-  baseURL: import.meta.env.VITE_WEB_API_URL || "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_WEB_API_URL || "http://localhost:5001/api",
   // timeout: 10000,
 });
 

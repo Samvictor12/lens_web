@@ -44,10 +44,10 @@ model User {
   departmentDetails  DepartmentDetails?   @relation(fields: [department_id], references: [id])
   refreshToken       RefreshToken?
   // Relationship Tables
-  vendorUserCreate   Vendor[]             @relation("vendorUserCreate")
-  vendorUserUpdate   Vendor[]             @relation("vendorUserUpdate")
-  customerUserCreate Customer[]           @relation("customerUserCreate")
-  customerUserUpdate Customer[]           @relation("customerUserUpdate")
+  vendorUserCreate             Vendor[]             @relation("vendorUserCreate")
+  vendorUserUpdate             Vendor[]             @relation("vendorUserUpdate")
+  customerUserCreate           Customer[]           @relation("customerUserCreate")
+  customerUserUpdate           Customer[]           @relation("customerUserUpdate")
   categoryUserCreate LensCategoryMaster[] @relation("categoryUserCreate")
   categoryUserUpdate LensCategoryMaster[] @relation("categoryUserUpdate")
   materialUserCreate LensMaterialMaster[] @relation("materialUserCreate")
@@ -62,6 +62,8 @@ model User {
   productUserUpdate  LensProductMaster[]  @relation("productUserUpdate")
   priceUserCreate    LensPriceMaster[]    @relation("priceUserCreate")
   priceUserUpdate    LensPriceMaster[]    @relation("priceUserUpdate")
+  businessCategoryUserCreate   businessCategory[] @relation("businessCategoryUserCreate")
+  businessCategoryUserUpdate   businessCategory[] @relation("businessCategoryUserUpdate")
 }
 
 model Role {
@@ -99,12 +101,20 @@ model RefreshToken {
 }
 
 model businessCategory {
-  id        Int        @id @default(autoincrement())
-  name      String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id            Int        @id @default(autoincrement())
+  name          String     @unique
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   // Relationship Tables
-  customers Customer[] @relation("customerCategory")
+  active_status Boolean    @default(true)
+  delete_status Boolean    @default(false)
+  createdBy     Int
+  updatedBy     Int?
+  // Relationship Fields
+  usercreate    User       @relation("businessCategoryUserCreate", fields: [createdBy], references: [id])
+  userupdate    User?      @relation("businessCategoryUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  customers     Customer[] @relation("customerCategory")
 }
 
 model Customer {

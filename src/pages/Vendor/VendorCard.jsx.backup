@@ -1,0 +1,96 @@
+import { Building, Mail, MapPin, Phone, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+export default function VendorCard({ vendor, onView, onDelete }) {
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-4 space-y-3">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-sm truncate">{vendor.name}</h3>
+            <p className="text-xs text-muted-foreground">{vendor.vendorCode}</p>
+          </div>
+          <Badge
+            variant={vendor.activeStatus ? "default" : "secondary"}
+            className="ml-2 shrink-0"
+          >
+            {vendor.activeStatus ? "Active" : "Inactive"}
+          </Badge>
+        </div>
+
+        {/* Shop Name */}
+        {vendor.shopName && (
+          <div className="flex items-center gap-2 text-xs">
+            <Building className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="truncate">{vendor.shopName}</span>
+          </div>
+        )}
+
+        {/* Contact Info */}
+        <div className="space-y-1.5">
+          {vendor.phone && (
+            <div className="flex items-center gap-2 text-xs">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span>{vendor.phone}</span>
+            </div>
+          )}
+          {vendor.email && (
+            <div className="flex items-center gap-2 text-xs">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="truncate">{vendor.email}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Location */}
+        {(vendor.city || vendor.state) && (
+          <div className="flex items-center gap-2 text-xs">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="truncate">
+              {[vendor.city, vendor.state].filter(Boolean).join(", ")}
+            </span>
+          </div>
+        )}
+
+        {/* Category */}
+        {vendor.category && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground">Category</p>
+            <p className="text-xs font-medium mt-0.5">{vendor.category}</p>
+          </div>
+        )}
+
+        {/* GST Number */}
+        {vendor.gstNumber && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground">GST Number</p>
+            <p className="text-xs font-mono mt-0.5">{vendor.gstNumber}</p>
+          </div>
+        )}
+      </CardContent>
+
+      {/* Footer Actions */}
+      <CardFooter className="p-3 pt-0 flex gap-2">
+        <Button
+          size="xs"
+          variant="outline"
+          className="flex-1"
+          onClick={() => onView(vendor.id)}
+        >
+          View Details
+        </Button>
+        <Button
+          size="xs"
+          variant="outline"
+          className="text-destructive hover:bg-destructive/10"
+          onClick={() => onDelete(vendor)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}

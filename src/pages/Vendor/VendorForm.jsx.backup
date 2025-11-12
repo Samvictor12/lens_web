@@ -1,0 +1,393 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { FormInput } from "@/components/ui/form-input";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextarea } from "@/components/ui/form-textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { defaultVendor, vendorCategories, activeStatusOptions } from "./Vendor.constants";
+import {
+  getVendorById,
+  createVendor,
+  updateVendor,
+  checkVendorEmail,
+} from "@/services/vendor";
+import { ArrowLeft, Save, Edit2, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+export default function VendorForm() {
+  const { mode, id } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [vendor, setVendor] = useState(defaultVendor);
+  const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(mode === "add");
+  const [errors, setErrors] = useState({});
+
+  const isViewMode = mode === "view";
+  const isEditMode = mode === "edit";
+  const isAddMode = mode === "add";
+
+  useEffect(() => {
+    if ((isViewMode || isEditMode) && id) {
+      fetchVendor();
+    }
+  }, [mode, id]);
+
+  const fetchVendor = async () => {
+    try {
+      setLoading(true);
+      const data = await getVendorById(id);
+      setVendor(data);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to fetch vendor details",
+      });
+      navigate("/masters/vendors");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!vendor.name?.trim()) {
+      newErrors.name = "Vendor name is required";
+    }
+
+    if (!vendor.vendorCode?.trim()) {
+      newErrors.vendorCode = "Vendor code is required";
+    }
+
+    if (vendor.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendor.email)) {
+      newErrors.email = "Invalid email format";
+    }
+
+    if (vendor.phone && !/^\d{10}$/.test(vendor.phone.replace(/\D/g, ""))) {
+      newErrors.phone = "Phone number must be 10 digits";
+    }
+
+    if (vendor.pincode && !/^\d{6}$/.test(vendor.pincode)) {
+      newErrors.pincode = "Pincode must be 6 digits";
+    }
+
+    if (
+      vendor.gstNumber &&
+      !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d[Z]{1}[A-Z\d]{1}$/.test(vendor.gstNumber)
+    ) {
+      newErrors.gstNumber = "Invalid GST Number format";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fix the errors in the form",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Check if email already exists (for add mode or if email changed in edit mode)
+      if (vendor.email) {
+        const emailExists = await checkVendorEmail(vendor.email, id);
+        if (emailExists) {
+          setErrors({ ...errors, email: "Email already exists" });
+          toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Email already exists",
+          });
+          return;
+        }
+      }
+
+      if (isAddMode) {
+        await createVendor(vendor);
+        toast({
+          title: "Success",
+          description: "Vendor created successfully",
+        });
+      } else {
+        await updateVendor(id, vendor);
+        toast({
+          title: "Success",
+          description: "Vendor updated successfully",
+        });
+      }
+
+      navigate("/masters/vendors");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || `Failed to ${isAddMode ? "create" : "update"} vendor`,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setVendor({ ...vendor, [name]: value });
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: undefined });
+    }
+  };
+
+  const handleStatusChange = (value) => {
+    setVendor({ ...vendor, activeStatus: value });
+  };
+
+  if (loading && (isViewMode || isEditMode)) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/masters/vendors")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">
+              {isAddMode && "Add New Vendor"}
+              {isEditMode && "Edit Vendor"}
+              {isViewMode && "Vendor Details"}
+            </h1>
+            {(isViewMode || isEditMode) && vendor.vendorCode && (
+              <p className="text-sm text-muted-foreground">
+                {vendor.vendorCode}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isViewMode && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/masters/vendors/edit/${id}`)}
+            >
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
+          {vendor.activeStatus !== undefined && (
+            <Badge variant={vendor.activeStatus ? "success" : "secondary"}>
+              {vendor.activeStatus ? "Active" : "Inactive"}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSubmit}>
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            {/* Basic Information */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                  label="Vendor Code"
+                  name="vendorCode"
+                  value={vendor.vendorCode}
+                  onChange={handleInputChange}
+                  required
+                  disabled={!isEditing}
+                  error={errors.vendorCode}
+                />
+
+                <FormInput
+                  label="Vendor Name"
+                  name="name"
+                  value={vendor.name}
+                  onChange={handleInputChange}
+                  required
+                  disabled={!isEditing}
+                  error={errors.name}
+                />
+
+                <FormInput
+                  label="Shop Name"
+                  name="shopName"
+                  value={vendor.shopName}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                />
+
+                <FormInput
+                  label="Category"
+                  name="category"
+                  value={vendor.category}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  helperText="e.g., Lens Manufacturer, Frame Supplier"
+                  list="vendor-categories"
+                />
+                <datalist id="vendor-categories">
+                  {vendorCategories.map((cat) => (
+                    <option key={cat.id} value={cat.name} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            {/* Contact Information */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                  label="Phone"
+                  name="phone"
+                  type="tel"
+                  value={vendor.phone}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  error={errors.phone}
+                />
+
+                <FormInput
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={vendor.email}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  error={errors.email}
+                />
+              </div>
+            </div>
+
+            {/* Address Information */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Address</h3>
+              <div className="grid grid-cols-1 gap-4">
+                <FormTextarea
+                  label="Address"
+                  name="address"
+                  value={vendor.address}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  rows={3}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormInput
+                    label="City"
+                    name="city"
+                    value={vendor.city}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                  />
+
+                  <FormInput
+                    label="State"
+                    name="state"
+                    value={vendor.state}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                  />
+
+                  <FormInput
+                    label="Pincode"
+                    name="pincode"
+                    value={vendor.pincode}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    error={errors.pincode}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Information */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Additional Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                  label="GST Number"
+                  name="gstNumber"
+                  value={vendor.gstNumber}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  error={errors.gstNumber}
+                  helperText="Format: 22AAAAA0000A1Z5"
+                />
+
+                <FormSelect
+                  label="Active Status"
+                  name="activeStatus"
+                  options={activeStatusOptions}
+                  value={vendor.activeStatus}
+                  onChange={handleStatusChange}
+                  required
+                  disabled={!isEditing}
+                  isSearchable={false}
+                  isClearable={false}
+                />
+              </div>
+
+              <div className="mt-4">
+                <FormTextarea
+                  label="Remarks"
+                  name="remarks"
+                  value={vendor.remarks}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  rows={3}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Form Actions */}
+        {isEditing && (
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/masters/vendors")}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Save className="h-4 w-4 mr-2" />
+              {isAddMode ? "Create Vendor" : "Save Changes"}
+            </Button>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
