@@ -4,7 +4,7 @@
 Write-Host "`n🚀 AUTHENTICATION ENDPOINTS STABILITY & SMOKE TEST" -ForegroundColor Cyan
 Write-Host "=================================================" -ForegroundColor Cyan
 
-$baseUrl = "http://localhost:5000/api/auth"
+$baseUrl = "http://localhost:3001/api/auth"
 $testResults = @{
     Total = 0
     Passed = 0

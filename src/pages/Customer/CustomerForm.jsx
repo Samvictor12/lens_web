@@ -540,7 +540,7 @@ export default function CustomerForm() {
                 value={formData.creditLimit}
                 onChange={handleChange}
                 disabled={isReadOnly}
-                // placeholder="50000"
+                // placeholder="30010"
                 prefix="₹"
                 error={errors.creditLimit}
                 helperText={!errors.creditLimit && "Maximum outstanding amount allowed"}

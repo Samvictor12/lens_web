@@ -47,7 +47,7 @@ prisma/schema.prisma
 - [ ] Configure `.env`:
   ```env
   DATABASE_URL="postgresql://user:password@localhost:5432/lensdb?schema=public"
-  PORT=5000
+  PORT=3001
   NODE_ENV=development
   ```
 

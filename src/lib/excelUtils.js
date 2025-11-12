@@ -29,7 +29,7 @@ export const downloadCustomerTemplate = () => {
       "contact@rajopticals.com",
       "123 MG Road, Mumbai, Maharashtra 400001",
       "27AABCU9603R1Z5",
-      "50000",
+      "30010",
     ],
     [
       "CUST002",
@@ -40,7 +40,7 @@ export const downloadCustomerTemplate = () => {
       "info@visionplus.com",
       "456 Park Street, Kolkata, West Bengal 700016",
       "19AABCV5678M1Z4",
-      "75000",
+      "73001",
     ],
   ];
 

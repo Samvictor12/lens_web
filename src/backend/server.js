@@ -34,7 +34,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 5000}`,
+        url: `http://localhost:${process.env.PORT || 3001}`,
         description: 'Development server'
       }
     ],
@@ -60,13 +60,19 @@ const swaggerDocs = swaggerJsdoc(swaggerOptions);
 
 // Middleware
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Swagger UI route
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+}));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -91,9 +97,9 @@ app.use((req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
@@ -102,6 +108,16 @@ app.listen(PORT, () => {
   console.log(`Customer Master API: http://localhost:${PORT}/api/customer-master`);
   console.log(`Vendor Master API: http://localhost:${PORT}/api/vendor-master`);
   console.log(`User Master API: http://localhost:${PORT}/api/user-master`);
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please use a different port or stop the process using port ${PORT}.`);
+    console.error(`On macOS, port 3001 is often used by AirPlay Receiver. You can disable it in System Preferences > Sharing.`);
+  } else {
+    console.error('Server error:', error);
+  }
+  process.exit(1);
 });
 
 

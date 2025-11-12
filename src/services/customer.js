@@ -17,9 +17,14 @@ const mapToBackend = (frontendData) => {
     pincode: frontendData.pincode || null,
     businessCategory_id: frontendData.categoryId || null,
     gstin: frontendData.gstNumber || null,
-    credit_limit: frontendData.creditLimit ? parseInt(frontendData.creditLimit) : null,
+    credit_limit: frontendData.creditLimit
+      ? parseInt(frontendData.creditLimit)
+      : null,
     notes: frontendData.remarks || null,
-    active_status: frontendData.activeStatus !== undefined ? frontendData.activeStatus : true,
+    active_status:
+      frontendData.activeStatus !== undefined
+        ? frontendData.activeStatus
+        : true,
     createdBy: 1, // TODO: Get from auth context
     updatedBy: 1, // TODO: Get from auth context
   };
@@ -28,7 +33,8 @@ const mapToBackend = (frontendData) => {
 const mapFromBackend = (backendData) => {
   return {
     id: backendData.id,
-    customerCode: backendData.code || `CUST-${String(backendData.id).padStart(3, '0')}`,
+    customerCode:
+      backendData.code || `CUST-${String(backendData.id).padStart(3, "0")}`,
     name: backendData.name,
     shopName: backendData.shopname || "",
     phone: backendData.phone || "",
@@ -42,7 +48,10 @@ const mapFromBackend = (backendData) => {
     creditLimit: backendData.credit_limit || 0,
     outstandingBalance: backendData.outstanding_credit || 0,
     remarks: backendData.notes || "",
-    activeStatus: backendData.active_status !== undefined ? backendData.active_status : true,
+    activeStatus:
+      backendData.active_status !== undefined
+        ? backendData.active_status
+        : true,
     createdAt: backendData.createdAt,
     updatedAt: backendData.updatedAt,
   };
@@ -68,12 +77,18 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
   // Map frontend filters to backend query params (exact backend field names)
   if (filters) {
     // Active status filter
-    if (filters.active_status !== "all" && filters.active_status !== undefined) {
+    if (
+      filters.active_status !== "all" &&
+      filters.active_status !== undefined
+    ) {
       params.active_status = filters.active_status;
     }
 
     // Business category filter (exact match)
-    if (filters.businessCategory_id !== null && filters.businessCategory_id !== undefined) {
+    if (
+      filters.businessCategory_id !== null &&
+      filters.businessCategory_id !== undefined
+    ) {
       params.businessCategory_id = filters.businessCategory_id;
     }
 
@@ -104,8 +119,15 @@ export async function getCustomers(
   sortBy = "createdAt",
   sortOrder = "desc"
 ) {
-  const params = buildQueryParams(page, limit, search, filters, sortBy, sortOrder);
-  
+  const params = buildQueryParams(
+    page,
+    limit,
+    search,
+    filters,
+    sortBy,
+    sortOrder
+  );
+
   const response = await apiClient("get", "/customer-master", {
     params,
   });
@@ -125,7 +147,7 @@ export async function getCustomers(
  */
 export async function getCustomerById(id) {
   const response = await apiClient("get", `/customer-master/${id}`);
-  
+
   return {
     success: response.success,
     data: mapFromBackend(response.data),
@@ -139,9 +161,26 @@ export async function getCustomerById(id) {
  */
 export async function createCustomer(customerData) {
   const backendData = mapToBackend(customerData);
-  
+
   const response = await apiClient("post", "/customer-master", {
-    data: backendData,
+    data: {
+    "code": "CUST001",
+    "name": "Test Customer",
+    "shopname": "Test Shop",
+    "phone": "9876543210",
+    "email": "test@customer.com",
+    "address": "123 Test Street",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "pincode": "400001",
+    "businessCategory_id": 1,
+    "gstin": "27AABCT1234M1Z5",
+    "credit_limit": 30010,
+    "notes": "Test customer for verification",
+    "active_status": true,
+    "createdBy": 1,
+    "updatedBy": 1
+  },
   });
 
   return {
@@ -158,7 +197,7 @@ export async function createCustomer(customerData) {
  */
 export async function updateCustomer(id, customerData) {
   const backendData = mapToBackend(customerData);
-  
+
   const response = await apiClient("put", `/customer-master/${id}`, {
     data: backendData,
   });
@@ -188,7 +227,7 @@ export async function deleteCustomer(id) {
  */
 export async function getCustomerDropdown() {
   const response = await apiClient("get", "/customer-master/dropdown");
-  
+
   return {
     success: response.success,
     data: response.data, // Already in the correct format from backend

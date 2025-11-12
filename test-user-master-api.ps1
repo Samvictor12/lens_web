@@ -4,7 +4,7 @@
 Write-Host "`n🧑‍💼 USER MASTER API COMPREHENSIVE TEST SUITE" -ForegroundColor Cyan
 Write-Host "=================================================" -ForegroundColor Cyan
 
-$baseUrl = "http://localhost:5000/api"
+$baseUrl = "http://localhost:3001/api"
 $userMasterUrl = "$baseUrl/user-master"
 $authUrl = "$baseUrl/auth"
 $testResults = @{

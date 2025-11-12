@@ -63,7 +63,7 @@ const authState = {};
 
 // Test functions
 async function testHealthCheck() {
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/health');
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/health');
     
     if (response.status !== 200) {
         throw new Error(`Expected 200, got ${response.status}`);
@@ -75,7 +75,7 @@ async function testHealthCheck() {
 }
 
 async function testAdminLogin() {
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/login', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({
             emailOrUsercode: 'admin@lensbilling.com',
@@ -96,7 +96,7 @@ async function testAdminLogin() {
 }
 
 async function testSalesLogin() {
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/login', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({
             emailOrUsercode: 'sales@lensbilling.com',
@@ -112,7 +112,7 @@ async function testSalesLogin() {
 }
 
 async function testInvalidLogin() {
-    const { response } = await makeRequest('http://localhost:5000/api/auth/login', {
+    const { response } = await makeRequest('http://localhost:3001/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({
             emailOrUsercode: 'invalid@test.com',
@@ -130,7 +130,7 @@ async function testTokenValidation() {
         throw new Error('No admin token available for validation');
     }
     
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/validate', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/validate', {
         headers: {
             'Authorization': `Bearer ${authState.admin.accessToken}`
         }
@@ -150,7 +150,7 @@ async function testGetProfile() {
         throw new Error('No admin token available for profile test');
     }
     
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/profile', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/profile', {
         headers: {
             'Authorization': `Bearer ${authState.admin.accessToken}`
         }
@@ -174,7 +174,7 @@ async function testTokenRefresh() {
     
     const originalRefreshToken = authState.admin.refreshToken;
     
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/refresh', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/refresh', {
         method: 'POST',
         body: JSON.stringify({
             refreshToken: originalRefreshToken
@@ -206,7 +206,7 @@ async function testAdminOnlyEndpoint() {
         throw new Error('No admin token available for admin endpoint test');
     }
     
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/sessions', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/sessions', {
         headers: {
             'Authorization': `Bearer ${authState.admin.accessToken}`
         }
@@ -229,7 +229,7 @@ async function testNonAdminRestriction() {
         await testSalesLogin();
     }
     
-    const { response } = await makeRequest('http://localhost:5000/api/auth/sessions', {
+    const { response } = await makeRequest('http://localhost:3001/api/auth/sessions', {
         headers: {
             'Authorization': `Bearer ${authState.sales.accessToken}`
         }
@@ -246,7 +246,7 @@ async function testPasswordChange() {
     }
     
     // Change password
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/change-password', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/change-password', {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${authState.admin.accessToken}`
@@ -262,7 +262,7 @@ async function testPasswordChange() {
     }
     
     // Test login with new password
-    const { response: loginResponse, data: loginData } = await makeRequest('http://localhost:5000/api/auth/login', {
+    const { response: loginResponse, data: loginData } = await makeRequest('http://localhost:3001/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({
             emailOrUsercode: 'admin@lensbilling.com',
@@ -275,7 +275,7 @@ async function testPasswordChange() {
     }
     
     // Revert password
-    const { response: revertResponse } = await makeRequest('http://localhost:5000/api/auth/change-password', {
+    const { response: revertResponse } = await makeRequest('http://localhost:3001/api/auth/change-password', {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${loginData.data.accessToken}`
@@ -301,7 +301,7 @@ async function testLogout() {
     
     const refreshToken = authState.admin.refreshToken;
     
-    const { response, data } = await makeRequest('http://localhost:5000/api/auth/logout', {
+    const { response, data } = await makeRequest('http://localhost:3001/api/auth/logout', {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${authState.admin.accessToken}`
@@ -313,7 +313,7 @@ async function testLogout() {
     }
     
     // Test that refresh token is invalidated
-    const { response: refreshResponse } = await makeRequest('http://localhost:5000/api/auth/refresh', {
+    const { response: refreshResponse } = await makeRequest('http://localhost:3001/api/auth/refresh', {
         method: 'POST',
         body: JSON.stringify({
             refreshToken: refreshToken

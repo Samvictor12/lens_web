@@ -56,7 +56,7 @@
 
 // Create Sale Order
 /*
-curl -X POST http://localhost:5000/api/sale-orders \
+curl -X POST http://localhost:3001/api/sale-orders \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-token" \
   -d '{
@@ -74,13 +74,13 @@ curl -X POST http://localhost:5000/api/sale-orders \
 
 // Get All Sale Orders
 /*
-curl -X GET "http://localhost:5000/api/sale-orders?page=1&limit=10" \
+curl -X GET "http://localhost:3001/api/sale-orders?page=1&limit=10" \
   -H "Authorization: Bearer your-token"
 */
 
 // Update Status
 /*
-curl -X PATCH http://localhost:5000/api/sale-orders/1/status \
+curl -X PATCH http://localhost:3001/api/sale-orders/1/status \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-token" \
   -d '{"status": "IN_PRODUCTION"}'

@@ -1,7 +1,7 @@
 # 🔐 AUTHENTICATION ENDPOINTS STABILITY & SMOKE TEST RESULTS
 
 ## Test Environment
-- **Server URL**: http://localhost:5000
+- **Server URL**: http://localhost:3001
 - **Test Date**: November 12, 2025
 - **Authentication API**: /api/auth
 
