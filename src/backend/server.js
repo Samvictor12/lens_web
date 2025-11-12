@@ -13,6 +13,14 @@ import saleOrderRoutes from './routes/saleOrders.js';
 import customerMasterRoutes from './routes/customerMaster.js';
 import vendorMasterRoutes from './routes/vendorMaster.js';
 import userMasterRoutes from './routes/userMaster.js';
+// Lens Master Routes
+import lensCategoryRoutes from './routes/lensCategories.js';
+import lensMaterialRoutes from './routes/lensMaterials.js';
+import lensCoatingRoutes from './routes/lensCoatings.js';
+import lensBrandRoutes from './routes/lensBrands.js';
+import lensTypeRoutes from './routes/lensTypes.js';
+import lensProductRoutes from './routes/lensProducts.js';
+import lensPriceRoutes from './routes/lensPrices.js';
 
 // Load environment variables
 dotenv.config();
@@ -74,6 +82,14 @@ app.use('/api/sale-orders', saleOrderRoutes);
 app.use('/api/customer-master', customerMasterRoutes);
 app.use('/api/vendor-master', vendorMasterRoutes);
 app.use('/api/user-master', userMasterRoutes);
+// Lens Master Routes
+app.use('/api/v1/lens-categories', lensCategoryRoutes);
+app.use('/api/v1/lens-materials', lensMaterialRoutes);
+app.use('/api/v1/lens-coatings', lensCoatingRoutes);
+app.use('/api/v1/lens-brands', lensBrandRoutes);
+app.use('/api/v1/lens-types', lensTypeRoutes);
+app.use('/api/v1/lens-products', lensProductRoutes);
+app.use('/api/v1/lens-prices', lensPriceRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
@@ -102,6 +118,14 @@ app.listen(PORT, () => {
   console.log(`Customer Master API: http://localhost:${PORT}/api/customer-master`);
   console.log(`Vendor Master API: http://localhost:${PORT}/api/vendor-master`);
   console.log(`User Master API: http://localhost:${PORT}/api/user-master`);
+  console.log(`\n--- Lens Master APIs ---`);
+  console.log(`Lens Categories API: http://localhost:${PORT}/api/v1/lens-categories`);
+  console.log(`Lens Materials API: http://localhost:${PORT}/api/v1/lens-materials`);
+  console.log(`Lens Coatings API: http://localhost:${PORT}/api/v1/lens-coatings`);
+  console.log(`Lens Brands API: http://localhost:${PORT}/api/v1/lens-brands`);
+  console.log(`Lens Types API: http://localhost:${PORT}/api/v1/lens-types`);
+  console.log(`Lens Products API: http://localhost:${PORT}/api/v1/lens-products`);
+  console.log(`Lens Prices API: http://localhost:${PORT}/api/v1/lens-prices`);
 });
 
 

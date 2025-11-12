@@ -23,7 +23,7 @@ export class VendorMasterService {
         });
 
         if (existingVendor) {
-          throw new APIError(409, 'Email already exists', 'DUPLICATE_EMAIL');
+          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
         }
       }
 
@@ -63,7 +63,7 @@ export class VendorMasterService {
         throw error;
       }
       console.error('Error creating vendor master:', error);
-      throw new APIError(500, 'Failed to create vendor master', 'CREATE_VENDOR_ERROR');
+      throw new APIError('Failed to create vendor master', 500, 'CREATE_VENDOR_ERROR');
     }
   }
 
@@ -167,7 +167,7 @@ export class VendorMasterService {
       };
     } catch (error) {
       console.error('Error fetching vendor masters:', error);
-      throw new APIError(500, 'Failed to fetch vendor masters', 'FETCH_VENDORS_ERROR');
+      throw new APIError('Failed to fetch vendor masters', 500, 'FETCH_VENDORS_ERROR');
     }
   }
 
@@ -196,7 +196,7 @@ export class VendorMasterService {
       });
 
       if (!vendorMaster) {
-        throw new APIError(404, 'Vendor master not found', 'VENDOR_MASTER_NOT_FOUND');
+        throw new APIError('Vendor master not found', 404, 'VENDOR_MASTER_NOT_FOUND');
       }
 
       return vendorMaster;
@@ -205,7 +205,7 @@ export class VendorMasterService {
         throw error;
       }
       console.error('Error fetching vendor master by ID:', error);
-      throw new APIError(500, 'Failed to fetch vendor master', 'FETCH_VENDOR_ERROR');
+      throw new APIError('Failed to fetch vendor master', 500, 'FETCH_VENDOR_ERROR');
     }
   }
 
@@ -223,7 +223,7 @@ export class VendorMasterService {
       });
 
       if (!existingVendor) {
-        throw new APIError(404, 'Vendor master not found', 'VENDOR_MASTER_NOT_FOUND');
+        throw new APIError('Vendor master not found', 404, 'VENDOR_MASTER_NOT_FOUND');
       }
 
       // Check for duplicate email if being updated
@@ -236,7 +236,7 @@ export class VendorMasterService {
         });
 
         if (duplicateEmail) {
-          throw new APIError(409, 'Email already exists', 'DUPLICATE_EMAIL');
+          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
         }
       }
 
@@ -252,7 +252,7 @@ export class VendorMasterService {
         throw error;
       }
       console.error('Error updating vendor master:', error);
-      throw new APIError(500, 'Failed to update vendor master', 'UPDATE_VENDOR_ERROR');
+      throw new APIError('Failed to update vendor master', 500, 'UPDATE_VENDOR_ERROR');
     }
   }
 
@@ -277,16 +277,16 @@ export class VendorMasterService {
       });
 
       if (!existingVendor) {
-        throw new APIError(404, 'Vendor master not found', 'VENDOR_MASTER_NOT_FOUND');
+        throw new APIError('Vendor master not found', 404, 'VENDOR_MASTER_NOT_FOUND');
       }
 
       if (existingVendor.delete_status) {
-        throw new APIError(400, 'Vendor is already deleted', 'VENDOR_ALREADY_DELETED');
+        throw new APIError('Vendor is already deleted', 400, 'VENDOR_ALREADY_DELETED');
       }
 
       // Check if vendor has any purchase orders
       if (existingVendor._count.purchaseOrders > 0) {
-        throw new APIError(400, 'Cannot delete vendor with existing purchase orders', 'VENDOR_HAS_ORDERS');
+        throw new APIError('Cannot delete vendor with existing purchase orders', 400, 'VENDOR_HAS_ORDERS');
       }
 
       // Soft delete the vendor master
@@ -305,7 +305,7 @@ export class VendorMasterService {
         throw error;
       }
       console.error('Error deleting vendor master:', error);
-      throw new APIError(500, 'Failed to delete vendor master', 'DELETE_VENDOR_ERROR');
+      throw new APIError('Failed to delete vendor master', 500, 'DELETE_VENDOR_ERROR');
     }
   }
 
@@ -362,7 +362,7 @@ export class VendorMasterService {
       }));
     } catch (error) {
       console.error('Error fetching vendor dropdown:', error);
-      throw new APIError(500, 'Failed to fetch vendor dropdown', 'FETCH_DROPDOWN_ERROR');
+      throw new APIError('Failed to fetch vendor dropdown', 500, 'FETCH_DROPDOWN_ERROR');
     }
   }
 }
