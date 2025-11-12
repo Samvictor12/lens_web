@@ -18,12 +18,23 @@ export class CustomerMasterService {
     try {
       // Check if email already exists (if provided)
       if (customerData.email) {
-        const existingCustomer = await prisma.customer.findUnique({
+        const existingCustomer = await prisma.customer.findFirst({
           where: { email: customerData.email }
         });
 
         if (existingCustomer) {
-          throw new APIError(409, 'Email already exists', 'DUPLICATE_EMAIL');
+          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+        }
+      }
+
+      // Check if customer code already exists
+      if (customerData.code) {
+        const existingCode = await prisma.customer.findUnique({
+          where: { code: customerData.code }
+        });
+
+        if (existingCode) {
+          throw new APIError('Customer code already exists', 409, 'DUPLICATE_CODE');
         }
       }
 
@@ -68,7 +79,7 @@ export class CustomerMasterService {
         throw error;
       }
       console.error('Error creating customer master:', error);
-      throw new APIError(500, 'Failed to create customer master', 'CREATE_CUSTOMER_ERROR');
+      throw new APIError('Failed to create customer master', 500, 'CREATE_CUSTOMER_ERROR');
     }
   }
 
@@ -172,7 +183,7 @@ export class CustomerMasterService {
       };
     } catch (error) {
       console.error('Error fetching customer masters:', error);
-      throw new APIError(500, 'Failed to fetch customer masters', 'FETCH_CUSTOMERS_ERROR');
+      throw new APIError('Failed to fetch customer masters', 500, 'FETCH_CUSTOMERS_ERROR');
     }
   }
 
@@ -204,7 +215,7 @@ export class CustomerMasterService {
       });
 
       if (!customerMaster) {
-        throw new APIError(404, 'Customer master not found', 'CUSTOMER_MASTER_NOT_FOUND');
+        throw new APIError('Customer master not found', 404, 'CUSTOMER_MASTER_NOT_FOUND');
       }
 
       return customerMaster;
@@ -213,7 +224,7 @@ export class CustomerMasterService {
         throw error;
       }
       console.error('Error fetching customer master by ID:', error);
-      throw new APIError(500, 'Failed to fetch customer master', 'FETCH_CUSTOMER_ERROR');
+      throw new APIError('Failed to fetch customer master', 500, 'FETCH_CUSTOMER_ERROR');
     }
   }
 
@@ -231,7 +242,7 @@ export class CustomerMasterService {
       });
 
       if (!existingCustomer) {
-        throw new APIError(404, 'Customer master not found', 'CUSTOMER_MASTER_NOT_FOUND');
+        throw new APIError('Customer master not found', 404, 'CUSTOMER_MASTER_NOT_FOUND');
       }
 
       // Check for duplicate email if being updated
@@ -244,7 +255,7 @@ export class CustomerMasterService {
         });
 
         if (duplicateEmail) {
-          throw new APIError(409, 'Email already exists', 'DUPLICATE_EMAIL');
+          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
         }
       }
 
@@ -260,7 +271,7 @@ export class CustomerMasterService {
         throw error;
       }
       console.error('Error updating customer master:', error);
-      throw new APIError(500, 'Failed to update customer master', 'UPDATE_CUSTOMER_ERROR');
+      throw new APIError('Failed to update customer master', 500, 'UPDATE_CUSTOMER_ERROR');
     }
   }
 
@@ -285,16 +296,16 @@ export class CustomerMasterService {
       });
 
       if (!existingCustomer) {
-        throw new APIError(404, 'Customer master not found', 'CUSTOMER_MASTER_NOT_FOUND');
+        throw new APIError('Customer master not found', 404, 'CUSTOMER_MASTER_NOT_FOUND');
       }
 
       if (existingCustomer.delete_status) {
-        throw new APIError(400, 'Customer is already deleted', 'CUSTOMER_ALREADY_DELETED');
+        throw new APIError('Customer is already deleted', 400, 'CUSTOMER_ALREADY_DELETED');
       }
 
       // Check if customer has any sale orders
       if (existingCustomer._count.saleOrders > 0) {
-        throw new APIError(400, 'Cannot delete customer with existing sale orders', 'CUSTOMER_HAS_ORDERS');
+        throw new APIError('Cannot delete customer with existing sale orders', 400, 'CUSTOMER_HAS_ORDERS');
       }
 
       // Soft delete the customer master
@@ -313,7 +324,7 @@ export class CustomerMasterService {
         throw error;
       }
       console.error('Error deleting customer master:', error);
-      throw new APIError(500, 'Failed to delete customer master', 'DELETE_CUSTOMER_ERROR');
+      throw new APIError('Failed to delete customer master', 500, 'DELETE_CUSTOMER_ERROR');
     }
   }
 
@@ -370,7 +381,7 @@ export class CustomerMasterService {
       }));
     } catch (error) {
       console.error('Error fetching customer dropdown:', error);
-      throw new APIError(500, 'Failed to fetch customer dropdown', 'FETCH_DROPDOWN_ERROR');
+      throw new APIError('Failed to fetch customer dropdown', 500, 'FETCH_DROPDOWN_ERROR');
     }
   }
 }
