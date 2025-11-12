@@ -1,4 +1,4 @@
-import BusinessCategoryService from '../services/businessCategoryService.js';
+import BusinessCategoryService from '../services/businessCategory.service.js';
 
 /**
  * Business Category Controller

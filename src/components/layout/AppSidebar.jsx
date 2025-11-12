@@ -12,6 +12,7 @@ import {
   Eye,
   Tag,
   FolderOpen,
+  Briefcase,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -110,6 +111,12 @@ const masterItems = [
     url: "/masters/business-categories",
     icon: Tag,
     allowedRoles: ["admin", "sales"],
+  },
+  {
+    title: "Departments",
+    url: "/masters/departments",
+    icon: Briefcase,
+    allowedRoles: ["admin"],
   },
   {
     title: "Lens Types",

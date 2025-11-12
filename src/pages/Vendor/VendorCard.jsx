@@ -34,14 +34,14 @@ export default function VendorCard({ vendor, onView, onEdit, onDelete }) {
               </p>
             )}
           </div>
-          {vendor.category && (
+          {/* {vendor.category && (
             <Badge
               variant="outline"
               className="bg-primary/10 text-primary border-primary/20 text-xs px-1.5 py-0 h-5"
             >
               {vendor.category}
             </Badge>
-          )}
+          )} */}
         </div>
 
         <div className="space-y-1.5 min-h-[44px]">

@@ -11,45 +11,57 @@ datasource db {
 }
 
 model DepartmentDetails {
-  id         Int    @id @default(autoincrement())
-  department String
-  Users      User[]
+  id            Int      @id @default(autoincrement())
+  department    String
+  active_status Boolean  @default(true)
+  delete_status Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  createdBy     Int      @default(1)
+  updatedAt     DateTime @default(now()) @updatedAt
+  updatedBy     Int?
+  // Relationship Fields
+  usercreate    User     @relation("departmentUserCreate", fields: [createdBy], references: [id])
+  userupdate    User?    @relation("departmentUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  Users         User[]   @relation("userDepartment")
 }
 
 model User {
-  id                 Int                @id @default(autoincrement())
-  name               String
-  email              String             @unique
-  phonenumber        String?
-  alternatenumber    String?
-  bloodgroup         String?
-  usercode           String             @unique
-  password           String // Hashed password
-  roleId             Int?
-  address            String?
-  city               String?
-  state              String?
-  pincode            String?
-  salary             Float?
-  department_id      Int?
+  id                         Int                @id @default(autoincrement())
+  name                       String
+  email                      String             @unique
+  phonenumber                String?
+  alternatenumber            String?
+  bloodgroup                 String?
+  usercode                   String             @unique
+  password                   String // Hashed password
+  roleId                     Int?
+  address                    String?
+  city                       String?
+  state                      String?
+  pincode                    String?
+  salary                     Float?
+  department_id              Int?
   // Default fields
-  active_status      Boolean            @default(true)
-  delete_status      Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  createdBy          Int
-  updatedAt          DateTime           @updatedAt
-  updatedBy          Int?
+  active_status              Boolean            @default(true)
+  delete_status              Boolean            @default(false)
+  createdAt                  DateTime           @default(now())
+  createdBy                  Int
+  updatedAt                  DateTime           @updatedAt
+  updatedBy                  Int?
   // Relationship Fields
-  role               Role?              @relation(fields: [roleId], references: [id])
-  departmentDetails  DepartmentDetails? @relation(fields: [department_id], references: [id])
-  refreshToken                 RefreshToken?
+  role                       Role?                @relation(fields: [roleId], references: [id])
+  departmentDetails          DepartmentDetails?   @relation("userDepartment", fields: [department_id], references: [id])
+  refreshToken               RefreshToken?
   // Relationship Tables
-  vendorUserCreate             Vendor[]           @relation("vendorUserCreate")
-  vendorUserUpdate             Vendor[]           @relation("vendorUserUpdate")
-  customerUserCreate           Customer[]         @relation("customerUserCreate")
-  customerUserUpdate           Customer[]         @relation("customerUserUpdate")
-  businessCategoryUserCreate   businessCategory[] @relation("businessCategoryUserCreate")
-  businessCategoryUserUpdate   businessCategory[] @relation("businessCategoryUserUpdate")
+  vendorUserCreate           Vendor[]             @relation("vendorUserCreate")
+  vendorUserUpdate           Vendor[]             @relation("vendorUserUpdate")
+  customerUserCreate         Customer[]           @relation("customerUserCreate")
+  customerUserUpdate         Customer[]           @relation("customerUserUpdate")
+  businessCategoryUserCreate businessCategory[]   @relation("businessCategoryUserCreate")
+  businessCategoryUserUpdate businessCategory[]   @relation("businessCategoryUserUpdate")
+  departmentUserCreate       DepartmentDetails[]  @relation("departmentUserCreate")
+  departmentUserUpdate       DepartmentDetails[]  @relation("departmentUserUpdate")
 }
 
 model Role {

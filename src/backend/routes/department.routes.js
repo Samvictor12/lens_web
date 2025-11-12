@@ -1,25 +1,25 @@
 import { Router } from 'express';
-import BusinessCategoryController from '../controllers/businessCategoryController.js';
+import DepartmentController from '../controllers/department.controller.js';
 
 const router = Router();
-const controller = new BusinessCategoryController();
+const controller = new DepartmentController();
 
 /**
  * @swagger
  * components:
  *   schemas:
- *     BusinessCategory:
+ *     Department:
  *       type: object
  *       required:
- *         - name
+ *         - department
  *       properties:
  *         id:
  *           type: integer
- *           description: Auto-generated category ID
- *         name:
+ *           description: Auto-generated department ID
+ *         department:
  *           type: string
- *           description: Category name
- *           example: "Optical Retail"
+ *           description: Department name
+ *           example: "Sales"
  *         active_status:
  *           type: boolean
  *           description: Active status
@@ -42,10 +42,10 @@ const controller = new BusinessCategoryController();
 
 /**
  * @swagger
- * /api/business-category:
+ * /api/department:
  *   post:
- *     summary: Create a new business category
- *     tags: [Business Category]
+ *     summary: Create a new department
+ *     tags: [Department]
  *     requestBody:
  *       required: true
  *       content:
@@ -53,21 +53,21 @@ const controller = new BusinessCategoryController();
  *           schema:
  *             type: object
  *             required:
- *               - name
+ *               - department
  *             properties:
- *               name:
+ *               department:
  *                 type: string
- *                 example: "Optical Retail"
+ *                 example: "Sales"
  *               active_status:
  *                 type: boolean
  *                 default: true
  *     responses:
  *       201:
- *         description: Business category created successfully
+ *         description: Department created successfully
  *       400:
  *         description: Validation error
  *       409:
- *         description: Category name already exists
+ *         description: Department name already exists
  */
 router.post('/',
     // authenticateToken,  // Temporarily disabled for testing
@@ -77,10 +77,10 @@ router.post('/',
 
 /**
  * @swagger
- * /api/business-category:
+ * /api/department:
  *   get:
- *     summary: Get paginated list of business categories
- *     tags: [Business Category]
+ *     summary: Get paginated list of departments
+ *     tags: [Department]
  *     parameters:
  *       - in: query
  *         name: page
@@ -104,10 +104,10 @@ router.post('/',
  *           enum: [asc, desc]
  *           default: desc
  *       - in: query
- *         name: name
+ *         name: department
  *         schema:
  *           type: string
- *         description: Search by category name (partial match)
+ *         description: Search by department name (case insensitive)
  *       - in: query
  *         name: active_status
  *         schema:
@@ -115,23 +115,60 @@ router.post('/',
  *         description: Filter by active status
  *     responses:
  *       200:
- *         description: List of business categories
+ *         description: List of departments with pagination
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Department'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  */
 router.get('/',
     // authenticateToken,  // Temporarily disabled for testing
-    // requireRole(['Admin', 'Sales', 'Inventory']),  // Temporarily disabled for testing
     controller.list.bind(controller)
 );
 
 /**
  * @swagger
- * /api/business-category/dropdown:
+ * /api/department/dropdown:
  *   get:
- *     summary: Get dropdown list of active business categories
- *     tags: [Business Category]
+ *     summary: Get dropdown list of active departments
+ *     tags: [Department]
  *     responses:
  *       200:
- *         description: List of active categories for dropdown
+ *         description: List of active departments for dropdown
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
  */
 router.get('/dropdown',
     // authenticateToken,  // Temporarily disabled for testing
@@ -140,21 +177,31 @@ router.get('/dropdown',
 
 /**
  * @swagger
- * /api/business-category/{id}:
+ * /api/department/{id}:
  *   get:
- *     summary: Get single business category by ID
- *     tags: [Business Category]
+ *     summary: Get department by ID
+ *     tags: [Department]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Department ID
  *     responses:
  *       200:
- *         description: Business category details
+ *         description: Department details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Department'
  *       404:
- *         description: Category not found
+ *         description: Department not found
  */
 router.get('/:id',
     // authenticateToken,  // Temporarily disabled for testing
@@ -163,16 +210,17 @@ router.get('/:id',
 
 /**
  * @swagger
- * /api/business-category/{id}:
+ * /api/department/{id}:
  *   put:
- *     summary: Update business category
- *     tags: [Business Category]
+ *     summary: Update department
+ *     tags: [Department]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Department ID
  *     requestBody:
  *       required: true
  *       content:
@@ -180,19 +228,22 @@ router.get('/:id',
  *           schema:
  *             type: object
  *             required:
- *               - name
+ *               - department
  *             properties:
- *               name:
+ *               department:
  *                 type: string
+ *                 example: "Sales"
  *               active_status:
  *                 type: boolean
  *     responses:
  *       200:
- *         description: Category updated successfully
+ *         description: Department updated successfully
+ *       400:
+ *         description: Validation error
  *       404:
- *         description: Category not found
+ *         description: Department not found
  *       409:
- *         description: Category name already exists
+ *         description: Department name already exists
  */
 router.put('/:id',
     // authenticateToken,  // Temporarily disabled for testing
@@ -202,21 +253,24 @@ router.put('/:id',
 
 /**
  * @swagger
- * /api/business-category/{id}:
+ * /api/department/{id}:
  *   delete:
- *     summary: Delete business category (soft delete)
- *     tags: [Business Category]
+ *     summary: Delete department (soft delete)
+ *     tags: [Department]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Department ID
  *     responses:
  *       200:
- *         description: Category deleted successfully
+ *         description: Department deleted successfully
+ *       400:
+ *         description: Cannot delete department with users
  *       404:
- *         description: Category not found
+ *         description: Department not found
  */
 router.delete('/:id',
     // authenticateToken,  // Temporarily disabled for testing

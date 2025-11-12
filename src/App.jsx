@@ -23,6 +23,8 @@ import Vendors from "./pages/Vendor/VendorsMain";
 import VendorForm from "./pages/Vendor/VendorForm";
 import BusinessCategories from "./pages/BusinessCategory/BusinessCategories";
 import BusinessCategoryForm from "./pages/BusinessCategory/BusinessCategoryForm";
+import Departments from "./pages/Department/Departments";
+import DepartmentForm from "./pages/Department/DepartmentForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +59,9 @@ const AppRoutes = () => (
       <Route path="/masters/business-categories" element={<ProtectedRoute><BusinessCategories /></ProtectedRoute>} />
       <Route path="/masters/business-categories/:mode" element={<ProtectedRoute><BusinessCategoryForm /></ProtectedRoute>} />
       <Route path="/masters/business-categories/:mode/:id" element={<ProtectedRoute><BusinessCategoryForm /></ProtectedRoute>} />
+      <Route path="/masters/departments" element={<ProtectedRoute><Departments /></ProtectedRoute>} />
+      <Route path="/masters/departments/:mode" element={<ProtectedRoute><DepartmentForm /></ProtectedRoute>} />
+      <Route path="/masters/departments/:mode/:id" element={<ProtectedRoute><DepartmentForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

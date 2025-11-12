@@ -408,23 +408,28 @@ export default function VendorForm() {
 
               {/* Category & Status */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Category - Text Input with datalist */}
-                <div className="space-y-1.5">
-                  <FormInput
-                    label="Category (Optional)"
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    disabled={isReadOnly}
-                    helperText="e.g., Lens Manufacturer, Frame Supplier"
-                    list="vendor-categories"
-                  />
-                  <datalist id="vendor-categories">
-                    {vendorCategories.map((cat) => (
-                      <option key={cat.id} value={cat.name} />
-                    ))}
-                  </datalist>
-                </div>
+                {/* Business Category - React Select */}
+                <FormSelect
+                  label="Category (Optional)"
+                  name="category"
+                  options={vendorCategories}
+                  value={formData.category}
+                  onChange={(value) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      category: value,
+                    }));
+                    // Clear error when value changes
+                    if (errors.category) {
+                      setErrors((prev) => ({ ...prev, category: "" }));
+                    }
+                  }}
+                  placeholder="Select category"
+                  isSearchable={true}
+                  isClearable={true}
+                  disabled={isReadOnly}
+                  error={errors.category}
+                />
 
                 {/* Active Status - React Select */}
                 <FormSelect
