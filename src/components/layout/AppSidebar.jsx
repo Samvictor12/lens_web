@@ -13,6 +13,7 @@ import {
   Tag,
   FolderOpen,
   Briefcase,
+  UserCog,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -116,6 +117,12 @@ const masterItems = [
     title: "Departments",
     url: "/masters/departments",
     icon: Briefcase,
+    allowedRoles: ["admin"],
+  },
+  {
+    title: "Users",
+    url: "/masters/users",
+    icon: UserCog,
     allowedRoles: ["admin"],
   },
   {

@@ -25,6 +25,8 @@ import BusinessCategories from "./pages/BusinessCategory/BusinessCategories";
 import BusinessCategoryForm from "./pages/BusinessCategory/BusinessCategoryForm";
 import Departments from "./pages/Department/Departments";
 import DepartmentForm from "./pages/Department/DepartmentForm";
+import UsersMain from "./pages/User/UsersMain";
+import UserForm from "./pages/User/UserForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +64,9 @@ const AppRoutes = () => (
       <Route path="/masters/departments" element={<ProtectedRoute><Departments /></ProtectedRoute>} />
       <Route path="/masters/departments/:mode" element={<ProtectedRoute><DepartmentForm /></ProtectedRoute>} />
       <Route path="/masters/departments/:mode/:id" element={<ProtectedRoute><DepartmentForm /></ProtectedRoute>} />
+      <Route path="/masters/users" element={<ProtectedRoute><UsersMain /></ProtectedRoute>} />
+      <Route path="/masters/users/:mode" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
+      <Route path="/masters/users/:mode/:id" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

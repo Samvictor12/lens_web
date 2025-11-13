@@ -23,41 +23,55 @@ model DepartmentDetails {
   usercreate    User     @relation("departmentUserCreate", fields: [createdBy], references: [id])
   userupdate    User?    @relation("departmentUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
-  Users         User[]   @relation("userDepartment")
+  // Users         User[]   @relation("userDepartment")
 }
 
 model User {
-  id                         Int                @id @default(autoincrement())
-  name                       String
-  email                      String             @unique
-  phonenumber                String?
-  alternatenumber            String?
-  bloodgroup                 String?
-  usercode                   String             @unique
-  password                   String // Hashed password
-  roleId                     Int?
-  address                    String?
-  city                       String?
-  state                      String?
-  pincode                    String?
-  salary                     Float?
-  department_id              Int?
+  id                 Int                  @id @default(autoincrement())
+  name               String
+  email              String               @unique
+  phonenumber        String?
+  alternatenumber    String?
+  bloodgroup         String?
+  usercode           String               @unique
+  password           String // Hashed password
+  role_id            Int?
+  address            String?
+  city               String?
+  state              String?
+  pincode            String?
+  salary             Float?
+  department_id      Int?
   // Default fields
-  active_status              Boolean            @default(true)
-  delete_status              Boolean            @default(false)
-  createdAt                  DateTime           @default(now())
-  createdBy                  Int
-  updatedAt                  DateTime           @updatedAt
-  updatedBy                  Int?
+  active_status      Boolean              @default(true)
+  delete_status      Boolean              @default(false)
+  createdAt          DateTime             @default(now())
+  createdBy          Int
+  updatedAt          DateTime             @updatedAt
+  updatedBy          Int?
   // Relationship Fields
-  role                       Role?                @relation(fields: [roleId], references: [id])
-  departmentDetails          DepartmentDetails?   @relation("userDepartment", fields: [department_id], references: [id])
-  refreshToken               RefreshToken?
+  role               Role?                @relation(fields: [role_id], references: [id])
+  // departmentDetails  DepartmentDetails?   @relation(fields: [department_id], references: [id])
+  refreshToken       RefreshToken?
   // Relationship Tables
-  vendorUserCreate           Vendor[]             @relation("vendorUserCreate")
-  vendorUserUpdate           Vendor[]             @relation("vendorUserUpdate")
-  customerUserCreate         Customer[]           @relation("customerUserCreate")
-  customerUserUpdate         Customer[]           @relation("customerUserUpdate")
+  vendorUserCreate           Vendor[]               @relation("vendorUserCreate")
+  vendorUserUpdate           Vendor[]               @relation("vendorUserUpdate")
+  customerUserCreate         Customer[]             @relation("customerUserCreate")
+  customerUserUpdate         Customer[]             @relation("customerUserUpdate")
+  categoryUserCreate LensCategoryMaster[] @relation("categoryUserCreate")
+  categoryUserUpdate LensCategoryMaster[] @relation("categoryUserUpdate")
+  materialUserCreate LensMaterialMaster[] @relation("materialUserCreate")
+  materialUserUpdate LensMaterialMaster[] @relation("materialUserUpdate")
+  coatingUserCreate  LensCoatingMaster[]  @relation("coatingUserCreate")
+  coatingUserUpdate  LensCoatingMaster[]  @relation("coatingUserUpdate")
+  brandUserCreate    LensBrandMaster[]    @relation("brandUserCreate")
+  brandUserUpdate    LensBrandMaster[]    @relation("brandUserUpdate")
+  typeUserCreate     LensTypeMaster[]     @relation("typeUserCreate")
+  typeUserUpdate     LensTypeMaster[]     @relation("typeUserUpdate")
+  productUserCreate  LensProductMaster[]  @relation("productUserCreate")
+  productUserUpdate  LensProductMaster[]  @relation("productUserUpdate")
+  priceUserCreate    LensPriceMaster[]    @relation("priceUserCreate")
+  priceUserUpdate    LensPriceMaster[]    @relation("priceUserUpdate")
   businessCategoryUserCreate businessCategory[]   @relation("businessCategoryUserCreate")
   businessCategoryUserUpdate businessCategory[]   @relation("businessCategoryUserUpdate")
   departmentUserCreate       DepartmentDetails[]  @relation("departmentUserCreate")
@@ -67,20 +81,22 @@ model User {
 model Role {
   id          Int          @id @default(autoincrement())
   name        String       @unique // "Admin", "Sales", "Inventory", "Accounts"
-  permissions Permission[]
-  users       User[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  //Relationships Tables
+  permissions Permission[]
+  users       User[]
 }
 
 model Permission {
   id        Int      @id @default(autoincrement())
   action    String // "create", "read", "update", "delete"
   subject   String // "SaleOrder", "PurchaseOrder", etc.
-  roleId    Int
-  role      Role     @relation(fields: [roleId], references: [id])
+  role_id   Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Relationships Fields 
+  role      Role     @relation(fields: [role_id], references: [id])
 }
 
 model RefreshToken {
@@ -90,6 +106,7 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Relationship Fields
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
@@ -100,6 +117,7 @@ model businessCategory {
   name          String     @unique
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+  // Relationship Tables
   active_status Boolean    @default(true)
   delete_status Boolean    @default(false)
   createdBy     Int
@@ -117,6 +135,7 @@ model Customer {
   name                String
   shopname            String?
   phone               String?
+  Alternatephone      String?
   email               String
   address             String?
   city                String?
@@ -149,6 +168,7 @@ model Vendor {
   name           String
   shopname       String?
   phone          String?
+  Alternatephone String?
   email          String
   address        String?
   city           String?
@@ -171,31 +191,137 @@ model Vendor {
   purchaseOrders PurchaseOrder[]
 }
 
-model LensType {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique // e.g., "Single Vision", "Progressive"
-  description String?
-  variants    LensVariant[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+model LensCategoryMaster {
+  id                 Int                 @id @default(autoincrement())
+  name               String              @unique
+  description        String?
+  activeStatus       Boolean             @default(true)
+  deleteStatus       Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime?           @updatedAt
+  createdBy          Int
+  updatedBy          Int?
+  // Relationships Fields
+  Usercreated        User                @relation("categoryUserCreate", fields: [createdBy], references: [id])
+  Userupdated        User?               @relation("categoryUserUpdate", fields: [updatedBy], references: [id])
+  lensProductMasters LensProductMaster[]
 }
 
-model LensVariant {
-  id          Int             @id @default(autoincrement())
-  name        String // e.g., "Acuvue Oasys"
-  description String?
-  lensType    LensType        @relation(fields: [lensTypeId], references: [id])
-  lensTypeId  Int
-  price       Float
-  isRx        Boolean         @default(false) // true = requires PO
-  stock       Int             @default(0) // for in-stock items
-  minStock    Int             @default(5) // minimum stock threshold
-  saleOrders  SaleOrderItem[]
-  poItems     POItem[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+model LensMaterialMaster {
+  id                 Int                 @id @default(autoincrement())
+  name               String              @unique
+  description        String?
+  activeStatus       Boolean             @default(true)
+  deleteStatus       Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime?           @updatedAt
+  createdBy          Int
+  updatedBy          Int?
+  // Relationships Fields
+  Usercreated        User                @relation("materialUserCreate", fields: [createdBy], references: [id])
+  Userupdated        User?               @relation("materialUserUpdate", fields: [updatedBy], references: [id])
+  lensProductMasters LensProductMaster[]
+}
 
-  @@index([lensTypeId])
+model LensCoatingMaster {
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  short_name       String
+  description      String?
+  activeStatus     Boolean           @default(true)
+  deleteStatus     Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime?         @updatedAt
+  createdBy        Int
+  updatedBy        Int?
+  // Relationships Fields
+  Usercreated      User              @relation("coatingUserCreate", fields: [createdBy], references: [id])
+  Userupdated      User?             @relation("coatingUserUpdate", fields: [updatedBy], references: [id])
+  lensPriceMasters LensPriceMaster[]
+}
+
+model LensBrandMaster {
+  id                 Int                 @id @default(autoincrement())
+  name               String              @unique
+  description        String?
+  activeStatus       Boolean             @default(true)
+  deleteStatus       Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime?           @updatedAt
+  createdBy          Int
+  updatedBy          Int?
+  // Relationships Fields
+  Usercreated        User                @relation("brandUserCreate", fields: [createdBy], references: [id])
+  Userupdated        User?               @relation("brandUserUpdate", fields: [updatedBy], references: [id])
+  lensProductMasters LensProductMaster[]
+}
+
+model LensTypeMaster {
+  id                 Int                 @id @default(autoincrement())
+  name               String              @unique
+  description        String?
+  activeStatus       Boolean             @default(true)
+  deleteStatus       Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime?           @updatedAt
+  createdBy          Int
+  updatedBy          Int?
+  // Relationships Fields
+  Usercreated        User                @relation("typeUserCreate", fields: [createdBy], references: [id])
+  Userupdated        User?               @relation("typeUserUpdate", fields: [updatedBy], references: [id])
+  lensProductMasters LensProductMaster[]
+}
+
+model LensProductMaster {
+  id               Int                @id @default(autoincrement())
+  brand_id         Int
+  category_id      Int
+  material_id      Int
+  type_id          Int
+  product_code     String
+  lens_name        String
+  index_value      Int?
+  sphere_min       Float?
+  sphere_max       Float?
+  cyl_min          Float?
+  cyl_max          Float?
+  add_min          Float?
+  add_max          Float?
+  range_text       String?
+  // Default fields
+  activeStatus     Boolean            @default(true)
+  deleteStatus     Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime?          @updatedAt
+  createdBy        Int
+  updatedBy        Int?
+  // Relationships Fields
+  brand            LensBrandMaster    @relation(fields: [brand_id], references: [id])
+  category         LensCategoryMaster @relation(fields: [category_id], references: [id])
+  material         LensMaterialMaster @relation(fields: [material_id], references: [id])
+  type             LensTypeMaster     @relation(fields: [type_id], references: [id])
+  Usercreated      User               @relation("productUserCreate", fields: [createdBy], references: [id])
+  Userupdated      User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  lensPriceMasters LensPriceMaster[]
+}
+
+model LensPriceMaster {
+  id           Int               @id @default(autoincrement())
+  lens_id      Int
+  coating_id   Int
+  price        Float
+  activeStatus Boolean           @default(true)
+  deleteStatus Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime?         @updatedAt
+  createdBy    Int
+  updatedBy    Int?
+  // Relationships Fields
+  coating      LensCoatingMaster @relation(fields: [coating_id], references: [id])
+  lens         LensProductMaster @relation(fields: [lens_id], references: [id])
+  Usercreated  User              @relation("priceUserCreate", fields: [createdBy], references: [id])
+  Userupdated  User?             @relation("priceUserUpdate", fields: [updatedBy], references: [id])
 }
 
 // Forward declarations for related models
@@ -266,7 +392,7 @@ model SaleOrder {
   tintingPrice     Float           @default(0)
   discount         Float           @default(0) // Percentage discount
   // Relations
-  items            SaleOrderItem[]
+  // items            SaleOrderItem[]
   invoice          Invoice?        @relation(fields: [invoiceId], references: [id])
   invoiceId        Int?
   purchaseOrders   PurchaseOrder[]
@@ -279,21 +405,21 @@ model SaleOrder {
   @@index([dispatchCopyId])
 }
 
-model SaleOrderItem {
-  id            Int         @id @default(autoincrement())
-  saleOrderId   Int
-  saleOrder     SaleOrder   @relation(fields: [saleOrderId], references: [id])
-  lensVariantId Int
-  lensVariant   LensVariant @relation(fields: [lensVariantId], references: [id])
-  quantity      Int         @default(1)
-  price         Float // Price at time of sale
-  discount      Float       @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+// model SaleOrderItem {
+//   id            Int         @id @default(autoincrement())
+//   saleOrderId   Int
+//   saleOrder     SaleOrder   @relation(fields: [saleOrderId], references: [id])
+//   lensVariantId Int
+//   lensVariant   LensVariant @relation(fields: [lensVariantId], references: [id])
+//   quantity      Int         @default(1)
+//   price         Float // Price at time of sale
+//   discount      Float       @default(0)
+//   createdAt     DateTime    @default(now())
+//   updatedAt     DateTime    @updatedAt
 
-  @@index([saleOrderId])
-  @@index([lensVariantId])
-}
+//   @@index([saleOrderId])
+//   @@index([lensVariantId])
+// }
 
 enum PaymentMethod {
   CASH
@@ -353,7 +479,7 @@ model PurchaseOrder {
   status      POStatus   @default(PENDING)
   totalValue  Float
   notes       String?
-  items       POItem[]
+  // items       POItem[]
   saleOrderId Int?
   saleOrder   SaleOrder? @relation(fields: [saleOrderId], references: [id])
   createdAt   DateTime   @default(now())
@@ -387,18 +513,18 @@ model DispatchCopy {
   @@index([customerId])
 }
 
-model POItem {
-  id              Int           @id @default(autoincrement())
-  purchaseOrderId Int
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
-  lensVariantId   Int
-  lensVariant     LensVariant   @relation(fields: [lensVariantId], references: [id])
-  quantity        Int
-  price           Float // Purchase price
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+// model POItem {
+//   id              Int           @id @default(autoincrement())
+//   purchaseOrderId Int
+//   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+//   lensVariantId   Int
+//   lensVariant     LensVariant   @relation(fields: [lensVariantId], references: [id])
+//   quantity        Int
+//   price           Float // Purchase price
+//   notes           String?
+//   createdAt       DateTime      @default(now())
+//   updatedAt       DateTime      @updatedAt
 
-  @@index([purchaseOrderId])
-  @@index([lensVariantId])
-}
+//   @@index([purchaseOrderId])
+//   @@index([lensVariantId])
+// }
