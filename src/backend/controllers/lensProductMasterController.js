@@ -242,3 +242,192 @@ export const getProductsByCategory = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Add or update price for a specific lens-coating combination
+ * @route POST /api/v1/lens-products/:lensId/prices/:coatingId
+ */
+export const addOrUpdateLensPrice = async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+    }
+
+    const lensIdValidation = validateIdParam(req.params.lensId);
+    if (!lensIdValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lens ID parameter',
+        errors: lensIdValidation.errors
+      });
+    }
+
+    const coatingIdValidation = validateIdParam(req.params.coatingId);
+    if (!coatingIdValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coating ID parameter',
+        errors: coatingIdValidation.errors
+      });
+    }
+
+    const { price } = req.body;
+    if (price === undefined || price === null || typeof price !== 'number' || price < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid price is required',
+        errors: [{ field: 'price', message: 'Price must be a positive number' }]
+      });
+    }
+
+    const result = await LensProductService.addOrUpdateLensPrice(
+      lensIdValidation.id,
+      coatingIdValidation.id,
+      price,
+      userId
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Lens price added/updated successfully',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Bulk add or update prices for a lens product
+ * @route POST /api/v1/lens-products/:lensId/prices/bulk
+ */
+export const bulkAddOrUpdateLensPrices = async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+    }
+
+    const lensIdValidation = validateIdParam(req.params.lensId);
+    if (!lensIdValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lens ID parameter',
+        errors: lensIdValidation.errors
+      });
+    }
+
+    const { prices } = req.body;
+    if (!Array.isArray(prices) || prices.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Prices array is required and must not be empty',
+        errors: [{ field: 'prices', message: 'Prices must be a non-empty array' }]
+      });
+    }
+
+    // Validate each price object
+    const errors = [];
+    prices.forEach((price, index) => {
+      if (!price.coating_id || typeof price.coating_id !== 'number') {
+        errors.push({ field: `prices[${index}].coating_id`, message: 'Coating ID is required' });
+      }
+      if (price.price === undefined || typeof price.price !== 'number' || price.price < 0) {
+        errors.push({ field: `prices[${index}].price`, message: 'Price must be a positive number' });
+      }
+    });
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+
+    const result = await LensProductService.bulkAddOrUpdateLensPrices(
+      lensIdValidation.id,
+      prices,
+      userId
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk prices processed successfully. ${result.pricesProcessed} prices updated.`,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete price for a specific lens-coating combination
+ * @route DELETE /api/v1/lens-products/:lensId/prices/:coatingId
+ */
+export const deleteLensPrice = async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+    }
+
+    const lensIdValidation = validateIdParam(req.params.lensId);
+    if (!lensIdValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lens ID parameter',
+        errors: lensIdValidation.errors
+      });
+    }
+
+    const coatingIdValidation = validateIdParam(req.params.coatingId);
+    if (!coatingIdValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coating ID parameter',
+        errors: coatingIdValidation.errors
+      });
+    }
+
+    await LensProductService.deleteLensPrice(
+      lensIdValidation.id,
+      coatingIdValidation.id,
+      userId
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Lens price deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all prices for a specific lens product
+ * @route GET /api/v1/lens-products/:lensId/prices
+ */
+export const getLensPricesByLensId = async (req, res, next) => {
+  try {
+    const lensIdValidation = validateIdParam(req.params.lensId);
+    if (!lensIdValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lens ID parameter',
+        errors: lensIdValidation.errors
+      });
+    }
+
+    const prices = await LensProductService.getLensPricesByLensId(lensIdValidation.id);
+    res.status(200).json({
+      success: true,
+      message: 'Lens prices retrieved successfully',
+      data: prices
+    });
+  } catch (error) {
+    next(error);
+  }
+};
