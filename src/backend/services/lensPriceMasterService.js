@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Lens Price Master Service

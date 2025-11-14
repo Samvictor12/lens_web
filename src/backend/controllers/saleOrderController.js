@@ -1,8 +1,7 @@
-import { PrismaClient, SaleOrderStatus } from '@prisma/client';
+import prisma from '../config/prisma.js';
+import { SaleOrderStatus } from '@prisma/client';
 import { z } from 'zod';
 import { APIError } from '../middleware/errorHandler.js';
-
-const prisma = new PrismaClient();
 
 // Input validation schemas
 const saleOrderItemSchema = z.object({

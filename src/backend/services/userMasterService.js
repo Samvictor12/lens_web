@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import bcrypt from 'bcrypt';
-
-const prisma = new PrismaClient();
 
 /**
  * User Master Service

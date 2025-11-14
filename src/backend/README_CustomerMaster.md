@@ -68,7 +68,7 @@ src/backend/
   name: string,                  // Required (max 100)
   shopName: string,             // Required (max 100)
   phone: string,                // Required (10-15 digits)
-  alternatePhone: string,       // Optional (max 15)
+  alternatephone: string,       // Optional (max 15)
   email: string,                // Optional, valid email
   address: string,              // Required (max 500)
   gstNumber: string,            // Optional (max 15)
@@ -196,7 +196,7 @@ model Customer {
   name          String   @db.VarChar(100)
   shopName      String   @db.VarChar(100)
   phone         String   @db.VarChar(15)
-  alternatePhone String? @db.VarChar(15)
+  alternatephone String? @db.VarChar(15)
   email         String?  @unique @db.VarChar(255)
   address       String   @db.VarChar(500)
   gstNumber     String?  @db.VarChar(15)
