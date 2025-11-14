@@ -250,4 +250,160 @@ router.put('/:id', authenticateToken, lensProductController.updateLensProduct);
  */
 router.delete('/:id', authenticateToken, lensProductController.deleteLensProduct);
 
+// ============================================================================
+// PRICING MANAGEMENT ROUTES
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/v1/lens-products/{lensId}/prices:
+ *   get:
+ *     summary: Get all prices for a specific lens product
+ *     tags: [Lens Products - Pricing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: lensId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Lens product ID
+ *     responses:
+ *       200:
+ *         description: Lens prices retrieved successfully
+ *       404:
+ *         description: Lens product not found
+ */
+router.get('/:lensId/prices', authenticateToken, lensProductController.getLensPricesByLensId);
+
+/**
+ * @swagger
+ * /api/v1/lens-products/{lensId}/prices/bulk:
+ *   post:
+ *     summary: Bulk add or update prices for a lens product
+ *     tags: [Lens Products - Pricing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: lensId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Lens product ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - prices
+ *             properties:
+ *               prices:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - coating_id
+ *                     - price
+ *                   properties:
+ *                     coating_id:
+ *                       type: integer
+ *                       description: Coating ID
+ *                     price:
+ *                       type: number
+ *                       description: Price value
+ *           example:
+ *             prices:
+ *               - coating_id: 1
+ *                 price: 2500.00
+ *               - coating_id: 2
+ *                 price: 3200.00
+ *     responses:
+ *       200:
+ *         description: Prices bulk processed successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Lens product not found
+ */
+router.post('/:lensId/prices/bulk', authenticateToken, lensProductController.bulkAddOrUpdateLensPrices);
+
+/**
+ * @swagger
+ * /api/v1/lens-products/{lensId}/prices/{coatingId}:
+ *   post:
+ *     summary: Add or update price for a specific lens-coating combination
+ *     tags: [Lens Products - Pricing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: lensId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Lens product ID
+ *       - in: path
+ *         name: coatingId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Coating ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - price
+ *             properties:
+ *               price:
+ *                 type: number
+ *                 description: Price value
+ *                 minimum: 0
+ *           example:
+ *             price: 2500.00
+ *     responses:
+ *       200:
+ *         description: Price added/updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Lens or coating not found
+ */
+router.post('/:lensId/prices/:coatingId', authenticateToken, lensProductController.addOrUpdateLensPrice);
+
+/**
+ * @swagger
+ * /api/v1/lens-products/{lensId}/prices/{coatingId}:
+ *   delete:
+ *     summary: Delete price for a specific lens-coating combination
+ *     tags: [Lens Products - Pricing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: lensId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Lens product ID
+ *       - in: path
+ *         name: coatingId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Coating ID
+ *     responses:
+ *       200:
+ *         description: Price deleted successfully
+ *       404:
+ *         description: Price not found for this lens-coating combination
+ */
+router.delete('/:lensId/prices/:coatingId', authenticateToken, lensProductController.deleteLensPrice);
+
 export default router;

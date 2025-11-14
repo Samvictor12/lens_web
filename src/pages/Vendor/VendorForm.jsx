@@ -62,6 +62,7 @@ export default function VendorForm() {
               name: vendor.name || "",
               shopName: vendor.shopName || "",
               phone: vendor.phone || "",
+              alternatePhone: vendor.alternatePhone || "",
               email: vendor.email || "",
               address: vendor.address || "",
               city: vendor.city || "",
@@ -138,6 +139,11 @@ export default function VendorForm() {
       newErrors.phone = "Phone number must be 10 digits";
     }
 
+    // Alternate Phone validation (optional)
+    if (formData.alternatePhone && !validatePhone(formData.alternatePhone)) {
+      newErrors.alternatePhone = "Alternate phone number must be 10 digits";
+    }
+
     // Email validation (required)
     if (!validateEmail(formData.email)) {
       newErrors.email = formData.email
@@ -163,7 +169,7 @@ export default function VendorForm() {
     const { name, value } = e.target;
 
     // Handle phone - allow only numbers up to 10 digits
-    if (name === "phone") {
+    if (name === "phone" || name === "alternatePhone") {
       const cleaned = value.replace(/\D/g, "");
       if (cleaned.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: cleaned }));
@@ -459,7 +465,7 @@ export default function VendorForm() {
                 />
               </div>
 
-              {/* Phone & Email */}
+              {/* Phone & Alternate Phone */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
                   label="Phone Number (Optional)"
@@ -475,18 +481,32 @@ export default function VendorForm() {
                 />
 
                 <FormInput
-                  label="Email Address"
-                  name="email"
-                  type="email"
-                  value={formData.email}
+                  label="Alternate Phone (Optional)"
+                  name="alternatePhone"
+                  type="tel"
+                  value={formData.alternatePhone}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  // placeholder="vendor@example.com"
-                  prefix="@"
-                  required
-                  error={errors.email}
+                  maxLength={10}
+                  prefix="+91"
+                  error={errors.alternatePhone}
+                  showCharCount={!!formData.alternatePhone}
                 />
               </div>
+
+              {/* Email */}
+              <FormInput
+                label="Email Address"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                disabled={isReadOnly}
+                // placeholder="vendor@example.com"
+                prefix="@"
+                required
+                error={errors.email}
+              />
 
               {/* Address */}
               <FormTextarea

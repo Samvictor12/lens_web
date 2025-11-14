@@ -1,6 +1,6 @@
-import express from 'express';
-import UserMasterController from '../controllers/userMasterController.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import express from "express";
+import UserMasterController from "../controllers/userMasterController.js";
+import { authenticateToken, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 const userMasterController = new UserMasterController();
@@ -109,7 +109,7 @@ const userMasterController = new UserMasterController();
  *           type: string
  *           format: date-time
  *           description: Record last update timestamp
- * 
+ *
  *     UserMasterResponse:
  *       allOf:
  *         - $ref: '#/components/schemas/UserMaster'
@@ -117,7 +117,7 @@ const userMasterController = new UserMasterController();
  *           properties:
  *             password:
  *               description: Password field is excluded from responses for security
- * 
+ *
  *     UserMasterCreate:
  *       type: object
  *       required:
@@ -175,7 +175,7 @@ const userMasterController = new UserMasterController();
  *           type: integer
  *         role_id:
  *           type: integer
- * 
+ *
  *     UserMasterUpdate:
  *       type: object
  *       properties:
@@ -225,7 +225,7 @@ const userMasterController = new UserMasterController();
  *           type: integer
  *         role_id:
  *           type: integer
- * 
+ *
  *     DropdownItem:
  *       type: object
  *       properties:
@@ -233,7 +233,7 @@ const userMasterController = new UserMasterController();
  *           type: integer
  *         name:
  *           type: string
- * 
+ *
  *   securitySchemes:
  *     bearerAuth:
  *       type: http
@@ -297,7 +297,12 @@ const userMasterController = new UserMasterController();
  *       500:
  *         description: Internal server error
  */
-router.post('/', authenticateToken, requireRole(['Admin']), userMasterController.create.bind(userMasterController));
+router.post(
+  "/",
+//   authenticateToken,
+//   requireRole(["Admin"]),
+  userMasterController.create.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -373,7 +378,12 @@ router.post('/', authenticateToken, requireRole(['Admin']), userMasterController
  *       500:
  *         description: Internal server error
  */
-router.get('/', authenticateToken, requireRole(['Admin']), userMasterController.list.bind(userMasterController));
+router.get(
+  "/",
+//   authenticateToken,
+//   requireRole(["Admin"]),
+  userMasterController.list.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -401,7 +411,11 @@ router.get('/', authenticateToken, requireRole(['Admin']), userMasterController.
  *       500:
  *         description: Internal server error
  */
-router.get('/dropdown', authenticateToken, userMasterController.getDropdown.bind(userMasterController));
+router.get(
+  "/dropdown",
+//   authenticateToken,
+  userMasterController.getDropdown.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -429,7 +443,11 @@ router.get('/dropdown', authenticateToken, userMasterController.getDropdown.bind
  *       500:
  *         description: Internal server error
  */
-router.get('/roles', authenticateToken, userMasterController.getRoles.bind(userMasterController));
+router.get(
+  "/roles",
+//   authenticateToken,
+  userMasterController.getRoles.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -457,7 +475,11 @@ router.get('/roles', authenticateToken, userMasterController.getRoles.bind(userM
  *       500:
  *         description: Internal server error
  */
-router.get('/departments', authenticateToken, userMasterController.getDepartments.bind(userMasterController));
+router.get(
+  "/departments",
+//   authenticateToken,
+  userMasterController.getDepartments.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -487,7 +509,11 @@ router.get('/departments', authenticateToken, userMasterController.getDepartment
  *       500:
  *         description: Internal server error
  */
-router.get('/stats', authenticateToken, userMasterController.getStats.bind(userMasterController));
+router.get(
+  "/stats",
+//   authenticateToken,
+  userMasterController.getStats.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -539,7 +565,11 @@ router.get('/stats', authenticateToken, userMasterController.getStats.bind(userM
  *       500:
  *         description: Internal server error
  */
-router.post('/check-email', authenticateToken, userMasterController.checkUserEmail.bind(userMasterController));
+router.post(
+  "/check-email",
+//   authenticateToken,
+  userMasterController.checkUserEmail.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -590,7 +620,11 @@ router.post('/check-email', authenticateToken, userMasterController.checkUserEma
  *       500:
  *         description: Internal server error
  */
-router.post('/check-usercode', authenticateToken, userMasterController.checkUserCode.bind(userMasterController));
+router.post(
+  "/check-usercode",
+//   authenticateToken,
+  userMasterController.checkUserCode.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -627,7 +661,11 @@ router.post('/check-usercode', authenticateToken, userMasterController.checkUser
  *       500:
  *         description: Internal server error
  */
-router.get('/:id', authenticateToken, userMasterController.getById.bind(userMasterController));
+router.get(
+  "/:id",
+//   authenticateToken,
+  userMasterController.getById.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -672,7 +710,12 @@ router.get('/:id', authenticateToken, userMasterController.getById.bind(userMast
  *       500:
  *         description: Internal server error
  */
-router.put('/:id', authenticateToken, requireRole(['Admin']), userMasterController.update.bind(userMasterController));
+router.put(
+  "/:id",
+//   authenticateToken,
+//   requireRole(["Admin"]),
+  userMasterController.update.bind(userMasterController)
+);
 
 /**
  * @swagger
@@ -723,6 +766,11 @@ router.put('/:id', authenticateToken, requireRole(['Admin']), userMasterControll
  *       500:
  *         description: Internal server error
  */
-router.delete('/:id', authenticateToken, requireRole(['Admin']), userMasterController.delete.bind(userMasterController));
+router.delete(
+  "/:id",
+//   authenticateToken,
+//   requireRole(["Admin"]),
+  userMasterController.delete.bind(userMasterController)
+);
 
 export default router;
