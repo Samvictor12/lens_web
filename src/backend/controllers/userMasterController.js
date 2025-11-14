@@ -395,7 +395,7 @@ export class UserMasterController {
         updateData.username = username.trim();
       }
 
-      if (password !== undefined) {
+      if (password !== undefined && password !== null && password.trim() !== '') {
         if (password.length < 6) {
           return res.status(400).json({
             success: false,

@@ -127,13 +127,13 @@ export default function BusinessCategoryForm() {
             description: "Business category updated successfully!",
           });
 
-          if (mode === "view") {
-            // Update local data and exit edit mode
-            setOriginalData(formData);
-            setIsEditing(false);
-          } else {
-            navigate("/masters/business-categories");
-          }
+          // if (mode === "view") {
+          // Update local data and exit edit mode
+          setOriginalData(formData);
+          setIsEditing(false);
+          // } else {
+          navigate("/masters/business-categories");
+          // }
         }
       }
     } catch (error) {
@@ -141,7 +141,8 @@ export default function BusinessCategoryForm() {
       toast({
         title: "Error",
         description:
-          error.message || "Failed to save business category. Please try again.",
+          error.message ||
+          "Failed to save business category. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -195,7 +196,9 @@ export default function BusinessCategoryForm() {
               : mode === "edit"
               ? "Update category information"
               : customerCount > 0
-              ? `${customerCount} ${customerCount === 1 ? "customer" : "customers"} using this category`
+              ? `${customerCount} ${
+                  customerCount === 1 ? "customer" : "customers"
+                } using this category`
               : "View category information"}
           </p>
         </div>

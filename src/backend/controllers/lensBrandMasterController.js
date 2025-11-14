@@ -3,14 +3,16 @@
  * Handles HTTP requests for lens brand management
  */
 
-import * as LensBrandService from '../services/lensBrandMasterService.js';
-import { 
-  validateCreateLensBrand, 
-  validateUpdateLensBrand, 
+import LensBrandMasterService from "../services/lensBrandMasterService.js";
+import {
+  validateCreateLensBrand,
+  validateUpdateLensBrand,
   validateIdParam,
-  validateQueryParams 
-} from '../dto/lensMastersDto.js';
-import { APIError } from '../utils/errors.js';
+  validateQueryParams,
+} from "../dto/lensMastersDto.js";
+import { APIError } from "../utils/errors.js";
+
+const lensBrandService = new LensBrandMasterService();
 
 /**
  * Create new lens brand
@@ -20,23 +22,26 @@ export const createLensBrand = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const validation = validateCreateLensBrand({ ...req.body, createdBy: userId });
+    const validation = validateCreateLensBrand({
+      ...req.body,
+      createdBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const brand = await LensBrandService.createLensBrand(validation.data);
+    const brand = await lensBrandService.createLensBrand(validation.data);
     res.status(201).json({
       success: true,
-      message: 'Lens brand created successfully',
-      data: brand
+      message: "Lens brand created successfully",
+      data: brand,
     });
   } catch (error) {
     next(error);
@@ -53,17 +58,17 @@ export const getAllLensBrands = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid query parameters',
-        errors: validation.errors
+        message: "Invalid query parameters",
+        errors: validation.errors,
       });
     }
 
-    const result = await LensBrandService.getAllLensBrands(validation.data);
+    const result = await lensBrandService.getLensBrands(validation.data);
     res.status(200).json({
       success: true,
-      message: 'Lens brands retrieved successfully',
+      message: "Lens brands retrieved successfully",
       data: result.brands,
-      pagination: result.pagination
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -80,16 +85,16 @@ export const getLensBrandById = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const brand = await LensBrandService.getLensBrandById(validation.id);
+    const brand = await lensBrandService.getLensBrandById(validation.id);
     res.status(200).json({
       success: true,
-      message: 'Lens brand retrieved successfully',
-      data: brand
+      message: "Lens brand retrieved successfully",
+      data: brand,
     });
   } catch (error) {
     next(error);
@@ -104,32 +109,38 @@ export const updateLensBrand = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const idValidation = validateIdParam(req.params.id);
     if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: idValidation.errors
+        message: "Invalid ID parameter",
+        errors: idValidation.errors,
       });
     }
 
-    const validation = validateUpdateLensBrand({ ...req.body, updatedBy: userId });
+    const validation = validateUpdateLensBrand({
+      ...req.body,
+      updatedBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const brand = await LensBrandService.updateLensBrand(idValidation.id, validation.data);
+    const brand = await lensBrandService.updateLensBrand(
+      idValidation.id,
+      validation.data
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens brand updated successfully',
-      data: brand
+      message: "Lens brand updated successfully",
+      data: brand,
     });
   } catch (error) {
     next(error);
@@ -144,23 +155,23 @@ export const deleteLensBrand = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const validation = validateIdParam(req.params.id);
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const brand = await LensBrandService.deleteLensBrand(validation.id, userId);
+    const brand = await lensBrandService.deleteLensBrand(validation.id, userId);
     res.status(200).json({
       success: true,
-      message: 'Lens brand deleted successfully',
-      data: brand
+      message: "Lens brand deleted successfully",
+      data: brand,
     });
   } catch (error) {
     next(error);
@@ -173,11 +184,14 @@ export const deleteLensBrand = async (req, res, next) => {
  */
 export const getLensBrandsDropdown = async (req, res, next) => {
   try {
-    const brands = await LensBrandService.getLensBrandsForDropdown();
+    const brands = await lensBrandService.getBrandDropdown();
     res.status(200).json({
       success: true,
-      message: 'Lens brands dropdown retrieved successfully',
-      data: brands
+      message: "Lens brands dropdown retrieved successfully",
+      data: brands.data,
+      totalCount: brands.pagination.total,
+      page: brands.pagination.page,
+      pageSize: brands.pagination.limit,
     });
   } catch (error) {
     next(error);
@@ -190,11 +204,11 @@ export const getLensBrandsDropdown = async (req, res, next) => {
  */
 export const getLensBrandStatistics = async (req, res, next) => {
   try {
-    const stats = await LensBrandService.getLensBrandStatistics();
+    const stats = await lensBrandService.getLensBrandStatistics();
     res.status(200).json({
       success: true,
-      message: 'Lens brand statistics retrieved successfully',
-      data: stats
+      message: "Lens brand statistics retrieved successfully",
+      data: stats,
     });
   } catch (error) {
     next(error);

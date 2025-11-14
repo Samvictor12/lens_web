@@ -3,7 +3,7 @@
  * Handles HTTP requests for lens material management
  */
 
-import * as LensMaterialService from '../services/lensMaterialMasterService.js';
+import { LensMaterialMasterService } from '../services/lensMaterialMasterService.js';
 import { 
   validateCreateLensMaterial, 
   validateUpdateLensMaterial, 
@@ -12,13 +12,15 @@ import {
 } from '../dto/lensMastersDto.js';
 import { APIError } from '../utils/errors.js';
 
+const lensMaterialService = new LensMaterialMasterService();
+
 /**
  * Create new lens material
  * @route POST /api/v1/lens-materials
  */
 export const createLensMaterial = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
       throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
     }
@@ -32,7 +34,7 @@ export const createLensMaterial = async (req, res, next) => {
       });
     }
 
-    const material = await LensMaterialService.createLensMaterial(validation.data);
+    const material = await lensMaterialService.createLensMaterial(validation.data);
     res.status(201).json({
       success: true,
       message: 'Lens material created successfully',
@@ -58,12 +60,14 @@ export const getAllLensMaterials = async (req, res, next) => {
       });
     }
 
-    const result = await LensMaterialService.getAllLensMaterials(validation.data);
+    const result = await lensMaterialService.getLensMaterials(validation.data);
     res.status(200).json({
       success: true,
       message: 'Lens materials retrieved successfully',
-      data: result.materials,
-      pagination: result.pagination
+      data: result.data,
+      totalCount: result.pagination.total,
+      page: result.pagination.page,
+      pageSize: result.pagination.limit
     });
   } catch (error) {
     next(error);
@@ -85,7 +89,7 @@ export const getLensMaterialById = async (req, res, next) => {
       });
     }
 
-    const material = await LensMaterialService.getLensMaterialById(validation.id);
+    const material = await lensMaterialService.getLensMaterialById(validation.id);
     res.status(200).json({
       success: true,
       message: 'Lens material retrieved successfully',
@@ -102,7 +106,7 @@ export const getLensMaterialById = async (req, res, next) => {
  */
 export const updateLensMaterial = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
       throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
     }
@@ -125,7 +129,7 @@ export const updateLensMaterial = async (req, res, next) => {
       });
     }
 
-    const material = await LensMaterialService.updateLensMaterial(idValidation.id, validation.data);
+    const material = await lensMaterialService.updateLensMaterial(idValidation.id, validation.data);
     res.status(200).json({
       success: true,
       message: 'Lens material updated successfully',
@@ -142,7 +146,7 @@ export const updateLensMaterial = async (req, res, next) => {
  */
 export const deleteLensMaterial = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
       throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
     }
@@ -156,7 +160,7 @@ export const deleteLensMaterial = async (req, res, next) => {
       });
     }
 
-    const material = await LensMaterialService.deleteLensMaterial(validation.id, userId);
+    const material = await lensMaterialService.deleteLensMaterial(validation.id, userId);
     res.status(200).json({
       success: true,
       message: 'Lens material deleted successfully',
@@ -173,7 +177,7 @@ export const deleteLensMaterial = async (req, res, next) => {
  */
 export const getLensMaterialsDropdown = async (req, res, next) => {
   try {
-    const materials = await LensMaterialService.getLensMaterialsForDropdown();
+    const materials = await lensMaterialService.getLensMaterialsForDropdown();
     res.status(200).json({
       success: true,
       message: 'Lens materials dropdown retrieved successfully',
@@ -190,7 +194,7 @@ export const getLensMaterialsDropdown = async (req, res, next) => {
  */
 export const getLensMaterialStatistics = async (req, res, next) => {
   try {
-    const stats = await LensMaterialService.getLensMaterialStatistics();
+    const stats = await lensMaterialService.getLensMaterialStatistics();
     res.status(200).json({
       success: true,
       message: 'Lens material statistics retrieved successfully',

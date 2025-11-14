@@ -63,7 +63,6 @@ export class CustomerMasterService {
           delete_status: customerData.delete_status || false,
           notes: customerData.notes,
           createdBy: customerData.createdBy,
-          updatedBy: customerData.updatedBy,
         },
         include: {
           usercreate: {
@@ -72,7 +71,7 @@ export class CustomerMasterService {
           userupdate: {
             select: { id: true, name: true, email: true },
           },
-          categoryRel: {
+          category: {
             select: { id: true, name: true },
           },
         },
@@ -178,7 +177,7 @@ export class CustomerMasterService {
           userupdate: {
             select: { id: true, name: true, email: true },
           },
-          categoryRel: {
+          category: {
             select: { id: true, name: true },
           },
         },
@@ -222,7 +221,7 @@ export class CustomerMasterService {
           userupdate: {
             select: { id: true, name: true, email: true },
           },
-          categoryRel: {
+          category: {
             select: { id: true, name: true },
           },
           _count: {

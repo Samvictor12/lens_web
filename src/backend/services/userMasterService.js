@@ -169,7 +169,7 @@ export class UserMasterService {
       // Get total count for pagination
       const total = await prisma.user.count({ where });
 
-      // Get user masters with pagination
+            // Get user masters with pagination
       const userMasters = await prisma.user.findMany({
         where,
         skip: offset,
@@ -190,6 +190,7 @@ export class UserMasterService {
           state: true,
           pincode: true,
           salary: true,
+          department_id: true,
           active_status: true,
           delete_status: true,
           createdAt: true,
@@ -248,6 +249,7 @@ export class UserMasterService {
           state: true,
           pincode: true,
           salary: true,
+          department_id: true,
           active_status: true,
           delete_status: true,
           createdAt: true,
@@ -257,12 +259,6 @@ export class UserMasterService {
           },
           departmentDetails: {
             select: { id: true, department: true },
-          },
-          _count: {
-            select: {
-              customerUserCreate: true,
-              vendorUserCreate: true,
-            },
           },
           // Exclude password from select
         },
@@ -363,6 +359,7 @@ export class UserMasterService {
           state: true,
           pincode: true,
           salary: true,
+          department_id: true,
           active_status: true,
           delete_status: true,
           createdAt: true,
@@ -630,10 +627,14 @@ export class UserMasterService {
         throw new APIError("User not found", 404, "USER_NOT_FOUND");
       }
 
-      // Check if login is already enabled
-      if (existingUser.is_login) {
+      // Check if login credentials already exist (username is set and not a temp one)
+      const hasLoginCredentials = existingUser.username && 
+                                  existingUser.username.trim() !== '' &&
+                                  !existingUser.username.startsWith('user_');
+      
+      if (hasLoginCredentials) {
         throw new APIError(
-          "Login is already enabled for this user. Use update-login endpoint instead.",
+          "Login credentials already exist for this user. Use update-login endpoint instead.",
           400,
           "LOGIN_ALREADY_ENABLED"
         );
@@ -683,6 +684,7 @@ export class UserMasterService {
           state: true,
           pincode: true,
           salary: true,
+          department_id: true,
           active_status: true,
           role: {
             select: { id: true, name: true },
@@ -720,10 +722,14 @@ export class UserMasterService {
         throw new APIError("User not found", 404, "USER_NOT_FOUND");
       }
 
-      // Check if login is enabled
-      if (!existingUser.is_login) {
+      // Check if login credentials exist (username is set and not a temp one)
+      const hasLoginCredentials = existingUser.username && 
+                                  existingUser.username.trim() !== '' &&
+                                  !existingUser.username.startsWith('user_');
+      
+      if (!hasLoginCredentials) {
         throw new APIError(
-          "Login is not enabled for this user. Use enable-login endpoint first.",
+          "Login credentials do not exist for this user. Use enable-login endpoint first.",
           400,
           "LOGIN_NOT_ENABLED"
         );
@@ -751,9 +757,15 @@ export class UserMasterService {
         updateData.username = loginData.username;
       }
 
-      // Hash password if being updated
-      if (loginData.password) {
-        updateData.password = await this.hashPassword(loginData.password);
+      // Hash password if being updated (only if a new password is provided)
+      if (loginData.password && loginData.password.trim() !== '') {
+        // Check if the new password is different from the existing one
+        const isSamePassword = await bcrypt.compare(loginData.password, existingUser.password);
+        
+        if (!isSamePassword) {
+          updateData.password = await this.hashPassword(loginData.password);
+        }
+        // If same password, don't update it (no need to rehash)
       }
 
       // Update is_login if provided
@@ -783,6 +795,7 @@ export class UserMasterService {
           state: true,
           pincode: true,
           salary: true,
+          department_id: true,
           active_status: true,
           role: {
             select: { id: true, name: true },

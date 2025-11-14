@@ -3,14 +3,17 @@
  * Handles HTTP requests for lens category management
  */
 
-import * as LensCategoryService from '../services/lensCategoryMasterService.js';
-import { 
-  validateCreateLensCategory, 
-  validateUpdateLensCategory, 
+import LensCategoryMasterService from "../services/lensCategoryMasterService.js";
+import {
+  validateCreateLensCategory,
+  validateUpdateLensCategory,
   validateIdParam,
-  validateQueryParams 
-} from '../dto/lensMastersDto.js';
-import { APIError } from '../utils/errors.js';
+  validateQueryParams,
+} from "../dto/lensMastersDto.js";
+import { APIError } from "../utils/errors.js";
+
+// Instantiate the service
+const lensCategoryService = new LensCategoryMasterService();
 
 /**
  * Create new lens category
@@ -18,25 +21,31 @@ import { APIError } from '../utils/errors.js';
  */
 export const createLensCategory = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
+    console.log("req.body", req.body);
 
-    const validation = validateCreateLensCategory({ ...req.body, createdBy: userId });
+    const validation = validateCreateLensCategory({
+      ...req.body,
+      createdBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const category = await LensCategoryService.createLensCategory(validation.data);
+    const category = await lensCategoryService.createLensCategory(
+      validation.data
+    );
     res.status(201).json({
       success: true,
-      message: 'Lens category created successfully',
-      data: category
+      message: "Lens category created successfully",
+      data: category,
     });
   } catch (error) {
     next(error);
@@ -53,17 +62,17 @@ export const getAllLensCategories = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid query parameters',
-        errors: validation.errors
+        message: "Invalid query parameters",
+        errors: validation.errors,
       });
     }
 
-    const result = await LensCategoryService.getAllLensCategories(validation.data);
+    const result = await lensCategoryService.getLensCategories(validation.data);
     res.status(200).json({
       success: true,
-      message: 'Lens categories retrieved successfully',
-      data: result.categories,
-      pagination: result.pagination
+      message: "Lens categories retrieved successfully",
+      data: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -80,16 +89,18 @@ export const getLensCategoryById = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const category = await LensCategoryService.getLensCategoryById(validation.id);
+    const category = await lensCategoryService.getLensCategoryById(
+      validation.id
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens category retrieved successfully',
-      data: category
+      message: "Lens category retrieved successfully",
+      data: category,
     });
   } catch (error) {
     next(error);
@@ -102,34 +113,40 @@ export const getLensCategoryById = async (req, res, next) => {
  */
 export const updateLensCategory = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const idValidation = validateIdParam(req.params.id);
     if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: idValidation.errors
+        message: "Invalid ID parameter",
+        errors: idValidation.errors,
       });
     }
 
-    const validation = validateUpdateLensCategory({ ...req.body, updatedBy: userId });
+    const validation = validateUpdateLensCategory({
+      ...req.body,
+      updatedBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const category = await LensCategoryService.updateLensCategory(idValidation.id, validation.data);
+    const category = await lensCategoryService.updateLensCategory(
+      idValidation.id,
+      validation.data
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens category updated successfully',
-      data: category
+      message: "Lens category updated successfully",
+      data: category,
     });
   } catch (error) {
     next(error);
@@ -142,25 +159,28 @@ export const updateLensCategory = async (req, res, next) => {
  */
 export const deleteLensCategory = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const validation = validateIdParam(req.params.id);
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const category = await LensCategoryService.deleteLensCategory(validation.id, userId);
+    const category = await lensCategoryService.deleteLensCategory(
+      validation.id,
+      userId
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens category deleted successfully',
-      data: category
+      message: "Lens category deleted successfully",
+      data: category,
     });
   } catch (error) {
     next(error);
@@ -173,11 +193,11 @@ export const deleteLensCategory = async (req, res, next) => {
  */
 export const getLensCategoriesDropdown = async (req, res, next) => {
   try {
-    const categories = await LensCategoryService.getLensCategoriesForDropdown();
+    const categories = await lensCategoryService.getCategoryDropdown();
     res.status(200).json({
       success: true,
-      message: 'Lens categories dropdown retrieved successfully',
-      data: categories
+      message: "Lens categories dropdown retrieved successfully",
+      data: categories,
     });
   } catch (error) {
     next(error);
@@ -190,11 +210,11 @@ export const getLensCategoriesDropdown = async (req, res, next) => {
  */
 export const getLensCategoryStatistics = async (req, res, next) => {
   try {
-    const stats = await LensCategoryService.getLensCategoryStatistics();
+    const stats = await lensCategoryService.getCategoryStats();
     res.status(200).json({
       success: true,
-      message: 'Lens category statistics retrieved successfully',
-      data: stats
+      message: "Lens category statistics retrieved successfully",
+      data: stats,
     });
   } catch (error) {
     next(error);

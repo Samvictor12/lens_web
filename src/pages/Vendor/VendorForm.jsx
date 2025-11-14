@@ -8,7 +8,11 @@ import { FormSelect } from "@/components/ui/form-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { createVendor, getVendorById, updateVendor } from "@/services/vendor";
+import {
+  createVendor,
+  getVendorById,
+  updateVendor,
+} from "../../services/vendor";;
 import { getBusinessCategoryDropdown } from "@/services/businessCategory";
 import { defaultVendor, activeStatusOptions } from "./Vendor.constants";
 
@@ -233,11 +237,11 @@ export default function VendorForm() {
           });
 
           // if (mode === "view") {
-            // Update local data and exit edit mode
-            setOriginalData(formData);
-            setIsEditing(false);
+          // Update local data and exit edit mode
+          setOriginalData(formData);
+          setIsEditing(false);
           // } else {
-            navigate("/masters/vendors");
+          navigate("/masters/vendors");
           // }
         }
       }

@@ -12,10 +12,7 @@ import {
   getDepartmentById,
   updateDepartment,
 } from "@/services/department";
-import {
-  defaultDepartment,
-  activeStatusOptions,
-} from "./Department.constants";
+import { defaultDepartment, activeStatusOptions } from "./Department.constants";
 
 export default function DepartmentForm() {
   const navigate = useNavigate();
@@ -127,13 +124,13 @@ export default function DepartmentForm() {
             description: "Department updated successfully!",
           });
 
-          if (mode === "view") {
-            // Update local data and exit edit mode
-            setOriginalData(formData);
-            setIsEditing(false);
-          } else {
-            navigate("/masters/departments");
-          }
+          // if (mode === "view") {
+          // Update local data and exit edit mode
+          setOriginalData(formData);
+          setIsEditing(false);
+          // } else {
+          navigate("/masters/departments");
+          // }
         }
       }
     } catch (error) {
@@ -195,7 +192,9 @@ export default function DepartmentForm() {
               : mode === "edit"
               ? "Update department information"
               : userCount > 0
-              ? `${userCount} ${userCount === 1 ? "user" : "users"} in this department`
+              ? `${userCount} ${
+                  userCount === 1 ? "user" : "users"
+                } in this department`
               : "View department information"}
           </p>
         </div>

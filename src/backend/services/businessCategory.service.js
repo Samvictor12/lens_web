@@ -66,8 +66,12 @@ export class BusinessCategoryService {
       // Build where clause
       const where = {
         delete_status: false,
-        active_status: active_status === 'true' || active_status === true,
       };
+
+      // Add active status filter if provided
+      if (active_status !== undefined) {
+        where.active_status = active_status === 'true' || active_status === true;
+      }
 
       // Add name search (partial match, case insensitive)
       if (name) {

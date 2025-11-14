@@ -29,6 +29,12 @@ import Departments from "./pages/Department/Departments";
 import DepartmentForm from "./pages/Department/DepartmentForm";
 import UsersMain from "./pages/User/UsersMain";
 import UserForm from "./pages/User/UserForm";
+import LensCategoryMain from "./pages/LensCategory/LensCategoryMain";
+import LensCategoryForm from "./pages/LensCategory/LensCategoryForm";
+import LensMaterialMain from "./pages/LensMaterial/LensMaterialMain";
+import LensMaterialForm from "./pages/LensMaterial/LensMaterialForm";
+import LensCoatingMain from "./pages/LensCoating/LensCoatingMain";
+import LensCoatingForm from "./pages/LensCoating/LensCoatingForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -111,6 +117,15 @@ const AppRoutes = () => (
       <Route path="/masters/users" element={<ProtectedRoute><UsersMain /></ProtectedRoute>} />
       <Route path="/masters/users/:mode" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
       <Route path="/masters/users/:mode/:id" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-category" element={<ProtectedRoute><LensCategoryMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-category/:mode" element={<ProtectedRoute><LensCategoryForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-category/:mode/:id" element={<ProtectedRoute><LensCategoryForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-material" element={<ProtectedRoute><LensMaterialMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-material/:mode" element={<ProtectedRoute><LensMaterialForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-material/:mode/:id" element={<ProtectedRoute><LensMaterialForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-coating" element={<ProtectedRoute><LensCoatingMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-coating/:mode" element={<ProtectedRoute><LensCoatingForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-coating/:mode/:id" element={<ProtectedRoute><LensCoatingForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

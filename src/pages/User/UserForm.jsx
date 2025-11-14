@@ -97,7 +97,7 @@ export default function UserForm() {
               state: user.state || "",
               pincode: user.pincode || "",
               roleId: user.role_id || null,
-              departmentId: user.department_id || null,
+              department_id: user.department_id || null,
               salary: user.salary || "",
               activeStatus:
                 user.active_status !== undefined ? user.active_status : true,
@@ -485,23 +485,23 @@ export default function UserForm() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormSelect
                   label="Department"
-                  name="departmentId"
+                  name="department_id"
                   options={departments}
-                  value={formData.departmentId}
+                  value={formData.department_id}
                   onChange={(value) => {
                     setFormData((prev) => ({
                       ...prev,
-                      departmentId: value,
+                      department_id: value,
                     }));
-                    if (errors.departmentId) {
-                      setErrors((prev) => ({ ...prev, departmentId: "" }));
+                    if (errors.department_id) {
+                      setErrors((prev) => ({ ...prev, department_id: "" }));
                     }
                   }}
                   placeholder="Select department"
                   isSearchable={true}
                   isClearable={true}
                   disabled={isReadOnly}
-                  error={errors.departmentId}
+                  error={errors.department_id}
                 />
                 <FormSelect
                   label="Role"

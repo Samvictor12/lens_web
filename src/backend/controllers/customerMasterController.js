@@ -25,7 +25,7 @@ export class CustomerMasterController {
     try {
       // Validate request body
       const validation = validateCreateCustomerMaster(req.body);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -54,7 +54,7 @@ export class CustomerMasterController {
     try {
       // Validate query parameters
       const validation = validateQueryParams(req.query);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -84,7 +84,7 @@ export class CustomerMasterController {
     try {
       // Validate ID parameter
       const validation = validateIdParam(req.params.id);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -151,7 +151,7 @@ export class CustomerMasterController {
     try {
       // Validate ID parameter
       const validation = validateIdParam(req.params.id);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -207,7 +207,7 @@ export class CustomerMasterController {
     try {
       // Validate request body
       const validation = validateCheckCustomerEmail(req.body);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -217,7 +217,7 @@ export class CustomerMasterController {
       }
 
       const exists = await this.customerMasterService.isCustomerEmailExists(
-        validation.data.email, 
+        validation.data.email,
         validation.data.excludeId
       );
 
@@ -241,7 +241,7 @@ export class CustomerMasterController {
     try {
       // This could be extended to include various customer statistics
       const totalCustomers = await this.customerMasterService.getCustomerMasters({ page: 1, limit: 1 });
-      
+
       res.json({
         success: true,
         data: {

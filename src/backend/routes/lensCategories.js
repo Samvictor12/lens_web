@@ -3,9 +3,9 @@
  * Defines all routes for lens category management
  */
 
-import express from 'express';
-import * as lensCategoryController from '../controllers/lensCategoryMasterController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import express from "express";
+import * as lensCategoryController from "../controllers/lensCategoryMasterController.js";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -40,7 +40,9 @@ const router = express.Router();
  *       401:
  *         description: Unauthorized
  */
-router.post('/', authenticateToken, lensCategoryController.createLensCategory);
+router.post("/", 
+    authenticateToken, 
+    lensCategoryController.createLensCategory);
 
 /**
  * @swagger
@@ -71,7 +73,9 @@ router.post('/', authenticateToken, lensCategoryController.createLensCategory);
  *       401:
  *         description: Unauthorized
  */
-router.get('/', authenticateToken, lensCategoryController.getAllLensCategories);
+router.get("/", 
+    authenticateToken, 
+    lensCategoryController.getAllLensCategories);
 
 /**
  * @swagger
@@ -87,7 +91,11 @@ router.get('/', authenticateToken, lensCategoryController.getAllLensCategories);
  *       401:
  *         description: Unauthorized
  */
-router.get('/dropdown', authenticateToken, lensCategoryController.getLensCategoriesDropdown);
+router.get(
+  "/dropdown",
+  authenticateToken,
+  lensCategoryController.getLensCategoriesDropdown
+);
 
 /**
  * @swagger
@@ -103,7 +111,11 @@ router.get('/dropdown', authenticateToken, lensCategoryController.getLensCategor
  *       401:
  *         description: Unauthorized
  */
-router.get('/statistics', authenticateToken, lensCategoryController.getLensCategoryStatistics);
+router.get(
+  "/statistics",
+  authenticateToken,
+  lensCategoryController.getLensCategoryStatistics
+);
 
 /**
  * @swagger
@@ -127,7 +139,11 @@ router.get('/statistics', authenticateToken, lensCategoryController.getLensCateg
  *       401:
  *         description: Unauthorized
  */
-router.get('/:id', authenticateToken, lensCategoryController.getLensCategoryById);
+router.get(
+  "/:id",
+  authenticateToken,
+  lensCategoryController.getLensCategoryById
+);
 
 /**
  * @swagger
@@ -166,7 +182,11 @@ router.get('/:id', authenticateToken, lensCategoryController.getLensCategoryById
  *       401:
  *         description: Unauthorized
  */
-router.put('/:id', authenticateToken, lensCategoryController.updateLensCategory);
+router.put(
+  "/:id",
+  authenticateToken,
+  lensCategoryController.updateLensCategory
+);
 
 /**
  * @swagger
@@ -190,6 +210,10 @@ router.put('/:id', authenticateToken, lensCategoryController.updateLensCategory)
  *       401:
  *         description: Unauthorized
  */
-router.delete('/:id', authenticateToken, lensCategoryController.deleteLensCategory);
+router.delete(
+  "/:id",
+  authenticateToken,
+  lensCategoryController.deleteLensCategory
+);
 
 export default router;

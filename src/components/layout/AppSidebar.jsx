@@ -14,6 +14,8 @@ import {
   FolderOpen,
   Briefcase,
   UserCog,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -112,6 +114,24 @@ const masterItems = [
     url: "/masters/business-categories",
     icon: Tag,
     // allowedRoles: ["admin", "sales"],
+  },
+  {
+    title: "Lens Categories",
+    url: "/masters/lens-category",
+    icon: Layers,
+    // allowedRoles: ["admin", "inventory"],
+  },
+  {
+    title: "Lens Materials",
+    url: "/masters/lens-material",
+    icon: Package,
+    // allowedRoles: ["admin", "inventory"],
+  },
+  {
+    title: "Lens Coatings",
+    url: "/masters/lens-coating",
+    icon: Sparkles,
+    // allowedRoles: ["admin", "inventory"],
   },
   {
     title: "Departments",

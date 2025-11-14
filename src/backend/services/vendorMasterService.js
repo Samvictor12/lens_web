@@ -1,27 +1,43 @@
-import prisma from '../config/prisma.js';
-import { APIError } from '../middleware/errorHandler.js';
+import prisma from "../config/prisma.js";
+import { APIError } from "../middleware/errorHandler.js";
 
 /**
  * Vendor Master Service
  * Business logic for Vendor Master operations
  */
 export class VendorMasterService {
-  
   /**
    * Create a new vendor master
    * @param {Object} vendorData - Vendor master data
    * @returns {Promise<Object>} Created vendor master
    */
   async createVendorMaster(vendorData) {
+    console.log("vendorData", vendorData);
+
     try {
+      // Check if code already exists
+      if (vendorData.code) {
+        const existingCode = await prisma.vendor.findUnique({
+          where: { code: vendorData.code },
+        });
+
+        if (existingCode) {
+          throw new APIError(
+            "Vendor code already exists",
+            409,
+            "DUPLICATE_CODE"
+          );
+        }
+      }
+
       // Check if email already exists (if provided)
       if (vendorData.email) {
-        const existingVendor = await prisma.vendor.findUnique({
-          where: { email: vendorData.email }
+        const existingVendor = await prisma.vendor.findFirst({
+          where: { email: vendorData.email },
         });
 
         if (existingVendor) {
-          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+          throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
         }
       }
 
@@ -44,16 +60,16 @@ export class VendorMasterService {
           delete_status: vendorData.delete_status || false,
           notes: vendorData.notes,
           createdBy: vendorData.createdBy,
-          updatedBy: vendorData.updatedBy
+          // updatedBy is optional - only set on updates, not on create
         },
         include: {
           usercreate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           userupdate: {
-            select: { id: true, name: true, email: true }
-          }
-        }
+            select: { id: true, name: true, email: true },
+          },
+        },
       });
 
       return vendorMaster;
@@ -61,8 +77,12 @@ export class VendorMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error creating vendor master:', error);
-      throw new APIError('Failed to create vendor master', 500, 'CREATE_VENDOR_ERROR');
+      console.error("Error creating vendor master:", error);
+      throw new APIError(
+        "Failed to create vendor master",
+        500,
+        "CREATE_VENDOR_ERROR"
+      );
     }
   }
 
@@ -73,49 +93,55 @@ export class VendorMasterService {
    */
   async getVendorMasters(queryParams) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = queryParams;
-      
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        ...filters
+      } = queryParams;
+
       // Build where clause for filtering
       const where = {};
-      
+
       if (filters.name) {
         where.name = {
           contains: filters.name,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.city) {
         where.city = {
           contains: filters.city,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.code) {
         where.code = {
           contains: filters.code,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
 
       if (filters.category) {
         where.category = {
           contains: filters.category,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.email) {
         where.email = {
           contains: filters.email,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.phone) {
         where.phone = {
-          contains: filters.phone
+          contains: filters.phone,
         };
       }
 
@@ -140,16 +166,16 @@ export class VendorMasterService {
         skip: offset,
         take: limit,
         orderBy: {
-          [sortBy]: sortOrder
+          [sortBy]: sortOrder,
         },
         include: {
           usercreate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           userupdate: {
-            select: { id: true, name: true, email: true }
-          }
-        }
+            select: { id: true, name: true, email: true },
+          },
+        },
       });
 
       // Calculate pagination info
@@ -161,12 +187,16 @@ export class VendorMasterService {
           page,
           limit,
           total,
-          pages
-        }
+          pages,
+        },
       };
     } catch (error) {
-      console.error('Error fetching vendor masters:', error);
-      throw new APIError('Failed to fetch vendor masters', 500, 'FETCH_VENDORS_ERROR');
+      console.error("Error fetching vendor masters:", error);
+      throw new APIError(
+        "Failed to fetch vendor masters",
+        500,
+        "FETCH_VENDORS_ERROR"
+      );
     }
   }
 
@@ -181,21 +211,25 @@ export class VendorMasterService {
         where: { id },
         include: {
           usercreate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           userupdate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           _count: {
             select: {
-              purchaseOrders: true
-            }
-          }
-        }
+              purchaseOrders: true,
+            },
+          },
+        },
       });
 
       if (!vendorMaster) {
-        throw new APIError('Vendor master not found', 404, 'VENDOR_MASTER_NOT_FOUND');
+        throw new APIError(
+          "Vendor master not found",
+          404,
+          "VENDOR_MASTER_NOT_FOUND"
+        );
       }
 
       return vendorMaster;
@@ -203,8 +237,12 @@ export class VendorMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error fetching vendor master by ID:', error);
-      throw new APIError('Failed to fetch vendor master', 500, 'FETCH_VENDOR_ERROR');
+      console.error("Error fetching vendor master by ID:", error);
+      throw new APIError(
+        "Failed to fetch vendor master",
+        500,
+        "FETCH_VENDOR_ERROR"
+      );
     }
   }
 
@@ -218,11 +256,15 @@ export class VendorMasterService {
     try {
       // Check if vendor master exists
       const existingVendor = await prisma.vendor.findUnique({
-        where: { id }
+        where: { id },
       });
 
       if (!existingVendor) {
-        throw new APIError('Vendor master not found', 404, 'VENDOR_MASTER_NOT_FOUND');
+        throw new APIError(
+          "Vendor master not found",
+          404,
+          "VENDOR_MASTER_NOT_FOUND"
+        );
       }
 
       // Check for duplicate email if being updated
@@ -230,19 +272,19 @@ export class VendorMasterService {
         const duplicateEmail = await prisma.vendor.findFirst({
           where: {
             email: updateData.email,
-            id: { not: id }
-          }
+            id: { not: id },
+          },
         });
 
         if (duplicateEmail) {
-          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+          throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
         }
       }
 
       // Update the vendor master
       const updatedVendor = await prisma.vendor.update({
         where: { id },
-        data: updateData
+        data: updateData,
       });
 
       return updatedVendor;
@@ -250,8 +292,12 @@ export class VendorMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error updating vendor master:', error);
-      throw new APIError('Failed to update vendor master', 500, 'UPDATE_VENDOR_ERROR');
+      console.error("Error updating vendor master:", error);
+      throw new APIError(
+        "Failed to update vendor master",
+        500,
+        "UPDATE_VENDOR_ERROR"
+      );
     }
   }
 
@@ -269,23 +315,35 @@ export class VendorMasterService {
         include: {
           _count: {
             select: {
-              purchaseOrders: true
-            }
-          }
-        }
+              purchaseOrders: true,
+            },
+          },
+        },
       });
 
       if (!existingVendor) {
-        throw new APIError('Vendor master not found', 404, 'VENDOR_MASTER_NOT_FOUND');
+        throw new APIError(
+          "Vendor master not found",
+          404,
+          "VENDOR_MASTER_NOT_FOUND"
+        );
       }
 
       if (existingVendor.delete_status) {
-        throw new APIError('Vendor is already deleted', 400, 'VENDOR_ALREADY_DELETED');
+        throw new APIError(
+          "Vendor is already deleted",
+          400,
+          "VENDOR_ALREADY_DELETED"
+        );
       }
 
       // Check if vendor has any purchase orders
       if (existingVendor._count.purchaseOrders > 0) {
-        throw new APIError('Cannot delete vendor with existing purchase orders', 400, 'VENDOR_HAS_ORDERS');
+        throw new APIError(
+          "Cannot delete vendor with existing purchase orders",
+          400,
+          "VENDOR_HAS_ORDERS"
+        );
       }
 
       // Soft delete the vendor master
@@ -294,8 +352,8 @@ export class VendorMasterService {
         data: {
           delete_status: true,
           active_status: false,
-          updatedBy: updatedBy
-        }
+          updatedBy: updatedBy,
+        },
       });
 
       return true;
@@ -303,8 +361,12 @@ export class VendorMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error deleting vendor master:', error);
-      throw new APIError('Failed to delete vendor master', 500, 'DELETE_VENDOR_ERROR');
+      console.error("Error deleting vendor master:", error);
+      throw new APIError(
+        "Failed to delete vendor master",
+        500,
+        "DELETE_VENDOR_ERROR"
+      );
     }
   }
 
@@ -324,7 +386,7 @@ export class VendorMasterService {
       const existingVendor = await prisma.vendor.findFirst({ where });
       return !!existingVendor;
     } catch (error) {
-      console.error('Error checking vendor email:', error);
+      console.error("Error checking vendor email:", error);
       return false;
     }
   }
@@ -338,30 +400,36 @@ export class VendorMasterService {
       const vendors = await prisma.vendor.findMany({
         where: {
           active_status: true,
-          delete_status: false
+          delete_status: false,
         },
         select: {
           id: true,
           name: true,
           code: true,
           city: true,
-          phone: true
+          phone: true,
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: "asc",
+        },
       });
 
-      return vendors.map(vendor => ({
+      return vendors.map((vendor) => ({
         id: vendor.id,
-        label: `${vendor.name} (${vendor.code})${vendor.city ? ` - ${vendor.city}` : ''}`,
+        label: `${vendor.name} (${vendor.code})${
+          vendor.city ? ` - ${vendor.city}` : ""
+        }`,
         value: vendor.id,
         code: vendor.code,
-        phone: vendor.phone
+        phone: vendor.phone,
       }));
     } catch (error) {
-      console.error('Error fetching vendor dropdown:', error);
-      throw new APIError('Failed to fetch vendor dropdown', 500, 'FETCH_DROPDOWN_ERROR');
+      console.error("Error fetching vendor dropdown:", error);
+      throw new APIError(
+        "Failed to fetch vendor dropdown",
+        500,
+        "FETCH_DROPDOWN_ERROR"
+      );
     }
   }
 }

@@ -17,7 +17,7 @@ const mapToBackend = (frontendData) => {
     state: frontendData.state || null,
     pincode: frontendData.pincode || null,
     role_id: frontendData.roleId || null,
-    department_id: frontendData.departmentId || null,
+    department_id: frontendData.department_id || null,
     salary: frontendData.salary ? parseFloat(frontendData.salary) : null,
     active_status:
       frontendData.activeStatus !== undefined
@@ -295,8 +295,23 @@ export async function createUserLogin(id, payload) {
   });
 }
 export async function updateUserLogin(id, payload) {
+  // Only send fields that have values
+  const data = {};
+  
+  if (payload.username && payload.username.trim() !== '') {
+    data.username = payload.username.trim();
+  }
+  
+  if (payload.password && payload.password.trim() !== '') {
+    data.password = payload.password;
+  }
+  
+  if (payload.is_login !== undefined) {
+    data.is_login = payload.is_login;
+  }
+  
   return await apiClient("put", `/user-master/${id}/update-login`, {
-    data: payload,
+    data,
   });
 }
 

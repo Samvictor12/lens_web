@@ -17,7 +17,7 @@ export const defaultUser = {
   state: "",
   pincode: "",
   roleId: null,
-  departmentId: null,
+  department_id: null,
   salary: "",
   activeStatus: true,
 };

@@ -39,7 +39,7 @@ export class LensCoatingMasterService {
     }
   }
 
-  async getLensCoatings(queryParams) {
+  async getAllLensCoatings(queryParams) {
     try {
       const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, activeStatus } = queryParams;
       

@@ -109,10 +109,16 @@ function toast({ ...props }) {
     });
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id });
 
+  // Apply default green styling for success toasts
+  const toastProps = { ...props };
+  if (props.success && !props.className) {
+    toastProps.className = "bg-green-50 border-green-200";
+  }
+
   dispatch({
     type: "ADD_TOAST",
     toast: {
-      ...props,
+      ...toastProps,
       id,
       open: true,
       onOpenChange: (open) => {
@@ -120,6 +126,14 @@ function toast({ ...props }) {
       },
     },
   });
+
+  // Auto-dismiss after duration (default 3000ms)
+  const duration = props.duration !== undefined ? props.duration : 3000;
+  if (duration > 0) {
+    setTimeout(() => {
+      dismiss();
+    }, duration);
+  }
 
   return {
     id,
