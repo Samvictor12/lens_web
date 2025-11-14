@@ -117,8 +117,21 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5001;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Add global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+console.log(`\n🚀 Starting server on port ${PORT}...`);
+
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n✅ Server is running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
   console.log(`Authentication API: http://localhost:${PORT}/api/auth`);
@@ -137,12 +150,17 @@ const server = app.listen(PORT, () => {
   console.log(`Business Category API: http://localhost:${PORT}/api/business-category`);
 });
 
+server.on('listening', () => {
+  const addr = server.address();
+  console.log(`\n✅ Server is actually listening on ${addr.address}:${addr.port}`);
+});
+
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Please use a different port or stop the process using port ${PORT}.`);
+    console.error(`❌ Port ${PORT} is already in use. Please use a different port or stop the process using port ${PORT}.`);
     console.error(`On macOS, port 3001 is often used by AirPlay Receiver. You can disable it in System Preferences > Sharing.`);
   } else {
-    console.error('Server error:', error);
+    console.error('❌ Server error:', error);
   }
   process.exit(1);
 });

@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Vendor Master Service
@@ -34,6 +32,7 @@ export class VendorMasterService {
           code: vendorData.code,
           shopname: vendorData.shopname,
           phone: vendorData.phone,
+          alternatephone: vendorData.alternatephone,
           email: vendorData.email,
           address: vendorData.address,
           city: vendorData.city,

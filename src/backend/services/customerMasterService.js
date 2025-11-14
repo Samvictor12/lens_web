@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Customer Master Service
@@ -45,6 +43,7 @@ export class CustomerMasterService {
           code: customerData.code,
           shopname: customerData.shopname,
           phone: customerData.phone,
+          alternatephone: customerData.alternatephone,
           email: customerData.email,
           address: customerData.address,
           city: customerData.city,

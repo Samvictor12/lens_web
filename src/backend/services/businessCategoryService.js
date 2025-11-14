@@ -1,14 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Business Category Service
  * Handles all database operations for Business Category management
  */
 export class BusinessCategoryService {
-  
+
   /**
    * Create a new business category
    * @param {Object} categoryData - Category data
@@ -18,14 +16,14 @@ export class BusinessCategoryService {
     try {
       // Check if name already exists
       const existingCategory = await prisma.businessCategory.findFirst({
-        where: { 
+        where: {
           name: categoryData.name,
           delete_status: false
         }
       });
 
       if (existingCategory) {
-        throw new APIError(409, 'Category name already exists', 'DUPLICATE_CATEGORY_NAME');
+        throw new APIError('Category name already exists',409,  'DUPLICATE_CATEGORY_NAME');
       }
 
       // Create the business category
@@ -45,7 +43,7 @@ export class BusinessCategoryService {
         throw error;
       }
       console.error('Error creating business category:', error);
-      throw new APIError(500, 'Failed to create business category', 'CREATE_CATEGORY_ERROR');
+      throw new APIError( 'Failed to create business category',500, 'CREATE_CATEGORY_ERROR');
     }
   }
 
@@ -67,7 +65,8 @@ export class BusinessCategoryService {
 
       // Build where clause
       const where = {
-        delete_status: false
+        delete_status: false,
+        active_status: active_status === 'true' || active_status === true,
       };
 
       // Add name search (partial match, case insensitive)
@@ -76,11 +75,6 @@ export class BusinessCategoryService {
           contains: name,
           mode: 'insensitive'
         };
-      }
-
-      // Add active status filter
-      if (active_status !== undefined) {
-        where.active_status = active_status === 'true' || active_status === true;
       }
 
       // Calculate pagination
@@ -111,7 +105,7 @@ export class BusinessCategoryService {
       };
     } catch (error) {
       console.error('Error fetching business categories:', error);
-      throw new APIError(500, 'Failed to fetch business categories', 'FETCH_CATEGORIES_ERROR');
+      throw new APIError('Failed to fetch business categories', 500, 'FETCH_CATEGORIES_ERROR');
     }
   }
 
@@ -132,7 +126,7 @@ export class BusinessCategoryService {
       });
 
       if (!category || category.delete_status) {
-        throw new APIError(404, 'Business category not found', 'CATEGORY_NOT_FOUND');
+        throw new APIError( 'Business category not found',404, 'CATEGORY_NOT_FOUND');
       }
 
       return category;
@@ -141,7 +135,7 @@ export class BusinessCategoryService {
         throw error;
       }
       console.error('Error fetching business category:', error);
-      throw new APIError(500, 'Failed to fetch business category', 'FETCH_CATEGORY_ERROR');
+      throw new APIError('Failed to fetch business category', 500, 'FETCH_CATEGORY_ERROR');
     }
   }
 
@@ -159,7 +153,7 @@ export class BusinessCategoryService {
       });
 
       if (!existingCategory || existingCategory.delete_status) {
-        throw new APIError(404, 'Business category not found', 'CATEGORY_NOT_FOUND');
+        throw new APIError('Business category not found',404, 'CATEGORY_NOT_FOUND');
       }
 
       // Check if new name already exists (excluding current category)
@@ -173,7 +167,7 @@ export class BusinessCategoryService {
         });
 
         if (duplicateName) {
-          throw new APIError(409, 'Category name already exists', 'DUPLICATE_CATEGORY_NAME');
+          throw new APIError('Category name already exists',409, 'DUPLICATE_CATEGORY_NAME');
         }
       }
 
@@ -193,7 +187,7 @@ export class BusinessCategoryService {
         throw error;
       }
       console.error('Error updating business category:', error);
-      throw new APIError(500, 'Failed to update business category', 'UPDATE_CATEGORY_ERROR');
+      throw new APIError('Failed to update business category', 500, 'UPDATE_CATEGORY_ERROR');
     }
   }
 
@@ -211,11 +205,11 @@ export class BusinessCategoryService {
       });
 
       if (!existingCategory) {
-        throw new APIError(404, 'Business category not found', 'CATEGORY_NOT_FOUND');
+        throw new APIError('Business category not found',404, 'CATEGORY_NOT_FOUND');
       }
 
       if (existingCategory.delete_status) {
-        throw new APIError(400, 'Category is already deleted', 'CATEGORY_ALREADY_DELETED');
+        throw new APIError('Category is already deleted',400, 'CATEGORY_ALREADY_DELETED');
       }
 
       // Soft delete the category (set both flags to false as per requirement)
@@ -234,7 +228,7 @@ export class BusinessCategoryService {
         throw error;
       }
       console.error('Error deleting business category:', error);
-      throw new APIError(500, 'Failed to delete business category', 'DELETE_CATEGORY_ERROR');
+      throw new APIError('Failed to delete business category', 500, 'DELETE_CATEGORY_ERROR');
     }
   }
 
@@ -261,7 +255,7 @@ export class BusinessCategoryService {
       return categories;
     } catch (error) {
       console.error('Error fetching business category dropdown:', error);
-      throw new APIError(500, 'Failed to fetch business category dropdown', 'FETCH_DROPDOWN_ERROR');
+      throw new APIError('Failed to fetch business category dropdown', 500, 'FETCH_DROPDOWN_ERROR');
     }
   }
 }

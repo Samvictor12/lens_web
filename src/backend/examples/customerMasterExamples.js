@@ -24,7 +24,7 @@ export async function createCustomerMaster() {
     name: "Surash Kumar",
     shopName: "ABC Opticals",
     phone: "8988778899",
-    alternatePhone: "9876543210",
+    alternatephone: "9876543210",
     email: "surash@abcopticals.com",
     address: "123 Main Street, Madhuranthagam, Tamil Nadu - 603306",
     gstNumber: "33AAAAA0000A1Z5",

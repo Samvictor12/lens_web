@@ -123,7 +123,7 @@ model Customer {
   name                String
   shopname            String?
   phone               String?
-  Alternatephone      String?
+  alternatephone      String?
   email               String
   address             String?
   city                String?
@@ -156,7 +156,7 @@ model Vendor {
   name           String
   shopname       String?
   phone          String?
-  Alternatephone String?
+  alternatephone String?
   email          String
   address        String?
   city           String?
