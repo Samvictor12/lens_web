@@ -773,4 +773,208 @@ router.delete(
   userMasterController.delete.bind(userMasterController)
 );
 
+/**
+ * @swagger
+ * /api/user-master/{id}/enable-login:
+ *   post:
+ *     summary: Enable login for a user (First time setup)
+ *     description: Sets up login credentials for a user who doesn't have login enabled yet
+ *     tags: [UserMaster]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User master ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 minLength: 3
+ *                 description: Unique username for login
+ *                 example: "johndoe"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: Password for login
+ *                 example: "SecurePass123"
+ *               is_login:
+ *                 type: boolean
+ *                 description: Enable or disable login (defaults to true)
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Login enabled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Login enabled successfully"
+ *                 data:
+ *                   type: object
+ *                   description: Updated user data (without password)
+ *       400:
+ *         description: Validation error or login already enabled
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Username already exists
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  "/:id/enable-login",
+//   authenticateToken,
+//   requireRole(["Admin"]),
+  userMasterController.enableLogin.bind(userMasterController)
+);
+
+/**
+ * @swagger
+ * /api/user-master/{id}/update-login:
+ *   put:
+ *     summary: Update login credentials for a user
+ *     description: Updates username, password, or is_login status for a user who already has login enabled
+ *     tags: [UserMaster]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User master ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 minLength: 3
+ *                 description: New username (optional)
+ *                 example: "johndoe_new"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: New password (optional, leave blank to keep current)
+ *                 example: "NewSecurePass123"
+ *               is_login:
+ *                 type: boolean
+ *                 description: Enable or disable login (optional)
+ *                 example: false
+ *     responses:
+ *       200:
+ *         description: Login credentials updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Login credentials updated successfully"
+ *                 data:
+ *                   type: object
+ *                   description: Updated user data (without password)
+ *       400:
+ *         description: Validation error or login not enabled
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Username already exists
+ *       500:
+ *         description: Internal server error
+ */
+router.put(
+  "/:id/update-login",
+//   authenticateToken,
+//   requireRole(["Admin"]),
+  userMasterController.updateLogin.bind(userMasterController)
+);
+
+/**
+ * @swagger
+ * /api/user-master/{id}/login-credentials:
+ *   get:
+ *     summary: Get login credentials for a user
+ *     description: Retrieves username and is_login status for a user (password is never returned)
+ *     tags: [UserMaster]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User master ID
+ *     responses:
+ *       200:
+ *         description: Login credentials retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     name:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     usercode:
+ *                       type: string
+ *                       example: "USR001"
+ *                     email:
+ *                       type: string
+ *                       example: "john.doe@example.com"
+ *                     username:
+ *                       type: string
+ *                       example: "johndoe"
+ *                     is_login:
+ *                       type: boolean
+ *                       example: true
+ *       400:
+ *         description: Invalid user ID
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  "/:id/login-credentials",
+//   authenticateToken,
+  userMasterController.getLoginCredentials.bind(userMasterController)
+);
+
 export default router;

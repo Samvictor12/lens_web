@@ -322,6 +322,135 @@ export class UserMasterController {
       next(error);
     }
   }
+
+  /**
+   * Enable login for a user (First time setup)
+   * @route POST /api/user-master/:id/enable-login
+   */
+  async enableLogin(req, res, next) {
+    try {
+      const userId = parseInt(req.params.id);
+
+      if (isNaN(userId)) {
+        throw new APIError('Invalid user ID', 400, 'INVALID_ID');
+      }
+
+      const { username, password, is_login } = req.body;
+
+      // Validation
+      if (!username || username.trim().length < 3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Username is required and must be at least 3 characters'
+        });
+      }
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password is required and must be at least 6 characters'
+        });
+      }
+
+      const updatedUser = await this.userMasterService.enableLogin(userId, {
+        username: username.trim(),
+        password,
+        is_login: is_login !== undefined ? is_login : true
+      });
+
+      res.json({
+        success: true,
+        message: 'Login enabled successfully',
+        data: updatedUser
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Update login credentials for a user
+   * @route PUT /api/user-master/:id/update-login
+   */
+  async updateLogin(req, res, next) {
+    try {
+      const userId = parseInt(req.params.id);
+
+      if (isNaN(userId)) {
+        throw new APIError('Invalid user ID', 400, 'INVALID_ID');
+      }
+
+      const { username, password, is_login } = req.body;
+
+      // Validation
+      const updateData = {};
+
+      if (username !== undefined) {
+        if (username.trim().length < 3) {
+          return res.status(400).json({
+            success: false,
+            message: 'Username must be at least 3 characters'
+          });
+        }
+        updateData.username = username.trim();
+      }
+
+      if (password !== undefined) {
+        if (password.length < 6) {
+          return res.status(400).json({
+            success: false,
+            message: 'Password must be at least 6 characters'
+          });
+        }
+        updateData.password = password;
+      }
+
+      if (is_login !== undefined) {
+        updateData.is_login = is_login;
+      }
+
+      // At least one field must be provided
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least one field (username, password, or is_login) must be provided'
+        });
+      }
+
+      const updatedUser = await this.userMasterService.updateLogin(userId, updateData);
+
+      res.json({
+        success: true,
+        message: 'Login credentials updated successfully',
+        data: updatedUser
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get login credentials for a user
+   * @route GET /api/user-master/:id/login-credentials
+   */
+  async getLoginCredentials(req, res, next) {
+    try {
+      const userId = parseInt(req.params.id);
+
+      if (isNaN(userId)) {
+        throw new APIError('Invalid user ID', 400, 'INVALID_ID');
+      }
+
+      const loginCredentials = await this.userMasterService.getLoginCredentials(userId);
+
+      res.json({
+        success: true,
+        data: loginCredentials
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default UserMasterController;

@@ -1,38 +1,68 @@
-import { createContext, useContext, useState } from "react";
-import { dummyUsers } from "@/lib/dummyData";
+import { createContext, useContext, useState, useEffect } from "react";
+import * as authService from "@/services/auth";
 
 const AuthContext = createContext(undefined);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     // Check if user is stored in localStorage
-    const stored = localStorage.getItem("lensUser");
-    return stored ? JSON.parse(stored) : null;
+    return authService.getCurrentUser();
   });
 
-  const login = (email, _password) => {
-    // Simple demo login - find user by email
-    const foundUser = dummyUsers.find((u) => u.email === email);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem("lensUser", JSON.stringify(foundUser));
-      return true;
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Sync user state when localStorage changes (e.g., from other tabs)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const currentUser = authService.getCurrentUser();
+      setUser(currentUser);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const login = async (username, password) => {
+    setIsLoading(true);
+    try {
+      const response = await authService.login(username, password);
+      
+      if (response.success && response.data) {
+        setUser(response.data.user);
+        return response;
+      } else {
+        throw new Error(response.message || 'Login failed');
+      }
+    } finally {
+      setIsLoading(false);
     }
-    return false;
   };
 
   const logout = () => {
+    authService.logout();
     setUser(null);
-    localStorage.removeItem("lensUser");
   };
 
   const hasPermission = (allowedRoles) => {
-    if (!user) return false;
-    return allowedRoles.includes(user.role);
+    if (!user || !user.roleName) return false;
+    return allowedRoles.includes(user.roleName);
+  };
+
+  const isAuthenticated = () => {
+    return authService.isAuthenticated();
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasPermission }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        login, 
+        logout, 
+        hasPermission, 
+        isAuthenticated,
+        isLoading 
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

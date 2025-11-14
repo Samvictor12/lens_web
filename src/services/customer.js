@@ -10,7 +10,7 @@ const mapToBackend = (frontendData) => {
     name: frontendData.name,
     shopname: frontendData.shopName || null,
     phone: frontendData.phone || null,
-    Alternatephone: frontendData.alternatePhone || null,
+    alternatephone: frontendData.alternatephone || null,
     email: frontendData.email,
     address: frontendData.address || null,
     city: frontendData.city || null,
@@ -39,7 +39,7 @@ const mapFromBackend = (backendData) => {
     name: backendData.name,
     shopName: backendData.shopname || "",
     phone: backendData.phone || "",
-    alternatePhone: backendData.Alternatephone || "",
+    alternatephone: backendData.alternatephone || "",
     email: backendData.email || "",
     address: backendData.address || "",
     city: backendData.city || "",
@@ -165,23 +165,7 @@ export async function createCustomer(customerData) {
   const backendData = mapToBackend(customerData);
 
   const response = await apiClient("post", "/customer-master", {
-    data: {
-      code: "CUST001",
-      name: "Test Customer",
-      shopname: "Test Shop",
-      phone: "9876543210",
-      email: "test@customer.com",
-      address: "123 Test Street",
-      city: "Mumbai",
-      state: "Maharashtra",
-      pincode: "400001",
-      businessCategory_id: 1,
-      gstin: "27AABCT1234M1Z5",
-      credit_limit: 30010,
-      notes: "Test customer for verification",
-      active_status: true,
-      createdBy: 5,
-    },
+    data: backendData,
   });
 
   return {

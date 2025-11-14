@@ -11,13 +11,15 @@
 export const validateLogin = (data) => {
   const errors = [];
 
-  // Email or usercode is required
-  if (!data.emailOrUsercode) {
-    errors.push('Email or usercode is required');
-  } else if (typeof data.emailOrUsercode !== 'string') {
-    errors.push('Email or usercode must be a string');
-  } else if (data.emailOrUsercode.trim().length === 0) {
-    errors.push('Email or usercode cannot be empty');
+  // Username is required
+  if (!data.username) {
+    errors.push('Username is required');
+  } else if (typeof data.username !== 'string') {
+    errors.push('Username must be a string');
+  } else if (data.username.trim().length === 0) {
+    errors.push('Username cannot be empty');
+  } else if (data.username.trim().length < 3) {
+    errors.push('Username must be at least 3 characters long');
   }
 
   // Password is required
@@ -33,7 +35,7 @@ export const validateLogin = (data) => {
     isValid: errors.length === 0,
     errors,
     data: errors.length === 0 ? {
-      emailOrUsercode: data.emailOrUsercode.trim(),
+      username: data.username.trim(),
       password: data.password
     } : null
   };

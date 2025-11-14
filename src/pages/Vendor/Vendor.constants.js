@@ -11,7 +11,7 @@ export const defaultVendor = {
   name: "",
   shopName: "",
   phone: "",
-  alternatePhone: "",
+  alternatephone: "",
   email: "",
   address: "",
   city: "",

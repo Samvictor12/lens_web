@@ -62,7 +62,10 @@ export default function UserForm() {
         try {
           const response = await generateUserCode();
           if (response.success) {
-            setFormData((prev) => ({ ...prev, usercode: response.data.usercode }));
+            setFormData((prev) => ({
+              ...prev,
+              usercode: response.data.usercode,
+            }));
           }
         } catch (error) {
           console.error("Error generating user code:", error);
@@ -184,11 +187,15 @@ export default function UserForm() {
     const { name, value } = e.target;
 
     // Handle phone numbers - allow only digits
-    if (name === "phonenumber" || name === "alternatenumber") {
+    if (name === "phonenumber") {
       const cleaned = value.replace(/\D/g, "");
       if (cleaned.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: cleaned }));
       }
+    }
+    if (name === "alternatenumber") {
+      const cleaned = value.replace(/\D/g, "");
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
     }
     // Handle salary - allow only numbers
     else if (name === "salary") {
@@ -245,13 +252,13 @@ export default function UserForm() {
             description: "User updated successfully!",
           });
 
-          if (mode === "view") {
+          // if (mode === "view") {
             // Update local data and exit edit mode
             setOriginalData(formData);
             setIsEditing(false);
-          } else {
+          // } else {
             navigate("/masters/users");
-          }
+          // }
         }
       }
     } catch (error) {
@@ -392,6 +399,15 @@ export default function UserForm() {
             <CardContent className="p-3 pt-0 space-y-4">
               {/* Row 1: Name, User Code */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* <FormInput
+                  label="User Code"
+                  name="usercode"
+                  value={formData.usercode}
+                  onChange={handleChange}
+                  disabled={true} // Always disabled - auto-generated
+                  required
+                  error={errors.usercode}
+                /> */}
                 <FormInput
                   label="Name"
                   name="name"
@@ -401,23 +417,15 @@ export default function UserForm() {
                   required
                   error={errors.name}
                 />
-                <FormInput
-                  label="User Code"
-                  name="usercode"
-                  value={formData.usercode}
-                  onChange={handleChange}
-                  disabled={true} // Always disabled - auto-generated
-                  required
-                  error={errors.usercode}
-                />
               </div>
 
               {/* Row 2: Email, Phone Number */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormInput
-                  label="Email"
+                  label="Email Address"
                   name="email"
                   type="email"
+                  prefix="@"
                   value={formData.email}
                   onChange={handleChange}
                   disabled={isReadOnly}
@@ -425,8 +433,10 @@ export default function UserForm() {
                   error={errors.email}
                 />
                 <FormInput
-                  label="Phone Number"
+                  label="Phone Number (Optional)"
                   name="phonenumber"
+                  type="tel"
+                  prefix="+91"
                   value={formData.phonenumber}
                   onChange={handleChange}
                   disabled={isReadOnly}
@@ -443,7 +453,7 @@ export default function UserForm() {
                   value={formData.alternatenumber}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  maxLength={10}
+                  //   maxLength={10}
                   error={errors.alternatenumber}
                 />
                 <FormSelect
@@ -521,6 +531,9 @@ export default function UserForm() {
                   label="Salary"
                   name="salary"
                   type="number"
+                  min="0"
+                  step="1000"
+                  prefix="₹"
                   value={formData.salary}
                   onChange={handleChange}
                   disabled={isReadOnly}
@@ -598,7 +611,8 @@ export default function UserForm() {
                   <AlertDescription className="text-xs">
                     Fields marked with{" "}
                     <span className="text-destructive">*</span> are required.
-                    Login credentials will be set separately using the Login Settings button.
+                    Login credentials will be set separately using the Login
+                    Settings button.
                   </AlertDescription>
                 </Alert>
               )}

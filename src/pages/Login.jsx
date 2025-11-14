@@ -9,35 +9,82 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     
-    if (login(email, password)) {
+    if (!username.trim() || !password) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter both username and password.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await login(username, password);
       toast({
         title: "Login successful",
         description: "Welcome back!",
       });
       navigate("/dashboard");
-    } else {
+    } catch (error) {
+      console.log('Login error:', error);
+      
+      // Prevent any default error behavior
+      e.preventDefault();
+      
+      // apiClient throws err.response?.data directly, so error IS the data object
+      // Handle validation errors (array of errors)
+      if (error.errors && Array.isArray(error.errors)) {
+        const errorMessage = error.errors.join(', ');
+        toast({
+          title: "Login failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const errorMessage = error.message || "Invalid credentials. Please try again.";
+      
+      // Map error codes to user-friendly messages
+      let displayMessage = errorMessage;
+      if (error.errorCode === 'NO_LOGIN_ACCESS') {
+        displayMessage = "You do not have login access. Please contact administrator.";
+      } else if (error.errorCode === 'ACCOUNT_INACTIVE') {
+        displayMessage = "Your account is inactive. Please contact administrator for login access.";
+      } else if (error.errorCode === 'LOGIN_NOT_ENABLED') {
+        displayMessage = "Login is not enabled for this account. Please contact administrator.";
+      } else if (error.errorCode === 'INVALID_CREDENTIALS') {
+        displayMessage = "Invalid username or password.";
+      }
+
       toast({
         title: "Login failed",
-        description: "Invalid credentials. Please try again.",
+        description: displayMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const demoCredentials = [
-    { role: "Admin", email: "admin@lensbilling.com" },
-    { role: "Sales", email: "rahul@lensbilling.com" },
-    { role: "Inventory", email: "priya@lensbilling.com" },
-    { role: "Accounts", email: "amit@lensbilling.com" },
+    { role: "Admin", username: "admin" },
+    { role: "Sales", username: "rahul" },
+    { role: "Inventory", username: "priya" },
+    { role: "Accounts", username: "amit" },
   ];
 
   return (
@@ -88,16 +135,17 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  id="username"
+                  type="text"
+                  placeholder="Enter your username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="username"
                 />
               </div>
               
@@ -109,12 +157,13 @@ export default function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
+                  disabled={isLoading}
+                  autoComplete="current-password"
                 />
               </div>
 
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
 
@@ -127,13 +176,13 @@ export default function Login() {
                   <button
                     key={cred.role}
                     onClick={() => {
-                      setEmail(cred.email);
+                      setUsername(cred.username);
                       setPassword("demo");
                     }}
                     className="text-xs p-2 rounded-md bg-muted hover:bg-muted/80 text-left transition-colors"
                   >
                     <div className="font-semibold">{cred.role}</div>
-                    <div className="text-muted-foreground truncate">{cred.email}</div>
+                    <div className="text-muted-foreground truncate">{cred.username}</div>
                   </button>
                 ))}
               </div>

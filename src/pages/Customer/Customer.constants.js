@@ -12,7 +12,7 @@ export const defaultCustomer = {
   name: "",
   shopName: "",
   phone: "",
-  alternatePhone: "",
+  alternatephone: "",
   email: "",
   address: "",
   city: "",

@@ -1,13 +1,12 @@
-import prisma from '../config/prisma.js';
-import { APIError } from '../middleware/errorHandler.js';
-import bcrypt from 'bcrypt';
+import prisma from "../config/prisma.js";
+import { APIError } from "../middleware/errorHandler.js";
+import bcrypt from "bcrypt";
 
 /**
  * User Master Service
  * Handles all database operations for User Master management
  */
 export class UserMasterService {
-  
   /**
    * Hash password for secure storage
    * @param {string} password - Plain text password
@@ -25,34 +24,36 @@ export class UserMasterService {
    */
   async createUserMaster(userData) {
     try {
-      // Check if email already exists
-      const existingEmailUser = await prisma.user.findUnique({
-        where: { email: userData.email }
+      // Check if email or usercode already exists
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ email: userData.email }, { usercode: userData.usercode }],
+        },
       });
 
-      if (existingEmailUser) {
-        throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+      if (existingUser) {
+        if (existingUser.email === userData.email) {
+          throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
+        }
+        if (existingUser.usercode === userData.usercode) {
+          throw new APIError(
+            "User code already exists",
+            409,
+            "DUPLICATE_USER_CODE"
+          );
+        }
       }
 
-      // Check if usercode already exists
-      const existingCodeUser = await prisma.user.findUnique({
-        where: { usercode: userData.usercode }
-      });
-
-      if (existingCodeUser) {
-        throw new APIError('User code already exists', 409, 'DUPLICATE_USER_CODE');
-      }
-
-      // Hash the password
-      const hashedPassword = await this.hashPassword(userData.password);
-
-      // Create the user master
+      // Create the user master WITHOUT login credentials
+      // Login credentials will be set separately via enableLogin API
       const userMaster = await prisma.user.create({
         data: {
           name: userData.name,
           usercode: userData.usercode,
           email: userData.email,
-          password: hashedPassword,
+          username: `user_${userData.usercode}`, // Temporary unique username
+          password: await this.hashPassword("TEMP_PASSWORD_" + Date.now()), // Temporary password
+          is_login: false, // Login not enabled by default
           phonenumber: userData.phonenumber,
           alternatenumber: userData.alternatenumber,
           bloodgroup: userData.bloodgroup,
@@ -60,22 +61,21 @@ export class UserMasterService {
           city: userData.city,
           state: userData.state,
           pincode: userData.pincode,
-          roleId: userData.roleId,
+          role_id: userData.role_id,
           department_id: userData.department_id,
           salary: userData.salary,
           active_status: userData.active_status,
           delete_status: userData.delete_status || false,
           createdBy: userData.createdBy,
-          updatedBy: userData.updatedBy
         },
         include: {
           role: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           departmentDetails: {
-            select: { id: true, department: true }
-          }
-        }
+            select: { id: true, department: true },
+          },
+        },
       });
 
       // Remove password from response
@@ -85,8 +85,12 @@ export class UserMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error creating user master:', error);
-      throw new APIError('Failed to create user master', 500, 'CREATE_USER_ERROR');
+      console.error("Error creating user master:", error);
+      throw new APIError(
+        "Failed to create user master",
+        500,
+        "CREATE_USER_ERROR"
+      );
     }
   }
 
@@ -97,42 +101,48 @@ export class UserMasterService {
    */
   async getUserMasters(queryParams) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = queryParams;
-      
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        ...filters
+      } = queryParams;
+
       // Build where clause for filtering
       const where = {};
-      
+
       if (filters.name) {
         where.name = {
           contains: filters.name,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.usercode) {
         where.usercode = {
           contains: filters.usercode,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.email) {
         where.email = {
           contains: filters.email,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.phonenumber) {
         where.phonenumber = {
-          contains: filters.phonenumber
+          contains: filters.phonenumber,
         };
       }
-      
+
       if (filters.city) {
         where.city = {
           contains: filters.city,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
 
@@ -165,7 +175,7 @@ export class UserMasterService {
         skip: offset,
         take: limit,
         orderBy: {
-          [sortBy]: sortOrder
+          [sortBy]: sortOrder,
         },
         select: {
           id: true,
@@ -185,13 +195,13 @@ export class UserMasterService {
           createdAt: true,
           updatedAt: true,
           role: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           departmentDetails: {
-            select: { id: true, department: true }
-          }
+            select: { id: true, department: true },
+          },
           // Exclude password from select
-        }
+        },
       });
 
       // Calculate pagination info
@@ -203,12 +213,16 @@ export class UserMasterService {
           page,
           limit,
           total,
-          pages
-        }
+          pages,
+        },
       };
     } catch (error) {
-      console.error('Error fetching user masters:', error);
-      throw new APIError('Failed to fetch user masters', 500, 'FETCH_USERS_ERROR');
+      console.error("Error fetching user masters:", error);
+      throw new APIError(
+        "Failed to fetch user masters",
+        500,
+        "FETCH_USERS_ERROR"
+      );
     }
   }
 
@@ -239,23 +253,27 @@ export class UserMasterService {
           createdAt: true,
           updatedAt: true,
           role: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           departmentDetails: {
-            select: { id: true, department: true }
+            select: { id: true, department: true },
           },
           _count: {
             select: {
               customerUserCreate: true,
-              vendorUserCreate: true
-            }
-          }
+              vendorUserCreate: true,
+            },
+          },
           // Exclude password from select
-        }
+        },
       });
 
       if (!userMaster) {
-        throw new APIError('User master not found', 404, 'USER_MASTER_NOT_FOUND');
+        throw new APIError(
+          "User master not found",
+          404,
+          "USER_MASTER_NOT_FOUND"
+        );
       }
 
       return userMaster;
@@ -263,8 +281,12 @@ export class UserMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error fetching user master by ID:', error);
-      throw new APIError('Failed to fetch user master', 500, 'FETCH_USER_ERROR');
+      console.error("Error fetching user master by ID:", error);
+      throw new APIError(
+        "Failed to fetch user master",
+        500,
+        "FETCH_USER_ERROR"
+      );
     }
   }
 
@@ -278,45 +300,51 @@ export class UserMasterService {
     try {
       // Check if user master exists
       const existingUser = await prisma.user.findUnique({
-        where: { id }
+        where: { id },
       });
 
       if (!existingUser) {
-        throw new APIError('User master not found', 404, 'USER_MASTER_NOT_FOUND');
+        throw new APIError(
+          "User master not found",
+          404,
+          "USER_MASTER_NOT_FOUND"
+        );
       }
 
-      // Check for duplicate email if being updated
-      if (updateData.email && updateData.email !== existingUser.email) {
-        const duplicateEmail = await prisma.user.findFirst({
+      // Check for duplicate email or usercode if being updated
+      if (updateData.email || updateData.usercode) {
+        const duplicateUser = await prisma.user.findFirst({
           where: {
-            email: updateData.email,
-            id: { not: id }
-          }
+            OR: [
+              updateData.email && updateData.email !== existingUser.email
+                ? { email: updateData.email }
+                : null,
+              updateData.usercode &&
+              updateData.usercode !== existingUser.usercode
+                ? { usercode: updateData.usercode }
+                : null,
+            ].filter(Boolean),
+            id: { not: id },
+          },
         });
 
-        if (duplicateEmail) {
-          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+        if (duplicateUser) {
+          if (duplicateUser.email === updateData.email) {
+            throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
+          }
+          if (duplicateUser.usercode === updateData.usercode) {
+            throw new APIError(
+              "User code already exists",
+              409,
+              "DUPLICATE_USER_CODE"
+            );
+          }
         }
       }
 
-      // Check for duplicate usercode if being updated
-      if (updateData.usercode && updateData.usercode !== existingUser.usercode) {
-        const duplicateCode = await prisma.user.findFirst({
-          where: {
-            usercode: updateData.usercode,
-            id: { not: id }
-          }
-        });
-
-        if (duplicateCode) {
-          throw new APIError('User code already exists', 409, 'DUPLICATE_USER_CODE');
-        }
-      }
-
-      // Hash password if being updated
-      if (updateData.password) {
-        updateData.password = await this.hashPassword(updateData.password);
-      }
+      // Password updates are handled via enableLogin and updateLogin endpoints only
+      // Remove password from updateData if present
+      delete updateData.password;
 
       // Update the user master
       const updatedUser = await prisma.user.update({
@@ -340,13 +368,13 @@ export class UserMasterService {
           createdAt: true,
           updatedAt: true,
           role: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           departmentDetails: {
-            select: { id: true, department: true }
-          }
+            select: { id: true, department: true },
+          },
           // Exclude password from select
-        }
+        },
       });
 
       return updatedUser;
@@ -354,8 +382,12 @@ export class UserMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error updating user master:', error);
-      throw new APIError('Failed to update user master', 500, 'UPDATE_USER_ERROR');
+      console.error("Error updating user master:", error);
+      throw new APIError(
+        "Failed to update user master",
+        500,
+        "UPDATE_USER_ERROR"
+      );
     }
   }
 
@@ -374,23 +406,38 @@ export class UserMasterService {
           _count: {
             select: {
               customerUserCreate: true,
-              vendorUserCreate: true
-            }
-          }
-        }
+              vendorUserCreate: true,
+            },
+          },
+        },
       });
 
       if (!existingUser) {
-        throw new APIError('User master not found', 404, 'USER_MASTER_NOT_FOUND');
+        throw new APIError(
+          "User master not found",
+          404,
+          "USER_MASTER_NOT_FOUND"
+        );
       }
 
       if (existingUser.delete_status) {
-        throw new APIError('User is already deleted', 400, 'USER_ALREADY_DELETED');
+        throw new APIError(
+          "User is already deleted",
+          400,
+          "USER_ALREADY_DELETED"
+        );
       }
 
       // Check if user has created any customers or vendors
-      if (existingUser._count.customerUserCreate > 0 || existingUser._count.vendorUserCreate > 0) {
-        throw new APIError('Cannot delete user who has created customers or vendors', 400, 'USER_HAS_RECORDS');
+      if (
+        existingUser._count.customerUserCreate > 0 ||
+        existingUser._count.vendorUserCreate > 0
+      ) {
+        throw new APIError(
+          "Cannot delete user who has created customers or vendors",
+          400,
+          "USER_HAS_RECORDS"
+        );
       }
 
       // Soft delete the user master
@@ -399,8 +446,8 @@ export class UserMasterService {
         data: {
           delete_status: true,
           active_status: false,
-          updatedBy: updatedBy
-        }
+          updatedBy: updatedBy,
+        },
       });
 
       return true;
@@ -408,8 +455,12 @@ export class UserMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error deleting user master:', error);
-      throw new APIError('Failed to delete user master', 500, 'DELETE_USER_ERROR');
+      console.error("Error deleting user master:", error);
+      throw new APIError(
+        "Failed to delete user master",
+        500,
+        "DELETE_USER_ERROR"
+      );
     }
   }
 
@@ -429,7 +480,7 @@ export class UserMasterService {
       const existingUser = await prisma.user.findFirst({ where });
       return !!existingUser;
     } catch (error) {
-      console.error('Error checking user email:', error);
+      console.error("Error checking user email:", error);
       return false;
     }
   }
@@ -450,7 +501,7 @@ export class UserMasterService {
       const existingUser = await prisma.user.findFirst({ where });
       return !!existingUser;
     } catch (error) {
-      console.error('Error checking user code:', error);
+      console.error("Error checking user code:", error);
       return false;
     }
   }
@@ -464,7 +515,7 @@ export class UserMasterService {
       const users = await prisma.user.findMany({
         where: {
           active_status: true,
-          delete_status: false
+          delete_status: false,
         },
         select: {
           id: true,
@@ -472,25 +523,31 @@ export class UserMasterService {
           usercode: true,
           email: true,
           role: {
-            select: { name: true }
-          }
+            select: { name: true },
+          },
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: "asc",
+        },
       });
 
-      return users.map(user => ({
+      return users.map((user) => ({
         id: user.id,
-        label: `${user.name} (${user.usercode})${user.role ? ` - ${user.role.name}` : ''}`,
+        label: `${user.name} (${user.usercode})${
+          user.role ? ` - ${user.role.name}` : ""
+        }`,
         value: user.id,
         usercode: user.usercode,
         email: user.email,
-        role: user.role?.name
+        role: user.role?.name,
       }));
     } catch (error) {
-      console.error('Error fetching user dropdown:', error);
-      throw new APIError('Failed to fetch user dropdown', 500, 'FETCH_DROPDOWN_ERROR');
+      console.error("Error fetching user dropdown:", error);
+      throw new APIError(
+        "Failed to fetch user dropdown",
+        500,
+        "FETCH_DROPDOWN_ERROR"
+      );
     }
   }
 
@@ -503,21 +560,25 @@ export class UserMasterService {
       const roles = await prisma.role.findMany({
         select: {
           id: true,
-          name: true
+          name: true,
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: "asc",
+        },
       });
 
-      return roles.map(role => ({
+      return roles.map((role) => ({
         id: role.id,
         label: role.name,
-        value: role.id
+        value: role.id,
       }));
     } catch (error) {
-      console.error('Error fetching roles dropdown:', error);
-      throw new APIError('Failed to fetch roles dropdown', 500, 'FETCH_ROLES_ERROR');
+      console.error("Error fetching roles dropdown:", error);
+      throw new APIError(
+        "Failed to fetch roles dropdown",
+        500,
+        "FETCH_ROLES_ERROR"
+      );
     }
   }
 
@@ -530,21 +591,253 @@ export class UserMasterService {
       const departments = await prisma.departmentDetails.findMany({
         select: {
           id: true,
-          department: true
+          department: true,
         },
         orderBy: {
-          department: 'asc'
-        }
+          department: "asc",
+        },
       });
 
-      return departments.map(dept => ({
+      return departments.map((dept) => ({
         id: dept.id,
         label: dept.department,
-        value: dept.id
+        value: dept.id,
       }));
     } catch (error) {
-      console.error('Error fetching departments dropdown:', error);
-      throw new APIError('Failed to fetch departments dropdown', 500, 'FETCH_DEPARTMENTS_ERROR');
+      console.error("Error fetching departments dropdown:", error);
+      throw new APIError(
+        "Failed to fetch departments dropdown",
+        500,
+        "FETCH_DEPARTMENTS_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Enable login for a user (First time setup)
+   * @param {number} id - User ID
+   * @param {Object} loginData - Login credentials (username, password, is_login)
+   * @returns {Promise<Object>} Updated user
+   */
+  async enableLogin(id, loginData) {
+    try {
+      // Check if user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!existingUser) {
+        throw new APIError("User not found", 404, "USER_NOT_FOUND");
+      }
+
+      // Check if login is already enabled
+      if (existingUser.is_login) {
+        throw new APIError(
+          "Login is already enabled for this user. Use update-login endpoint instead.",
+          400,
+          "LOGIN_ALREADY_ENABLED"
+        );
+      }
+
+      // Check if username already exists
+      const duplicateUsername = await prisma.user.findFirst({
+        where: {
+          username: loginData.username,
+          id: { not: id },
+        },
+      });
+
+      if (duplicateUsername) {
+        throw new APIError(
+          "Username already exists",
+          409,
+          "DUPLICATE_USERNAME"
+        );
+      }
+
+      // Hash the password
+      const hashedPassword = await this.hashPassword(loginData.password);
+
+      // Enable login
+      const updatedUser = await prisma.user.update({
+        where: { id },
+        data: {
+          username: loginData.username,
+          password: hashedPassword,
+          is_login:
+            loginData.is_login !== undefined ? loginData.is_login : true,
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          name: true,
+          usercode: true,
+          email: true,
+          username: true,
+          is_login: true,
+          phonenumber: true,
+          alternatenumber: true,
+          bloodgroup: true,
+          address: true,
+          city: true,
+          state: true,
+          pincode: true,
+          salary: true,
+          active_status: true,
+          role: {
+            select: { id: true, name: true },
+          },
+          departmentDetails: {
+            select: { id: true, department: true },
+          },
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error("Error enabling login:", error);
+      throw new APIError("Failed to enable login", 500, "ENABLE_LOGIN_ERROR");
+    }
+  }
+
+  /**
+   * Update login credentials for a user
+   * @param {number} id - User ID
+   * @param {Object} loginData - Updated login data (username, password, is_login - all optional)
+   * @returns {Promise<Object>} Updated user
+   */
+  async updateLogin(id, loginData) {
+    try {
+      // Check if user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!existingUser) {
+        throw new APIError("User not found", 404, "USER_NOT_FOUND");
+      }
+
+      // Check if login is enabled
+      if (!existingUser.is_login) {
+        throw new APIError(
+          "Login is not enabled for this user. Use enable-login endpoint first.",
+          400,
+          "LOGIN_NOT_ENABLED"
+        );
+      }
+
+      // Prepare update data
+      const updateData = {};
+
+      // Check for duplicate username if being updated
+      if (loginData.username && loginData.username !== existingUser.username) {
+        const duplicateUsername = await prisma.user.findFirst({
+          where: {
+            username: loginData.username,
+            id: { not: id },
+          },
+        });
+
+        if (duplicateUsername) {
+          throw new APIError(
+            "Username already exists",
+            409,
+            "DUPLICATE_USERNAME"
+          );
+        }
+        updateData.username = loginData.username;
+      }
+
+      // Hash password if being updated
+      if (loginData.password) {
+        updateData.password = await this.hashPassword(loginData.password);
+      }
+
+      // Update is_login if provided
+      if (loginData.is_login !== undefined) {
+        updateData.is_login = loginData.is_login;
+      }
+
+      // Update timestamp
+      updateData.updatedAt = new Date();
+
+      // Update login credentials
+      const updatedUser = await prisma.user.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          usercode: true,
+          email: true,
+          username: true,
+          is_login: true,
+          phonenumber: true,
+          alternatenumber: true,
+          bloodgroup: true,
+          address: true,
+          city: true,
+          state: true,
+          pincode: true,
+          salary: true,
+          active_status: true,
+          role: {
+            select: { id: true, name: true },
+          },
+          departmentDetails: {
+            select: { id: true, department: true },
+          },
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error("Error updating login:", error);
+      throw new APIError("Failed to update login", 500, "UPDATE_LOGIN_ERROR");
+    }
+  }
+
+  /**
+   * Get login credentials for a user
+   * @param {number} id - User ID
+   * @returns {Promise<Object>} User login credentials
+   */
+  async getLoginCredentials(id) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          usercode: true,
+          email: true,
+          username: true,
+          is_login: true,
+          // Password is never returned for security
+        },
+      });
+
+      if (!user) {
+        throw new APIError("User not found", 404, "USER_NOT_FOUND");
+      }
+
+      return user;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error("Error fetching login credentials:", error);
+      throw new APIError(
+        "Failed to fetch login credentials",
+        500,
+        "FETCH_LOGIN_ERROR"
+      );
     }
   }
 }

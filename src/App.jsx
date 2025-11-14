@@ -1,10 +1,12 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useToast } from "@/hooks/use-toast";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import SaleOrders from "./pages/SaleOrders";
@@ -31,14 +33,56 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
+  // const { toast } = useToast();
+  // const navigate = useNavigate();
+
   if (!user) return <Navigate to="/login" replace />;
+
+  // ROLE ACCESS DISABLED - Enable later for production
+  // If allowedRoles is specified, check if user has permission
+  // if (allowedRoles && !hasPermission(allowedRoles)) {
+  //   useEffect(() => {
+  //     toast({
+  //       title: "Access Denied",
+  //       description: "You don't have permission to access this page.",
+  //       variant: "destructive",
+  //     });
+  //     navigate("/dashboard", { replace: true });
+  //   }, []);
+  //   return null;
+  // }
+
   return <AppLayout>{children}</AppLayout>;
+};
+
+const SessionExpiryHandler = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { logout } = useAuth();
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      logout();
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please login again.",
+        variant: "destructive",
+      });
+      navigate("/login", { replace: true });
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+  }, [navigate, toast, logout]);
+
+  return null;
 };
 
 const AppRoutes = () => (
   <BrowserRouter>
+    <SessionExpiryHandler />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

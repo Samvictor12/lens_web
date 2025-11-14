@@ -20,7 +20,9 @@ const mapToBackend = (frontendData) => {
     department_id: frontendData.departmentId || null,
     salary: frontendData.salary ? parseFloat(frontendData.salary) : null,
     active_status:
-      frontendData.activeStatus !== undefined ? frontendData.activeStatus : true,
+      frontendData.activeStatus !== undefined
+        ? frontendData.activeStatus
+        : true,
     createdBy: 1, // TODO: Get from auth context
     updatedBy: 1, // TODO: Get from auth context
   };
@@ -43,7 +45,9 @@ const mapFromBackend = (backendData) => {
     department_id: backendData.department_id || null,
     salary: backendData.salary || 0,
     active_status:
-      backendData.active_status !== undefined ? backendData.active_status : true,
+      backendData.active_status !== undefined
+        ? backendData.active_status
+        : true,
     createdAt: backendData.createdAt,
     departmentDetails: backendData.departmentDetails || null,
     role: backendData.role || null,
@@ -85,7 +89,10 @@ export async function getUsers(
 
   // Add filters
   if (filters) {
-    if (filters.active_status !== "all" && filters.active_status !== undefined) {
+    if (
+      filters.active_status !== "all" &&
+      filters.active_status !== undefined
+    ) {
       params.active_status = filters.active_status;
     }
     if (filters.department_id) {
@@ -198,69 +205,75 @@ export async function generateUserCode() {
 }
 
 /**
- * Update user login settings (user_name, password, is_login)
+ * Get login credentials for a user
+ * @param {number} id - User ID
+ * @returns {Promise<Object>} Login credentials (username, is_login)
+ */
+export async function getLoginCredentials(id) {
+  const response = await apiClient(
+    "get",
+    `/user-master/${id}/login-credentials`
+  );
+
+  return {
+    success: response.success,
+    data: response.data,
+  };
+}
+
+/**
+ * Enable login for a user (First time setup)
  * @param {number} id - User ID
  * @param {Object} loginData - Login credentials data
  * @returns {Promise<Object>} Updated user data
  */
-export async function updateUserLoginSettings(id, loginData) {
-  const response = await apiClient("put", `/user-master/${id}/login-settings`, {
+export async function enableUserLogin(id, loginData) {
+  const response = await apiClient("post", `/user-master/${id}/enable-login`, {
     data: {
-      user_name: loginData.user_name,
-      password: loginData.password || undefined, // Only send if provided
-      is_login: loginData.is_login,
+      username: loginData.username,
+      password: loginData.password,
+      is_login: loginData.is_login !== undefined ? loginData.is_login : true,
     },
   });
 
   return {
     success: response.success,
+    message: response.message,
     data: mapFromBackend(response.data),
   };
 }
 
 /**
- * Check if email exists
- * @param {string} email - Email to check
- * @param {number} excludeId - User ID to exclude from check (for updates)
- * @returns {Promise<Object>} Exists status
+ * Update user login settings (username, password, is_login)
+ * @param {number} id - User ID
+ * @param {Object} loginData - Login credentials data
+ * @returns {Promise<Object>} Updated user data
  */
-export async function checkEmailExists(email, excludeId = null) {
-  const data = { email };
-  if (excludeId) {
-    data.excludeId = excludeId;
-  }
+// export async function updateUserLogin(id, loginData) {
+//   const data = {};
 
-  const response = await apiClient("post", "/user-master/check-email", {
-    data,
-  });
+//   if (loginData.username) {
+//     data.username = loginData.username;
+//   }
 
-  return {
-    success: response.success,
-    exists: response.data.exists,
-  };
-}
+//   if (loginData.password) {
+//     data.password = loginData.password;
+//   }
 
-/**
- * Check if usercode exists
- * @param {string} usercode - Usercode to check
- * @param {number} excludeId - User ID to exclude from check (for updates)
- * @returns {Promise<Object>} Exists status
- */
-export async function checkUsercodeExists(usercode, excludeId = null) {
-  const data = { usercode };
-  if (excludeId) {
-    data.excludeId = excludeId;
-  }
+//   if (loginData.is_login !== undefined) {
+//     data.is_login = loginData.is_login;
+//   }
 
-  const response = await apiClient("post", "/user-master/check-usercode", {
-    data,
-  });
+//   const response = await apiClient("put", `/user-master/${id}/update-login`, {
+//     data,
+//   });
 
-  return {
-    success: response.success,
-    exists: response.data.exists,
-  };
-}
+//   return {
+//     success: response.success,
+//     message: response.message,
+//     data: mapFromBackend(response.data),
+//   };
+// }
 
 // Old functions kept for backward compatibility (if needed elsewhere)
 export async function deleteDealers(ids) {
@@ -268,137 +281,27 @@ export async function deleteDealers(ids) {
     throw new Error("No dealer IDs provided for deletion");
   }
 
-  return await apiClient("delete", "/users/delete", {
+  return await apiClient("delete", "/user-master/delete", {
     data: { ids },
   });
 }
-export async function bulkUploadusers(file) {
-  const formData = new FormData();
-  formData.append("file", file);
 
-  return await apiClient("post", "/users/bulk-upload", {
-    data: formData,
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
-}
-export async function bulkUpdateStatus(ids, active_status, updated_by = null) {
-  return await apiClient("put", "/users/bulk-update-status", {
-    data: { ids, active_status, updated_by },
-  });
-}
-// export async function exportUsersExcel(ids) {
-//   if (!ids || ids.length === 0) {
-//     throw new Error("No dealer IDs provided for Excel export");
-//   }
-
-//   const response = await apiClient("post", "/users/export/excel", {
-//     data: { ids },
-//     responseType: "blob", //  ensure browser downloads file
-//   });
-
-//   // Trigger browser download
-//   const url = window.URL.createObjectURL(new Blob([response]));
-//   const link = document.createElement("a");
-//   link.href = url;
-//   link.setAttribute("download", "users.xlsx");
-//   document.body.appendChild(link);
-//   link.click();
-//   link.remove();
-// }
-
-export async function exportUsersExcel(
-  ids = [],
-  filter = {},
-  columns = [],
-  sort_by = "created_date",
-  sort_order = "desc",
-  logoBase64
-) {
-  if (!ids || ids.length === 0) {
-    throw new Error("No user IDs provided for Excel export");
-  }
-
-  const response = await apiClient("post", "/users/export/excel", {
-    data: { ids, filter, columns, sort_by, sort_order, logoBase64 },
-    responseType: "blob", // ensure browser downloads file
-  });
-
-  // Trigger browser download
-  const url = window.URL.createObjectURL(new Blob([response]));
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", "users.xlsx");
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url); // cleanup
-}
-
-export async function exportUsersPdf(
-  ids,
-  filter = {},
-  columns = [],
-  sort_by = "created_date",
-  sort_order = "desc",
-  base64Logo
-) {
-  if (!ids || ids.length === 0) {
-    throw new Error("No user IDs provided for PDF export");
-  }
-
-  const response = await apiClient("post", "/users/export/pdf", {
-    data: { ids, filter, columns, sort_by, sort_order, base64Logo },
-    responseType: "blob", // binary download
-  });
-
-  // Trigger browser download
-  const url = window.URL.createObjectURL(new Blob([response]));
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", "users.pdf");
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url); // cleanup
-}
-
-// export async function exportUsersPdf(ids) {
-//   if (!ids || ids.length === 0) {
-//     throw new Error("No dealer IDs provided for PDF export");
-//   }
-
-//   const response = await apiClient("post", "/users/export/pdf", {
-//     data: { ids },
-//     responseType: "blob", //  binary download
-//   });
-
-//   // Trigger browser download
-//   const url = window.URL.createObjectURL(new Blob([response]));
-//   const link = document.createElement("a");
-//   link.href = url;
-//   link.setAttribute("download", "users.pdf");
-//   document.body.appendChild(link);
-//   link.click();
-//   link.remove();
-// }
 export async function getUserLoginInfoById(id) {
-  return await apiClient("get", `/users/${id}/login-info`);
+  return await apiClient("get", `/user-master/${id}/login-info`);
 }
 export async function createUserLogin(id, payload) {
-  return await apiClient("post", `/users/${id}/enable-login`, {
+  return await apiClient("post", `/user-master/${id}/enable-login`, {
     data: payload,
   });
 }
 export async function updateUserLogin(id, payload) {
-  return await apiClient("put", `/users/${id}/update-login`, {
+  return await apiClient("put", `/user-master/${id}/update-login`, {
     data: payload,
   });
 }
 
 export async function changePassword(id, oldPassword, newPassword) {
-  return await apiClient("put", "/users/change-password", {
+  return await apiClient("put", "/user-master/change-password", {
     data: {
       id,
       oldPassword,
@@ -408,12 +311,12 @@ export async function changePassword(id, oldPassword, newPassword) {
 }
 
 export async function forgotPassword(email) {
-  return await apiClient("put", "/users/forget-password", {
+  return await apiClient("put", "/user-master/forget-password", {
     data: { email },
   });
 }
 export async function resetPassword(email, otp, newPassword) {
-  return await apiClient("put", "/users/reset-password", {
+  return await apiClient("put", "/user-master/reset-password", {
     data: { email, otp, newPassword },
   });
 }

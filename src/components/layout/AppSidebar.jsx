@@ -41,56 +41,56 @@ const navItems = [
     title: "Dashboard",
     url: "/dashboard",
     icon: LayoutDashboard,
-    allowedRoles: ["admin", "sales", "inventory", "accounts"],
+    // allowedRoles: ["admin", "sales", "inventory", "accounts"],
   },
   {
     title: "Sale Orders",
     url: "/sales/orders",
     icon: ShoppingCart,
-    allowedRoles: ["admin", "sales"],
+    // allowedRoles: ["admin", "sales"],
   },
 
   {
     title: "Inventory",
     url: "/inventory/stock",
     icon: Package,
-    allowedRoles: ["admin", "inventory"],
+    // allowedRoles: ["admin", "inventory"],
   },
   {
     title: "Purchase Orders",
     url: "/inventory/purchase-orders",
     icon: Receipt,
-    allowedRoles: ["admin", "inventory"],
+    // allowedRoles: ["admin", "inventory"],
   },
   {
     title: "Dispatch",
     url: "/dispatch",
     icon: Truck,
-    allowedRoles: ["admin", "sales", "inventory"],
+    // allowedRoles: ["admin", "sales", "inventory"],
   },
   {
     title: "Billing",
     url: "/billing",
     icon: Receipt,
-    allowedRoles: ["admin", "accounts"],
+    // allowedRoles: ["admin", "accounts"],
   },
   {
     title: "Payments",
     url: "/accounts/payments",
     icon: DollarSign,
-    allowedRoles: ["admin", "accounts"],
+    // allowedRoles: ["admin", "accounts"],
   },
   {
     title: "Expenses",
     url: "/accounts/expenses",
     icon: DollarSign,
-    allowedRoles: ["admin", "accounts"],
+    // allowedRoles: ["admin", "accounts"],
   },
   {
     title: "Reports",
     url: "/reports",
     icon: BarChart3,
-    allowedRoles: ["admin", "accounts"],
+    // allowedRoles: ["admin", "accounts"],
   },
 ];
 
@@ -99,49 +99,49 @@ const masterItems = [
     title: "Customers",
     url: "/sales/customers",
     icon: Users,
-    allowedRoles: ["admin", "sales", "accounts"],
+    // allowedRoles: ["admin", "sales", "accounts"],
   },
   {
     title: "Vendors",
     url: "/masters/vendors",
     icon: Building,
-    allowedRoles: ["admin", "inventory"],
+    // allowedRoles: ["admin", "inventory"],
   },
   {
     title: "Business Categories",
     url: "/masters/business-categories",
     icon: Tag,
-    allowedRoles: ["admin", "sales"],
+    // allowedRoles: ["admin", "sales"],
   },
   {
     title: "Departments",
     url: "/masters/departments",
     icon: Briefcase,
-    allowedRoles: ["admin"],
+    // allowedRoles: ["admin"],
   },
   {
     title: "Users",
     url: "/masters/users",
     icon: UserCog,
-    allowedRoles: ["admin"],
+    // allowedRoles: ["admin"],
   },
   {
     title: "Lens Types",
     url: "/masters/lens-types",
     icon: Eye,
-    allowedRoles: ["admin", "inventory"],
+    // allowedRoles: ["admin", "inventory"],
   },
   {
     title: "Price Mapping",
     url: "/masters/price-mapping",
     icon: Tag,
-    allowedRoles: ["admin", "sales"],
+    // allowedRoles: ["admin", "sales"],
   },
   {
     title: "Settings",
     url: "/settings",
     icon: Settings,
-    allowedRoles: ["admin"],
+    // allowedRoles: ["admin"],
   },
 ];
 
@@ -152,13 +152,16 @@ export const AppSidebar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const filteredNavItems = navItems.filter((item) =>
-    hasPermission(item.allowedRoles)
-  );
+  // ROLE ACCESS DISABLED - Show all items for now
+  // const filteredNavItems = navItems.filter((item) =>
+  //   hasPermission(item.allowedRoles)
+  // );
+  const filteredNavItems = navItems;
 
-  const filteredMasterItems = masterItems.filter((item) =>
-    hasPermission(item.allowedRoles)
-  );
+  // const filteredMasterItems = masterItems.filter((item) =>
+  //   hasPermission(item.allowedRoles)
+  // );
+  const filteredMasterItems = masterItems;
 
   return (
     <TooltipProvider>

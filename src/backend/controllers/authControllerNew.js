@@ -37,12 +37,12 @@ export class AuthController {
 
       // Authenticate user
       const authResult = await this.authService.login(
-        validation.data.emailOrUsercode,
+        validation.data.username,
         validation.data.password
       );
 
       // Log successful login (optional)
-      console.log(`User logged in: ${authResult.user.email} (${authResult.user.usercode})`);
+      console.log(`User logged in: ${authResult.user.username} (${authResult.user.usercode})`);
 
       res.json({
         success: true,

@@ -12,13 +12,14 @@ const authController = new AuthController();
  *     LoginRequest:
  *       type: object
  *       required:
- *         - emailOrUsercode
+ *         - username
  *         - password
  *       properties:
- *         emailOrUsercode:
+ *         username:
  *           type: string
- *           description: User email or usercode
- *           example: "admin@lensbilling.com"
+ *           minLength: 3
+ *           description: User's unique username
+ *           example: "admin"
  *         password:
  *           type: string
  *           minLength: 6

@@ -13,43 +13,81 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { updateUserLoginSettings } from "@/services/user";
+import { 
+  getLoginCredentials, 
+  enableUserLogin, 
+  updateUserLogin 
+} from "@/services/user";
 
 export default function UserLoginDialog({ open, onOpenChange, user, onSuccess }) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isLoginEnabled, setIsLoginEnabled] = useState(false);
   const [loginData, setLoginData] = useState({
-    user_name: "",
+    username: "",
     password: "",
     is_login: false,
   });
 
-  // Reset form when user changes or dialog opens
+  // Fetch login credentials when user changes or dialog opens
   useEffect(() => {
-    if (user && open) {
-      setLoginData({
-        user_name: user.user_name || "",
-        password: "",
-        is_login: user.is_login || false,
-      });
-      setErrors({});
-    }
+    const fetchLoginCredentials = async () => {
+      if (user && open) {
+        try {
+          setIsLoading(true);
+          const response = await getLoginCredentials(user.id);
+          
+          if (response.success) {
+            const credentials = response.data;
+            setIsLoginEnabled(credentials.is_login);
+            setLoginData({
+              username: credentials.username || "",
+              password: "",
+              is_login: credentials.is_login || false,
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching login credentials:", error);
+          // If error, assume login not enabled
+          setIsLoginEnabled(false);
+          setLoginData({
+            username: "",
+            password: "",
+            is_login: false,
+          });
+        } finally {
+          setIsLoading(false);
+        }
+        setErrors({});
+      }
+    };
+
+    fetchLoginCredentials();
   }, [user, open]);
 
   const validateForm = () => {
     const newErrors = {};
 
-    // User name validation
-    if (!loginData.user_name.trim()) {
-      newErrors.user_name = "Username is required";
-    } else if (loginData.user_name.length < 3) {
-      newErrors.user_name = "Username must be at least 3 characters";
+    // Username validation
+    if (!loginData.username.trim()) {
+      newErrors.username = "Username is required";
+    } else if (loginData.username.length < 3) {
+      newErrors.username = "Username must be at least 3 characters";
     }
 
-    // Password validation (only required if enabling login or changing password)
-    if (loginData.password) {
-      if (loginData.password.length < 6) {
+    // Password validation
+    if (!isLoginEnabled) {
+      // For enable login, password is required
+      if (!loginData.password) {
+        newErrors.password = "Password is required";
+      } else if (loginData.password.length < 6) {
+        newErrors.password = "Password must be at least 6 characters";
+      }
+    } else {
+      // For update login, password is optional but must be valid if provided
+      if (loginData.password && loginData.password.length < 6) {
         newErrors.password = "Password must be at least 6 characters";
       }
     }
@@ -82,12 +120,20 @@ export default function UserLoginDialog({ open, onOpenChange, user, onSuccess })
     try {
       setIsSaving(true);
 
-      const response = await updateUserLoginSettings(user.id, loginData);
+      let response;
+      
+      if (!isLoginEnabled) {
+        // Enable login for the first time
+        response = await enableUserLogin(user.id, loginData);
+      } else {
+        // Update existing login credentials
+        response = await updateUserLogin(user.id, loginData);
+      }
 
       if (response.success) {
         toast({
           title: "Success",
-          description: "Login settings updated successfully!",
+          description: response.message || "Login settings updated successfully!",
         });
 
         onOpenChange(false);
@@ -112,35 +158,55 @@ export default function UserLoginDialog({ open, onOpenChange, user, onSuccess })
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-lg">Login Settings</DialogTitle>
+          <DialogTitle className="text-lg">
+            {isLoginEnabled ? "Update Login Settings" : "Enable Login"}
+          </DialogTitle>
           <DialogDescription className="text-xs">
-            Configure login credentials for {user?.name}
+            {isLoginEnabled 
+              ? `Update login credentials for ${user?.name}`
+              : `Set up login credentials for ${user?.name}`
+            }
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            {/* Username Field */}
-            <FormInput
-              label="Username"
-              name="user_name"
-              value={loginData.user_name}
-              onChange={handleChange}
-              required
-              error={errors.user_name}
-              placeholder="Enter username"
-            />
+        {isLoading ? (
+          <div className="py-8 flex items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4 py-4">
+              {/* Username Field */}
+              <FormInput
+                label="Username"
+                name="username"
+                value={loginData.username}
+                onChange={handleChange}
+                required
+                error={errors.username}
+                placeholder="Enter username"
+              />
 
-            {/* Password Field */}
-            <FormInput
-              label="Password"
-              name="password"
-              type="password"
-              value={loginData.password}
-              onChange={handleChange}
-              error={errors.password}
-              placeholder="Enter new password (leave blank to keep current)"
-            />
+              {/* Password Field */}
+              <FormInput
+                label="Password"
+                name="password"
+                type="password"
+                value={loginData.password}
+                onChange={handleChange}
+                required={!isLoginEnabled}
+                error={errors.password}
+                placeholder={
+                  isLoginEnabled 
+                    ? "Enter new password (leave blank to keep current)" 
+                    : "Enter password"
+                }
+                helperText={
+                  isLoginEnabled && !errors.password
+                    ? "Leave blank to keep current password"
+                    : undefined
+                }
+              />
 
             {/* Login Enable/Disable Switch */}
             <div className="flex items-center justify-between space-x-2 py-2">
@@ -184,7 +250,8 @@ export default function UserLoginDialog({ open, onOpenChange, user, onSuccess })
               )}
             </Button>
           </DialogFooter>
-        </form>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -12,9 +12,9 @@ import {
   createCustomer,
   getCustomerById,
   updateCustomer,
-} from "@/services/customer";
-import { getBusinessCategoryDropdown } from "@/services/businessCategory";
+} from "../../services/customer";
 import { defaultCustomer, activeStatusOptions } from "./Customer.constants";
+import { getBusinessCategoryDropdown } from "../../services/businessCategory";
 
 export default function CustomerForm() {
   const navigate = useNavigate();
@@ -65,7 +65,7 @@ export default function CustomerForm() {
               name: customer.name || "",
               shopName: customer.shopName || "",
               phone: customer.phone || "",
-              alternatePhone: customer.alternatePhone || "",
+              alternatephone: customer.alternatephone || "",
               email: customer.email || "",
               address: customer.address || "",
               city: customer.city || "",
@@ -146,8 +146,9 @@ export default function CustomerForm() {
     }
 
     // Alternate Phone validation (optional)
-    if (formData.alternatePhone && !validatePhone(formData.alternatePhone)) {
-      newErrors.alternatePhone = "Alternate phone number must be exactly 10 digits";
+    if (formData.alternatephone && !validatePhone(formData.alternatephone)) {
+      newErrors.alternatephone =
+        "Alternate phone number must be exactly 10 digits";
     }
 
     // Email validation (required in backend)
@@ -178,11 +179,15 @@ export default function CustomerForm() {
     const { name, value } = e.target;
 
     // Handle phone number input - allow only digits
-    if (name === "phone" || name === "alternatePhone") {
+    if (name === "phone") {
       const cleaned = value.replace(/\D/g, "");
       if (cleaned.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: cleaned }));
       }
+    }
+    if (name === "alternatephone") {
+      const cleaned = value.replace(/\D/g, "");
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
     }
     // Handle GST - convert to uppercase
     else if (name === "gstNumber") {
@@ -243,13 +248,13 @@ export default function CustomerForm() {
             description: "Customer updated successfully!",
           });
 
-          if (mode === "view") {
-            // Update local data and exit edit mode
-            setOriginalData(formData);
-            setIsEditing(false);
-          } else {
-            navigate("/sales/customers");
-          }
+          // if (mode === "view") {
+          // Update local data and exit edit mode
+          setOriginalData(formData);
+          setIsEditing(false);
+          // } else {
+          navigate("/sales/customers");
+          // }
         }
       }
     } catch (error) {
@@ -501,16 +506,16 @@ export default function CustomerForm() {
 
                 <FormInput
                   label="Alternate Phone (Optional)"
-                  name="alternatePhone"
+                  name="alternatephone"
                   type="tel"
-                  value={formData.alternatePhone}
+                  value={formData.alternatephone}
                   onChange={handleChange}
                   disabled={isReadOnly}
                   // placeholder="9876543210"
-                  maxLength={10}
-                  prefix="+91"
-                  error={errors.alternatePhone}
-                  showCharCount={!!formData.alternatePhone}
+                  // maxLength={10}
+                  // prefix="+91"
+                  error={errors.alternatephone}
+                  showCharCount={!!formData.alternatephone}
                 />
               </div>
 

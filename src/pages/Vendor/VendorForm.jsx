@@ -10,10 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { createVendor, getVendorById, updateVendor } from "@/services/vendor";
 import { getBusinessCategoryDropdown } from "@/services/businessCategory";
-import {
-  defaultVendor,
-  activeStatusOptions,
-} from "./Vendor.constants";
+import { defaultVendor, activeStatusOptions } from "./Vendor.constants";
 
 export default function VendorForm() {
   const navigate = useNavigate();
@@ -62,7 +59,7 @@ export default function VendorForm() {
               name: vendor.name || "",
               shopName: vendor.shopName || "",
               phone: vendor.phone || "",
-              alternatePhone: vendor.alternatePhone || "",
+              alternatephone: vendor.alternatephone || "",
               email: vendor.email || "",
               address: vendor.address || "",
               city: vendor.city || "",
@@ -140,8 +137,8 @@ export default function VendorForm() {
     }
 
     // Alternate Phone validation (optional)
-    if (formData.alternatePhone && !validatePhone(formData.alternatePhone)) {
-      newErrors.alternatePhone = "Alternate phone number must be 10 digits";
+    if (formData.alternatephone && !validatePhone(formData.alternatephone)) {
+      newErrors.alternatephone = "Alternate phone number must be 10 digits";
     }
 
     // Email validation (required)
@@ -169,11 +166,15 @@ export default function VendorForm() {
     const { name, value } = e.target;
 
     // Handle phone - allow only numbers up to 10 digits
-    if (name === "phone" || name === "alternatePhone") {
+    if (name === "phone") {
       const cleaned = value.replace(/\D/g, "");
       if (cleaned.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: cleaned }));
       }
+    }
+    if (name === "alternatephone") {
+      const cleaned = value.replace(/\D/g, "");
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
     }
     // Handle GST number - convert to uppercase
     else if (name === "gstNumber") {
@@ -231,13 +232,13 @@ export default function VendorForm() {
             description: "Vendor updated successfully!",
           });
 
-          if (mode === "view") {
+          // if (mode === "view") {
             // Update local data and exit edit mode
             setOriginalData(formData);
             setIsEditing(false);
-          } else {
+          // } else {
             navigate("/masters/vendors");
-          }
+          // }
         }
       }
     } catch (error) {
@@ -482,15 +483,15 @@ export default function VendorForm() {
 
                 <FormInput
                   label="Alternate Phone (Optional)"
-                  name="alternatePhone"
+                  name="alternatephone"
                   type="tel"
-                  value={formData.alternatePhone}
+                  value={formData.alternatephone}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  maxLength={10}
-                  prefix="+91"
-                  error={errors.alternatePhone}
-                  showCharCount={!!formData.alternatePhone}
+                  //   maxLength={10}
+                  //   prefix="+91"
+                  error={errors.alternatephone}
+                  showCharCount={!!formData.alternatephone}
                 />
               </div>
 

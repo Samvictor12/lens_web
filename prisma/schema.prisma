@@ -34,7 +34,9 @@ model User {
   alternatenumber            String?
   bloodgroup                 String?
   usercode                   String               @unique
+  username                   String               @unique
   password                   String // Hashed password
+  is_login                   Boolean              @default(false)
   role_id                    Int?
   address                    String?
   city                       String?
@@ -50,28 +52,28 @@ model User {
   updatedAt                  DateTime             @updatedAt
   updatedBy                  Int?
   // Relationship Fields
-  role               Role?                @relation(fields: [role_id], references: [id])
+  role                       Role?                @relation(fields: [role_id], references: [id])
   // departmentDetails  DepartmentDetails?   @relation(fields: [department_id], references: [id])
-  refreshToken       RefreshToken?
+  refreshToken               RefreshToken?
   // Relationship Tables
-  vendorUserCreate           Vendor[]               @relation("vendorUserCreate")
-  vendorUserUpdate           Vendor[]               @relation("vendorUserUpdate")
-  customerUserCreate         Customer[]             @relation("customerUserCreate")
-  customerUserUpdate         Customer[]             @relation("customerUserUpdate")
-  categoryUserCreate LensCategoryMaster[] @relation("categoryUserCreate")
-  categoryUserUpdate LensCategoryMaster[] @relation("categoryUserUpdate")
-  materialUserCreate LensMaterialMaster[] @relation("materialUserCreate")
-  materialUserUpdate LensMaterialMaster[] @relation("materialUserUpdate")
-  coatingUserCreate  LensCoatingMaster[]  @relation("coatingUserCreate")
-  coatingUserUpdate  LensCoatingMaster[]  @relation("coatingUserUpdate")
-  brandUserCreate    LensBrandMaster[]    @relation("brandUserCreate")
-  brandUserUpdate    LensBrandMaster[]    @relation("brandUserUpdate")
-  typeUserCreate     LensTypeMaster[]     @relation("typeUserCreate")
-  typeUserUpdate     LensTypeMaster[]     @relation("typeUserUpdate")
-  productUserCreate  LensProductMaster[]  @relation("productUserCreate")
-  productUserUpdate  LensProductMaster[]  @relation("productUserUpdate")
-  priceUserCreate    LensPriceMaster[]    @relation("priceUserCreate")
-  priceUserUpdate    LensPriceMaster[]    @relation("priceUserUpdate")
+  vendorUserCreate           Vendor[]             @relation("vendorUserCreate")
+  vendorUserUpdate           Vendor[]             @relation("vendorUserUpdate")
+  customerUserCreate         Customer[]           @relation("customerUserCreate")
+  customerUserUpdate         Customer[]           @relation("customerUserUpdate")
+  categoryUserCreate         LensCategoryMaster[] @relation("categoryUserCreate")
+  categoryUserUpdate         LensCategoryMaster[] @relation("categoryUserUpdate")
+  materialUserCreate         LensMaterialMaster[] @relation("materialUserCreate")
+  materialUserUpdate         LensMaterialMaster[] @relation("materialUserUpdate")
+  coatingUserCreate          LensCoatingMaster[]  @relation("coatingUserCreate")
+  coatingUserUpdate          LensCoatingMaster[]  @relation("coatingUserUpdate")
+  brandUserCreate            LensBrandMaster[]    @relation("brandUserCreate")
+  brandUserUpdate            LensBrandMaster[]    @relation("brandUserUpdate")
+  typeUserCreate             LensTypeMaster[]     @relation("typeUserCreate")
+  typeUserUpdate             LensTypeMaster[]     @relation("typeUserUpdate")
+  productUserCreate          LensProductMaster[]  @relation("productUserCreate")
+  productUserUpdate          LensProductMaster[]  @relation("productUserUpdate")
+  priceUserCreate            LensPriceMaster[]    @relation("priceUserCreate")
+  priceUserUpdate            LensPriceMaster[]    @relation("priceUserUpdate")
   businessCategoryUserCreate businessCategory[]   @relation("businessCategoryUserCreate")
   businessCategoryUserUpdate businessCategory[]   @relation("businessCategoryUserUpdate")
   departmentUserCreate       DepartmentDetails[]  @relation("departmentUserCreate")

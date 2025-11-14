@@ -50,7 +50,7 @@ export const AppHeader = () => {
               </div>
               <div className="text-left hidden md:block">
                 <p className="text-sm font-medium">{user?.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                <p className="text-xs text-muted-foreground capitalize">{user?.roleName || 'User'}</p>
               </div>
             </Button>
           </DropdownMenuTrigger>

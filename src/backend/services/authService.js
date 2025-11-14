@@ -16,43 +16,50 @@ export class AuthService {
   }
 
   /**
-   * Authenticate user with email/usercode and password
-   * @param {string} emailOrUsercode - Email or usercode
+   * Authenticate user with username and password
+   * @param {string} username - Username
    * @param {string} password - Plain text password
    * @returns {Object} User data with tokens
    */
-  async login(emailOrUsercode, password) {
+  async login(username, password) {
     try {
-      // Find user by email or usercode
+      // Find user by username
       const user = await prisma.user.findFirst({
         where: {
-          OR: [
-            { email: emailOrUsercode },
-            { usercode: emailOrUsercode }
-          ],
-          AND: {
-            active_status: true,
-            delete_status: false
-          }
+          username: username
         },
         include: {
           role: {
             include: {
               permissions: true
             }
-          },
-          departmentDetails: true
+          }
         }
       });
 
       if (!user) {
-        throw new APIError('Invalid credentials', 401);
+        throw new APIError('Invalid username or password', 401, 'INVALID_CREDENTIALS');
+      }
+
+      // Check if user is deleted
+      if (user.delete_status === true) {
+        throw new APIError('You do not have login access. Please contact administrator.', 403, 'NO_LOGIN_ACCESS');
+      }
+
+      // Check if user account is active
+      if (user.active_status === false) {
+        throw new APIError('Your account is inactive. Please contact administrator for login access.', 403, 'ACCOUNT_INACTIVE');
+      }
+
+      // Check if login is enabled
+      if (user.is_login === false) {
+        throw new APIError('Login is not enabled for this account. Please contact administrator.', 403, 'LOGIN_NOT_ENABLED');
       }
 
       // Verify password
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        throw new APIError('Invalid credentials', 401);
+        throw new APIError('Invalid username or password', 401, 'INVALID_CREDENTIALS');
       }
 
       // Generate tokens
@@ -61,11 +68,15 @@ export class AuthService {
       // Store refresh token in database
       await this.storeRefreshToken(user.id, refreshToken);
 
-      // Remove password from response
-      const { password: _, ...userWithoutPassword } = user;
+      // Remove password and flatten role object for response
+      const { password: _, role, ...userWithoutPassword } = user;
 
       return {
-        user: userWithoutPassword,
+        user: {
+          ...userWithoutPassword,
+          roleName: role?.name || null,
+          roleId: user.role_id
+        },
         accessToken,
         refreshToken,
         tokenType: 'Bearer',
@@ -89,13 +100,14 @@ export class AuthService {
         userId: user.id,
         email: user.email,
         usercode: user.usercode,
-        roleId: user.roleId,
+        username: user.username,
+        roleId: user.role_id,
         roleName: user.role?.name || null
       };
 
       const accessToken = jwt.sign(payload, this.JWT_SECRET, {
         expiresIn: this.JWT_EXPIRES_IN,
-        issuer: 'lens-project',
+        issuer: 'lens-management',
         audience: 'lens-users'
       });
 
@@ -104,7 +116,7 @@ export class AuthService {
         this.REFRESH_TOKEN_SECRET,
         {
           expiresIn: this.REFRESH_TOKEN_EXPIRES_IN,
-          issuer: 'lens-project',
+          issuer: 'lens-management',
           audience: 'lens-users'
         }
       );

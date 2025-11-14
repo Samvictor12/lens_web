@@ -1,38 +1,44 @@
-import prisma from '../config/prisma.js';
-import { APIError } from '../middleware/errorHandler.js';
+import prisma from "../config/prisma.js";
+import { APIError } from "../middleware/errorHandler.js";
 
 /**
  * Customer Master Service
  * Handles all database operations for Customer Master management
  */
 export class CustomerMasterService {
-  
   /**
    * Create a new customer master
    * @param {Object} customerData - Customer master data
    * @returns {Promise<Object>} Created customer master
    */
   async createCustomerMaster(customerData) {
+    console.log("customerData", customerData);
+
     try {
       // Check if email already exists (if provided)
       if (customerData.email) {
         const existingCustomer = await prisma.customer.findFirst({
-          where: { email: customerData.email }
+          where: { email: customerData.email, delete_status: false },
         });
+        console.log("existingCustomer", existingCustomer);
 
         if (existingCustomer) {
-          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+          throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
         }
       }
 
       // Check if customer code already exists
       if (customerData.code) {
         const existingCode = await prisma.customer.findUnique({
-          where: { code: customerData.code }
+          where: { code: customerData.code },
         });
 
         if (existingCode) {
-          throw new APIError('Customer code already exists', 409, 'DUPLICATE_CODE');
+          throw new APIError(
+            "Customer code already exists",
+            409,
+            "DUPLICATE_CODE"
+          );
         }
       }
 
@@ -57,19 +63,19 @@ export class CustomerMasterService {
           delete_status: customerData.delete_status || false,
           notes: customerData.notes,
           createdBy: customerData.createdBy,
-          updatedBy: customerData.updatedBy
+          updatedBy: customerData.updatedBy,
         },
         include: {
           usercreate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           userupdate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           categoryRel: {
-            select: { id: true, name: true }
-          }
-        }
+            select: { id: true, name: true },
+          },
+        },
       });
 
       return customerMaster;
@@ -77,8 +83,12 @@ export class CustomerMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error creating customer master:', error);
-      throw new APIError('Failed to create customer master', 500, 'CREATE_CUSTOMER_ERROR');
+      console.error("Error creating customer master:", error);
+      throw new APIError(
+        "Failed to create customer master",
+        500,
+        "CREATE_CUSTOMER_ERROR"
+      );
     }
   }
 
@@ -89,46 +99,52 @@ export class CustomerMasterService {
    */
   async getCustomerMasters(queryParams) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = queryParams;
-      
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        ...filters
+      } = queryParams;
+
       // Build where clause for filtering
       const where = {};
-      
+
       if (filters.name) {
         where.name = {
           contains: filters.name,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.code) {
         where.code = {
           contains: filters.code,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.city) {
         where.city = {
           contains: filters.city,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.businessCategory_id) {
         where.businessCategory_id = filters.businessCategory_id;
       }
-      
+
       if (filters.email) {
         where.email = {
           contains: filters.email,
-          mode: 'insensitive'
+          mode: "insensitive",
         };
       }
-      
+
       if (filters.phone) {
         where.phone = {
-          contains: filters.phone
+          contains: filters.phone,
         };
       }
 
@@ -153,19 +169,19 @@ export class CustomerMasterService {
         skip: offset,
         take: limit,
         orderBy: {
-          [sortBy]: sortOrder
+          [sortBy]: sortOrder,
         },
         include: {
           usercreate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           userupdate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           categoryRel: {
-            select: { id: true, name: true }
-          }
-        }
+            select: { id: true, name: true },
+          },
+        },
       });
 
       // Calculate pagination info
@@ -177,12 +193,16 @@ export class CustomerMasterService {
           page,
           limit,
           total,
-          pages
-        }
+          pages,
+        },
       };
     } catch (error) {
-      console.error('Error fetching customer masters:', error);
-      throw new APIError('Failed to fetch customer masters', 500, 'FETCH_CUSTOMERS_ERROR');
+      console.error("Error fetching customer masters:", error);
+      throw new APIError(
+        "Failed to fetch customer masters",
+        500,
+        "FETCH_CUSTOMERS_ERROR"
+      );
     }
   }
 
@@ -197,24 +217,28 @@ export class CustomerMasterService {
         where: { id },
         include: {
           usercreate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           userupdate: {
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true },
           },
           categoryRel: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           _count: {
             select: {
-              saleOrders: true
-            }
-          }
-        }
+              saleOrders: true,
+            },
+          },
+        },
       });
 
       if (!customerMaster) {
-        throw new APIError('Customer master not found', 404, 'CUSTOMER_MASTER_NOT_FOUND');
+        throw new APIError(
+          "Customer master not found",
+          404,
+          "CUSTOMER_MASTER_NOT_FOUND"
+        );
       }
 
       return customerMaster;
@@ -222,8 +246,12 @@ export class CustomerMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error fetching customer master by ID:', error);
-      throw new APIError('Failed to fetch customer master', 500, 'FETCH_CUSTOMER_ERROR');
+      console.error("Error fetching customer master by ID:", error);
+      throw new APIError(
+        "Failed to fetch customer master",
+        500,
+        "FETCH_CUSTOMER_ERROR"
+      );
     }
   }
 
@@ -237,11 +265,15 @@ export class CustomerMasterService {
     try {
       // Check if customer master exists
       const existingCustomer = await prisma.customer.findUnique({
-        where: { id }
+        where: { id },
       });
 
       if (!existingCustomer) {
-        throw new APIError('Customer master not found', 404, 'CUSTOMER_MASTER_NOT_FOUND');
+        throw new APIError(
+          "Customer master not found",
+          404,
+          "CUSTOMER_MASTER_NOT_FOUND"
+        );
       }
 
       // Check for duplicate email if being updated
@@ -249,19 +281,19 @@ export class CustomerMasterService {
         const duplicateEmail = await prisma.customer.findFirst({
           where: {
             email: updateData.email,
-            id: { not: id }
-          }
+            id: { not: id },
+          },
         });
 
         if (duplicateEmail) {
-          throw new APIError('Email already exists', 409, 'DUPLICATE_EMAIL');
+          throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
         }
       }
 
       // Update the customer master
       const updatedCustomer = await prisma.customer.update({
         where: { id },
-        data: updateData
+        data: updateData,
       });
 
       return updatedCustomer;
@@ -269,8 +301,12 @@ export class CustomerMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error updating customer master:', error);
-      throw new APIError('Failed to update customer master', 500, 'UPDATE_CUSTOMER_ERROR');
+      console.error("Error updating customer master:", error);
+      throw new APIError(
+        "Failed to update customer master",
+        500,
+        "UPDATE_CUSTOMER_ERROR"
+      );
     }
   }
 
@@ -288,23 +324,35 @@ export class CustomerMasterService {
         include: {
           _count: {
             select: {
-              saleOrders: true
-            }
-          }
-        }
+              saleOrders: true,
+            },
+          },
+        },
       });
 
       if (!existingCustomer) {
-        throw new APIError('Customer master not found', 404, 'CUSTOMER_MASTER_NOT_FOUND');
+        throw new APIError(
+          "Customer master not found",
+          404,
+          "CUSTOMER_MASTER_NOT_FOUND"
+        );
       }
 
       if (existingCustomer.delete_status) {
-        throw new APIError('Customer is already deleted', 400, 'CUSTOMER_ALREADY_DELETED');
+        throw new APIError(
+          "Customer is already deleted",
+          400,
+          "CUSTOMER_ALREADY_DELETED"
+        );
       }
 
       // Check if customer has any sale orders
       if (existingCustomer._count.saleOrders > 0) {
-        throw new APIError('Cannot delete customer with existing sale orders', 400, 'CUSTOMER_HAS_ORDERS');
+        throw new APIError(
+          "Cannot delete customer with existing sale orders",
+          400,
+          "CUSTOMER_HAS_ORDERS"
+        );
       }
 
       // Soft delete the customer master
@@ -313,8 +361,8 @@ export class CustomerMasterService {
         data: {
           delete_status: true,
           active_status: false,
-          updatedBy: updatedBy
-        }
+          updatedBy: updatedBy,
+        },
       });
 
       return true;
@@ -322,8 +370,12 @@ export class CustomerMasterService {
       if (error instanceof APIError) {
         throw error;
       }
-      console.error('Error deleting customer master:', error);
-      throw new APIError('Failed to delete customer master', 500, 'DELETE_CUSTOMER_ERROR');
+      console.error("Error deleting customer master:", error);
+      throw new APIError(
+        "Failed to delete customer master",
+        500,
+        "DELETE_CUSTOMER_ERROR"
+      );
     }
   }
 
@@ -343,7 +395,7 @@ export class CustomerMasterService {
       const existingCustomer = await prisma.customer.findFirst({ where });
       return !!existingCustomer;
     } catch (error) {
-      console.error('Error checking customer email:', error);
+      console.error("Error checking customer email:", error);
       return false;
     }
   }
@@ -357,30 +409,36 @@ export class CustomerMasterService {
       const customers = await prisma.customer.findMany({
         where: {
           active_status: true,
-          delete_status: false
+          delete_status: false,
         },
         select: {
           id: true,
           name: true,
           code: true,
           city: true,
-          phone: true
+          phone: true,
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: "asc",
+        },
       });
 
-      return customers.map(customer => ({
+      return customers.map((customer) => ({
         id: customer.id,
-        label: `${customer.name} (${customer.code})${customer.city ? ` - ${customer.city}` : ''}`,
+        label: `${customer.name} (${customer.code})${
+          customer.city ? ` - ${customer.city}` : ""
+        }`,
         value: customer.id,
         code: customer.code,
-        phone: customer.phone
+        phone: customer.phone,
       }));
     } catch (error) {
-      console.error('Error fetching customer dropdown:', error);
-      throw new APIError('Failed to fetch customer dropdown', 500, 'FETCH_DROPDOWN_ERROR');
+      console.error("Error fetching customer dropdown:", error);
+      throw new APIError(
+        "Failed to fetch customer dropdown",
+        500,
+        "FETCH_DROPDOWN_ERROR"
+      );
     }
   }
 }
