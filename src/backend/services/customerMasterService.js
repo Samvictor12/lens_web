@@ -66,7 +66,7 @@ export class CustomerMasterService {
           userupdate: {
             select: { id: true, name: true, email: true }
           },
-          categoryRel: {
+          category: {
             select: { id: true, name: true }
           }
         }
@@ -162,7 +162,7 @@ export class CustomerMasterService {
           userupdate: {
             select: { id: true, name: true, email: true }
           },
-          categoryRel: {
+          category: {
             select: { id: true, name: true }
           }
         }
@@ -202,7 +202,7 @@ export class CustomerMasterService {
           userupdate: {
             select: { id: true, name: true, email: true }
           },
-          categoryRel: {
+          category: {
             select: { id: true, name: true }
           },
           _count: {

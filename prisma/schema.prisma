@@ -11,9 +11,15 @@ datasource db {
 }
 
 model DepartmentDetails {
-  id         Int    @id @default(autoincrement())
-  department String
-  Users      User[]
+  id            Int      @id @default(autoincrement())
+  department    String
+  active_status Boolean  @default(true)
+  delete_status Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     Int
+  updatedBy     Int?
+  Users         User[]
 }
 
 model User {
@@ -64,6 +70,17 @@ model User {
   priceUserUpdate            LensPriceMaster[]    @relation("priceUserUpdate")
   businessCategoryUserCreate businessCategory[]   @relation("businessCategoryUserCreate")
   businessCategoryUserUpdate businessCategory[]   @relation("businessCategoryUserUpdate")
+  priceMappingCreatedBy      PriceMapping[]       @relation("priceMappingCreatedBy")
+  priceMappingUpdatedBy      PriceMapping[]       @relation("priceMappingUpdatedBy")
+  FittingUserCreate          LensFittingMaster[]  @relation("FittingUserCreate")
+  FittingUserUpdate          LensFittingMaster[]  @relation("FittingUserUpdate")
+  DiaUserCreate              LensDiaMaster[]      @relation("DiaUserCreate")
+  DiaUserUpdate              LensDiaMaster[]      @relation("DiaUserUpdate")
+  TintingUserCreate          LensTintingMaster[]  @relation("TintingUserCreate")
+  TintingUserUpdate          LensTintingMaster[]  @relation("TintingUserUpdate")
+  saleOrderCreatedBy         SaleOrder[]          @relation("saleOrderCreatedBy")
+  saleOrderUpdatedBy         SaleOrder[]          @relation("saleOrderUpdatedBy")
+  saleOrderAssignedPerson    SaleOrder[]          @relation("saleOrderAssignedPerson")
 }
 
 model Role {
@@ -142,12 +159,13 @@ model Customer {
   updatedAt           DateTime          @updatedAt
   updatedBy           Int?
   // Relationship Fields
-  categoryRel         businessCategory? @relation("customerCategory", fields: [businessCategory_id], references: [id])
+  category            businessCategory? @relation("customerCategory", fields: [businessCategory_id], references: [id])
   usercreate          User              @relation("customerUserCreate", fields: [createdBy], references: [id])
   userupdate          User?             @relation("customerUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
   saleOrders          SaleOrder[]
   dispatchCopies      DispatchCopy[]
+  priceMappings       PriceMapping[]
 }
 
 model Vendor {
@@ -193,6 +211,7 @@ model LensCategoryMaster {
   Usercreated        User                @relation("categoryUserCreate", fields: [createdBy], references: [id])
   Userupdated        User?               @relation("categoryUserUpdate", fields: [updatedBy], references: [id])
   lensProductMasters LensProductMaster[]
+  saleOrders         SaleOrder[]
 }
 
 model LensMaterialMaster {
@@ -226,6 +245,58 @@ model LensCoatingMaster {
   Usercreated      User              @relation("coatingUserCreate", fields: [createdBy], references: [id])
   Userupdated      User?             @relation("coatingUserUpdate", fields: [updatedBy], references: [id])
   lensPriceMasters LensPriceMaster[]
+  saleOrders       SaleOrder[]
+}
+
+model LensFittingMaster {
+  id           Int         @id @default(autoincrement())
+  name         String      @unique
+  short_name   String
+  description  String?
+  activeStatus Boolean     @default(true)
+  deleteStatus Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime?   @updatedAt
+  createdBy    Int
+  updatedBy    Int?
+  // Relationships Fields
+  Usercreated  User        @relation("FittingUserCreate", fields: [createdBy], references: [id])
+  Userupdated  User?       @relation("FittingUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders   SaleOrder[]
+}
+
+model LensDiaMaster {
+  id           Int         @id @default(autoincrement())
+  name         String      @unique
+  short_name   String
+  description  String?
+  activeStatus Boolean     @default(true)
+  deleteStatus Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime?   @updatedAt
+  createdBy    Int
+  updatedBy    Int?
+  // Relationships Fields
+  Usercreated  User        @relation("DiaUserCreate", fields: [createdBy], references: [id])
+  Userupdated  User?       @relation("DiaUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders   SaleOrder[]
+}
+
+model LensTintingMaster {
+  id           Int         @id @default(autoincrement())
+  name         String      @unique
+  short_name   String
+  description  String?
+  activeStatus Boolean     @default(true)
+  deleteStatus Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime?   @updatedAt
+  createdBy    Int
+  updatedBy    Int?
+  // Relationships Fields
+  Usercreated  User        @relation("TintingUserCreate", fields: [createdBy], references: [id])
+  Userupdated  User?       @relation("TintingUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders   SaleOrder[]
 }
 
 model LensBrandMaster {
@@ -258,6 +329,7 @@ model LensTypeMaster {
   Usercreated        User                @relation("typeUserCreate", fields: [createdBy], references: [id])
   Userupdated        User?               @relation("typeUserUpdate", fields: [updatedBy], references: [id])
   lensProductMasters LensProductMaster[]
+  saleOrders         SaleOrder[]
 }
 
 model LensProductMaster {
@@ -292,6 +364,8 @@ model LensProductMaster {
   Userupdated      User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
   lensPriceMasters LensPriceMaster[]
+  priceMappings    PriceMapping[]
+  saleOrders       SaleOrder[]
 }
 
 model LensPriceMaster {
@@ -321,93 +395,18 @@ enum SaleOrderStatus {
   DELIVERED
 }
 
-model SaleOrder {
-  id               Int             @id @default(autoincrement())
-  customerId       Int
-  customer         Customer        @relation(fields: [customerId], references: [id])
-  status           SaleOrderStatus @default(DRAFT)
-  // Basic order information
-  customerRefNo    String? // Customer reference number
-  orderDate        DateTime        @default(now())
-  type             String? // "Normal Processing", "Rush Processing", "Premium Processing"
-  deliverySchedule DateTime?
-  remark           String?
-  itemRefNo        String?
-  freeLens         Boolean         @default(false)
-  // Lens details
-  lensName         String?
-  category         String? // "Single Vision", "BiFocal", "Progressive", "Reading"
-  lensType         String? // "Glass", "Plastic", "Polycarbonate", "Trivex"
-  dia              String?
-  fittingType      String? // "Standard", "Premium", "Custom"
-  coatingType      String? // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
-  coatingName      String? // "CLAIRITE", "CRIZAL", "ULTRA", "PREMIUM"
-  tintingName      String? // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
-  // Eye selection
-  rightEye         Boolean         @default(false)
-  leftEye          Boolean         @default(false)
-  // Right eye specifications
-  rightSpherical   String?
-  rightCylindrical String?
-  rightAxis        String?
-  rightAdd         String?
-  rightDia         String?
-  rightBase        String?
-  rightBaseSize    String?
-  rightBled        String?
-  // Left eye specifications
-  leftSpherical    String?
-  leftCylindrical  String?
-  leftAxis         String?
-  leftAdd          String?
-  leftDia          String?
-  leftBase         String?
-  leftBaseSize     String?
-  leftBled         String?
-  // Dispatch information
-  dispatchStatus   String?         @default("Pending") // "Pending", "Assigned", "In Transit", "Delivered"
-  assignedPerson   String?
-  dispatchId       String?
-  estimatedDate    DateTime?
-  estimatedTime    String?
-  actualDate       DateTime?
-  actualTime       String?
-  dispatchNotes    String?
-  // Billing information
-  lensPrice        Float           @default(0)
-  coatingPrice     Float           @default(0)
-  fittingPrice     Float           @default(0)
-  tintingPrice     Float           @default(0)
-  discount         Float           @default(0) // Percentage discount
-  // Relations
-  // items            SaleOrderItem[]
-  invoice          Invoice?        @relation(fields: [invoiceId], references: [id])
-  invoiceId        Int?
-  purchaseOrders   PurchaseOrder[]
-  dispatch         DispatchCopy?   @relation(fields: [dispatchCopyId], references: [id])
-  dispatchCopyId   Int?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+model SaleOrderItem {
+  id          Int       @id @default(autoincrement())
+  saleOrderId Int
+  saleOrder   SaleOrder @relation(fields: [saleOrderId], references: [id])
+  quantity    Int       @default(1)
+  price       Float // Price at time of sale
+  discount    Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  @@index([invoiceId])
-  @@index([dispatchCopyId])
+  @@index([saleOrderId])
 }
-
-// model SaleOrderItem {
-//   id            Int         @id @default(autoincrement())
-//   saleOrderId   Int
-//   saleOrder     SaleOrder   @relation(fields: [saleOrderId], references: [id])
-//   lensVariantId Int
-//   lensVariant   LensVariant @relation(fields: [lensVariantId], references: [id])
-//   quantity      Int         @default(1)
-//   price         Float // Price at time of sale
-//   discount      Float       @default(0)
-//   createdAt     DateTime    @default(now())
-//   updatedAt     DateTime    @updatedAt
-
-//   @@index([saleOrderId])
-//   @@index([lensVariantId])
-// }
 
 enum PaymentMethod {
   CASH
@@ -516,3 +515,105 @@ model DispatchCopy {
 //   @@index([purchaseOrderId])
 //   @@index([lensVariantId])
 // }
+
+model PriceMapping {
+  id             Int               @id @default(autoincrement())
+  lensProduct_id Int
+  lensProduct    LensProductMaster @relation(fields: [lensProduct_id], references: [id])
+  customer_id    Int
+  customer       Customer          @relation(fields: [customer_id], references: [id])
+  discountRate   Float             @default(0) // Percentage discount for this customer on this lens product
+  createdAt      DateTime          @default(now())
+  createdBy      Int
+  updatedAt      DateTime          @updatedAt
+  updatedBy      Int?
+  createdByUser  User              @relation("priceMappingCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser  User?             @relation("priceMappingUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([lensProduct_id])
+  @@index([customer_id])
+}
+
+model SaleOrder {
+  id                Int                 @id @default(autoincrement())
+  orderNo           String              @unique // e.g., SO-2025-001
+  customerId        Int
+  customer          Customer            @relation(fields: [customerId], references: [id])
+  status            SaleOrderStatus     @default(DRAFT)
+  // Basic order information
+  customerRefNo     String? // Customer reference number
+  orderDate         DateTime            @default(now())
+  type              String? // "Normal Processing", "Rush Processing", "Premium Processing"
+  deliverySchedule  DateTime?
+  remark            String?
+  itemRefNo         String?
+  freeLens          Boolean             @default(false)
+  // Lens details
+  lens_id           Int?
+  category_id       Int? // "Single Vision", "BiFocal", "Progressive", "Reading"
+  Type_id           Int? // "Glass", "Plastic", "Polycarbonate", "Trivex"
+  dia_id            Int?
+  fitting_id        Int? // "Standard", "Premium", "Custom"
+  coating_id        Int? // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
+  tinting_id        Int? // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
+  lensProduct       LensProductMaster?  @relation(fields: [lens_id], references: [id])
+  category          LensCategoryMaster? @relation(fields: [category_id], references: [id])
+  lensType          LensTypeMaster?     @relation(fields: [Type_id], references: [id])
+  dia               LensDiaMaster?      @relation(fields: [dia_id], references: [id])
+  fitting           LensFittingMaster?  @relation(fields: [fitting_id], references: [id])
+  coating           LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
+  tinting           LensTintingMaster?  @relation(fields: [tinting_id], references: [id])
+  // Eye selection
+  rightEye          Boolean             @default(false)
+  leftEye           Boolean             @default(false)
+  // Right eye specifications
+  rightSpherical    String?
+  rightCylindrical  String?
+  rightAxis         String?
+  rightAdd          String?
+  rightDia          String?
+  rightBase         String?
+  rightBaseSize     String?
+  rightBled         String?
+  // Left eye specifications
+  leftSpherical     String?
+  leftCylindrical   String?
+  leftAxis          String?
+  leftAdd           String?
+  leftDia           String?
+  leftBase          String?
+  leftBaseSize      String?
+  leftBled          String?
+  // Dispatch information
+  dispatchStatus    String?             @default("Pending") // "Pending", "Assigned", "In Transit", "Delivered"
+  assignedPerson_id Int?
+  dispatchId        String?
+  estimatedDate     DateTime?
+  estimatedTime     String?
+  actualDate        DateTime?
+  actualTime        String?
+  dispatchNotes     String?
+  // Billing information
+  lensPrice         Float               @default(0)
+  discount          Float               @default(0) // Percentage discount
+  // Relations
+  items             SaleOrderItem[]
+  invoice           Invoice?            @relation(fields: [invoiceId], references: [id])
+  invoiceId         Int?
+  purchaseOrders    PurchaseOrder[]
+  dispatch          DispatchCopy?       @relation(fields: [dispatchCopyId], references: [id])
+  dispatchCopyId    Int?
+  // Default fields
+  activeStatus      Boolean             @default(true)
+  deleteStatus      Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  createdBy         Int
+  updatedBy         Int?
+  createdByUser     User                @relation("saleOrderCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser     User?               @relation("saleOrderUpdatedBy", fields: [updatedBy], references: [id])
+  assignedPerson    User?               @relation("saleOrderAssignedPerson", fields: [assignedPerson_id], references: [id])
+
+  @@index([invoiceId])
+  @@index([dispatchCopyId])
+}

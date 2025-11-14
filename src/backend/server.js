@@ -22,6 +22,9 @@ import lensTypeRoutes from './routes/lensTypes.js';
 import lensProductRoutes from './routes/lensProducts.js';
 import lensPriceRoutes from './routes/lensPrices.js';
 import businessCategoryRoutes from './routes/businessCategory.js';
+import priceMappingRoutes from './routes/priceMappings.js';
+import lensFittingRoutes from './routes/lensFittingMaster.js';
+import lensDiaRoutes from './routes/lensDiaMaster.js';
 
 // Load environment variables
 dotenv.config();
@@ -98,6 +101,9 @@ app.use('/api/v1/lens-types', lensTypeRoutes);
 app.use('/api/v1/lens-products', lensProductRoutes);
 app.use('/api/v1/lens-prices', lensPriceRoutes);
 app.use('/api/business-category', businessCategoryRoutes);
+app.use('/api/price-mappings', priceMappingRoutes);
+app.use('/api/lens-fittings', lensFittingRoutes);
+app.use('/api/lens-dias', lensDiaRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
@@ -147,7 +153,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Lens Types API: http://localhost:${PORT}/api/v1/lens-types`);
   console.log(`Lens Products API: http://localhost:${PORT}/api/v1/lens-products`);
   console.log(`Lens Prices API: http://localhost:${PORT}/api/v1/lens-prices`);
+  console.log(`Lens Fittings API: http://localhost:${PORT}/api/lens-fittings`);
+  console.log(`Lens Diameters API: http://localhost:${PORT}/api/lens-dias`);
   console.log(`Business Category API: http://localhost:${PORT}/api/business-category`);
+  console.log(`Price Mappings API: http://localhost:${PORT}/api/price-mappings`);
 });
 
 server.on('listening', () => {
