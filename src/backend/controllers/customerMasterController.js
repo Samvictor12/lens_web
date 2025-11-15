@@ -1,4 +1,4 @@
-import CustomerMasterService from '../services/customerMasterService.js';
+import CustomerMasterService from '../services/customerMaster.service.js';
 import {
   validateCreateCustomerMaster,
   validateUpdateCustomerMaster,

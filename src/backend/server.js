@@ -8,24 +8,24 @@ import swaggerUi from 'swagger-ui-express';
 import { errorHandler } from './middleware/errorHandler.js';
 
 // Route imports
-import authRoutes from './routes/auth.js';
-import saleOrderRoutes from './routes/saleOrders.js';
-import customerMasterRoutes from './routes/customerMaster.js';
-import vendorMasterRoutes from './routes/vendorMaster.js';
-import userMasterRoutes from './routes/userMaster.js';
+import authRoutes from './routes/auth.routes.js';
+import saleOrderRoutes from './routes/saleOrders.routes.js';
+import customerMasterRoutes from './routes/customerMaster.routes.js';
+import vendorMasterRoutes from './routes/vendorMaster.routes.js';
+import userMasterRoutes from './routes/userMaster.routes.js';
 // Lens Master Routes
-import lensCategoryRoutes from './routes/lensCategories.js';
-import lensMaterialRoutes from './routes/lensMaterials.js';
-import lensCoatingRoutes from './routes/lensCoatings.js';
-import lensBrandRoutes from './routes/lensBrands.js';
-import lensTypeRoutes from './routes/lensTypes.js';
-import lensProductRoutes from './routes/lensProducts.js';
-import lensPriceRoutes from './routes/lensPrices.js';
+import lensCategoryRoutes from './routes/lensCategories.routes.js';
+import lensMaterialRoutes from './routes/lensMaterials.routes.js';
+import lensCoatingRoutes from './routes/lensCoatings.routes.js';
+import lensBrandRoutes from './routes/lensBrands.routes.js';
+import lensTypeRoutes from './routes/lensTypes.routes.js';
+import lensProductRoutes from './routes/lensProducts.routes.js';
+import lensPriceRoutes from './routes/lensPrices.routes.js';
 import businessCategoryRoutes from './routes/businessCategory.routes.js';
 import departmentRoutes from './routes/department.routes.js';
-import priceMappingRoutes from './routes/priceMappings.js';
-import lensFittingRoutes from './routes/lensFittingMaster.js';
-import lensDiaRoutes from './routes/lensDiaMaster.js';
+import priceMappingRoutes from './routes/priceMappings.routes.js';
+import lensFittingRoutes from './routes/lensFittingMaster.routes.js';
+import lensDiaRoutes from './routes/lensDiaMaster.routes.js';
 
 // Load environment variables
 dotenv.config();

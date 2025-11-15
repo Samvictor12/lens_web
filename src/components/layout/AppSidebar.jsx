@@ -150,6 +150,11 @@ const masterItems = [
         url: "/masters/lens-type",
         icon: Grid,
       },
+      {
+        title: "Lens Products",
+        url: "/masters/lens-product",
+        icon: Package,
+      },
     ],
   },
   {

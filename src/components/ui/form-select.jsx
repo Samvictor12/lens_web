@@ -27,8 +27,9 @@ const FormSelect = React.forwardRef(
 
     // Convert options to react-select format if needed
     const selectOptions = options.map((option) => ({
-      value: option.id,
-      label: option.name,
+      value: option.value !== undefined ? option.value : option.id,
+      label: option.label !== undefined ? option.label : option.name,
+      ...option, // Preserve other properties like code
     }));
 
     // Find selected option
@@ -48,7 +49,7 @@ const FormSelect = React.forwardRef(
           : state.isFocused
           ? "hsl(var(--ring))"
           : "hsl(var(--input))",
-        backgroundColor: "hsl(var(--background))",
+        backgroundColor: disabled ? "hsl(var(--muted) / 0.3)" : "hsl(var(--background))",
         boxShadow: state.isFocused ? "0 0 0 1px hsl(var(--ring))" : "none",
         "&:hover": {
           borderColor: state.isFocused
@@ -56,7 +57,7 @@ const FormSelect = React.forwardRef(
             : "hsl(var(--input))",
         },
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
+        opacity: disabled ? 0.7 : 1,
       }),
       valueContainer: (base) => ({
         ...base,
@@ -126,13 +127,14 @@ const FormSelect = React.forwardRef(
       }),
       placeholder: (base) => ({
         ...base,
-        color: "hsl(var(--muted-foreground))",
+        color: "hsl(var(--muted-foreground) / 0.4)",
         fontSize: "0.875rem",
       }),
-      singleValue: (base) => ({
+      singleValue: (base, state) => ({
         ...base,
         color: "hsl(var(--foreground))",
         fontSize: "0.875rem",
+        opacity: state.isDisabled ? 1 : 1,
       }),
       noOptionsMessage: (base) => ({
         ...base,
