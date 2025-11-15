@@ -3,14 +3,16 @@
  * Handles HTTP requests for lens product management
  */
 
-import * as LensProductService from '../services/lensProductMasterService.js';
-import { 
-  validateCreateLensProduct, 
-  validateUpdateLensProduct, 
+import LensProductMasterService from "../services/lensProductMasterService.js";
+import {
+  validateCreateLensProduct,
+  validateUpdateLensProduct,
   validateIdParam,
-  validateQueryParams 
-} from '../dto/lensMastersDto.js';
-import { APIError } from '../utils/errors.js';
+  validateQueryParams,
+} from "../dto/lensMastersDto.js";
+import { APIError } from "../utils/errors.js";
+
+const lensProductMasterService = new LensProductMasterService();
 
 /**
  * Create new lens product
@@ -18,25 +20,28 @@ import { APIError } from '../utils/errors.js';
  */
 export const createLensProduct = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const validation = validateCreateLensProduct({ ...req.body, createdBy: userId });
+    const validation = validateCreateLensProduct({
+      ...req.body,
+      createdBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const product = await LensProductService.createLensProduct(validation.data);
+    const product = await lensProductMasterService.createLensProduct(validation.data);
     res.status(201).json({
       success: true,
-      message: 'Lens product created successfully',
-      data: product
+      message: "Lens product created successfully",
+      data: product,
     });
   } catch (error) {
     next(error);
@@ -53,26 +58,30 @@ export const getAllLensProducts = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid query parameters',
-        errors: validation.errors
+        message: "Invalid query parameters",
+        errors: validation.errors,
       });
     }
 
     const filters = {
       ...validation.data,
       brand_id: req.query.brand_id ? parseInt(req.query.brand_id) : undefined,
-      category_id: req.query.category_id ? parseInt(req.query.category_id) : undefined,
-      material_id: req.query.material_id ? parseInt(req.query.material_id) : undefined,
+      category_id: req.query.category_id
+        ? parseInt(req.query.category_id)
+        : undefined,
+      material_id: req.query.material_id
+        ? parseInt(req.query.material_id)
+        : undefined,
       type_id: req.query.type_id ? parseInt(req.query.type_id) : undefined,
-      search: req.query.search
+      search: req.query.search,
     };
 
-    const result = await LensProductService.getAllLensProducts(filters);
+    const result = await lensProductMasterService.getLensProducts(filters);
     res.status(200).json({
       success: true,
-      message: 'Lens products retrieved successfully',
+      message: "Lens products retrieved successfully",
       data: result.products,
-      pagination: result.pagination
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -89,16 +98,16 @@ export const getLensProductById = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const product = await LensProductService.getLensProductById(validation.id);
+    const product = await lensProductMasterService.getLensProductById(validation.id);
     res.status(200).json({
       success: true,
-      message: 'Lens product retrieved successfully',
-      data: product
+      message: "Lens product retrieved successfully",
+      data: product,
     });
   } catch (error) {
     next(error);
@@ -111,34 +120,40 @@ export const getLensProductById = async (req, res, next) => {
  */
 export const updateLensProduct = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const idValidation = validateIdParam(req.params.id);
     if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: idValidation.errors
+        message: "Invalid ID parameter",
+        errors: idValidation.errors,
       });
     }
 
-    const validation = validateUpdateLensProduct({ ...req.body, updatedBy: userId });
+    const validation = validateUpdateLensProduct({
+      ...req.body,
+      updatedBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const product = await LensProductService.updateLensProduct(idValidation.id, validation.data);
+    const product = await lensProductMasterService.updateLensProduct(
+      idValidation.id,
+      validation.data
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens product updated successfully',
-      data: product
+      message: "Lens product updated successfully",
+      data: product,
     });
   } catch (error) {
     next(error);
@@ -151,25 +166,28 @@ export const updateLensProduct = async (req, res, next) => {
  */
 export const deleteLensProduct = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const validation = validateIdParam(req.params.id);
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const product = await LensProductService.deleteLensProduct(validation.id, userId);
+    const product = await lensProductMasterService.deleteLensProduct(
+      validation.id,
+      userId
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens product deleted successfully',
-      data: product
+      message: "Lens product deleted successfully",
+      data: product,
     });
   } catch (error) {
     next(error);
@@ -184,16 +202,22 @@ export const getLensProductsDropdown = async (req, res, next) => {
   try {
     const filters = {
       brand_id: req.query.brand_id ? parseInt(req.query.brand_id) : undefined,
-      category_id: req.query.category_id ? parseInt(req.query.category_id) : undefined,
-      material_id: req.query.material_id ? parseInt(req.query.material_id) : undefined,
-      type_id: req.query.type_id ? parseInt(req.query.type_id) : undefined
+      category_id: req.query.category_id
+        ? parseInt(req.query.category_id)
+        : undefined,
+      material_id: req.query.material_id
+        ? parseInt(req.query.material_id)
+        : undefined,
+      type_id: req.query.type_id ? parseInt(req.query.type_id) : undefined,
     };
 
-    const products = await LensProductService.getLensProductsForDropdown(filters);
+    const products = await lensProductMasterService.getProductDropdown(
+      filters
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens products dropdown retrieved successfully',
-      data: products
+      message: "Lens products dropdown retrieved successfully",
+      data: products,
     });
   } catch (error) {
     next(error);
@@ -206,11 +230,11 @@ export const getLensProductsDropdown = async (req, res, next) => {
  */
 export const getLensProductStatistics = async (req, res, next) => {
   try {
-    const stats = await LensProductService.getLensProductStatistics();
+    const stats = await lensProductMasterService.getLensProductStatistics();
     res.status(200).json({
       success: true,
-      message: 'Lens product statistics retrieved successfully',
-      data: stats
+      message: "Lens product statistics retrieved successfully",
+      data: stats,
     });
   } catch (error) {
     next(error);
@@ -227,16 +251,18 @@ export const getProductsByCategory = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid category ID parameter',
-        errors: validation.errors
+        message: "Invalid category ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const products = await LensProductService.getProductsByCategory(validation.id);
+    const products = await lensProductMasterService.getProductsByCategory(
+      validation.id
+    );
     res.status(200).json({
       success: true,
-      message: 'Products by category retrieved successfully',
-      data: products
+      message: "Products by category retrieved successfully",
+      data: products,
     });
   } catch (error) {
     next(error);
@@ -249,17 +275,17 @@ export const getProductsByCategory = async (req, res, next) => {
  */
 export const addOrUpdateLensPrice = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const lensIdValidation = validateIdParam(req.params.lensId);
     if (!lensIdValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid lens ID parameter',
-        errors: lensIdValidation.errors
+        message: "Invalid lens ID parameter",
+        errors: lensIdValidation.errors,
       });
     }
 
@@ -267,21 +293,28 @@ export const addOrUpdateLensPrice = async (req, res, next) => {
     if (!coatingIdValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid coating ID parameter',
-        errors: coatingIdValidation.errors
+        message: "Invalid coating ID parameter",
+        errors: coatingIdValidation.errors,
       });
     }
 
     const { price } = req.body;
-    if (price === undefined || price === null || typeof price !== 'number' || price < 0) {
+    if (
+      price === undefined ||
+      price === null ||
+      typeof price !== "number" ||
+      price < 0
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Valid price is required',
-        errors: [{ field: 'price', message: 'Price must be a positive number' }]
+        message: "Valid price is required",
+        errors: [
+          { field: "price", message: "Price must be a positive number" },
+        ],
       });
     }
 
-    const result = await LensProductService.addOrUpdateLensPrice(
+    const result = await lensProductMasterService.addOrUpdateLensPrice(
       lensIdValidation.id,
       coatingIdValidation.id,
       price,
@@ -290,8 +323,8 @@ export const addOrUpdateLensPrice = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Lens price added/updated successfully',
-      data: result
+      message: "Lens price added/updated successfully",
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -304,17 +337,17 @@ export const addOrUpdateLensPrice = async (req, res, next) => {
  */
 export const bulkAddOrUpdateLensPrices = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const lensIdValidation = validateIdParam(req.params.lensId);
     if (!lensIdValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid lens ID parameter',
-        errors: lensIdValidation.errors
+        message: "Invalid lens ID parameter",
+        errors: lensIdValidation.errors,
       });
     }
 
@@ -322,31 +355,43 @@ export const bulkAddOrUpdateLensPrices = async (req, res, next) => {
     if (!Array.isArray(prices) || prices.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Prices array is required and must not be empty',
-        errors: [{ field: 'prices', message: 'Prices must be a non-empty array' }]
+        message: "Prices array is required and must not be empty",
+        errors: [
+          { field: "prices", message: "Prices must be a non-empty array" },
+        ],
       });
     }
 
     // Validate each price object
     const errors = [];
     prices.forEach((price, index) => {
-      if (!price.coating_id || typeof price.coating_id !== 'number') {
-        errors.push({ field: `prices[${index}].coating_id`, message: 'Coating ID is required' });
+      if (!price.coating_id || typeof price.coating_id !== "number") {
+        errors.push({
+          field: `prices[${index}].coating_id`,
+          message: "Coating ID is required",
+        });
       }
-      if (price.price === undefined || typeof price.price !== 'number' || price.price < 0) {
-        errors.push({ field: `prices[${index}].price`, message: 'Price must be a positive number' });
+      if (
+        price.price === undefined ||
+        typeof price.price !== "number" ||
+        price.price < 0
+      ) {
+        errors.push({
+          field: `prices[${index}].price`,
+          message: "Price must be a positive number",
+        });
       }
     });
 
     if (errors.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors
+        message: "Validation failed",
+        errors,
       });
     }
 
-    const result = await LensProductService.bulkAddOrUpdateLensPrices(
+    const result = await lensProductMasterService.bulkAddOrUpdateLensPrices(
       lensIdValidation.id,
       prices,
       userId
@@ -355,7 +400,7 @@ export const bulkAddOrUpdateLensPrices = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Bulk prices processed successfully. ${result.pricesProcessed} prices updated.`,
-      data: result
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -368,17 +413,17 @@ export const bulkAddOrUpdateLensPrices = async (req, res, next) => {
  */
 export const deleteLensPrice = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const lensIdValidation = validateIdParam(req.params.lensId);
     if (!lensIdValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid lens ID parameter',
-        errors: lensIdValidation.errors
+        message: "Invalid lens ID parameter",
+        errors: lensIdValidation.errors,
       });
     }
 
@@ -386,12 +431,12 @@ export const deleteLensPrice = async (req, res, next) => {
     if (!coatingIdValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid coating ID parameter',
-        errors: coatingIdValidation.errors
+        message: "Invalid coating ID parameter",
+        errors: coatingIdValidation.errors,
       });
     }
 
-    await LensProductService.deleteLensPrice(
+    await lensProductMasterService.deleteLensPrice(
       lensIdValidation.id,
       coatingIdValidation.id,
       userId
@@ -399,7 +444,7 @@ export const deleteLensPrice = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Lens price deleted successfully'
+      message: "Lens price deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -416,16 +461,18 @@ export const getLensPricesByLensId = async (req, res, next) => {
     if (!lensIdValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid lens ID parameter',
-        errors: lensIdValidation.errors
+        message: "Invalid lens ID parameter",
+        errors: lensIdValidation.errors,
       });
     }
 
-    const prices = await LensProductService.getLensPricesByLensId(lensIdValidation.id);
+    const prices = await lensProductMasterService.getLensPricesByLensId(
+      lensIdValidation.id
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens prices retrieved successfully',
-      data: prices
+      message: "Lens prices retrieved successfully",
+      data: prices,
     });
   } catch (error) {
     next(error);

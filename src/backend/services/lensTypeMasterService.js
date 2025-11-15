@@ -38,11 +38,11 @@ export class LensTypeMasterService {
         }
     }
 
-    async getLensTypes(queryParams) {
-        try {
-            const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, activeStatus } = queryParams;
-
-            const where = { deleteStatus: false };
+  async getAllLensTypes(queryParams) {
+    try {
+      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, activeStatus } = queryParams;
+      
+      const where = { deleteStatus: false };
 
             if (search) {
                 where.OR = [
@@ -51,8 +51,8 @@ export class LensTypeMasterService {
                 ];
             }
 
-            if (activeStatus !== undefined) {
-                where.activeStatus = activeStatus === 'true';
+            if (activeStatus !== undefined && activeStatus !== 'all') {
+                where.activeStatus = activeStatus === 'true' || activeStatus === true;
             }
 
             const offset = (page - 1) * limit;

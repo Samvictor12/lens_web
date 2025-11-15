@@ -35,6 +35,10 @@ import LensMaterialMain from "./pages/LensMaterial/LensMaterialMain";
 import LensMaterialForm from "./pages/LensMaterial/LensMaterialForm";
 import LensCoatingMain from "./pages/LensCoating/LensCoatingMain";
 import LensCoatingForm from "./pages/LensCoating/LensCoatingForm";
+import LensBrandMain from "./pages/LensBrandMaster/LensBrandMain";
+import LensBrandForm from "./pages/LensBrandMaster/LensBrandForm";
+import LensTypeMain from "./pages/LensTypeMaster/LensTypeMain";
+import LensTypeForm from "./pages/LensTypeMaster/LensTypeForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -126,6 +130,12 @@ const AppRoutes = () => (
       <Route path="/masters/lens-coating" element={<ProtectedRoute><LensCoatingMain /></ProtectedRoute>} />
       <Route path="/masters/lens-coating/:mode" element={<ProtectedRoute><LensCoatingForm /></ProtectedRoute>} />
       <Route path="/masters/lens-coating/:mode/:id" element={<ProtectedRoute><LensCoatingForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-brand" element={<ProtectedRoute><LensBrandMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-brand/:mode" element={<ProtectedRoute><LensBrandForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-brand/:mode/:id" element={<ProtectedRoute><LensBrandForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-type" element={<ProtectedRoute><LensTypeMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-type/:mode" element={<ProtectedRoute><LensTypeForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-type/:mode/:id" element={<ProtectedRoute><LensTypeForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

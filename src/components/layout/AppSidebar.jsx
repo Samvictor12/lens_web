@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -16,7 +17,11 @@ import {
   UserCog,
   Layers,
   Sparkles,
+  Award,
+  Grid,
+  ChevronRight,
 } from "lucide-react";
+import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -116,22 +121,36 @@ const masterItems = [
     // allowedRoles: ["admin", "sales"],
   },
   {
-    title: "Lens Categories",
-    url: "/masters/lens-category",
-    icon: Layers,
-    // allowedRoles: ["admin", "inventory"],
-  },
-  {
-    title: "Lens Materials",
-    url: "/masters/lens-material",
+    title: "Lens Masters",
     icon: Package,
     // allowedRoles: ["admin", "inventory"],
-  },
-  {
-    title: "Lens Coatings",
-    url: "/masters/lens-coating",
-    icon: Sparkles,
-    // allowedRoles: ["admin", "inventory"],
+    subItems: [
+      {
+        title: "Lens Categories",
+        url: "/masters/lens-category",
+        icon: Layers,
+      },
+      {
+        title: "Lens Materials",
+        url: "/masters/lens-material",
+        icon: Package,
+      },
+      {
+        title: "Lens Coatings",
+        url: "/masters/lens-coating",
+        icon: Sparkles,
+      },
+      {
+        title: "Lens Brands",
+        url: "/masters/lens-brand",
+        icon: Award,
+      },
+      {
+        title: "Lens Types",
+        url: "/masters/lens-type",
+        icon: Grid,
+      },
+    ],
   },
   {
     title: "Departments",
@@ -144,12 +163,6 @@ const masterItems = [
     url: "/masters/users",
     icon: UserCog,
     // allowedRoles: ["admin"],
-  },
-  {
-    title: "Lens Types",
-    url: "/masters/lens-types",
-    icon: Eye,
-    // allowedRoles: ["admin", "inventory"],
   },
   {
     title: "Price Mapping",
@@ -169,8 +182,20 @@ export const AppSidebar = () => {
   const { state } = useSidebar();
   const location = useLocation();
   const { hasPermission } = useAuth();
+  const [openSubmenus, setOpenSubmenus] = React.useState({});
 
   const isActive = (path) => location.pathname === path;
+  
+  const toggleSubmenu = (title) => {
+    setOpenSubmenus(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }));
+  };
+
+  const isSubmenuActive = (subItems) => {
+    return subItems?.some(item => location.pathname.startsWith(item.url));
+  };
 
   // ROLE ACCESS DISABLED - Show all items for now
   // const filteredNavItems = navItems.filter((item) =>
@@ -245,32 +270,94 @@ export const AppSidebar = () => {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {filteredMasterItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <SidebarMenuButton asChild>
-                            <NavLink
-                              to={item.url}
-                              className={({ isActive }) =>
-                                isActive
-                                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                  : "hover:bg-sidebar-accent/50"
-                              }
-                            >
-                              <item.icon className="h-4 w-4" />
-                              {state !== "collapsed" && (
-                                <span>{item.title}</span>
+                    <React.Fragment key={item.title}>
+                      {item.subItems ? (
+                        <Collapsible.Root
+                          open={openSubmenus[item.title] || isSubmenuActive(item.subItems)}
+                          onOpenChange={() => toggleSubmenu(item.title)}
+                        >
+                          <SidebarMenuItem>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Collapsible.Trigger asChild>
+                                  <SidebarMenuButton
+                                    className={isSubmenuActive(item.subItems) ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : ""}
+                                  >
+                                    <item.icon className="h-4 w-4" />
+                                    {state !== "collapsed" && (
+                                      <>
+                                        <span>{item.title}</span>
+                                        <ChevronRight
+                                          className={`ml-auto h-4 w-4 transition-transform ${
+                                            openSubmenus[item.title] || isSubmenuActive(item.subItems) ? "rotate-90" : ""
+                                          }`}
+                                        />
+                                      </>
+                                    )}
+                                  </SidebarMenuButton>
+                                </Collapsible.Trigger>
+                              </TooltipTrigger>
+                              {state === "collapsed" && (
+                                <TooltipContent side="right" className="ml-2">
+                                  {item.title}
+                                </TooltipContent>
                               )}
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </TooltipTrigger>
-                        {state === "collapsed" && (
-                          <TooltipContent side="right" className="ml-2">
-                            {item.title}
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </SidebarMenuItem>
+                            </Tooltip>
+                          </SidebarMenuItem>
+                          
+                          <Collapsible.Content>
+                            {state !== "collapsed" && (
+                              <SidebarMenu className="ml-4 border-l pl-2">
+                                {item.subItems.map((subItem) => (
+                                  <SidebarMenuItem key={subItem.title}>
+                                    <SidebarMenuButton asChild>
+                                      <NavLink
+                                        to={subItem.url}
+                                        className={({ isActive }) =>
+                                          isActive
+                                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                            : "hover:bg-sidebar-accent/50"
+                                        }
+                                      >
+                                        <subItem.icon className="h-3.5 w-3.5" />
+                                        <span className="text-sm">{subItem.title}</span>
+                                      </NavLink>
+                                    </SidebarMenuButton>
+                                  </SidebarMenuItem>
+                                ))}
+                              </SidebarMenu>
+                            )}
+                          </Collapsible.Content>
+                        </Collapsible.Root>
+                      ) : (
+                        <SidebarMenuItem>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <SidebarMenuButton asChild>
+                                <NavLink
+                                  to={item.url}
+                                  className={({ isActive }) =>
+                                    isActive
+                                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                      : "hover:bg-sidebar-accent/50"
+                                  }
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  {state !== "collapsed" && (
+                                    <span>{item.title}</span>
+                                  )}
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </TooltipTrigger>
+                            {state === "collapsed" && (
+                              <TooltipContent side="right" className="ml-2">
+                                {item.title}
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </SidebarMenuItem>
+                      )}
+                    </React.Fragment>
                   ))}
                 </SidebarMenu>
               </SidebarGroupContent>

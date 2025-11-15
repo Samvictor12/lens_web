@@ -20,7 +20,7 @@ const lensBrandService = new LensBrandMasterService();
  */
 export const createLensBrand = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
       throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
@@ -63,11 +63,11 @@ export const getAllLensBrands = async (req, res, next) => {
       });
     }
 
-    const result = await lensBrandService.getLensBrands(validation.data);
+    const result = await lensBrandService.getAllLensBrands(validation.data);
     res.status(200).json({
       success: true,
       message: "Lens brands retrieved successfully",
-      data: result.brands,
+      data: result.data,
       pagination: result.pagination,
     });
   } catch (error) {
@@ -107,7 +107,7 @@ export const getLensBrandById = async (req, res, next) => {
  */
 export const updateLensBrand = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
       throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
@@ -153,7 +153,7 @@ export const updateLensBrand = async (req, res, next) => {
  */
 export const deleteLensBrand = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
       throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }

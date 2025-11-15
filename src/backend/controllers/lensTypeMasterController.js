@@ -3,14 +3,16 @@
  * Handles HTTP requests for lens type management
  */
 
-import * as LensTypeService from '../services/lensTypeMasterService.js';
-import { 
-  validateCreateLensType, 
-  validateUpdateLensType, 
+import LensTypeMasterService from "../services/lensTypeMasterService.js";
+import {
+  validateCreateLensType,
+  validateUpdateLensType,
   validateIdParam,
-  validateQueryParams 
-} from '../dto/lensMastersDto.js';
-import { APIError } from '../utils/errors.js';
+  validateQueryParams,
+} from "../dto/lensMastersDto.js";
+import { APIError } from "../utils/errors.js";
+
+const lensTypeService = new LensTypeMasterService();
 
 /**
  * Create new lens type
@@ -18,25 +20,28 @@ import { APIError } from '../utils/errors.js';
  */
 export const createLensType = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const validation = validateCreateLensType({ ...req.body, createdBy: userId });
+    const validation = validateCreateLensType({
+      ...req.body,
+      createdBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const type = await LensTypeService.createLensType(validation.data);
+    const type = await lensTypeService.createLensType(validation.data);
     res.status(201).json({
       success: true,
-      message: 'Lens type created successfully',
-      data: type
+      message: "Lens type created successfully",
+      data: type,
     });
   } catch (error) {
     next(error);
@@ -53,17 +58,17 @@ export const getAllLensTypes = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid query parameters',
-        errors: validation.errors
+        message: "Invalid query parameters",
+        errors: validation.errors,
       });
     }
 
-    const result = await LensTypeService.getAllLensTypes(validation.data);
+    const result = await lensTypeService.getAllLensTypes(validation.data);
     res.status(200).json({
       success: true,
-      message: 'Lens types retrieved successfully',
-      data: result.types,
-      pagination: result.pagination
+      message: "Lens types retrieved successfully",
+      data: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -80,16 +85,16 @@ export const getLensTypeById = async (req, res, next) => {
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const type = await LensTypeService.getLensTypeById(validation.id);
+    const type = await lensTypeService.getLensTypeById(validation.id);
     res.status(200).json({
       success: true,
-      message: 'Lens type retrieved successfully',
-      data: type
+      message: "Lens type retrieved successfully",
+      data: type,
     });
   } catch (error) {
     next(error);
@@ -102,34 +107,40 @@ export const getLensTypeById = async (req, res, next) => {
  */
 export const updateLensType = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const idValidation = validateIdParam(req.params.id);
     if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: idValidation.errors
+        message: "Invalid ID parameter",
+        errors: idValidation.errors,
       });
     }
 
-    const validation = validateUpdateLensType({ ...req.body, updatedBy: userId });
+    const validation = validateUpdateLensType({
+      ...req.body,
+      updatedBy: userId,
+    });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: validation.errors
+        message: "Validation failed",
+        errors: validation.errors,
       });
     }
 
-    const type = await LensTypeService.updateLensType(idValidation.id, validation.data);
+    const type = await lensTypeService.updateLensType(
+      idValidation.id,
+      validation.data
+    );
     res.status(200).json({
       success: true,
-      message: 'Lens type updated successfully',
-      data: type
+      message: "Lens type updated successfully",
+      data: type,
     });
   } catch (error) {
     next(error);
@@ -142,25 +153,25 @@ export const updateLensType = async (req, res, next) => {
  */
 export const deleteLensType = async (req, res, next) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!userId) {
-      throw new APIError('Unauthorized', 401, 'UNAUTHORIZED');
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
     }
 
     const validation = validateIdParam(req.params.id);
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ID parameter',
-        errors: validation.errors
+        message: "Invalid ID parameter",
+        errors: validation.errors,
       });
     }
 
-    const type = await LensTypeService.deleteLensType(validation.id, userId);
+    const type = await lensTypeService.deleteLensType(validation.id, userId);
     res.status(200).json({
       success: true,
-      message: 'Lens type deleted successfully',
-      data: type
+      message: "Lens type deleted successfully",
+      data: type,
     });
   } catch (error) {
     next(error);
@@ -173,11 +184,11 @@ export const deleteLensType = async (req, res, next) => {
  */
 export const getLensTypesDropdown = async (req, res, next) => {
   try {
-    const types = await LensTypeService.getLensTypesForDropdown();
+    const types = await lensTypeService.getLensTypesForDropdown();
     res.status(200).json({
       success: true,
-      message: 'Lens types dropdown retrieved successfully',
-      data: types
+      message: "Lens types dropdown retrieved successfully",
+      data: types,
     });
   } catch (error) {
     next(error);
@@ -190,11 +201,11 @@ export const getLensTypesDropdown = async (req, res, next) => {
  */
 export const getLensTypeStatistics = async (req, res, next) => {
   try {
-    const stats = await LensTypeService.getLensTypeStatistics();
+    const stats = await lensTypeService.getLensTypeStatistics();
     res.status(200).json({
       success: true,
-      message: 'Lens type statistics retrieved successfully',
-      data: stats
+      message: "Lens type statistics retrieved successfully",
+      data: stats,
     });
   } catch (error) {
     next(error);
