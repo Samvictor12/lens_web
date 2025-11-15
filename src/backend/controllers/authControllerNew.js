@@ -26,7 +26,7 @@ export class AuthController {
     try {
       // Validate request body
       const validation = validateLogin(req.body);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -68,7 +68,7 @@ export class AuthController {
     try {
       // Validate request body
       const validation = validateRefreshToken(req.body);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -97,7 +97,7 @@ export class AuthController {
   async logout(req, res, next) {
     try {
       const userId = req.user?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -124,7 +124,7 @@ export class AuthController {
   async getProfile(req, res, next) {
     try {
       const userId = req.user?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -151,7 +151,7 @@ export class AuthController {
   async changePassword(req, res, next) {
     try {
       const userId = req.user?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -161,7 +161,7 @@ export class AuthController {
 
       // Validate request body
       const validation = validateChangePassword(req.body);
-      
+
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -193,7 +193,7 @@ export class AuthController {
   async validateToken(req, res, next) {
     try {
       const authHeader = req.headers.authorization;
-      
+
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({
           success: false,
@@ -202,7 +202,7 @@ export class AuthController {
       }
 
       const token = authHeader.split(' ')[1];
-      
+
       // Validate token
       const user = await this.authService.validateToken(token);
 
@@ -263,7 +263,7 @@ export class AuthController {
       }
 
       const targetUserId = parseInt(req.params.userId, 10);
-      
+
       if (isNaN(targetUserId)) {
         return res.status(400).json({
           success: false,
@@ -299,7 +299,7 @@ export class AuthController {
 
       // Get basic stats (you can extend this with more detailed analytics)
       const sessions = await this.authService.getActiveSessions();
-      
+
       const stats = {
         totalActiveSessions: sessions.length,
         activeUsers: sessions.length, // One session per user

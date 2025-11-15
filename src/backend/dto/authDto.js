@@ -27,9 +27,10 @@ export const validateLogin = (data) => {
     errors.push('Password is required');
   } else if (typeof data.password !== 'string') {
     errors.push('Password must be a string');
-  } else if (data.password.length < 6) {
-    errors.push('Password must be at least 6 characters long');
-  }
+  } 
+  // else if (data.password.length < 6) {
+  //   errors.push('Password must be at least 6 characters long');
+  // }
 
   return {
     isValid: errors.length === 0,

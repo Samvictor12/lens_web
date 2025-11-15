@@ -142,24 +142,6 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✅ Server is running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
-  console.log(`Authentication API: http://localhost:${PORT}/api/auth`);
-  console.log(`Sale Orders API: http://localhost:${PORT}/api/sale-orders`);
-  console.log(`Customer Master API: http://localhost:${PORT}/api/customer-master`);
-  console.log(`Vendor Master API: http://localhost:${PORT}/api/vendor-master`);
-  console.log(`User Master API: http://localhost:${PORT}/api/user-master`);
-  console.log(`\n--- Lens Master APIs ---`);
-  console.log(`Lens Categories API: http://localhost:${PORT}/api/v1/lens-categories`);
-  console.log(`Lens Materials API: http://localhost:${PORT}/api/v1/lens-materials`);
-  console.log(`Lens Coatings API: http://localhost:${PORT}/api/v1/lens-coatings`);
-  console.log(`Lens Brands API: http://localhost:${PORT}/api/v1/lens-brands`);
-  console.log(`Lens Types API: http://localhost:${PORT}/api/v1/lens-types`);
-  console.log(`Lens Products API: http://localhost:${PORT}/api/v1/lens-products`);
-  console.log(`Lens Prices API: http://localhost:${PORT}/api/v1/lens-prices`);
-  console.log(`Lens Fittings API: http://localhost:${PORT}/api/lens-fittings`);
-  console.log(`Lens Diameters API: http://localhost:${PORT}/api/lens-dias`);
-  console.log(`Business Category API: http://localhost:${PORT}/api/business-category`);
-  console.log(`Department API: http://localhost:${PORT}/api/department`);
-  console.log(`Price Mappings API: http://localhost:${PORT}/api/price-mappings`);
 });
 
 server.on('listening', () => {
