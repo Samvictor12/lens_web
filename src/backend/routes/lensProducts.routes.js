@@ -3,9 +3,9 @@
  * Defines all routes for lens product management
  */
 
-import express from 'express';
-import * as lensProductController from '../controllers/lensProductMasterController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import express from "express";
+import * as lensProductController from "../controllers/lensProductMasterController.js";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -61,7 +61,7 @@ const router = express.Router();
        201:
          description: Product created successfully
  */
-router.post('/', authenticateToken, lensProductController.createLensProduct);
+router.post("/", authenticateToken, lensProductController.createLensProduct);
 
 /**
  * @swagger
@@ -104,7 +104,7 @@ router.post('/', authenticateToken, lensProductController.createLensProduct);
        200:
          description: Products retrieved successfully
  */
-router.get('/', authenticateToken, lensProductController.getAllLensProducts);
+router.get("/", authenticateToken, lensProductController.getAllLensProducts);
 
 /**
  * @swagger
@@ -135,7 +135,11 @@ router.get('/', authenticateToken, lensProductController.getAllLensProducts);
        200:
          description: Dropdown data retrieved successfully
  */
-router.get('/dropdown', authenticateToken, lensProductController.getLensProductsDropdown);
+router.get(
+  "/dropdown",
+  authenticateToken,
+  lensProductController.getLensProductsDropdown
+);
 
 /**
  * @swagger
@@ -149,7 +153,11 @@ router.get('/dropdown', authenticateToken, lensProductController.getLensProducts
        200:
          description: Statistics retrieved successfully
  */
-router.get('/statistics', authenticateToken, lensProductController.getLensProductStatistics);
+router.get(
+  "/statistics",
+  authenticateToken,
+  lensProductController.getLensProductStatistics
+);
 
 /**
  * @swagger
@@ -169,7 +177,11 @@ router.get('/statistics', authenticateToken, lensProductController.getLensProduc
        200:
          description: Products by category retrieved successfully
  */
-router.get('/by-category/:categoryId', authenticateToken, lensProductController.getProductsByCategory);
+router.get(
+  "/by-category/:categoryId",
+  authenticateToken,
+  lensProductController.getProductsByCategory
+);
 
 /**
  * @swagger
@@ -189,7 +201,7 @@ router.get('/by-category/:categoryId', authenticateToken, lensProductController.
        200:
          description: Product retrieved successfully
  */
-router.get('/:id', authenticateToken, lensProductController.getLensProductById);
+router.get("/:id", authenticateToken, lensProductController.getLensProductById);
 
 /**
  * @swagger
@@ -228,7 +240,7 @@ router.get('/:id', authenticateToken, lensProductController.getLensProductById);
        200:
          description: Product updated successfully
  */
-router.put('/:id', authenticateToken, lensProductController.updateLensProduct);
+router.put("/:id", authenticateToken, lensProductController.updateLensProduct);
 
 /**
  * @swagger
@@ -248,7 +260,11 @@ router.put('/:id', authenticateToken, lensProductController.updateLensProduct);
        200:
          description: Product deleted successfully
  */
-router.delete('/:id', authenticateToken, lensProductController.deleteLensProduct);
+router.delete(
+  "/:id",
+  authenticateToken,
+  lensProductController.deleteLensProduct
+);
 
 // ============================================================================
 // PRICING MANAGEMENT ROUTES
@@ -275,7 +291,11 @@ router.delete('/:id', authenticateToken, lensProductController.deleteLensProduct
  *       404:
  *         description: Lens product not found
  */
-router.get('/:lensId/prices', authenticateToken, lensProductController.getLensPricesByLensId);
+router.get(
+  "/:lensId/prices",
+  authenticateToken,
+  lensProductController.getLensPricesByLensId
+);
 
 /**
  * @swagger
@@ -329,7 +349,11 @@ router.get('/:lensId/prices', authenticateToken, lensProductController.getLensPr
  *       404:
  *         description: Lens product not found
  */
-router.post('/:lensId/prices/bulk', authenticateToken, lensProductController.bulkAddOrUpdateLensPrices);
+router.post(
+  "/:lensId/prices/bulk",
+  authenticateToken,
+  lensProductController.bulkAddOrUpdateLensPrices
+);
 
 /**
  * @swagger
@@ -375,7 +399,11 @@ router.post('/:lensId/prices/bulk', authenticateToken, lensProductController.bul
  *       404:
  *         description: Lens or coating not found
  */
-router.post('/:lensId/prices/:coatingId', authenticateToken, lensProductController.addOrUpdateLensPrice);
+router.post(
+  "/:lensId/prices/:coatingId",
+  authenticateToken,
+  lensProductController.addOrUpdateLensPrice
+);
 
 /**
  * @swagger
@@ -404,6 +432,10 @@ router.post('/:lensId/prices/:coatingId', authenticateToken, lensProductControll
  *       404:
  *         description: Price not found for this lens-coating combination
  */
-router.delete('/:lensId/prices/:coatingId', authenticateToken, lensProductController.deleteLensPrice);
+router.delete(
+  "/:lensId/prices/:coatingId",
+  authenticateToken,
+  lensProductController.deleteLensPrice
+);
 
 export default router;

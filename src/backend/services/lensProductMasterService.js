@@ -118,7 +118,7 @@ class LensProductMasterService {
     }
   }
 
-  async getLensProducts(queryParams) {
+  async getAllLensProducts(queryParams) {
     try {
       const {
         page = 1,
@@ -132,6 +132,14 @@ class LensProductMasterService {
         material_id,
         type_id,
       } = queryParams;
+      console.log(
+        "activeStatus,brand_id,category_id,material_id,type_id",
+        activeStatus,
+        brand_id,
+        category_id,
+        material_id,
+        type_id
+      );
 
       const where = { deleteStatus: false };
 
@@ -144,7 +152,7 @@ class LensProductMasterService {
       }
 
       if (activeStatus !== undefined && activeStatus !== "all") {
-        where.activeStatus = activeStatus === "true" || activeStatus === true;
+        where.activeStatus = activeStatus === "active";
       }
       if (brand_id) where.brand_id = parseInt(brand_id);
       if (category_id) where.category_id = parseInt(category_id);
@@ -717,8 +725,8 @@ const serviceInstance = new LensProductMasterService();
 // Export individual methods for direct use
 export const createLensProduct =
   serviceInstance.createLensProduct.bind(serviceInstance);
-export const getLensProducts =
-  serviceInstance.getLensProducts.bind(serviceInstance);
+export const getAllLensProducts =
+  serviceInstance.getAllLensProducts.bind(serviceInstance);
 export const getLensProductById =
   serviceInstance.getLensProductById.bind(serviceInstance);
 export const updateLensProduct =

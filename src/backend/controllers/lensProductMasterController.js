@@ -76,11 +76,11 @@ export const getAllLensProducts = async (req, res, next) => {
       search: req.query.search,
     };
 
-    const result = await lensProductMasterService.getLensProducts(filters);
+    const result = await lensProductMasterService.getAllLensProducts(filters);
     res.status(200).json({
       success: true,
       message: "Lens products retrieved successfully",
-      data: result.products,
+      data: result.data,
       pagination: result.pagination,
     });
   } catch (error) {

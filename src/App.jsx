@@ -39,6 +39,8 @@ import LensBrandMain from "./pages/LensBrandMaster/LensBrandMain";
 import LensBrandForm from "./pages/LensBrandMaster/LensBrandForm";
 import LensTypeMain from "./pages/LensTypeMaster/LensTypeMain";
 import LensTypeForm from "./pages/LensTypeMaster/LensTypeForm";
+import LensProductMain from "./pages/LensProductMaster/LensProductMain";
+import LensProductForm from "./pages/LensProductMaster/LensProductForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -136,6 +138,9 @@ const AppRoutes = () => (
       <Route path="/masters/lens-type" element={<ProtectedRoute><LensTypeMain /></ProtectedRoute>} />
       <Route path="/masters/lens-type/:mode" element={<ProtectedRoute><LensTypeForm /></ProtectedRoute>} />
       <Route path="/masters/lens-type/:mode/:id" element={<ProtectedRoute><LensTypeForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-product" element={<ProtectedRoute><LensProductMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-product/:mode" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-product/:mode/:id" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>
