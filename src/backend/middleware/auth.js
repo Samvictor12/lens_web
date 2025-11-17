@@ -20,10 +20,20 @@ export const authenticateToken = async (req, res, next) => {
     // Get user with role and permissions
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      include: {
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        phonenumber: true,
+        usercode: true,
+        is_login: true,
         role: {
-          include: {
-            permissions: true
+          select: {
+            name: true,
+            permissions: {
+              select: { action: true, subject: true }
+            },
           }
         }
       }
@@ -54,7 +64,7 @@ export const authenticateToken = async (req, res, next) => {
   }
 };
 
-export const requireRole = (allowedRoles) => {
+export const requireRole = ({ module, actions = [] }) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -63,7 +73,17 @@ export const requireRole = (allowedRoles) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role.name)) {
+    let permissions = req.user.role.permissions;
+
+    if (module) {
+      permissions = permissions.filter(p => p.subject === module || p.subject === 'all');
+    }
+
+    const allowedPermission = actions.length === 0 || actions.some(action =>
+      permissions.some(p => p.action === action)
+    );
+
+    if (!allowedPermission) {
       return res.status(403).json({
         success: false,
         message: 'Insufficient permissions'

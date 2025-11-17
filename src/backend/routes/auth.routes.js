@@ -463,7 +463,7 @@ router.get('/validate', authController.validateToken.bind(authController));
  *       500:
  *         description: Internal server error
  */
-router.get('/sessions', authenticateToken, requireRole(['Admin']), authController.getActiveSessions.bind(authController));
+router.get('/sessions', authenticateToken, requireRole({ module: 'sessions', actions: ['read'] }), authController.getActiveSessions.bind(authController));
 
 /**
  * @swagger
@@ -503,7 +503,7 @@ router.get('/sessions', authenticateToken, requireRole(['Admin']), authControlle
  *       500:
  *         description: Internal server error
  */
-router.delete('/sessions/:userId', authenticateToken, requireRole(['Admin']), authController.revokeSession.bind(authController));
+router.delete('/sessions/:userId', authenticateToken, requireRole({ module: 'sessions', actions: ['delete'] }), authController.revokeSession.bind(authController));
 
 /**
  * @swagger
@@ -556,7 +556,7 @@ router.delete('/sessions/:userId', authenticateToken, requireRole(['Admin']), au
  *       500:
  *         description: Internal server error
  */
-router.get('/stats', authenticateToken, requireRole(['Admin']), authController.getAuthStats.bind(authController));
+router.get('/stats', authenticateToken, requireRole({ module: 'stats', actions: ['read'] }), authController.getAuthStats.bind(authController));
 
 /**
  * @swagger
