@@ -108,6 +108,239 @@ router.get("/", authenticateToken, lensProductController.getAllLensProducts);
 
 /**
  * @swagger
+ * /api/v1/lens-products/calculate-cost:
+ *   post:
+ *     summary: Calculate product cost based on customer and price master
+ *     tags: [Lens Products]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - customer_id
+ *               - lensPrice_id
+ *             properties:
+ *               customer_id:
+ *                 type: integer
+ *                 description: Customer ID
+ *               lensPrice_id:
+ *                 type: integer
+ *                 description: Lens Price Master ID
+ *               quantity:
+ *                 type: integer
+ *                 default: 1
+ *                 minimum: 1
+ *                 description: Quantity of products
+ *           example:
+ *             customer_id: 1
+ *             lensPrice_id: 5
+ *             quantity: 2
+ *     responses:
+ *       200:
+ *         description: Cost calculated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     customer:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         code:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         shopname:
+ *                           type: string
+ *                     product:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         product_code:
+ *                           type: string
+ *                         lens_name:
+ *                           type: string
+ *                         brand:
+ *                           type: object
+ *                         category:
+ *                           type: object
+ *                     coating:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         name:
+ *                           type: string
+ *                         short_name:
+ *                           type: string
+ *                     pricing:
+ *                       type: object
+ *                       properties:
+ *                         lensPrice_id:
+ *                           type: integer
+ *                         basePrice:
+ *                           type: number
+ *                         quantity:
+ *                           type: integer
+ *                         hasPriceMapping:
+ *                           type: boolean
+ *                         discountRate:
+ *                           type: number
+ *                         discountAmount:
+ *                           type: number
+ *                         costWithoutDiscount:
+ *                           type: number
+ *                         costWithDiscount:
+ *                           type: number
+ *                         finalCost:
+ *                           type: number
+ *                         savings:
+ *                           type: number
+ *       400:
+ *         description: Invalid request data
+ *       404:
+ *         description: Customer or lens price not found
+ */
+router.post(
+  "/calculate-cost",
+  authenticateToken,
+  lensProductController.calculateProductCost
+);
+
+/**
+ * @swagger
+ * /api/v1/lens-products/with-prices:
+ *   get:
+ *     summary: Get all lens products with their price master data
+ *     tags: [Lens Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of items per page
+ *       - in: query
+ *         name: brand_id
+ *         schema:
+ *           type: integer
+ *         description: Filter by brand ID
+ *       - in: query
+ *         name: category_id
+ *         schema:
+ *           type: integer
+ *         description: Filter by category ID
+ *       - in: query
+ *         name: material_id
+ *         schema:
+ *           type: integer
+ *         description: Filter by material ID
+ *       - in: query
+ *         name: type_id
+ *         schema:
+ *           type: integer
+ *         description: Filter by type ID
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in product name, code, or range text
+ *       - in: query
+ *         name: activeStatus
+ *         schema:
+ *           type: string
+ *           enum: [active, inactive, all]
+ *         description: Filter by active status
+ *     responses:
+ *       200:
+ *         description: Products with prices retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       product_code:
+ *                         type: string
+ *                       lens_name:
+ *                         type: string
+ *                       brand:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           name:
+ *                             type: string
+ *                       prices:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                             price:
+ *                               type: number
+ *                             coating:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: integer
+ *                                 name:
+ *                                   type: string
+ *                                 short_name:
+ *                                   type: string
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     pages:
+ *                       type: integer
+ */
+router.get(
+  "/with-prices",
+  authenticateToken,
+  lensProductController.getProductsWithPrices
+);
+
+/**
+ * @swagger
  * /api/v1/lens-products/dropdown:
  *   get:
  *     summary: Get lens products for dropdown with optional filters

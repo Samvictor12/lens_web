@@ -12,7 +12,7 @@ export class SaleOrderService {
    * @returns {Promise<string>} Generated order number (e.g., SO-2025-001)
    */
   async generateOrderNumber() {
-    const year = new Date().getFullYear();
+    const year = new Date().getFullYear();a
     const prefix = `SO-${year}-`;
     
     // Get the latest order number for this year

@@ -184,7 +184,7 @@ export const deleteLensType = async (req, res, next) => {
  */
 export const getLensTypesDropdown = async (req, res, next) => {
   try {
-    const types = await lensTypeService.getLensTypesForDropdown();
+    const types = await lensTypeService.getTypeDropdown();
     res.status(200).json({
       success: true,
       message: "Lens types dropdown retrieved successfully",

@@ -10,7 +10,7 @@ export const AppLayout = ({ children }) => {
     <SidebarProvider>
       <div className="min-h-screen h-screen flex w-full bg-background overflow-hidden">
         <AppSidebar />
-        <div className="flex-1 flex flex-col w-full min-w-0">
+        <div className="flex-1 flex flex-col w-full min-w-0 h-full overflow-hidden">
           <AppHeader />
           <main className="flex-1 overflow-auto h-full">
             <div className="max-w-[1920px] mx-auto h-full">

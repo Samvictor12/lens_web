@@ -76,6 +76,12 @@ This document outlines the design and structure for the Sale Order form UI, foll
 - When `status === 'READY_FOR_DISPATCH'` → Show **"Mark as Delivered"** button
 - When `status === 'DELIVERED'` → No status action button (final state)
 
+**Price Calculation Button** (Add/Edit Mode):
+- Shows **"Calculate Price"** button in form
+- Fetches price based on current form data (lens, coating, customer, etc.)
+- Updates `lensPrice` and `discount` fields automatically
+- Position: Near lens information or billing section
+
 ---
 
 ## Form Block Structure
@@ -115,6 +121,33 @@ This document outlines the design and structure for the Sale Order form UI, foll
 | 2 | Type* (Select from LensTypeMaster) | Dia* (Select from LensDiaMaster) |
 | 3 | Fitting Type* (Select from LensFittingMaster) | Tinting Name* (Select from LensTintingMaster) |
 | 4 | Coating Type* (Select - general type) | Coating Name* (Select from LensCoatingMaster) | 
+| 5 | [Calculate Price Button] (spans 2 columns or aligned right) | - |
+
+**Calculate Price Button**:
+- **Label**: "Calculate Price" or "Get Price"
+- **Icon**: Calculator or DollarSign icon
+- **Position**: Below lens information fields, right-aligned or centered
+- **Functionality**: 
+  - Validates that required lens fields are filled (Customer, Lens Name, Coating)
+  - **Step 1**: Finds the `lensPrice_id` from LensPriceMaster table by matching `lens_id` and `coating_id`
+  - **Step 2**: Calls existing `/api/v1/lens-products/calculate-cost` API with `customer_id` and `lensPrice_id`
+  - Updates `lensPrice` and `discount` fields with response data
+  - Shows loading state during API calls
+  - Displays success/error toast notification with pricing details
+- **Two-Step Process**: 
+  ```javascript
+  // Step 1: Get lensPrice_id
+  GET /api/v1/lens-products/:lens_id/prices
+  // Find the price record where coating_id matches
+  
+  // Step 2: Calculate cost with customer discount
+  POST /api/v1/lens-products/calculate-cost
+  {
+    customer_id: formData.customerId,
+    lensPrice_id: foundLensPriceId,
+    quantity: 1
+  }
+  ```
 
 **Notes**:
 - All dropdowns should be populated from master tables via API
@@ -124,6 +157,7 @@ This document outlines the design and structure for the Sale Order form UI, foll
 **Validation**:
 - All fields marked with * are required
 - Coating Type should filter Coating Name options
+- Calculate Price button disabled if required lens fields not filled
 
 ---
 
@@ -380,12 +414,16 @@ export const saleOrderFilters = {
 ### Endpoints Required:
 ```javascript
 // Sale Orders
-GET    /api/sale-orders              // List with pagination, search, filters
-GET    /api/sale-orders/:id          // Get single order
-POST   /api/sale-orders              // Create new order
-PUT    /api/sale-orders/:id          // Update existing order
-PATCH  /api/sale-orders/:id/status   // Update only status (for status transition buttons)
-DELETE /api/sale-orders/:id          // Delete order
+GET    /api/sale-orders                       // List with pagination, search, filters
+GET    /api/sale-orders/:id                   // Get single order
+POST   /api/sale-orders                       // Create new order
+PUT    /api/sale-orders/:id                   // Update existing order
+PATCH  /api/sale-orders/:id/status            // Update only status (for status transition buttons)
+DELETE /api/sale-orders/:id                   // Delete order
+
+// Price Calculation (Existing API - Reuse)
+POST   /api/v1/lens-products/calculate-cost   // Calculate price based on customer & lensPrice_id
+GET    /api/v1/lens-products/:lensId/prices   // Get all coating prices for a lens (to find lensPrice_id)
 
 // Master Data for Dropdowns
 GET    /api/customers/dropdown                // For customer dropdown
@@ -398,6 +436,72 @@ GET    /api/lens-coatings/dropdown            // For coating dropdown
 GET    /api/lens-tintings/dropdown            // For tinting dropdown
 GET    /api/users/dropdown                    // For assigned person dropdown
 ```
+
+### Calculate Price API Details:
+
+**Endpoint**: `POST /api/v1/lens-products/calculate-cost` (Existing API)
+
+**Request Payload**:
+```javascript
+{
+  customer_id: number,         // Required - Customer ID
+  lensPrice_id: number,        // Required - LensPriceMaster ID (lens + coating combination)
+  quantity: number             // Optional - Default: 1
+}
+```
+
+**Important**: The `lensPrice_id` is from the `LensPriceMaster` table which represents a specific lens + coating combination. In the sale order form, we need to:
+1. Get the selected `lens_id` (LensProductMaster)
+2. Get the selected `coating_id` (LensCoatingMaster)
+3. Query `LensPriceMaster` to find the matching `lensPrice_id` where `lens_id` matches and `coating_id` matches
+4. Use that `lensPrice_id` to call the calculate-cost API
+
+**Response**:
+```javascript
+{
+  success: true,
+  message: "Product cost calculated successfully",
+  data: {
+    customer: {
+      id: number,
+      code: string,
+      name: string,
+      shopname: string
+    },
+    product: {
+      id: number,
+      product_code: string,
+      lens_name: string,
+      brand: { id: number, name: string },
+      category: { id: number, name: string }
+    },
+    coating: {
+      id: number,
+      name: string,
+      short_name: string
+    },
+    pricing: {
+      lensPrice_id: number,
+      basePrice: number,           // Base price per unit
+      quantity: number,
+      hasPriceMapping: boolean,    // Customer has special pricing
+      discountRate: number,        // Discount percentage (0 if no mapping)
+      discountAmount: number,      // Total discount in currency
+      costWithoutDiscount: number, // Total before discount
+      costWithDiscount: number,    // Total after discount
+      finalCost: number,          // Final cost (same as costWithDiscount)
+      savings: number             // Amount saved
+    }
+  }
+}
+```
+
+**Business Logic**:
+1. API automatically fetches base price from `LensPriceMaster` using `lensPrice_id`
+2. Checks for customer-specific pricing in `PriceMapping` table
+3. Applies discount rate if exists for this customer-lens combination
+4. Returns detailed pricing breakdown with and without discount
+
 
 ### Service File (`src/services/saleOrder.js`):
 ```javascript
@@ -426,6 +530,18 @@ export const deleteSaleOrder = async (id) => {
 export const updateSaleOrderStatus = async (id, status) => {
   // PATCH request to update only status
   // Used by status transition buttons
+};
+
+export const getLensPriceId = async (lensId, coatingId) => {
+  // GET request to find lensPrice_id from LensPriceMaster
+  // Query params: lens_id and coating_id
+  // Returns the price master record with id
+};
+
+export const calculateProductCost = async (data) => {
+  // POST request to /api/v1/lens-products/calculate-cost
+  // Used by Calculate Price button
+  // Params: { customer_id, lensPrice_id, quantity }
 };
 ```
 
@@ -456,6 +572,7 @@ const [errors, setErrors] = useState({});
 const [isLoading, setIsLoading] = useState(false);
 const [isSaving, setIsSaving] = useState(false);
 const [isEditing, setIsEditing] = useState(mode === "add" || mode === "edit");
+const [isCalculating, setIsCalculating] = useState(false); // For price calculation loading state
 ```
 
 ### Master Data State:
@@ -539,6 +656,87 @@ const [users, setUsers] = useState([]);
 - **Success**: Show toast notification and refresh order data
 - **Position**: Next to Edit button in header
 
+### Price Calculation Button (Add/Edit Mode):
+- **Purpose**: Automatically calculate and fetch the price for the sale order based on customer and lens selections
+- **Visibility**: Only shown in add/edit mode (not in view mode)
+- **Button Details**:
+  - **Label**: "Calculate Price"
+  - **Icon**: Calculator (`<Calculator className="h-4 w-4" />`)
+  - **Variant**: Outline or secondary
+  - **Position**: In Block 2 (Lens Information), below lens fields or as a separate row
+- **Functionality**:
+  ```javascript
+  const handleCalculatePrice = async () => {
+    // Validate required fields
+    if (!formData.customerId || !formData.lens_id || !formData.coating_id) {
+      toast({
+        title: "Missing Information",
+        description: "Please select Customer, Lens Name, and Coating to calculate price.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsCalculating(true);
+      
+      // Step 1: Get lensPrice_id from LensPriceMaster
+      // Query: lens_id = formData.lens_id AND coating_id = formData.coating_id
+      const lensPriceResponse = await getLensPriceId(
+        formData.lens_id, 
+        formData.coating_id
+      );
+
+      if (!lensPriceResponse.success || !lensPriceResponse.data) {
+        toast({
+          title: "Price Not Found",
+          description: "No price configured for this lens and coating combination.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const lensPriceId = lensPriceResponse.data.id;
+
+      // Step 2: Calculate cost using existing API
+      const response = await calculateProductCost({
+        customer_id: formData.customerId,
+        lensPrice_id: lensPriceId,
+        quantity: 1 // Single lens calculation
+      });
+
+      if (response.success) {
+        // Update form with calculated values
+        setFormData(prev => ({
+          ...prev,
+          lensPrice: response.data.pricing.basePrice,
+          discount: response.data.pricing.discountRate
+        }));
+
+        toast({
+          title: "Price Calculated",
+          description: response.data.pricing.hasPriceMapping
+            ? `Base: ₹${response.data.pricing.basePrice}, Discount: ${response.data.pricing.discountRate}%, Final: ₹${response.data.pricing.finalCost}`
+            : `Price: ₹${response.data.pricing.finalCost} (No discount available)`,
+          success: true
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to calculate price",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+  ```
+- **Validation**: Button disabled if required fields (Customer, Lens Name, Coating) are not filled
+- **Loading State**: Show spinner/loader during API call
+- **Success**: Update `lensPrice` and `discount` fields, show toast notification
+- **Error Handling**: Display error message if API fails
+
 ---
 
 ## Testing Checklist
@@ -562,6 +760,11 @@ const [users, setUsers] = useState([]);
 - [ ] Confirmation dialog before status change
 - [ ] Status update API call
 - [ ] Refresh data after status update
+- [ ] Calculate Price button functionality
+- [ ] Price calculation API integration
+- [ ] Price fields update after calculation
+- [ ] Calculate button disabled state validation
+- [ ] Loading state during price calculation
 
 ### Edge Cases:
 - [ ] Handle empty dropdown lists
@@ -594,6 +797,7 @@ const [users, setUsers] = useState([]);
 8. Implement conditional visibility (dispatch block)
 9. Add eye specification enable/disable logic
 10. Implement status transition buttons in view mode
+11. Implement price calculation button and API integration
 
 ### Phase 3: Integration
 11. Create service functions

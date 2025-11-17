@@ -478,3 +478,96 @@ export const getLensPricesByLensId = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get all products with their prices
+ * @route GET /api/v1/lens-products/with-prices
+ */
+export const getProductsWithPrices = async (req, res, next) => {
+  try {
+    const validation = validateQueryParams(req.query);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid query parameters",
+        errors: validation.errors,
+      });
+    }
+
+    const filters = {
+      ...validation.data,
+      brand_id: req.query.brand_id ? parseInt(req.query.brand_id) : undefined,
+      category_id: req.query.category_id
+        ? parseInt(req.query.category_id)
+        : undefined,
+      material_id: req.query.material_id
+        ? parseInt(req.query.material_id)
+        : undefined,
+      type_id: req.query.type_id ? parseInt(req.query.type_id) : undefined,
+      search: req.query.search,
+    };
+
+    const result = await lensProductMasterService.getProductsWithPrices(filters);
+    res.status(200).json({
+      success: true,
+      message: "Products with prices retrieved successfully",
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Calculate product cost based on customer and price master
+ * @route POST /api/v1/lens-products/calculate-cost
+ */
+export const calculateProductCost = async (req, res, next) => {
+  try {
+    const { customer_id, lensPrice_id, quantity } = req.body;
+
+    // Validate required fields
+    if (!customer_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer ID is required",
+        errors: [{ field: "customer_id", message: "Customer ID is required" }],
+      });
+    }
+
+    if (!lensPrice_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Lens Price ID is required",
+        errors: [{ field: "lensPrice_id", message: "Lens Price ID is required" }],
+      });
+    }
+
+    // Validate quantity if provided
+    if (quantity !== undefined) {
+      const qty = parseInt(quantity);
+      if (isNaN(qty) || qty < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Quantity must be a positive number",
+          errors: [{ field: "quantity", message: "Quantity must be at least 1" }],
+        });
+      }
+    }
+
+    const result = await lensProductMasterService.calculateProductCost({
+      customer_id: parseInt(customer_id),
+      lensPrice_id: parseInt(lensPrice_id),
+      quantity: quantity ? parseInt(quantity) : 1,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Product cost calculated successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

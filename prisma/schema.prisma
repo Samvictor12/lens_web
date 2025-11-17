@@ -372,7 +372,6 @@ model LensProductMaster {
   Userupdated      User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
   lensPriceMasters LensPriceMaster[]
-  priceMappings    PriceMapping[]
   saleOrders       SaleOrder[]
 }
 
@@ -389,9 +388,11 @@ model LensPriceMaster {
   updatedBy    Int?
   // Relationships Fields
   coating      LensCoatingMaster @relation(fields: [coating_id], references: [id])
-  lens         LensProductMaster @relation(fields: [lens_id], references: [id])
-  Usercreated  User              @relation("priceUserCreate", fields: [createdBy], references: [id])
-  Userupdated  User?             @relation("priceUserUpdate", fields: [updatedBy], references: [id])
+  lens          LensProductMaster @relation(fields: [lens_id], references: [id])
+  Usercreated   User              @relation("priceUserCreate", fields: [createdBy], references: [id])
+  Userupdated   User?             @relation("priceUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  priceMappings PriceMapping[]
 }
 
 // Forward declarations for related models
@@ -525,20 +526,21 @@ model DispatchCopy {
 // }
 
 model PriceMapping {
-  id             Int               @id @default(autoincrement())
-  lensProduct_id Int
-  lensProduct    LensProductMaster @relation(fields: [lensProduct_id], references: [id])
-  customer_id    Int
-  customer       Customer          @relation(fields: [customer_id], references: [id])
-  discountRate   Float             @default(0) // Percentage discount for this customer on this lens product
-  createdAt      DateTime          @default(now())
-  createdBy      Int
-  updatedAt      DateTime          @updatedAt
-  updatedBy      Int?
-  createdByUser  User              @relation("priceMappingCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser  User?             @relation("priceMappingUpdatedBy", fields: [updatedBy], references: [id])
+  id            Int             @id @default(autoincrement())
+  lensPrice_id  Int
+  lensPrice     LensPriceMaster @relation(fields: [lensPrice_id], references: [id])
+  customer_id   Int
+  customer      Customer        @relation(fields: [customer_id], references: [id])
+  discountRate  Float           @default(0) // Percentage discount for this customer on this lens price
+  discountPrice Float           @default(0) // Calculated discount price after applying discount rate
+  createdAt     DateTime        @default(now())
+  createdBy     Int
+  updatedAt     DateTime        @updatedAt
+  updatedBy     Int?
+  createdByUser User            @relation("priceMappingCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("priceMappingUpdatedBy", fields: [updatedBy], references: [id])
 
-  @@index([lensProduct_id])
+  @@index([lensPrice_id])
   @@index([customer_id])
 }
 

@@ -25,44 +25,54 @@ export class PriceMappingService {
         throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
       }
 
-      // Validate all lens products exist
-      const lensProductIds = mappings.map(m => m.lensProduct_id);
-      const lensProducts = await prisma.lensProductMaster.findMany({
+      // Validate all lens prices exist and get their base prices
+      const lensPriceIds = mappings.map(m => m.lensPrice_id);
+      const lensPrices = await prisma.lensPriceMaster.findMany({
         where: {
-          id: { in: lensProductIds },
+          id: { in: lensPriceIds },
           deleteStatus: false
         }
       });
 
-      if (lensProducts.length !== lensProductIds.length) {
-        throw new APIError('One or more lens products not found', 404, 'LENS_PRODUCTS_NOT_FOUND');
+      if (lensPrices.length !== lensPriceIds.length) {
+        throw new APIError('One or more lens prices not found', 404, 'LENS_PRICES_NOT_FOUND');
       }
 
-      // Check for existing mappings for this customer and lens products
+      // Check for existing mappings for this customer and lens prices
       const existingMappings = await prisma.priceMapping.findMany({
         where: {
           customer_id,
-          lensProduct_id: { in: lensProductIds }
+          lensPrice_id: { in: lensPriceIds }
         }
       });
 
       if (existingMappings.length > 0) {
-        const existingProductIds = existingMappings.map(m => m.lensProduct_id);
+        const existingPriceIds = existingMappings.map(m => m.lensPrice_id);
         throw new APIError(
-          `Price mappings already exist for lens products: ${existingProductIds.join(', ')}`,
+          `Price mappings already exist for lens prices: ${existingPriceIds.join(', ')}`,
           409,
           'DUPLICATE_PRICE_MAPPING'
         );
       }
 
-      // Bulk create price mappings
-      const priceMappingsData = mappings.map(mapping => ({
-        customer_id,
-        lensProduct_id: mapping.lensProduct_id,
-        discountRate: mapping.discountRate || 0,
-        createdBy,
-        updatedBy: createdBy
-      }));
+      // Create a map of lens prices for quick lookup
+      const lensPriceMap = new Map(lensPrices.map(lp => [lp.id, lp.price]));
+
+      // Bulk create price mappings with calculated discount prices
+      const priceMappingsData = mappings.map(mapping => {
+        const basePrice = lensPriceMap.get(mapping.lensPrice_id);
+        const discountRate = mapping.discountRate || 0;
+        const discountPrice = basePrice - (basePrice * discountRate / 100);
+        
+        return {
+          customer_id,
+          lensPrice_id: mapping.lensPrice_id,
+          discountRate,
+          discountPrice,
+          createdBy,
+          updatedBy: createdBy
+        };
+      });
 
       const result = await prisma.priceMapping.createMany({
         data: priceMappingsData
@@ -72,18 +82,29 @@ export class PriceMappingService {
       const createdMappings = await prisma.priceMapping.findMany({
         where: {
           customer_id,
-          lensProduct_id: { in: lensProductIds }
+          lensPrice_id: { in: lensPriceIds }
         },
         include: {
-          lensProduct: {
-            select: {
-              id: true,
-              product_code: true,
-              lens_name: true,
-              brand: { select: { id: true, name: true } },
-              category: { select: { id: true, name: true } },
-              material: { select: { id: true, name: true } },
-              type: { select: { id: true, name: true } }
+          lensPrice: {
+            include: {
+              lens: {
+                select: {
+                  id: true,
+                  product_code: true,
+                  lens_name: true,
+                  brand: { select: { id: true, name: true } },
+                  category: { select: { id: true, name: true } },
+                  material: { select: { id: true, name: true } },
+                  type: { select: { id: true, name: true } }
+                }
+              },
+              coating: {
+                select: {
+                  id: true,
+                  name: true,
+                  short_name: true
+                }
+              }
             }
           },
           customer: {
@@ -137,16 +158,32 @@ export class PriceMappingService {
         throw new APIError('One or more price mappings not found', 404, 'MAPPINGS_NOT_FOUND');
       }
 
-      // Perform bulk update using transactions
-      const updatePromises = mappings.map(mapping =>
-        prisma.priceMapping.update({
+      // Fetch lens prices for discount calculation
+      const lensPriceIds = existingMappings.map(m => m.lensPrice_id);
+      const lensPrices = await prisma.lensPriceMaster.findMany({
+        where: {
+          id: { in: lensPriceIds },
+          deleteStatus: false
+        }
+      });
+      const lensPriceMap = new Map(lensPrices.map(lp => [lp.id, lp.price]));
+
+      // Perform bulk update using transactions with recalculated discount prices
+      const updatePromises = mappings.map(mapping => {
+        const existingMapping = existingMappings.find(em => em.id === mapping.id);
+        const basePrice = lensPriceMap.get(existingMapping.lensPrice_id);
+        const discountRate = mapping.discountRate;
+        const discountPrice = basePrice - (basePrice * discountRate / 100);
+
+        return prisma.priceMapping.update({
           where: { id: mapping.id },
           data: {
-            discountRate: mapping.discountRate,
+            discountRate,
+            discountPrice,
             updatedBy
           }
-        })
-      );
+        });
+      });
 
       await prisma.$transaction(updatePromises);
 
@@ -154,15 +191,26 @@ export class PriceMappingService {
       const updatedMappings = await prisma.priceMapping.findMany({
         where: { id: { in: mappingIds } },
         include: {
-          lensProduct: {
-            select: {
-              id: true,
-              product_code: true,
-              lens_name: true,
-              brand: { select: { id: true, name: true } },
-              category: { select: { id: true, name: true } },
-              material: { select: { id: true, name: true } },
-              type: { select: { id: true, name: true } }
+          lensPrice: {
+            include: {
+              lens: {
+                select: {
+                  id: true,
+                  product_code: true,
+                  lens_name: true,
+                  brand: { select: { id: true, name: true } },
+                  category: { select: { id: true, name: true } },
+                  material: { select: { id: true, name: true } },
+                  type: { select: { id: true, name: true } }
+                }
+              },
+              coating: {
+                select: {
+                  id: true,
+                  name: true,
+                  short_name: true
+                }
+              }
             }
           },
           customer: {
@@ -205,7 +253,7 @@ export class PriceMappingService {
         sortBy = 'createdAt',
         sortOrder = 'desc',
         customer_id,
-        lensProduct_id,
+        lensPrice_id,
         search
       } = queryParams;
 
@@ -215,8 +263,8 @@ export class PriceMappingService {
         where.customer_id = parseInt(customer_id);
       }
 
-      if (lensProduct_id) {
-        where.lensProduct_id = parseInt(lensProduct_id);
+      if (lensPrice_id) {
+        where.lensPrice_id = parseInt(lensPrice_id);
       }
 
       // Search across customer name or lens product name
@@ -233,13 +281,17 @@ export class PriceMappingService {
             }
           },
           {
-            lensProduct: {
-              lens_name: { contains: search, mode: 'insensitive' }
+            lensPrice: {
+              lens: {
+                lens_name: { contains: search, mode: 'insensitive' }
+              }
             }
           },
           {
-            lensProduct: {
-              product_code: { contains: search, mode: 'insensitive' }
+            lensPrice: {
+              lens: {
+                product_code: { contains: search, mode: 'insensitive' }
+              }
             }
           }
         ];
@@ -256,15 +308,26 @@ export class PriceMappingService {
         take,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          lensProduct: {
-            select: {
-              id: true,
-              product_code: true,
-              lens_name: true,
-              brand: { select: { id: true, name: true } },
-              category: { select: { id: true, name: true } },
-              material: { select: { id: true, name: true } },
-              type: { select: { id: true, name: true } }
+          lensPrice: {
+            include: {
+              lens: {
+                select: {
+                  id: true,
+                  product_code: true,
+                  lens_name: true,
+                  brand: { select: { id: true, name: true } },
+                  category: { select: { id: true, name: true } },
+                  material: { select: { id: true, name: true } },
+                  type: { select: { id: true, name: true } }
+                }
+              },
+              coating: {
+                select: {
+                  id: true,
+                  name: true,
+                  short_name: true
+                }
+              }
             }
           },
           customer: {
@@ -311,15 +374,26 @@ export class PriceMappingService {
       const mappings = await prisma.priceMapping.findMany({
         where: { customer_id: parseInt(customer_id) },
         include: {
-          lensProduct: {
-            select: {
-              id: true,
-              product_code: true,
-              lens_name: true,
-              brand: { select: { id: true, name: true } },
-              category: { select: { id: true, name: true } },
-              material: { select: { id: true, name: true } },
-              type: { select: { id: true, name: true } }
+          lensPrice: {
+            include: {
+              lens: {
+                select: {
+                  id: true,
+                  product_code: true,
+                  lens_name: true,
+                  brand: { select: { id: true, name: true } },
+                  category: { select: { id: true, name: true } },
+                  material: { select: { id: true, name: true } },
+                  type: { select: { id: true, name: true } }
+                }
+              },
+              coating: {
+                select: {
+                  id: true,
+                  name: true,
+                  short_name: true
+                }
+              }
             }
           },
           createdByUser: {
@@ -349,20 +423,17 @@ export class PriceMappingService {
       const mapping = await prisma.priceMapping.findUnique({
         where: { id: parseInt(id) },
         include: {
-          lensProduct: {
+          lensPrice: {
             include: {
-              brand: true,
-              category: true,
-              material: true,
-              type: true,
-              lensPriceMasters: {
-                where: { deleteStatus: false },
+              lens: {
                 include: {
-                  coating: {
-                    select: { id: true, name: true, short_name: true }
-                  }
+                  brand: true,
+                  category: true,
+                  material: true,
+                  type: true
                 }
-              }
+              },
+              coating: true
             }
           },
           customer: true,
@@ -468,32 +539,53 @@ export class PriceMappingService {
         throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
       }
 
-      const lensProductIds = mappings.map(m => m.lensProduct_id);
+      const lensPriceIds = mappings.map(m => m.lensPrice_id);
+
+      // Fetch lens prices for discount calculation
+      const lensPrices = await prisma.lensPriceMaster.findMany({
+        where: {
+          id: { in: lensPriceIds },
+          deleteStatus: false
+        }
+      });
+
+      if (lensPrices.length !== lensPriceIds.length) {
+        throw new APIError('One or more lens prices not found', 404, 'LENS_PRICES_NOT_FOUND');
+      }
+
+      const lensPriceMap = new Map(lensPrices.map(lp => [lp.id, lp.price]));
 
       // Check which mappings already exist
       const existingMappings = await prisma.priceMapping.findMany({
         where: {
           customer_id,
-          lensProduct_id: { in: lensProductIds }
+          lensPrice_id: { in: lensPriceIds }
         }
       });
 
-      const existingProductIds = existingMappings.map(m => m.lensProduct_id);
-      const newMappings = mappings.filter(m => !existingProductIds.includes(m.lensProduct_id));
-      const updateMappings = mappings.filter(m => existingProductIds.includes(m.lensProduct_id));
+      const existingPriceIds = existingMappings.map(m => m.lensPrice_id);
+      const newMappings = mappings.filter(m => !existingPriceIds.includes(m.lensPrice_id));
+      const updateMappings = mappings.filter(m => existingPriceIds.includes(m.lensPrice_id));
 
       let createdCount = 0;
       let updatedCount = 0;
 
       // Create new mappings
       if (newMappings.length > 0) {
-        const createData = newMappings.map(mapping => ({
-          customer_id,
-          lensProduct_id: mapping.lensProduct_id,
-          discountRate: mapping.discountRate || 0,
-          createdBy,
-          updatedBy: createdBy
-        }));
+        const createData = newMappings.map(mapping => {
+          const basePrice = lensPriceMap.get(mapping.lensPrice_id);
+          const discountRate = mapping.discountRate || 0;
+          const discountPrice = basePrice - (basePrice * discountRate / 100);
+
+          return {
+            customer_id,
+            lensPrice_id: mapping.lensPrice_id,
+            discountRate,
+            discountPrice,
+            createdBy,
+            updatedBy: createdBy
+          };
+        });
 
         const createResult = await prisma.priceMapping.createMany({
           data: createData
@@ -504,11 +596,16 @@ export class PriceMappingService {
       // Update existing mappings
       if (updateMappings.length > 0) {
         const updatePromises = updateMappings.map(mapping => {
-          const existing = existingMappings.find(e => e.lensProduct_id === mapping.lensProduct_id);
+          const existing = existingMappings.find(e => e.lensPrice_id === mapping.lensPrice_id);
+          const basePrice = lensPriceMap.get(mapping.lensPrice_id);
+          const discountRate = mapping.discountRate;
+          const discountPrice = basePrice - (basePrice * discountRate / 100);
+
           return prisma.priceMapping.update({
             where: { id: existing.id },
             data: {
-              discountRate: mapping.discountRate,
+              discountRate,
+              discountPrice,
               updatedBy: updatedBy || createdBy
             }
           });
@@ -522,16 +619,27 @@ export class PriceMappingService {
       const allMappings = await prisma.priceMapping.findMany({
         where: {
           customer_id,
-          lensProduct_id: { in: lensProductIds }
+          lensPrice_id: { in: lensPriceIds }
         },
         include: {
-          lensProduct: {
-            select: {
-              id: true,
-              product_code: true,
-              lens_name: true,
-              brand: { select: { id: true, name: true } },
-              category: { select: { id: true, name: true } }
+          lensPrice: {
+            include: {
+              lens: {
+                select: {
+                  id: true,
+                  product_code: true,
+                  lens_name: true,
+                  brand: { select: { id: true, name: true } },
+                  category: { select: { id: true, name: true } }
+                }
+              },
+              coating: {
+                select: {
+                  id: true,
+                  name: true,
+                  short_name: true
+                }
+              }
             }
           }
         }

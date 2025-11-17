@@ -9,8 +9,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import SaleOrders from "./pages/SaleOrders";
-import CreateSaleOrder from "./pages/CreateSaleOrder";
+import SaleOrders from "./pages/SaleOrder/SaleOrderMain";
+import SaleOrderForm from "./pages/SaleOrder/SaleOrderForm";
 import Customers from "./pages/Customer/CustomersMain";
 import CustomerForm from "./pages/Customer/CustomerForm";
 import Inventory from "./pages/Inventory";
@@ -100,7 +100,8 @@ const AppRoutes = () => (
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
-      <Route path="/sales/orders/new" element={<ProtectedRoute><CreateSaleOrder /></ProtectedRoute>} />
+      <Route path="/sales/orders/:mode" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
+      <Route path="/sales/orders/:mode/:id" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />

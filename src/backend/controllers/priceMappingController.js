@@ -33,10 +33,10 @@ export class PriceMappingController {
 
       // Validate each mapping has required fields
       for (const mapping of mappings) {
-        if (!mapping.lensProduct_id) {
+        if (!mapping.lensPrice_id) {
           return res.status(400).json({
             success: false,
-            message: 'Each mapping must have lensProduct_id'
+            message: 'Each mapping must have lensPrice_id'
           });
         }
         if (mapping.discountRate !== undefined && (mapping.discountRate < 0 || mapping.discountRate > 100)) {
@@ -243,10 +243,10 @@ export class PriceMappingController {
 
       // Validate each mapping
       for (const mapping of mappings) {
-        if (!mapping.lensProduct_id) {
+        if (!mapping.lensPrice_id) {
           return res.status(400).json({
             success: false,
-            message: 'Each mapping must have lensProduct_id'
+            message: 'Each mapping must have lensPrice_id'
           });
         }
         if (mapping.discountRate !== undefined && (mapping.discountRate < 0 || mapping.discountRate > 100)) {

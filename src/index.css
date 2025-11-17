@@ -143,7 +143,7 @@ All colors MUST be HSL.
   html,
   body {
     @apply bg-background text-foreground;
-    overflow: auto;
+    overflow: hidden;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }

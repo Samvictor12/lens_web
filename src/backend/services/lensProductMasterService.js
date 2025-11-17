@@ -717,6 +717,254 @@ class LensProductMasterService {
       );
     }
   }
+
+  /**
+   * Get all products with their prices
+   * @param {Object} queryParams - Query parameters for filtering and pagination
+   * @returns {Promise<Object>} Products with prices and pagination
+   */
+  async getProductsWithPrices(queryParams = {}) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        search,
+        activeStatus,
+        brand_id,
+        category_id,
+        material_id,
+        type_id,
+      } = queryParams;
+
+      const where = { deleteStatus: false };
+
+      if (search) {
+        where.OR = [
+          { lens_name: { contains: search, mode: "insensitive" } },
+          { product_code: { contains: search, mode: "insensitive" } },
+          { range_text: { contains: search, mode: "insensitive" } },
+        ];
+      }
+
+      if (activeStatus !== undefined && activeStatus !== "all") {
+        where.activeStatus = activeStatus === "active";
+      }
+      if (brand_id) where.brand_id = parseInt(brand_id);
+      if (category_id) where.category_id = parseInt(category_id);
+      if (material_id) where.material_id = parseInt(material_id);
+      if (type_id) where.type_id = parseInt(type_id);
+
+      const offset = (page - 1) * limit;
+      const total = await prisma.lensProductMaster.count({ where });
+
+      const products = await prisma.lensProductMaster.findMany({
+        where,
+        skip: offset,
+        take: parseInt(limit),
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true,
+          product_code: true,
+          lens_name: true,
+          brand: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          lensPriceMasters: {
+            where: {
+              deleteStatus: false,
+              activeStatus: true,
+            },
+            select: {
+              id: true,
+              price: true,
+              coating: {
+                select: {
+                  id: true,
+                  name: true,
+                  short_name: true,
+                },
+              },
+              createdAt: true,
+              updatedAt: true,
+            },
+            orderBy: {
+              coating: { name: "asc" },
+            },
+          },
+        },
+      });
+
+      // Transform the data structure
+      const transformedProducts = products.map((product) => ({
+        id: product.id,
+        product_code: product.product_code,
+        lens_name: product.lens_name,
+        brand: product.brand.name,
+        prices: product.lensPriceMasters,
+      }));
+
+      return {
+        data: transformedProducts,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      console.error("Error fetching products with prices:", error);
+      throw new APIError(
+        "Failed to fetch products with prices",
+        500,
+        "FETCH_PRODUCTS_WITH_PRICES_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Calculate cost for a product based on customer and price master
+   * @param {Object} params - Calculation parameters
+   * @param {number} params.customer_id - Customer ID
+   * @param {number} params.lensPrice_id - Lens Price Master ID
+   * @param {number} params.quantity - Quantity (default: 1)
+   * @returns {Promise<Object>} Cost calculation with and without discount
+   */
+  async calculateProductCost(params) {
+    try {
+      const { customer_id, lensPrice_id, quantity = 1 } = params;
+
+      // Validate inputs
+      if (!customer_id) {
+        throw new APIError("Customer ID is required", 400, "CUSTOMER_ID_REQUIRED");
+      }
+      if (!lensPrice_id) {
+        throw new APIError("Lens Price ID is required", 400, "LENS_PRICE_ID_REQUIRED");
+      }
+
+      // Fetch customer
+      const customer = await prisma.customer.findUnique({
+        where: { id: parseInt(customer_id), delete_status: false },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          shopname: true,
+        },
+      });
+
+      if (!customer) {
+        throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+      }
+
+      // Fetch lens price master with product details
+      const lensPrice = await prisma.lensPriceMaster.findUnique({
+        where: { id: parseInt(lensPrice_id), deleteStatus: false },
+        include: {
+          lens: {
+            select: {
+              id: true,
+              product_code: true,
+              lens_name: true,
+              brand: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          coating: {
+            select: {
+              id: true,
+              name: true,
+              short_name: true,
+            },
+          },
+        },
+      });
+
+      if (!lensPrice) {
+        throw new APIError("Lens price not found", 404, "LENS_PRICE_NOT_FOUND");
+      }
+
+      // Check for price mapping
+      const priceMapping = await prisma.priceMapping.findFirst({
+        where: {
+          customer_id: parseInt(customer_id),
+          lensPrice_id: parseInt(lensPrice_id),
+        },
+        select: {
+          id: true,
+          discountRate: true,
+          discountPrice: true,
+        },
+      });
+
+      // Calculate costs
+      const basePrice = lensPrice.price;
+      const totalQuantity = parseInt(quantity);
+      
+      // Cost without discount
+      const costWithoutDiscount = basePrice * totalQuantity;
+
+      // Cost with discount (if mapping exists)
+      let costWithDiscount = costWithoutDiscount;
+      let discountRate = 0;
+      let discountAmount = 0;
+      let hasPriceMapping = false;
+
+      if (priceMapping) {
+        hasPriceMapping = true;
+        discountRate = priceMapping.discountRate;
+        costWithDiscount = priceMapping.discountPrice * totalQuantity;
+        discountAmount = costWithoutDiscount - costWithDiscount;
+      }
+
+      return {
+        customer: customer,
+        product: {
+          id: lensPrice.lens.id,
+          product_code: lensPrice.lens.product_code,
+          lens_name: lensPrice.lens.lens_name,
+          brand: lensPrice.lens.brand,
+          category: lensPrice.lens.category,
+        },
+        coating: lensPrice.coating,
+        pricing: {
+          lensPrice_id: lensPrice.id,
+          basePrice: basePrice,
+          quantity: totalQuantity,
+          hasPriceMapping: hasPriceMapping,
+          discountRate: discountRate,
+          discountAmount: discountAmount,
+          costWithoutDiscount: costWithoutDiscount,
+          costWithDiscount: costWithDiscount,
+          finalCost: costWithDiscount,
+          savings: discountAmount,
+        },
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error calculating product cost:", error);
+      throw new APIError(
+        "Failed to calculate product cost",
+        500,
+        "CALCULATE_COST_ERROR"
+      );
+    }
+  }
 }
 
 // Create and export service instance
@@ -745,5 +993,9 @@ export const deleteLensPrice =
   serviceInstance.deleteLensPrice.bind(serviceInstance);
 export const getLensPricesByLensId =
   serviceInstance.getLensPricesByLensId.bind(serviceInstance);
+export const getProductsWithPrices =
+  serviceInstance.getProductsWithPrices.bind(serviceInstance);
+export const calculateProductCost =
+  serviceInstance.calculateProductCost.bind(serviceInstance);
 
 export default LensProductMasterService;

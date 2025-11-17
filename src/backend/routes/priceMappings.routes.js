@@ -14,7 +14,7 @@ const priceMappingController = new PriceMappingController();
  *       properties:
  *         id:
  *           type: integer
- *         lensProduct_id:
+ *         lensPrice_id:
  *           type: integer
  *         customer_id:
  *           type: integer
@@ -22,6 +22,9 @@ const priceMappingController = new PriceMappingController();
  *           type: number
  *           minimum: 0
  *           maximum: 100
+ *         discountPrice:
+ *           type: number
+ *           description: Calculated price after applying discount rate
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -53,15 +56,17 @@ const priceMappingController = new PriceMappingController();
  *                 items:
  *                   type: object
  *                   required:
- *                     - lensProduct_id
+ *                     - lensPrice_id
  *                   properties:
- *                     lensProduct_id:
+ *                     lensPrice_id:
  *                       type: integer
+ *                       description: ID of the lens price master entry
  *                     discountRate:
  *                       type: number
  *                       minimum: 0
  *                       maximum: 100
  *                       default: 0
+ *                       description: Discount percentage (0-100)
  *     responses:
  *       201:
  *         description: Price mappings created successfully
@@ -136,14 +141,16 @@ router.put('/bulk', priceMappingController.bulkUpdate.bind(priceMappingControlle
  *                 items:
  *                   type: object
  *                   required:
- *                     - lensProduct_id
+ *                     - lensPrice_id
  *                   properties:
- *                     lensProduct_id:
+ *                     lensPrice_id:
  *                       type: integer
+ *                       description: ID of the lens price master entry
  *                     discountRate:
  *                       type: number
  *                       minimum: 0
  *                       maximum: 100
+ *                       description: Discount percentage (0-100)
  *     responses:
  *       200:
  *         description: Price mappings upserted successfully
@@ -205,9 +212,10 @@ router.delete('/bulk', priceMappingController.bulkDelete.bind(priceMappingContro
  *         schema:
  *           type: integer
  *       - in: query
- *         name: lensProduct_id
+ *         name: lensPrice_id
  *         schema:
  *           type: integer
+ *         description: Filter by lens price master ID
  *       - in: query
  *         name: search
  *         schema:

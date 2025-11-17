@@ -1,7 +1,7 @@
 # Price Mapping API Documentation
 
 ## Overview
-The Price Mapping API provides bulk CRUD operations for managing customer-specific lens product pricing and discount rates. This allows you to set custom discount rates for specific customers on specific lens products.
+The Price Mapping API provides bulk CRUD operations for managing customer-specific lens pricing and discount rates. This allows you to set custom discount rates for specific customers on specific lens prices (LensPriceMaster entries), with automatic calculation of the discounted price.
 
 ## Base URL
 ```
@@ -14,15 +14,21 @@ http://localhost:3001/api/price-mappings
 ```javascript
 {
   id: Integer (Auto-increment)
-  lensProduct_id: Integer (Required)
+  lensPrice_id: Integer (Required) // References LensPriceMaster
   customer_id: Integer (Required)
-  discountRate: Float (0-100, default: 0)
+  discountRate: Float (0-100, default: 0) // Percentage discount
+  discountPrice: Float (Auto-calculated) // Final price after discount
   createdAt: DateTime
   updatedAt: DateTime
   createdBy: Integer
   updatedBy: Integer
 }
 ```
+
+**Key Changes:**
+- Now linked to `LensPriceMaster` instead of `LensProductMaster`
+- Added `discountPrice` field that stores the calculated discounted price
+- `discountPrice` is automatically calculated: `basePrice - (basePrice × discountRate / 100)`
 
 ---
 
@@ -39,20 +45,22 @@ Create multiple price mappings for a customer in one request.
   "customer_id": 1,
   "mappings": [
     {
-      "lensProduct_id": 5,
+      "lensPrice_id": 5,
       "discountRate": 10.5
     },
     {
-      "lensProduct_id": 8,
+      "lensPrice_id": 8,
       "discountRate": 15
     },
     {
-      "lensProduct_id": 12,
+      "lensPrice_id": 12,
       "discountRate": 20
     }
   ]
 }
 ```
+
+**Note:** `discountPrice` is automatically calculated based on the base price from LensPriceMaster and the provided discountRate.
 
 **Response (201 Created):**
 ```json
@@ -65,16 +73,26 @@ Create multiple price mappings for a customer in one request.
       {
         "id": 1,
         "customer_id": 1,
-        "lensProduct_id": 5,
+        "lensPrice_id": 5,
         "discountRate": 10.5,
+        "discountPrice": 2237.5,
         "createdAt": "2025-11-14T10:00:00.000Z",
         "updatedAt": "2025-11-14T10:00:00.000Z",
-        "lensProduct": {
+        "lensPrice": {
           "id": 5,
-          "product_code": "LP-001",
-          "lens_name": "Progressive Lens 1.56",
-          "brand": { "id": 1, "name": "Essilor" },
-          "category": { "id": 1, "name": "Progressive" }
+          "price": 2500,
+          "lens": {
+            "id": 3,
+            "product_code": "LP-001",
+            "lens_name": "Progressive Lens 1.56",
+            "brand": { "id": 1, "name": "Essilor" },
+            "category": { "id": 1, "name": "Progressive" }
+          },
+          "coating": {
+            "id": 2,
+            "name": "Anti-Reflection",
+            "short_name": "AR"
+          }
         },
         "customer": {
           "id": 1,
@@ -91,9 +109,11 @@ Create multiple price mappings for a customer in one request.
 
 **Validations:**
 - `customer_id` is required and must exist
-- Each mapping must have `lensProduct_id`
+- Each mapping must have `lensPrice_id` (reference to LensPriceMaster)
+- `lensPrice_id` must exist and be active
 - `discountRate` must be between 0 and 100
-- Duplicate mappings (same customer + lens product) are not allowed
+- Duplicate mappings (same customer + lens price) are not allowed
+- `discountPrice` is automatically calculated and cannot be manually set
 
 ---
 
@@ -129,10 +149,11 @@ Update discount rates for multiple existing price mappings.
       {
         "id": 1,
         "customer_id": 1,
-        "lensProduct_id": 5,
+        "lensPrice_id": 5,
         "discountRate": 12.5,
+        "discountPrice": 2187.5,
         "updatedAt": "2025-11-14T10:30:00.000Z",
-        "lensProduct": { /* ... */ },
+        "lensPrice": { /* ... */ },
         "customer": { /* ... */ }
       }
       // ... more updated mappings
@@ -154,11 +175,11 @@ Create new mappings or update existing ones in a single operation.
   "customer_id": 1,
   "mappings": [
     {
-      "lensProduct_id": 5,
+      "lensPrice_id": 5,
       "discountRate": 15
     },
     {
-      "lensProduct_id": 8,
+      "lensPrice_id": 8,
       "discountRate": 20
     }
   ]
@@ -182,9 +203,10 @@ Create new mappings or update existing ones in a single operation.
 ```
 
 **Behavior:**
-- If mapping exists for customer + lens product: UPDATE
-- If mapping doesn't exist: CREATE
+- If mapping exists for customer + lens price: UPDATE (recalculates discountPrice)
+- If mapping doesn't exist: CREATE (calculates discountPrice)
 - Perfect for updating an entire customer's price list
+- Automatically recalculates `discountPrice` based on current base price
 
 ---
 
@@ -197,7 +219,7 @@ Retrieve price mappings with pagination and filtering.
 - `page` (integer, default: 1)
 - `limit` (integer, default: 10)
 - `customer_id` (integer, optional) - Filter by customer
-- `lensProduct_id` (integer, optional) - Filter by lens product
+- `lensPrice_id` (integer, optional) - Filter by lens price master
 - `search` (string, optional) - Search in customer name, code, lens name, product code
 - `sortBy` (string, default: "createdAt")
 - `sortOrder` (string, default: "desc") - "asc" or "desc"
@@ -215,10 +237,16 @@ GET /api/price-mappings?page=1&limit=20&customer_id=1&search=progressive
     {
       "id": 1,
       "customer_id": 1,
-      "lensProduct_id": 5,
+      "lensPrice_id": 5,
       "discountRate": 15,
+      "discountPrice": 2125,
       "createdAt": "2025-11-14T10:00:00.000Z",
-      "lensProduct": { /* full lens product details */ },
+      "lensPrice": {
+        "id": 5,
+        "price": 2500,
+        "lens": { /* full lens product details */ },
+        "coating": { /* coating details */ }
+      },
       "customer": { /* full customer details */ },
       "createdByUser": { "id": 1, "name": "Admin User" },
       "updatedByUser": { "id": 1, "name": "Admin User" }
@@ -253,9 +281,10 @@ GET /api/price-mappings/customer/1
     {
       "id": 1,
       "customer_id": 1,
-      "lensProduct_id": 5,
+      "lensPrice_id": 5,
       "discountRate": 15,
-      "lensProduct": { /* ... */ }
+      "discountPrice": 2125,
+      "lensPrice": { /* ... */ }
     }
   ],
   "count": 5
@@ -281,30 +310,28 @@ GET /api/price-mappings/1
   "data": {
     "id": 1,
     "customer_id": 1,
-    "lensProduct_id": 5,
+    "lensPrice_id": 5,
     "discountRate": 15,
+    "discountPrice": 2125,
     "createdAt": "2025-11-14T10:00:00.000Z",
     "updatedAt": "2025-11-14T10:30:00.000Z",
-    "lensProduct": {
+    "lensPrice": {
       "id": 5,
-      "product_code": "LP-001",
-      "lens_name": "Progressive Lens 1.56",
-      "brand": { /* full brand details */ },
-      "category": { /* full category details */ },
-      "material": { /* full material details */ },
-      "type": { /* full type details */ },
-      "lensPriceMasters": [
-        {
-          "id": 1,
-          "coating_id": 1,
-          "price": 2500,
-          "coating": {
-            "id": 1,
-            "name": "Anti-Reflection",
-            "short_name": "AR"
-          }
-        }
-      ]
+      "price": 2500,
+      "lens": {
+        "id": 3,
+        "product_code": "LP-001",
+        "lens_name": "Progressive Lens 1.56",
+        "brand": { /* full brand details */ },
+        "category": { /* full category details */ },
+        "material": { /* full material details */ },
+        "type": { /* full type details */ }
+      },
+      "coating": {
+        "id": 1,
+        "name": "Anti-Reflection",
+        "short_name": "AR"
+      }
     },
     "customer": { /* full customer details */ },
     "createdByUser": { /* ... */ },
@@ -378,11 +405,19 @@ DELETE /api/price-mappings/customer/1
 }
 ```
 
+```json
+{
+  "success": false,
+  "message": "One or more lens prices not found",
+  "code": "LENS_PRICES_NOT_FOUND"
+}
+```
+
 ### 409 Conflict
 ```json
 {
   "success": false,
-  "message": "Price mappings already exist for lens products: 5, 8",
+  "message": "Price mappings already exist for lens prices: 5, 8",
   "code": "DUPLICATE_PRICE_MAPPING"
 }
 ```
@@ -401,7 +436,7 @@ DELETE /api/price-mappings/customer/1
 ## Use Cases
 
 ### Use Case 1: Set Up New Customer Pricing
-When a new customer is added and you want to give them specific discounts on certain lens products:
+When a new customer is added and you want to give them specific discounts on certain lens prices:
 
 ```javascript
 // Create bulk price mappings for a new customer
@@ -409,12 +444,13 @@ POST /api/price-mappings/bulk
 {
   "customer_id": 15,
   "mappings": [
-    { "lensProduct_id": 1, "discountRate": 10 },
-    { "lensProduct_id": 2, "discountRate": 12 },
-    { "lensProduct_id": 3, "discountRate": 15 }
+    { "lensPrice_id": 1, "discountRate": 10 },  // 10% off on lens price ID 1
+    { "lensPrice_id": 2, "discountRate": 12 },  // 12% off on lens price ID 2
+    { "lensPrice_id": 3, "discountRate": 15 }   // 15% off on lens price ID 3
   ]
 }
 ```
+**Note:** The system automatically calculates and stores the discounted price.
 
 ### Use Case 2: Update Customer's Pricing Structure
 Update all discount rates for an existing customer:
@@ -428,9 +464,9 @@ POST /api/price-mappings/bulk/upsert
 {
   "customer_id": 15,
   "mappings": [
-    { "lensProduct_id": 1, "discountRate": 12 },  // Updated from 10
-    { "lensProduct_id": 2, "discountRate": 15 },  // Updated from 12
-    { "lensProduct_id": 4, "discountRate": 10 }   // New product
+    { "lensPrice_id": 1, "discountRate": 12 },  // Updated from 10, discountPrice recalculated
+    { "lensPrice_id": 2, "discountRate": 15 },  // Updated from 12, discountPrice recalculated
+    { "lensPrice_id": 4, "discountRate": 10 }   // New price mapping with calculated discountPrice
   ]
 }
 ```
@@ -474,11 +510,14 @@ async function createPriceMappings(customerId, mappings) {
 
 // Usage
 const result = await createPriceMappings(1, [
-  { lensProduct_id: 5, discountRate: 10 },
-  { lensProduct_id: 8, discountRate: 15 }
+  { lensPrice_id: 5, discountRate: 10 },
+  { lensPrice_id: 8, discountRate: 15 }
 ]);
 
 console.log(`Created ${result.data.count} price mappings`);
+result.data.mappings.forEach(mapping => {
+  console.log(`Lens Price ID: ${mapping.lensPrice_id}, Discount: ${mapping.discountRate}%, Final Price: ${mapping.discountPrice}`);
+});
 ```
 
 ---
@@ -497,13 +536,17 @@ console.log(`Created ${result.data.count} price mappings`);
 
 6. **Search Optimization**: Use the search parameter to quickly find specific mappings by customer name, lens name, or codes.
 
+7. **Automatic Price Calculation**: The `discountPrice` is automatically calculated - never try to set it manually. It's always: `basePrice - (basePrice × discountRate / 100)`
+
+8. **Price Updates**: When the base price in LensPriceMaster changes, remember to update or recalculate the price mappings if needed by using the upsert endpoint with the same discount rates.
+
 ---
 
 ## Database Indexes
 
 The following indexes are automatically created for optimal query performance:
 
-- `lensProduct_id` - Fast lookup by lens product
+- `lensPrice_id` - Fast lookup by lens price master
 - `customer_id` - Fast lookup by customer
 
 ---
@@ -511,10 +554,12 @@ The following indexes are automatically created for optimal query performance:
 ## Notes
 
 - All discount rates are stored as percentages (0-100)
-- The API automatically includes related data (lens product details, customer details) in responses
+- `discountPrice` is automatically calculated and stored for quick access
+- The API automatically includes related data (lens price, lens product details, coating details, customer details) in responses
 - Bulk operations are transactional - all succeed or all fail
 - Soft deletes are not used - deletions are permanent
 - Timestamps (createdAt, updatedAt) are automatically managed
+- Price mappings now reference `LensPriceMaster` (which includes lens + coating combination) instead of just `LensProductMaster`
 
 ---
 
@@ -534,7 +579,7 @@ curl -X POST http://localhost:3001/api/price-mappings/bulk \
   -d '{
     "customer_id": 1,
     "mappings": [
-      {"lensProduct_id": 5, "discountRate": 10}
+      {"lensPrice_id": 5, "discountRate": 10}
     ]
   }'
 
