@@ -21,6 +21,8 @@ const mapToBackend = (frontendData) => {
     credit_limit: frontendData.creditLimit
       ? parseInt(frontendData.creditLimit)
       : null,
+    sale_person_id: frontendData.salePersonId || null,
+    delivery_person_id: frontendData.deliveryPersonId || null,
     notes: frontendData.remarks || null,
     active_status:
       frontendData.activeStatus !== undefined
@@ -49,6 +51,10 @@ const mapFromBackend = (backendData) => {
     gstNumber: backendData.gstin || "",
     creditLimit: backendData.credit_limit || 0,
     outstandingBalance: backendData.outstanding_credit || 0,
+    salePersonId: backendData.sale_person_id || null,
+    deliveryPersonId: backendData.delivery_person_id || null,
+    salePerson: backendData.salePerson || null,
+    deliveryPerson: backendData.deliveryPerson || null,
     remarks: backendData.notes || "",
     activeStatus:
       backendData.active_status !== undefined

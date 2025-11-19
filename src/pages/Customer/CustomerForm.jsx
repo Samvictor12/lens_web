@@ -15,6 +15,7 @@ import {
 } from "../../services/customer";
 import { defaultCustomer, activeStatusOptions } from "./Customer.constants";
 import { getBusinessCategoryDropdown } from "../../services/businessCategory";
+import { getSalesPersonsDropdown, getDeliveryPersonsDropdown } from "../../services/user";
 
 export default function CustomerForm() {
   const navigate = useNavigate();
@@ -27,28 +28,41 @@ export default function CustomerForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [businessCategories, setBusinessCategories] = useState([]);
+  const [salesPersons, setSalesPersons] = useState([]);
+  const [deliveryPersons, setDeliveryPersons] = useState([]);
 
-  // Fetch business categories on mount
+  // Fetch business categories, sales persons and delivery persons on mount
   useEffect(() => {
-    const fetchBusinessCategories = async () => {
+    const fetchDropdownData = async () => {
       try {
-        const response = await getBusinessCategoryDropdown();
-        console.log("Fetched business categories:", response);
+        const [businessCatResponse, salesResponse, deliveryResponse] = await Promise.all([
+          getBusinessCategoryDropdown(),
+          getSalesPersonsDropdown(),
+          getDeliveryPersonsDropdown(),
+        ]);
 
-        if (response.success) {
-          setBusinessCategories(response.data);
+        if (businessCatResponse.success) {
+          setBusinessCategories(businessCatResponse.data);
+        }
+
+        if (salesResponse.success) {
+          setSalesPersons(salesResponse.data);
+        }
+
+        if (deliveryResponse.success) {
+          setDeliveryPersons(deliveryResponse.data);
         }
       } catch (error) {
-        console.error("Error fetching business categories:", error);
+        console.error("Error fetching dropdown data:", error);
         toast({
           title: "Warning",
-          description: "Failed to load business categories",
+          description: "Failed to load some dropdown options",
           variant: "destructive",
         });
       }
     };
 
-    fetchBusinessCategories();
+    fetchDropdownData();
   }, []);
 
   useEffect(() => {
@@ -74,6 +88,8 @@ export default function CustomerForm() {
               categoryId: customer.categoryId || null,
               gstNumber: customer.gstNumber || "",
               creditLimit: customer.creditLimit || "",
+              salePersonId: customer.salePersonId || null,
+              deliveryPersonId: customer.deliveryPersonId || null,
               remarks: customer.remarks || "",
               activeStatus:
                 customer.activeStatus !== undefined
@@ -485,6 +501,53 @@ export default function CustomerForm() {
                   disabled={isReadOnly}
                   required
                   error={errors.activeStatus}
+                />
+              </div>
+
+              {/* Sales Person & Delivery Person */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Sales Person - React Select */}
+                <FormSelect
+                  label="Sales Person (Optional)"
+                  name="salePersonId"
+                  options={salesPersons}
+                  value={formData.salePersonId}
+                  onChange={(value) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      salePersonId: value,
+                    }));
+                    if (errors.salePersonId) {
+                      setErrors((prev) => ({ ...prev, salePersonId: "" }));
+                    }
+                  }}
+                  placeholder="Select sales person"
+                  isSearchable={true}
+                  isClearable={true}
+                  disabled={isReadOnly}
+                  error={errors.salePersonId}
+                />
+
+                {/* Delivery Person - React Select */}
+                <FormSelect
+                  label="Delivery Person (Optional)"
+                  name="deliveryPersonId"
+                  options={deliveryPersons}
+                  value={formData.deliveryPersonId}
+                  onChange={(value) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      deliveryPersonId: value,
+                    }));
+                    if (errors.deliveryPersonId) {
+                      setErrors((prev) => ({ ...prev, deliveryPersonId: "" }));
+                    }
+                  }}
+                  placeholder="Select delivery person"
+                  isSearchable={true}
+                  isClearable={true}
+                  disabled={isReadOnly}
+                  error={errors.deliveryPersonId}
                 />
               </div>
 

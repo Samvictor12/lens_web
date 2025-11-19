@@ -451,6 +451,40 @@ export class UserMasterController {
       next(error);
     }
   }
+
+  /**
+   * Get sales persons dropdown
+   * @route GET /api/user-master/sales-persons/dropdown
+   */
+  async getSalesPersonsDropdown(req, res, next) {
+    try {
+      const salesPersons = await this.userMasterService.getSalesPersonsDropdown();
+
+      res.json({
+        success: true,
+        data: salesPersons
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get delivery persons dropdown
+   * @route GET /api/user-master/delivery-persons/dropdown
+   */
+  async getDeliveryPersonsDropdown(req, res, next) {
+    try {
+      const deliveryPersons = await this.userMasterService.getDeliveryPersonsDropdown();
+
+      res.json({
+        success: true,
+        data: deliveryPersons
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default UserMasterController;

@@ -59,6 +59,8 @@ export class CustomerMasterService {
           gstin: customerData.gstin,
           credit_limit: customerData.credit_limit,
           outstanding_credit: customerData.outstanding_credit,
+          sale_person_id: customerData.sale_person_id,
+          delivery_person_id: customerData.delivery_person_id,
           active_status: customerData.active_status,
           delete_status: customerData.delete_status || false,
           notes: customerData.notes,
@@ -73,6 +75,12 @@ export class CustomerMasterService {
           },
           category: {
             select: { id: true, name: true },
+          },
+          salePerson: {
+            select: { id: true, name: true, usercode: true },
+          },
+          deliveryPerson: {
+            select: { id: true, name: true, usercode: true },
           },
         },
       });
@@ -180,6 +188,12 @@ export class CustomerMasterService {
           category: {
             select: { id: true, name: true },
           },
+          salePerson: {
+            select: { id: true, name: true, usercode: true },
+          },
+          deliveryPerson: {
+            select: { id: true, name: true, usercode: true },
+          },
         },
       });
 
@@ -223,6 +237,12 @@ export class CustomerMasterService {
           },
           category: {
             select: { id: true, name: true },
+          },
+          salePerson: {
+            select: { id: true, name: true, usercode: true },
+          },
+          deliveryPerson: {
+            select: { id: true, name: true, usercode: true },
           },
           _count: {
             select: {
@@ -293,6 +313,23 @@ export class CustomerMasterService {
       const updatedCustomer = await prisma.customer.update({
         where: { id },
         data: updateData,
+        include: {
+          usercreate: {
+            select: { id: true, name: true, email: true },
+          },
+          userupdate: {
+            select: { id: true, name: true, email: true },
+          },
+          category: {
+            select: { id: true, name: true },
+          },
+          salePerson: {
+            select: { id: true, name: true, usercode: true },
+          },
+          deliveryPerson: {
+            select: { id: true, name: true, usercode: true },
+          },
+        },
       });
 
       return updatedCustomer;

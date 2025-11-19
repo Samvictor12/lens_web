@@ -60,6 +60,8 @@ model User {
   vendorUserUpdate           Vendor[]             @relation("vendorUserUpdate")
   customerUserCreate         Customer[]           @relation("customerUserCreate")
   customerUserUpdate         Customer[]           @relation("customerUserUpdate")
+  customerSalePerson         Customer[]           @relation("customerSalePerson")
+  customerDeliveryPerson     Customer[]           @relation("customerDeliveryPerson")
   categoryUserCreate         LensCategoryMaster[] @relation("categoryUserCreate")
   categoryUserUpdate         LensCategoryMaster[] @relation("categoryUserUpdate")
   materialUserCreate         LensMaterialMaster[] @relation("materialUserCreate")
@@ -159,6 +161,8 @@ model Customer {
   credit_limit        Int?
   outstanding_credit  Int?
   notes               String?
+  sale_person_id      Int?
+  delivery_person_id  Int?
   // Default fields
   active_status       Boolean           @default(true)
   delete_status       Boolean           @default(false)
@@ -168,6 +172,8 @@ model Customer {
   updatedBy           Int?
   // Relationship Fields
   category            businessCategory? @relation("customerCategory", fields: [businessCategory_id], references: [id])
+  salePerson          User?             @relation("customerSalePerson", fields: [sale_person_id], references: [id])
+  deliveryPerson      User?             @relation("customerDeliveryPerson", fields: [delivery_person_id], references: [id])
   usercreate          User              @relation("customerUserCreate", fields: [createdBy], references: [id])
   userupdate          User?             @relation("customerUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
@@ -376,18 +382,18 @@ model LensProductMaster {
 }
 
 model LensPriceMaster {
-  id           Int               @id @default(autoincrement())
-  lens_id      Int
-  coating_id   Int
-  price        Float
-  activeStatus Boolean           @default(true)
-  deleteStatus Boolean           @default(false)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime?         @updatedAt
-  createdBy    Int
-  updatedBy    Int?
+  id            Int               @id @default(autoincrement())
+  lens_id       Int
+  coating_id    Int
+  price         Float
+  activeStatus  Boolean           @default(true)
+  deleteStatus  Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime?         @updatedAt
+  createdBy     Int
+  updatedBy     Int?
   // Relationships Fields
-  coating      LensCoatingMaster @relation(fields: [coating_id], references: [id])
+  coating       LensCoatingMaster @relation(fields: [coating_id], references: [id])
   lens          LensProductMaster @relation(fields: [lens_id], references: [id])
   Usercreated   User              @relation("priceUserCreate", fields: [createdBy], references: [id])
   Userupdated   User?             @relation("priceUserUpdate", fields: [updatedBy], references: [id])

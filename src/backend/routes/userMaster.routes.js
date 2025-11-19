@@ -977,4 +977,114 @@ router.get(
   userMasterController.getLoginCredentials.bind(userMasterController)
 );
 
+/**
+ * @swagger
+ * /api/user-master/sales-persons/dropdown:
+ *   get:
+ *     summary: Get sales persons dropdown
+ *     description: Retrieves list of active users from Sales department for dropdown
+ *     tags: [UserMaster]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sales persons retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       label:
+ *                         type: string
+ *                         example: "John Doe (USR001)"
+ *                       value:
+ *                         type: integer
+ *                         example: 1
+ *                       name:
+ *                         type: string
+ *                         example: "John Doe"
+ *                       usercode:
+ *                         type: string
+ *                         example: "USR001"
+ *                       email:
+ *                         type: string
+ *                         example: "john.doe@example.com"
+ *                       department:
+ *                         type: string
+ *                         example: "Sales"
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  "/sales-persons/dropdown",
+//   authenticateToken,
+  userMasterController.getSalesPersonsDropdown.bind(userMasterController)
+);
+
+/**
+ * @swagger
+ * /api/user-master/delivery-persons/dropdown:
+ *   get:
+ *     summary: Get delivery persons dropdown
+ *     description: Retrieves list of active users from Delivery department for dropdown
+ *     tags: [UserMaster]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Delivery persons retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 2
+ *                       label:
+ *                         type: string
+ *                         example: "Jane Smith (USR002)"
+ *                       value:
+ *                         type: integer
+ *                         example: 2
+ *                       name:
+ *                         type: string
+ *                         example: "Jane Smith"
+ *                       usercode:
+ *                         type: string
+ *                         example: "USR002"
+ *                       email:
+ *                         type: string
+ *                         example: "jane.smith@example.com"
+ *                       department:
+ *                         type: string
+ *                         example: "Delivery"
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  "/delivery-persons/dropdown",
+//   authenticateToken,
+  userMasterController.getDeliveryPersonsDropdown.bind(userMasterController)
+);
+
 export default router;
