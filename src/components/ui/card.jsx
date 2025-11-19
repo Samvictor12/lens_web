@@ -1,7 +1,7 @@
 import * as React from "react";
 
 const Card = React.forwardRef(({ className, ...props }, ref) => {
-  const cardClasses = "rounded-lg border bg-card text-card-foreground shadow-sm p-6";
+  const cardClasses = "rounded-lg border bg-card text-card-foreground shadow-sm p-3 ";
   const finalClasses = className ? `${cardClasses} ${className}` : cardClasses;
   
   return (
@@ -16,7 +16,7 @@ Card.displayName = "Card";
 
 const CardHeader = React.forwardRef(
   ({ className, ...props }, ref) => {
-    const headerClasses = "flex flex-col space-y-1.5 p-6";
+    const headerClasses = "flex flex-col space-y-1.5";
     const finalClasses = className ? `${headerClasses} ${className}` : headerClasses;
     
     return (
@@ -32,7 +32,7 @@ CardHeader.displayName = "CardHeader";
 
 const CardTitle = React.forwardRef(
   ({ className, ...props }, ref) => {
-    const titleClasses = "text-2xl font-semibold leading-none tracking-tight";
+    const titleClasses = "text-xl font-semibold leading-none tracking-tight";
     const finalClasses = className ? `${titleClasses} ${className}` : titleClasses;
     
     return (

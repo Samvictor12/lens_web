@@ -27,41 +27,42 @@ const FormInput = React.forwardRef(
 
     return (
       <div className={cn("space-y-1.5", containerClassName)}>
-        {/* Label */}
-        {label && (
-          <Label htmlFor={inputId} className="text-xs">
-            {label} {required && <span className="text-destructive">*</span>}
-          </Label>
-        )}
-
-        {/* Input with optional prefix/suffix */}
-        <div className="relative">
-          {prefix && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              {prefix}
-            </span>
+        <div className="flex justify-between items-center gap-2">
+          {/* Label */}
+          {label && (
+            <Label htmlFor={inputId} className="text-xs min-w-[60px] w-[180px]">
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
           )}
-          <Input
-            ref={ref}
-            id={inputId}
-            autoComplete="off"
-            maxLength={maxLength}
-            className={cn(
-              "h-8 text-sm",
-              hasPrefix && "pl-12",
-              hasSuffix && "pr-12",
-              error && "border-destructive",
-              className
+
+          {/* Input with optional prefix/suffix */}
+          <div className="relative w-full">
+            {prefix && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                {prefix}
+              </span>
             )}
-            {...props}
-          />
-          {suffix && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              {suffix}
-            </span>
-          )}
+            <Input
+              ref={ref}
+              id={inputId}
+              autoComplete="off"
+              maxLength={maxLength}
+              className={cn(
+                " h-8 text-sm",
+                hasPrefix && "pl-12",
+                hasSuffix && "pr-12",
+                error && "border-destructive",
+                className
+              )}
+              {...props}
+            />
+            {suffix && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                {suffix}
+              </span>
+            )}
+          </div>
         </div>
-
         {/* Error Message */}
         {error && <p className="text-xs text-destructive">{error}</p>}
 
@@ -69,9 +70,8 @@ const FormInput = React.forwardRef(
         {!error && (helperText || (showCharCount && maxLength)) && (
           <p className="text-xs text-muted-foreground">
             {showCharCount && maxLength
-              ? `${currentLength}/${maxLength} ${
-                  props.type === "tel" ? "digits" : "characters"
-                }`
+              ? `${currentLength}/${maxLength} ${props.type === "tel" ? "digits" : "characters"
+              }`
               : helperText}
           </p>
         )}

@@ -35,6 +35,7 @@ import {
     dispatchStatusOptions,
     eyeSpecRanges,
 } from "./SaleOrder.constants";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 
 export default function SaleOrderForm() {
     const navigate = useNavigate();
@@ -61,90 +62,89 @@ export default function SaleOrderForm() {
 
     // Fetch master data for dropdowns
     useEffect(() => {
-        const fetchMasterData = async () => {
-            try {
-                const [
-                    customersRes,
-                    lensProductsRes,
-                    categoriesRes,
-                    lensTypesRes,
-                    diasRes,
-                    fittingsRes,
-                    coatingsRes,
-                    // tintingsRes,
-                    usersRes,
-                ] = await Promise.all([
-                    getCustomersDropdown(),
-                    getLensProductsDropdown(),
-                    getLensCategoriesDropdown(),
-                    getLensTypesDropdown(),
-                    getLensDiaDropdown(),
-                    getLensFittingsDropdown(),
-                    getLensCoatingsDropdown(),
-                    // getLensTintingsDropdown(),
-                    getUsersDropdown(),
-                ]);
-
-                console.log("getCustomersDropdown", customersRes.data);
-
-                if (customersRes.success) setCustomers(customersRes.data || []);
-                if (lensProductsRes.success) setLensProducts(lensProductsRes.data || []);
-                if (categoriesRes.success) setCategories(categoriesRes.data || []);
-                if (lensTypesRes.success) setLensTypes(lensTypesRes.data || []);
-                if (diasRes.success) setDias(diasRes.data || []);
-                if (fittingsRes.success) setFittings(fittingsRes.data || []);
-                if (coatingsRes.success) setCoatings(coatingsRes.data || []);
-                // if (tintingsRes.success) setTintings(tintingsRes.data || []);
-                if (usersRes.success) setUsers(usersRes.data || []);
-            } catch (error) {
-                console.error("Error fetching master data:", error);
-                toast({
-                    title: "Warning",
-                    description: "Some dropdown options may not be available",
-                    variant: "default",
-                });
-            }
-        };
-
         fetchMasterData();
     }, []);
 
+    const fetchMasterData = async () => {
+        try {
+            const [
+                customersRes,
+                lensProductsRes,
+                categoriesRes,
+                lensTypesRes,
+                diasRes,
+                fittingsRes,
+                coatingsRes,
+                // tintingsRes,
+                usersRes,
+            ] = await Promise.all([
+                getCustomersDropdown(),
+                getLensProductsDropdown(),
+                getLensCategoriesDropdown(),
+                getLensTypesDropdown(),
+                getLensDiaDropdown(),
+                getLensFittingsDropdown(),
+                getLensCoatingsDropdown(),
+                // getLensTintingsDropdown(),
+                getUsersDropdown(),
+            ]);
+
+
+            if (customersRes.success) setCustomers(customersRes.data || []);
+            if (lensProductsRes.success) setLensProducts(lensProductsRes.data || []);
+            if (categoriesRes.success) setCategories(categoriesRes.data || []);
+            if (lensTypesRes.success) setLensTypes(lensTypesRes.data || []);
+            if (diasRes.success) setDias(diasRes.data || []);
+            if (fittingsRes.success) setFittings(fittingsRes.data || []);
+            if (coatingsRes.success) setCoatings(coatingsRes.data || []);
+            // if (tintingsRes.success) setTintings(tintingsRes.data || []);
+            if (usersRes.success) setUsers(usersRes.data || []);
+        } catch (error) {
+            console.error("Error fetching master data:", error);
+            toast({
+                title: "Warning",
+                description: "Some dropdown options may not be available",
+                variant: "default",
+            });
+        }
+    };
+
     // Fetch sale order data for edit/view mode
     useEffect(() => {
-        const fetchSaleOrder = async () => {
-            if (id && (mode === "view" || mode === "edit")) {
-                try {
-                    setIsLoading(true);
-                    const response = await getSaleOrderById(parseInt(id));
-
-                    if (response.success) {
-                        const order = response.data;
-                        setFormData(order);
-                        setOriginalData(order);
-                    } else {
-                        toast({
-                            title: "Error",
-                            description: "Sale order not found",
-                            variant: "destructive",
-                        });
-                        navigate("/sales/orders");
-                    }
-                } catch (error) {
-                    console.error("Error fetching sale order:", error);
-                    toast({
-                        title: "Error",
-                        description: error.message || "Failed to fetch sale order details",
-                        variant: "destructive",
-                    });
-                    navigate("/sales/orders");
-                } finally {
-                    setIsLoading(false);
-                }
-            }
-        };
-
         fetchSaleOrder();
     }, [id, mode, navigate]);
+    const fetchSaleOrder = async () => {
+        if (id && (mode === "view" || mode === "edit")) {
+            try {
+                setIsLoading(true);
+                const response = await getSaleOrderById(parseInt(id));
+
+                if (response.success) {
+                    const order = response.data;
+                    setFormData(order);
+                    setOriginalData(order);
+                } else {
+                    toast({
+                        title: "Error",
+                        description: "Sale order not found",
+                        variant: "destructive",
+                    });
+                    navigate("/sales/orders", { replace: true });
+                }
+            } catch (error) {
+                console.error("Error fetching sale order:", error);
+                toast({
+                    title: "Error",
+                    description: error.message || "Failed to fetch sale order details",
+                    variant: "destructive",
+                });
+                navigate("/sales/orders", { replace: true });
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
+
 
     // Generate customer ref no when customer is selected
     useEffect(() => {
@@ -390,10 +390,11 @@ export default function SaleOrderForm() {
                 "Are you sure? Any unsaved changes will be lost."
             );
             if (confirmCancel) {
-                navigate("/sales/orders");
+                window.close();
             }
         } else {
-            navigate("/sales/orders");
+            window.close();
+
         }
     };
 
@@ -492,13 +493,13 @@ export default function SaleOrderForm() {
     }
 
     return (
-        <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4">
+        <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-3">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
                         {mode === "add"
-                            ? "Add New Sale Order"
+                            ? "New Sale Order"
                             : mode === "edit"
                                 ? "Edit Sale Order"
                                 : "Sale Order Details"}
@@ -583,15 +584,15 @@ export default function SaleOrderForm() {
             </div>
 
             {/* Form with 4 Blocks */}
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-                {/* Block 1: Order Information */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Order Information</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {/* Row 1 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3">
+                <div className="flex flex-col md:flex-row gap-4">
+                    {/* Block 1: Order Information */}
+                    <Card className="w-[35%] flex flex-col">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base">Order Information</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+
                             <FormSelect
                                 label="Customer"
                                 name="customerId"
@@ -613,10 +614,6 @@ export default function SaleOrderForm() {
                                 disabled={true}
                                 helperText="Auto-generated"
                             />
-                        </div>
-
-                        {/* Row 2 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormInput
                                 label="Order Date"
                                 type="date"
@@ -639,10 +636,6 @@ export default function SaleOrderForm() {
                                 required
                                 error={errors.type}
                             />
-                        </div>
-
-                        {/* Row 3 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormInput
                                 label="Delivery Schedule"
                                 type="datetime-local"
@@ -666,21 +659,15 @@ export default function SaleOrderForm() {
                                 required
                                 error={errors.status}
                             />
-                        </div>
-
-                        {/* Row 4 - Remarks (full width) */}
-                        <FormTextarea
-                            label="Remarks"
-                            name="remark"
-                            value={formData.remark}
-                            onChange={handleChange}
-                            disabled={isReadOnly}
-                            rows={3}
-                            placeholder="Enter any additional remarks"
-                        />
-
-                        {/* Row 5 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormTextarea
+                                label="Remarks"
+                                name="remark"
+                                value={formData.remark}
+                                onChange={handleChange}
+                                disabled={isReadOnly}
+                                rows={3}
+                                placeholder="Enter any additional remarks"
+                            />
                             <FormInput
                                 label="Item Ref No"
                                 name="itemRefNo"
@@ -689,548 +676,548 @@ export default function SaleOrderForm() {
                                 disabled={isReadOnly}
                                 placeholder="Optional item reference"
                             />
-                            <div className="flex items-center space-x-2 pt-7">
-                                <Checkbox
-                                    id="freeLens"
-                                    checked={formData.freeLens}
-                                    onCheckedChange={(checked) =>
-                                        handleSelectChange("freeLens", checked)
-                                    }
-                                    disabled={isReadOnly}
-                                />
-                                <Label
-                                    htmlFor="freeLens"
-                                    className="text-sm font-medium cursor-pointer"
-                                >
-                                    Free Lens
-                                </Label>
-                            </div>
-                        </div>
 
-                        {errors.eyeSelection && (
-                            <Alert variant="destructive" className="mt-2">
-                                <AlertDescription>{errors.eyeSelection}</AlertDescription>
-                            </Alert>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Block 2: Lens Information */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Lens Information</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {/* Row 1 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormSelect
-                                label="Lens Name"
-                                name="lens_id"
-                                options={lensProducts}
-                                value={formData.lens_id}
-                                onChange={(value) => handleSelectChange("lens_id", value)}
-                                placeholder="Select lens"
-                                isSearchable={true}
+                            <Checkbox
+                                label="Free Lens"
+                                id="freeLens"
+                                name="freeLens"
+                                checked={formData.freeLens}
+                                onCheckedChange={(checked) =>
+                                    handleSelectChange("freeLens", checked)
+                                }
                                 disabled={isReadOnly}
-                                required
-                                error={errors.lens_id}
                             />
-                            <FormSelect
-                                label="Category"
-                                name="category_id"
-                                options={categories}
-                                value={formData.category_id}
-                                onChange={(value) => handleSelectChange("category_id", value)}
-                                placeholder="Select category"
-                                isSearchable={false}
-                                disabled={isReadOnly}
-                                required
-                                error={errors.category_id}
-                            />
-                        </div>
-
-                        {/* Row 2 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormSelect
-                                label="Type"
-                                name="Type_id"
-                                options={lensTypes}
-                                value={formData.Type_id}
-                                onChange={(value) => handleSelectChange("Type_id", value)}
-                                placeholder="Select type"
-                                isSearchable={false}
-                                disabled={isReadOnly}
-                                required
-                                error={errors.Type_id}
-                            />
-                            <FormSelect
-                                label="Dia"
-                                name="dia_id"
-                                options={dias}
-                                value={formData.dia_id}
-                                onChange={(value) => handleSelectChange("dia_id", value)}
-                                placeholder="Select dia"
-                                isSearchable={false}
-                                disabled={isReadOnly}
-                                required
-                                error={errors.dia_id}
-                            />
-                        </div>
-
-                        {/* Row 3 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormSelect
-                                label="Fitting Type"
-                                name="fitting_id"
-                                options={fittings}
-                                value={formData.fitting_id}
-                                onChange={(value) => handleSelectChange("fitting_id", value)}
-                                placeholder="Select fitting"
-                                isSearchable={false}
-                                disabled={isReadOnly}
-                                required
-                                error={errors.fitting_id}
-                            />
-                            <FormSelect
-                                label="Tinting Name"
-                                name="tinting_id"
-                                options={tintings}
-                                value={formData.tinting_id}
-                                onChange={(value) => handleSelectChange("tinting_id", value)}
-                                placeholder="Select tinting"
-                                isSearchable={false}
-                                disabled={isReadOnly}
-                                required
-                                error={errors.tinting_id}
-                            />
-                        </div>
-
-                        {/* Row 4 - Coating (changed order as per MD) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                                <FormSelect
-                                    label="Coating Name"
-                                    name="coating_id"
-                                    options={coatings}
-                                    value={formData.coating_id}
-                                    onChange={(value) => handleSelectChange("coating_id", value)}
-                                    placeholder="Select coating"
-                                    isSearchable={true}
-                                    disabled={isReadOnly}
-                                    required
-                                    error={errors.coating_id}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Row 5 - Calculate Price Button and Price Display */}
-                        {!isReadOnly && (
-                            <>
-                                <Separator />
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="flex-1 grid grid-cols-2 gap-4">
-                                        <FormInput
-                                            label="Lens Price"
-                                            type="number"
-                                            name="lensPrice"
-                                            value={formData.lensPrice}
-                                            onChange={handleChange}
-                                            disabled={true}
-                                            helperText="Calculated price"
-                                        />
-                                        <FormInput
-                                            label="Discount (%)"
-                                            type="number"
-                                            name="discount"
-                                            value={formData.discount}
-                                            onChange={handleChange}
-                                            disabled={true}
-                                            helperText="Customer discount"
-                                        />
-                                    </div>
-                                    <div className="pt-6">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="gap-1.5"
-                                            onClick={handleCalculatePrice}
-                                            disabled={
-                                                isCalculating ||
-                                                !formData.customerId ||
-                                                !formData.lens_id ||
-                                                !formData.coating_id
-                                            }
-                                        >
-                                            {isCalculating ? (
-                                                <>
-                                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                                    Calculating...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Calculator className="h-4 w-4" />
-                                                    Calculate Price
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        {isReadOnly && (
-                            <>
-                                <Separator />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="text-sm text-muted-foreground">
-                                            Lens Price
-                                        </Label>
-                                        <p className="text-base font-semibold">
-                                            ₹{formData.lensPrice.toLocaleString("en-IN")}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm text-muted-foreground">
-                                            Discount
-                                        </Label>
-                                        <p className="text-base font-semibold">
-                                            {formData.discount}%
-                                        </p>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Block 3: Eye Specifications */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Eye Specifications</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Right Eye Section */}
-                            <div className="space-y-4 p-4 border rounded-lg">
-                                <div className="flex items-center space-x-2 mb-3">
-                                    <Checkbox
-                                        id="rightEye"
-                                        checked={formData.rightEye}
-                                        onCheckedChange={(checked) =>
-                                            handleSelectChange("rightEye", checked)
-                                        }
-                                        disabled={isReadOnly}
-                                    />
-                                    <Label
-                                        htmlFor="rightEye"
-                                        className="text-sm font-semibold cursor-pointer flex items-center gap-2"
-                                    >
-                                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                                        Right Eye
-                                    </Label>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormInput
-                                        label="Spherical"
-                                        type="number"
-                                        step="0.25"
-                                        name="rightSpherical"
-                                        value={formData.rightSpherical}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        error={errors.rightSpherical}
-                                        placeholder="-0.75"
-                                    />
-                                    <FormInput
-                                        label="Cylindrical"
-                                        type="number"
-                                        step="0.25"
-                                        name="rightCylindrical"
-                                        value={formData.rightCylindrical}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        error={errors.rightCylindrical}
-                                        placeholder="0.00"
-                                    />
-                                    <FormInput
-                                        label="Axis"
-                                        type="number"
-                                        name="rightAxis"
-                                        value={formData.rightAxis}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        error={errors.rightAxis}
-                                        placeholder="0"
-                                    />
-                                    <FormInput
-                                        label="Add"
-                                        type="number"
-                                        step="0.25"
-                                        name="rightAdd"
-                                        value={formData.rightAdd}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        error={errors.rightAdd}
-                                        placeholder="1.25"
-                                    />
-                                    <FormInput
-                                        label="Dia"
-                                        name="rightDia"
-                                        value={formData.rightDia}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        placeholder="70"
-                                    />
-                                    <FormInput
-                                        label="Base"
-                                        name="rightBase"
-                                        value={formData.rightBase}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        placeholder="RBASE"
-                                    />
-                                    <FormInput
-                                        label="Base Size"
-                                        name="rightBaseSize"
-                                        value={formData.rightBaseSize}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        placeholder="PRISM"
-                                    />
-                                    <FormInput
-                                        label="Bled"
-                                        name="rightBled"
-                                        value={formData.rightBled}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.rightEye}
-                                        placeholder="RNGH"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Left Eye Section */}
-                            <div className="space-y-4 p-4 border rounded-lg">
-                                <div className="flex items-center space-x-2 mb-3">
-                                    <Checkbox
-                                        id="leftEye"
-                                        checked={formData.leftEye}
-                                        onCheckedChange={(checked) =>
-                                            handleSelectChange("leftEye", checked)
-                                        }
-                                        disabled={isReadOnly}
-                                    />
-                                    <Label
-                                        htmlFor="leftEye"
-                                        className="text-sm font-semibold cursor-pointer flex items-center gap-2"
-                                    >
-                                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                        Left Eye
-                                    </Label>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormInput
-                                        label="Spherical"
-                                        type="number"
-                                        step="0.25"
-                                        name="leftSpherical"
-                                        value={formData.leftSpherical}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        error={errors.leftSpherical}
-                                        placeholder="-0.75"
-                                    />
-                                    <FormInput
-                                        label="Cylindrical"
-                                        type="number"
-                                        step="0.25"
-                                        name="leftCylindrical"
-                                        value={formData.leftCylindrical}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        error={errors.leftCylindrical}
-                                        placeholder="0.00"
-                                    />
-                                    <FormInput
-                                        label="Axis"
-                                        type="number"
-                                        name="leftAxis"
-                                        value={formData.leftAxis}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        error={errors.leftAxis}
-                                        placeholder="0"
-                                    />
-                                    <FormInput
-                                        label="Add"
-                                        type="number"
-                                        step="0.25"
-                                        name="leftAdd"
-                                        value={formData.leftAdd}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        error={errors.leftAdd}
-                                        placeholder="1.25"
-                                    />
-                                    <FormInput
-                                        label="Dia"
-                                        name="leftDia"
-                                        value={formData.leftDia}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        placeholder="70"
-                                    />
-                                    <FormInput
-                                        label="Base"
-                                        name="leftBase"
-                                        value={formData.leftBase}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        placeholder="RBASE"
-                                    />
-                                    <FormInput
-                                        label="Base Size"
-                                        name="leftBaseSize"
-                                        value={formData.leftBaseSize}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        placeholder="PRISM"
-                                    />
-                                    <FormInput
-                                        label="Bled"
-                                        name="leftBled"
-                                        value={formData.leftBled}
-                                        onChange={handleChange}
-                                        disabled={isReadOnly || !formData.leftEye}
-                                        placeholder="RNGH"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Block 4: Dispatch Information (Conditional) */}
-                {formData.status === "READY_FOR_DISPATCH" && (
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-base">Dispatch Information</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {/* Row 1 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormInput
-                                    label="Dispatch ID"
-                                    name="dispatchId"
-                                    value={formData.dispatchId}
-                                    onChange={handleChange}
-                                    disabled={isReadOnly}
-                                    placeholder="Auto-generated or manual"
-                                />
-                            </div>
-
-                            {/* Row 2 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormSelect
-                                    label="Dispatch Status"
-                                    name="dispatchStatus"
-                                    options={dispatchStatusOptions.map((opt) => ({
-                                        id: opt.value,
-                                        name: opt.label,
-                                    }))}
-                                    value={formData.dispatchStatus}
-                                    onChange={(value) =>
-                                        handleSelectChange("dispatchStatus", value)
-                                    }
-                                    placeholder="Select dispatch status"
-                                    isSearchable={false}
-                                    disabled={isReadOnly}
-                                    required
-                                    error={errors.dispatchStatus}
-                                />
-                                <FormSelect
-                                    label="Assigned Person"
-                                    name="assignedPerson_id"
-                                    options={users.map((u) => ({ id: u.id, name: u.name }))}
-                                    value={formData.assignedPerson_id}
-                                    onChange={(value) =>
-                                        handleSelectChange("assignedPerson_id", value)
-                                    }
-                                    placeholder="Select person"
-                                    isSearchable={true}
-                                    disabled={isReadOnly}
-                                />
-                            </div>
-
-                            {/* Row 3 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormInput
-                                    label="Estimated Date"
-                                    type="date"
-                                    name="estimatedDate"
-                                    value={formData.estimatedDate || ""}
-                                    onChange={handleChange}
-                                    disabled={isReadOnly}
-                                    required
-                                    error={errors.estimatedDate}
-                                />
-                                <FormInput
-                                    label="Estimated Time"
-                                    type="time"
-                                    name="estimatedTime"
-                                    value={formData.estimatedTime}
-                                    onChange={handleChange}
-                                    disabled={isReadOnly}
-                                />
-                            </div>
-
-                            {/* Row 4 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormInput
-                                    label="Actual Date"
-                                    type="date"
-                                    name="actualDate"
-                                    value={formData.actualDate || ""}
-                                    onChange={handleChange}
-                                    disabled={isReadOnly}
-                                />
-                                <FormInput
-                                    label="Actual Time"
-                                    type="time"
-                                    name="actualTime"
-                                    value={formData.actualTime}
-                                    onChange={handleChange}
-                                    disabled={isReadOnly}
-                                />
-                            </div>
-
-                            {/* Row 5 - Dispatch Notes (full width) */}
-                            <FormTextarea
-                                label="Dispatch Notes"
-                                name="dispatchNotes"
-                                value={formData.dispatchNotes}
-                                onChange={handleChange}
-                                disabled={isReadOnly}
-                                rows={3}
-                                placeholder="Special delivery instructions"
-                            />
+                            {errors.eyeSelection && (
+                                <Alert variant="destructive" className="mt-2">
+                                    <AlertDescription>{errors.eyeSelection}</AlertDescription>
+                                </Alert>
+                            )}
                         </CardContent>
                     </Card>
-                )}
+
+                    {/* Block 2, 3, 4: Tabbed View */}
+                    <div className="flex w-[65%]">
+                        <Tabs value="lens-info">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="lens-info">Lens Info</TabsTrigger>
+                                <TabsTrigger value="dispatch">Dispatch</TabsTrigger>
+                            </TabsList>
+
+                            {/* Tab 1: Lens Information + Eye Specifications */}
+                            <TabsContent value="lens-info" >
+                                {/* Block 2: Lens Information */}
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base">Lens Information</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3.5">
+                                        {/* Row 1 */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <FormSelect
+                                                label="Lens Name"
+                                                name="lens_id"
+                                                options={lensProducts}
+                                                value={formData.lens_id}
+                                                onChange={(value) => handleSelectChange("lens_id", value)}
+                                                placeholder="Select lens"
+                                                isSearchable={true}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.lens_id}
+                                            />
+                                            <FormSelect
+                                                label="Category"
+                                                name="category_id"
+                                                options={categories}
+                                                value={formData.category_id}
+                                                onChange={(value) => handleSelectChange("category_id", value)}
+                                                placeholder="Select category"
+                                                isSearchable={false}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.category_id}
+                                            />
+                                            <FormSelect
+                                                label="Type"
+                                                name="Type_id"
+                                                options={lensTypes}
+                                                value={formData.Type_id}
+                                                onChange={(value) => handleSelectChange("Type_id", value)}
+                                                placeholder="Select type"
+                                                isSearchable={false}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.Type_id}
+                                            />
+                                        </div>
+
+                                        {/* Row 2 */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                                            <FormSelect
+                                                label="Dia"
+                                                name="dia_id"
+                                                options={dias}
+                                                value={formData.dia_id}
+                                                onChange={(value) => handleSelectChange("dia_id", value)}
+                                                placeholder="Select dia"
+                                                isSearchable={false}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.dia_id}
+                                            />
+                                            <FormSelect
+                                                label="Fitting Type"
+                                                name="fitting_id"
+                                                options={fittings}
+                                                value={formData.fitting_id}
+                                                onChange={(value) => handleSelectChange("fitting_id", value)}
+                                                placeholder="Select fitting"
+                                                isSearchable={false}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.fitting_id}
+                                            />
+                                            <FormSelect
+                                                label="Tinting Name"
+                                                name="tinting_id"
+                                                options={tintings}
+                                                value={formData.tinting_id}
+                                                onChange={(value) => handleSelectChange("tinting_id", value)}
+                                                placeholder="Select tinting"
+                                                isSearchable={false}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.tinting_id}
+                                            />
+                                        </div>
+
+                                        {/* Row 4 - Coating (changed order as per MD) */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-3">
+                                                <FormSelect
+                                                    label="Coating Name"
+                                                    name="coating_id"
+                                                    options={coatings}
+                                                    value={formData.coating_id}
+                                                    onChange={(value) => handleSelectChange("coating_id", value)}
+                                                    placeholder="Select coating"
+                                                    isSearchable={true}
+                                                    disabled={isReadOnly}
+                                                    required
+                                                    error={errors.coating_id}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Row 5 - Calculate Price Button and Price Display */}
+                                        {!isReadOnly && (
+                                            <>
+                                                <Separator />
+                                                <div className="flex items-center justify-center m-0">
+                                                    <div className="flex-1 grid grid-cols-2 gap-4">
+                                                        <FormInput
+                                                            label="Lens Price"
+                                                            type="number"
+                                                            name="lensPrice"
+                                                            value={formData.lensPrice}
+                                                            onChange={handleChange}
+                                                            disabled={true}
+                                                        />
+                                                        <FormInput
+                                                            label="Discount (%)"
+                                                            type="number"
+                                                            name="discount"
+                                                            value={formData.discount}
+                                                            onChange={handleChange}
+                                                            disabled={true}
+                                                        />
+                                                    </div>
+                                                    <div className="">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="gap-1.5"
+                                                            onClick={handleCalculatePrice}
+                                                            disabled={
+                                                                isCalculating ||
+                                                                !formData.customerId ||
+                                                                !formData.lens_id ||
+                                                                !formData.coating_id
+                                                            }
+                                                        >
+                                                            {isCalculating ? (
+                                                                <>
+                                                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                                    Calculating...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Calculator className="h-4 w-4" />
+                                                                    Calculate Price
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {isReadOnly && (
+                                            <>
+                                                <Separator />
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label className="text-sm text-muted-foreground">
+                                                            Lens Price
+                                                        </Label>
+                                                        <p className="text-base font-semibold">
+                                                            ₹{formData.lensPrice.toLocaleString("en-IN")}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-sm text-muted-foreground">
+                                                            Discount
+                                                        </Label>
+                                                        <p className="text-base font-semibold">
+                                                            {formData.discount}%
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Block 3: Eye Specifications */}
+                                <Card>
+                                    <CardHeader >
+                                        <CardTitle className="text-base">Eye Specifications</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            {/* Right Eye Section */}
+                                            <div className="space-y-3 p-4 border rounded-lg">
+                                                <Checkbox
+                                                    label={
+                                                        <span className="flex items-center gap-2">
+                                                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                                            Right Eye
+                                                        </span>
+                                                    }
+                                                    id="rightEye"
+                                                    name="rightEye"
+                                                    checked={formData.rightEye}
+                                                    onCheckedChange={(checked) =>
+                                                        handleSelectChange("rightEye", checked)
+                                                    }
+                                                    disabled={isReadOnly}
+                                                />
+
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <FormInput
+                                                        label="Spherical"
+                                                        type="number"
+                                                        step="0.25"
+                                                        name="rightSpherical"
+                                                        value={formData.rightSpherical}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        error={errors.rightSpherical}
+                                                        placeholder="-0.75"
+                                                    />
+                                                    <FormInput
+                                                        label="Cylindrical"
+                                                        type="number"
+                                                        step="0.25"
+                                                        name="rightCylindrical"
+                                                        value={formData.rightCylindrical}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        error={errors.rightCylindrical}
+                                                        placeholder="0.00"
+                                                    />
+                                                    <FormInput
+                                                        label="Axis"
+                                                        type="number"
+                                                        name="rightAxis"
+                                                        value={formData.rightAxis}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        error={errors.rightAxis}
+                                                        placeholder="0"
+                                                    />
+                                                    <FormInput
+                                                        label="Add"
+                                                        type="number"
+                                                        step="0.25"
+                                                        name="rightAdd"
+                                                        value={formData.rightAdd}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        error={errors.rightAdd}
+                                                        placeholder="1.25"
+                                                    />
+                                                    <FormInput
+                                                        label="Dia"
+                                                        name="rightDia"
+                                                        value={formData.rightDia}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        placeholder="70"
+                                                    />
+                                                    <FormInput
+                                                        label="Base"
+                                                        name="rightBase"
+                                                        value={formData.rightBase}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        placeholder="RBASE"
+                                                    />
+                                                    <FormInput
+                                                        label="Base Size"
+                                                        name="rightBaseSize"
+                                                        value={formData.rightBaseSize}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        placeholder="PRISM"
+                                                    />
+                                                    <FormInput
+                                                        label="Bled"
+                                                        name="rightBled"
+                                                        value={formData.rightBled}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.rightEye}
+                                                        placeholder="RNGH"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Left Eye Section */}
+                                            <div className="space-y-3 p-4 border rounded-lg">
+                                                <Checkbox
+                                                    label={
+                                                        <span className="flex items-center gap-2">
+                                                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                                            Left Eye
+                                                        </span>
+                                                    }
+                                                    id="leftEye"
+                                                    name="leftEye"
+                                                    checked={formData.leftEye}
+                                                    onCheckedChange={(checked) =>
+                                                        handleSelectChange("leftEye", checked)
+                                                    }
+                                                    disabled={isReadOnly}
+                                                />
+
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <FormInput
+                                                        label="Spherical"
+                                                        type="number"
+                                                        step="0.25"
+                                                        name="leftSpherical"
+                                                        value={formData.leftSpherical}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        error={errors.leftSpherical}
+                                                        placeholder="-0.75"
+                                                    />
+                                                    <FormInput
+                                                        label="Cylindrical"
+                                                        type="number"
+                                                        step="0.25"
+                                                        name="leftCylindrical"
+                                                        value={formData.leftCylindrical}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        error={errors.leftCylindrical}
+                                                        placeholder="0.00"
+                                                    />
+                                                    <FormInput
+                                                        label="Axis"
+                                                        type="number"
+                                                        name="leftAxis"
+                                                        value={formData.leftAxis}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        error={errors.leftAxis}
+                                                        placeholder="0"
+                                                    />
+                                                    <FormInput
+                                                        label="Add"
+                                                        type="number"
+                                                        step="0.25"
+                                                        name="leftAdd"
+                                                        value={formData.leftAdd}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        error={errors.leftAdd}
+                                                        placeholder="1.25"
+                                                    />
+                                                    <FormInput
+                                                        label="Dia"
+                                                        name="leftDia"
+                                                        value={formData.leftDia}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        placeholder="70"
+                                                    />
+                                                    <FormInput
+                                                        label="Base"
+                                                        name="leftBase"
+                                                        value={formData.leftBase}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        placeholder="RBASE"
+                                                    />
+                                                    <FormInput
+                                                        label="Base Size"
+                                                        name="leftBaseSize"
+                                                        value={formData.leftBaseSize}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        placeholder="PRISM"
+                                                    />
+                                                    <FormInput
+                                                        label="Bled"
+                                                        name="leftBled"
+                                                        value={formData.leftBled}
+                                                        onChange={handleChange}
+                                                        disabled={isReadOnly || !formData.leftEye}
+                                                        placeholder="RNGH"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            {/* Tab 2: Dispatch Information */}
+                            <TabsContent value="dispatch">
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base">Dispatch Information</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+
+
+                                        {/* Row 2 */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <FormInput
+                                                label="Dispatch ID"
+                                                name="dispatchId"
+                                                value={formData.dispatchId}
+                                                onChange={handleChange}
+                                                disabled={isReadOnly}
+                                                placeholder="Auto-generated or manual"
+                                            />
+                                            <FormSelect
+                                                label="Dispatch Status"
+                                                name="dispatchStatus"
+                                                options={dispatchStatusOptions.map((opt) => ({
+                                                    id: opt.value,
+                                                    name: opt.label,
+                                                }))}
+                                                value={formData.dispatchStatus}
+                                                onChange={(value) =>
+                                                    handleSelectChange("dispatchStatus", value)
+                                                }
+                                                placeholder="Select dispatch status"
+                                                isSearchable={false}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.dispatchStatus}
+                                            />
+                                            <FormSelect
+                                                label="Assigned Person"
+                                                name="assignedPerson_id"
+                                                options={users.map((u) => ({ id: u.id, name: u.name }))}
+                                                value={formData.assignedPerson_id}
+                                                onChange={(value) =>
+                                                    handleSelectChange("assignedPerson_id", value)
+                                                }
+                                                placeholder="Select person"
+                                                isSearchable={true}
+                                                disabled={isReadOnly}
+                                            />
+
+                                        </div>
+
+                                        {/* Row 3 */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FormInput
+                                                label="Estimated Date"
+                                                type="date"
+                                                name="estimatedDate"
+                                                value={formData.estimatedDate || ""}
+                                                onChange={handleChange}
+                                                disabled={isReadOnly}
+                                                required
+                                                error={errors.estimatedDate}
+                                            />
+                                            <FormInput
+                                                label="Estimated Time"
+                                                type="time"
+                                                name="estimatedTime"
+                                                value={formData.estimatedTime}
+                                                onChange={handleChange}
+                                                disabled={isReadOnly}
+                                            />
+                                        </div>
+
+                                        {/* Row 4 */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FormInput
+                                                label="Actual Date"
+                                                type="date"
+                                                name="actualDate"
+                                                value={formData.actualDate || ""}
+                                                onChange={handleChange}
+                                                disabled={isReadOnly}
+                                            />
+                                            <FormInput
+                                                label="Actual Time"
+                                                type="time"
+                                                name="actualTime"
+                                                value={formData.actualTime}
+                                                onChange={handleChange}
+                                                disabled={isReadOnly}
+                                            />
+                                        </div>
+
+                                        {/* Row 5 - Dispatch Notes (full width) */}
+                                        <FormTextarea
+                                            label="Dispatch Notes"
+                                            name="dispatchNotes"
+                                            value={formData.dispatchNotes}
+                                            onChange={handleChange}
+                                            disabled={isReadOnly}
+                                            rows={3}
+                                            placeholder="Special delivery instructions"
+                                        />
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+                        </Tabs>
+                    </div>
+
+                </div>
 
                 {/* Info Alert for Add Mode */}
-                {mode === "add" && (
-                    <Alert className="bg-primary/5 border-primary/20">
-                        <AlertDescription className="text-xs">
-                            Fields marked with <span className="text-destructive">*</span> are
-                            required. Make sure to calculate the price before saving.
-                        </AlertDescription>
-                    </Alert>
-                )}
-            </form>
-        </div>
+                {
+                    mode === "add" && (
+                        <Alert className="bg-primary/5 border-primary/20">
+                            <AlertDescription className="text-xs">
+                                Fields marked with <span className="text-destructive">*</span> are
+                                required. Make sure to calculate the price before saving.
+                            </AlertDescription>
+                        </Alert>
+                    )
+                }
+            </form >
+        </div >
     );
 }
