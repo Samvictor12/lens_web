@@ -419,8 +419,6 @@ model SaleOrderItem {
   discount    Float     @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
-  @@index([saleOrderId])
 }
 
 enum PaymentMethod {
@@ -462,8 +460,6 @@ model Payment {
   notes       String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-
-  @@index([invoiceId])
 }
 
 enum POStatus {
@@ -486,9 +482,6 @@ model PurchaseOrder {
   saleOrder   SaleOrder? @relation(fields: [saleOrderId], references: [id])
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
-
-  @@index([vendorId])
-  @@index([saleOrderId])
 }
 
 enum DispatchStatus {
@@ -511,8 +504,6 @@ model DispatchCopy {
   saleOrders    SaleOrder[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-
-  @@index([customerId])
 }
 
 // model POItem {
@@ -527,8 +518,8 @@ model DispatchCopy {
 //   createdAt       DateTime      @default(now())
 //   updatedAt       DateTime      @updatedAt
 
-//   @@index([purchaseOrderId])
-//   @@index([lensVariantId])
+//   
+//   
 // }
 
 model PriceMapping {
@@ -545,9 +536,6 @@ model PriceMapping {
   updatedBy     Int?
   createdByUser User            @relation("priceMappingCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User?           @relation("priceMappingUpdatedBy", fields: [updatedBy], references: [id])
-
-  @@index([lensPrice_id])
-  @@index([customer_id])
 }
 
 model SaleOrder {
@@ -629,7 +617,4 @@ model SaleOrder {
   createdByUser     User                @relation("saleOrderCreatedBy", fields: [createdBy], references: [id])
   updatedByUser     User?               @relation("saleOrderUpdatedBy", fields: [updatedBy], references: [id])
   assignedPerson    User?               @relation("saleOrderAssignedPerson", fields: [assignedPerson_id], references: [id])
-
-  @@index([invoiceId])
-  @@index([dispatchCopyId])
 }

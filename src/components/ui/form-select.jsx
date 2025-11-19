@@ -47,8 +47,8 @@ const FormSelect = React.forwardRef(
         borderColor: error
           ? "hsl(var(--destructive))"
           : state.isFocused
-          ? "hsl(var(--ring))"
-          : "hsl(var(--input))",
+            ? "hsl(var(--ring))"
+            : "hsl(var(--input))",
         backgroundColor: disabled ? "hsl(var(--muted) / 0.3)" : "hsl(var(--background))",
         boxShadow: state.isFocused ? "0 0 0 1px hsl(var(--ring))" : "none",
         "&:hover": {
@@ -115,8 +115,8 @@ const FormSelect = React.forwardRef(
         backgroundColor: state.isSelected
           ? "hsl(var(--accent))"
           : state.isFocused
-          ? "hsl(var(--accent) / 0.5)"
-          : "transparent",
+            ? "hsl(var(--accent) / 0.5)"
+            : "transparent",
         color: state.isSelected
           ? "hsl(var(--accent-foreground))"
           : "hsl(var(--foreground))",
@@ -146,33 +146,35 @@ const FormSelect = React.forwardRef(
 
     return (
       <div className={cn("space-y-1.5", containerClassName)}>
-        {/* Label */}
-        {label && (
-          <Label htmlFor={inputId} className="text-xs">
-            {label} {required && <span className="text-destructive">*</span>}
-          </Label>
-        )}
+        <div className="flex justify-between items-center gap-2">
 
-        {/* React Select */}
-        <Select
-          ref={ref}
-          inputId={inputId}
-          options={selectOptions}
-          value={selectedOption || null}
-          onChange={(option) => {
-            onChange(option ? option.value : null);
-          }}
-          placeholder={placeholder}
-          isSearchable={isSearchable}
-          isClearable={isClearable}
-          isDisabled={disabled}
-          styles={customStyles}
-          className={cn("react-select-container", className)}
-          classNamePrefix="react-select"
-          noOptionsMessage={() => "No options found"}
-          {...props}
-        />
+          {/* Label */}
+          {label && (
+            <Label htmlFor={inputId} className="text-xs min-w-[60px] w-[180px]">
+              {label} {required && <span className="text-destructive">*</span>}
+            </Label>
+          )}
 
+          {/* React Select */}
+          <Select
+            ref={ref}
+            inputId={inputId}
+            options={selectOptions}
+            value={selectedOption || null}
+            onChange={(option) => {
+              onChange(option ? option.value : null);
+            }}
+            placeholder={placeholder}
+            isSearchable={isSearchable}
+            isClearable={isClearable}
+            isDisabled={disabled}
+            styles={customStyles}
+            className={cn("react-select-container w-full", className)}
+            classNamePrefix="react-select"
+            noOptionsMessage={() => "No options found"}
+            {...props}
+          />
+        </div>
         {/* Error Message */}
         {error && <p className="text-xs text-destructive">{error}</p>}
 

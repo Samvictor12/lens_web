@@ -101,6 +101,7 @@ const AppRoutes = () => (
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
       <Route path="/sales/orders/:mode" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
+      <Route path="/sales/orders/dif/:mode" element={<div className="flex overflow-auto h-screen"><SaleOrderForm /></div>} />
       <Route path="/sales/orders/:mode/:id" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
