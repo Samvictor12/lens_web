@@ -20,6 +20,10 @@ import {
   Award,
   Grid,
   ChevronRight,
+  Wrench,
+  Warehouse,
+  MapPin,
+  Box,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
@@ -154,6 +158,28 @@ const masterItems = [
         title: "Lens Products",
         url: "/masters/lens-product",
         icon: Package,
+      },
+      {
+        title: "Lens Fittings",
+        url: "/masters/lens-fitting",
+        icon: Wrench,
+      },
+    ],
+  },
+  {
+    title: "Inventory Masters",
+    icon: Warehouse,
+    // allowedRoles: ["admin", "inventory"],
+    subItems: [
+      {
+        title: "Locations",
+        url: "/masters/location",
+        icon: MapPin,
+      },
+      {
+        title: "Trays",
+        url: "/masters/tray",
+        icon: Box,
       },
     ],
   },

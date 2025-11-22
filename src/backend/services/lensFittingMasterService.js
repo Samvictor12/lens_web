@@ -28,6 +28,7 @@ export class LensFittingMasterService {
           name: fittingData.name,
           short_name: fittingData.short_name,
           description: fittingData.description,
+          fitting_price: fittingData.fitting_price || 0,
           activeStatus: fittingData.activeStatus ?? true,
           deleteStatus: false,
           createdBy: fittingData.createdBy,
@@ -166,6 +167,7 @@ export class LensFittingMasterService {
           name: updateData.name,
           short_name: updateData.short_name,
           description: updateData.description,
+          fitting_price: updateData.fitting_price !== undefined ? updateData.fitting_price : undefined,
           activeStatus: updateData.activeStatus,
           updatedBy: updateData.updatedBy
         },

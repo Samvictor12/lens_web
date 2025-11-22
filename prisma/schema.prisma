@@ -91,6 +91,10 @@ model User {
   saleOrderCreatedBy         SaleOrder[]          @relation("saleOrderCreatedBy")
   saleOrderUpdatedBy         SaleOrder[]          @relation("saleOrderUpdatedBy")
   saleOrderAssignedPerson    SaleOrder[]          @relation("saleOrderAssignedPerson")
+  locationUserCreate         LocationMaster[]     @relation("locationUserCreate")
+  locationUserUpdate         LocationMaster[]     @relation("locationUserUpdate")
+  trayUserCreate             TrayMaster[]         @relation("trayUserCreate")
+  trayUserUpdate             TrayMaster[]         @relation("trayUserUpdate")
 }
 
 model Role {
@@ -267,6 +271,7 @@ model LensFittingMaster {
   name         String      @unique
   short_name   String
   description  String?
+  fitting_price Float?
   activeStatus Boolean     @default(true)
   deleteStatus Boolean     @default(false)
   createdAt    DateTime    @default(now())
@@ -347,28 +352,30 @@ model LensTypeMaster {
 }
 
 model LensProductMaster {
-  id               Int                @id @default(autoincrement())
-  brand_id         Int
-  category_id      Int
-  material_id      Int
-  type_id          Int
-  product_code     String
-  lens_name        String
-  index_value      Int?
-  sphere_min       Float?
-  sphere_max       Float?
-  cyl_min          Float?
-  cyl_max          Float?
-  add_min          Float?
-  add_max          Float?
-  range_text       String?
+  id                   Int                @id @default(autoincrement())
+  brand_id             Int
+  category_id          Int
+  material_id          Int
+  type_id              Int
+  product_code         String
+  lens_name            String
+  index_value          Int?
+  sphere_min           Float?
+  sphere_max           Float?
+  sphere_extra_charge  Float?             @default(0) // Extra charge if sphere exceeds max
+  cyl_min              Float?
+  cyl_max              Float?
+  cylinder_extra_charge Float?            @default(0) // Extra charge if cylinder exceeds max
+  add_min              Float?
+  add_max              Float?
+  range_text           String?
   // Default fields
-  activeStatus     Boolean            @default(true)
-  deleteStatus     Boolean            @default(false)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime?          @updatedAt
-  createdBy        Int
-  updatedBy        Int?
+  activeStatus         Boolean            @default(true)
+  deleteStatus         Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime?          @updatedAt
+  createdBy            Int
+  updatedBy            Int?
   // Relationships Fields
   brand            LensBrandMaster    @relation(fields: [brand_id], references: [id])
   category         LensCategoryMaster @relation(fields: [category_id], references: [id])
@@ -617,4 +624,41 @@ model SaleOrder {
   createdByUser     User                @relation("saleOrderCreatedBy", fields: [createdBy], references: [id])
   updatedByUser     User?               @relation("saleOrderUpdatedBy", fields: [updatedBy], references: [id])
   assignedPerson    User?               @relation("saleOrderAssignedPerson", fields: [assignedPerson_id], references: [id])
+}
+
+model LocationMaster {
+  id            Int          @id @default(autoincrement())
+  name          String
+  location_code String       @unique
+  description   String?
+  activeStatus  Boolean      @default(true)
+  deleteStatus  Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  createdBy     Int
+  updatedBy     Int?
+  // Relationship Fields
+  createdByUser User         @relation("locationUserCreate", fields: [createdBy], references: [id])
+  updatedByUser User?        @relation("locationUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  trays         TrayMaster[]
+}
+
+model TrayMaster {
+  id            Int             @id @default(autoincrement())
+  name          String
+  tray_code     String          @unique
+  description   String?
+  capacity      Int?
+  location_id   Int?
+  activeStatus  Boolean         @default(true)
+  deleteStatus  Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  createdBy     Int
+  updatedBy     Int?
+  // Relationship Fields
+  location      LocationMaster? @relation(fields: [location_id], references: [id])
+  createdByUser User            @relation("trayUserCreate", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("trayUserUpdate", fields: [updatedBy], references: [id])
 }
