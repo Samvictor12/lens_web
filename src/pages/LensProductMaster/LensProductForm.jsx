@@ -46,14 +46,19 @@ export default function LensProductForm() {
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
-        const [brandsData, categoriesData, materialsData, typesData, coatingsData] =
-          await Promise.all([
-            getBrandDropdown(),
-            getCategoryDropdown(),
-            getMaterialDropdown(),
-            getTypeDropdown(),
-            getCoatingDropdown(),
-          ]);
+        const [
+          brandsData,
+          categoriesData,
+          materialsData,
+          typesData,
+          coatingsData,
+        ] = await Promise.all([
+          getBrandDropdown(),
+          getCategoryDropdown(),
+          getMaterialDropdown(),
+          getTypeDropdown(),
+          getCoatingDropdown(),
+        ]);
 
         setBrands(brandsData);
         setCategories(categoriesData);
@@ -102,7 +107,7 @@ export default function LensProductForm() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -111,7 +116,7 @@ export default function LensProductForm() {
 
   const handleSelectChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -123,7 +128,7 @@ export default function LensProductForm() {
     const updatedPrices = [...formData.prices];
     updatedPrices[index] = { ...updatedPrices[index], [field]: value };
     setFormData((prev) => ({ ...prev, prices: updatedPrices }));
-    
+
     // Clear price errors
     if (errors[`prices.${index}.${field}`]) {
       setErrors((prev) => ({ ...prev, [`prices.${index}.${field}`]: "" }));
@@ -146,7 +151,7 @@ export default function LensProductForm() {
       });
       return;
     }
-    
+
     const updatedPrices = formData.prices.filter((_, i) => i !== index);
     setFormData((prev) => ({ ...prev, prices: updatedPrices }));
   };
@@ -182,7 +187,9 @@ export default function LensProductForm() {
       }
     }
     if (formData.cylinderMin && formData.cylinderMax) {
-      if (parseFloat(formData.cylinderMin) >= parseFloat(formData.cylinderMax)) {
+      if (
+        parseFloat(formData.cylinderMin) >= parseFloat(formData.cylinderMax)
+      ) {
         newErrors.cylinderMax = "Cylinder max must be greater than min";
       }
     }
@@ -214,11 +221,12 @@ export default function LensProductForm() {
         } else {
           // Check for duplicate coatings
           if (coatingIds.includes(price.coatingId)) {
-            newErrors[`prices.${index}.coatingId`] = "Duplicate coating selected";
+            newErrors[`prices.${index}.coatingId`] =
+              "Duplicate coating selected";
           }
           coatingIds.push(price.coatingId);
         }
-        
+
         if (!price.price || parseFloat(price.price) <= 0) {
           newErrors[`prices.${index}.price`] = "Valid price is required";
         }
@@ -395,135 +403,135 @@ export default function LensProductForm() {
               <CardTitle className="text-sm">Product Details</CardTitle>
             </CardHeader>
             <CardContent className="p-3 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FormInput
-                label="Product Code"
-                name="productCode"
-                value={formData.productCode}
-                onChange={handleInputChange}
-                error={errors.productCode}
-                required
-                disabled={!isEditing}
-                placeholder="e.g., LP-001"
-              />
-              <FormInput
-                label="Lens Name"
-                name="lensName"
-                value={formData.lensName}
-                onChange={handleInputChange}
-                error={errors.lensName}
-                required
-                disabled={!isEditing}
-                placeholder="e.g., Progressive Blue Cut"
-              />
-              </div>
+              {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormInput
+                  label="Product Code"
+                  name="productCode"
+                  value={formData.productCode}
+                  onChange={handleInputChange}
+                  error={errors.productCode}
+                  required
+                  disabled={!isEditing}
+                  placeholder="e.g., LP-001"
+                />
+                <FormInput
+                  label="Lens Name"
+                  name="lensName"
+                  value={formData.lensName}
+                  onChange={handleInputChange}
+                  error={errors.lensName}
+                  required
+                  disabled={!isEditing}
+                  placeholder="e.g., Progressive Blue Cut"
+                />
+              </div> */}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FormSelect
-                label="Brand"
-                name="brandId"
-                options={brands}
-                value={formData.brandId}
-                onChange={(value) => handleSelectChange("brandId", value)}
-                error={errors.brandId}
-                required
-                disabled={!isEditing}
-                placeholder="Select brand"
-                isSearchable
-                formatOptionLabel={(option) => (
-                  <div>
-                    <div className="font-medium">{option.label}</div>
-                    {option.code && (
-                      <div className="text-xs text-muted-foreground">
-                        {option.code}
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
-              <FormSelect
-                label="Category"
-                name="categoryId"
-                options={categories}
-                value={formData.categoryId}
-                onChange={(value) => handleSelectChange("categoryId", value)}
-                error={errors.categoryId}
-                required
-                disabled={!isEditing}
-                placeholder="Select category"
-                isSearchable
-                formatOptionLabel={(option) => (
-                  <div>
-                    <div className="font-medium">{option.label}</div>
-                    {option.code && (
-                      <div className="text-xs text-muted-foreground">
-                        {option.code}
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
+                <FormSelect
+                  label="Brand"
+                  name="brandId"
+                  options={brands}
+                  value={formData.brandId}
+                  onChange={(value) => handleSelectChange("brandId", value)}
+                  error={errors.brandId}
+                  required
+                  disabled={!isEditing}
+                  placeholder="Select brand"
+                  isSearchable
+                  formatOptionLabel={(option) => (
+                    <div>
+                      <div className="font-medium">{option.label}</div>
+                      {option.code && (
+                        <div className="text-xs text-muted-foreground">
+                          {option.code}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                />
+                <FormSelect
+                  label="Category"
+                  name="categoryId"
+                  options={categories}
+                  value={formData.categoryId}
+                  onChange={(value) => handleSelectChange("categoryId", value)}
+                  error={errors.categoryId}
+                  required
+                  disabled={!isEditing}
+                  placeholder="Select category"
+                  isSearchable
+                  formatOptionLabel={(option) => (
+                    <div>
+                      <div className="font-medium">{option.label}</div>
+                      {option.code && (
+                        <div className="text-xs text-muted-foreground">
+                          {option.code}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormSelect
                   label="Material"
-                name="materialId"
-                options={materials}
-                value={formData.materialId}
-                onChange={(value) => handleSelectChange("materialId", value)}
-                error={errors.materialId}
-                required
-                disabled={!isEditing}
-                placeholder="Select material"
-                isSearchable
-                formatOptionLabel={(option) => (
-                  <div>
-                    <div className="font-medium">{option.label}</div>
-                    {option.code && (
-                      <div className="text-xs text-muted-foreground">
-                        {option.code}
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
-              <FormSelect
-                label="Type"
-                name="typeId"
-                options={types}
-                value={formData.typeId}
-                onChange={(value) => handleSelectChange("typeId", value)}
-                error={errors.typeId}
-                required
-                disabled={!isEditing}
-                placeholder="Select type"
-                isSearchable
-                formatOptionLabel={(option) => (
-                  <div>
-                    <div className="font-medium">{option.label}</div>
-                    {option.code && (
-                      <div className="text-xs text-muted-foreground">
-                        {option.code}
-                      </div>
-                    )}
-                  </div>
-                )}
-              />
-            </div>
+                  name="materialId"
+                  options={materials}
+                  value={formData.materialId}
+                  onChange={(value) => handleSelectChange("materialId", value)}
+                  error={errors.materialId}
+                  required
+                  disabled={!isEditing}
+                  placeholder="Select material"
+                  isSearchable
+                  formatOptionLabel={(option) => (
+                    <div>
+                      <div className="font-medium">{option.label}</div>
+                      {option.code && (
+                        <div className="text-xs text-muted-foreground">
+                          {option.code}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                />
+                <FormSelect
+                  label="Type"
+                  name="typeId"
+                  options={types}
+                  value={formData.typeId}
+                  onChange={(value) => handleSelectChange("typeId", value)}
+                  error={errors.typeId}
+                  required
+                  disabled={!isEditing}
+                  placeholder="Select type"
+                  isSearchable
+                  formatOptionLabel={(option) => (
+                    <div>
+                      <div className="font-medium">{option.label}</div>
+                      {option.code && (
+                        <div className="text-xs text-muted-foreground">
+                          {option.code}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
 
-            <FormSelect
-              label="Status"
-              name="activeStatus"
-              options={activeStatusOptions}
-              value={formData.activeStatus}
-              onChange={(value) => handleSelectChange("activeStatus", value)}
-              disabled={!isEditing}
-              isSearchable={false}
-              isClearable={false}
-            />
-          </CardContent>
-        </Card>
+              <FormSelect
+                label="Status"
+                name="activeStatus"
+                options={activeStatusOptions}
+                value={formData.activeStatus}
+                onChange={(value) => handleSelectChange("activeStatus", value)}
+                disabled={!isEditing}
+                isSearchable={false}
+                isClearable={false}
+              />
+            </CardContent>
+          </Card>
 
           {/* Range Specifications */}
           <Card>
@@ -531,89 +539,141 @@ export default function LensProductForm() {
               <CardTitle className="text-sm">Range Specifications</CardTitle>
             </CardHeader>
             <CardContent className="p-3 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormInput
+                  label="Product Code"
+                  name="productCode"
+                  value={formData.productCode}
+                  onChange={handleInputChange}
+                  error={errors.productCode}
+                  required
+                  disabled={!isEditing}
+                  placeholder="e.g., LP-001"
+                />
+                <FormInput
+                  label="Lens Name"
+                  name="lensName"
+                  value={formData.lensName}
+                  onChange={handleInputChange}
+                  error={errors.lensName}
+                  required
+                  disabled={!isEditing}
+                  placeholder="e.g., Progressive Blue Cut"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <FormInput
                   label="Sphere Min"
-                name="sphereMin"
-                type="number"
-                step="0.25"
-                value={formData.sphereMin}
-                onChange={handleInputChange}
-                error={errors.sphereMin}
-                disabled={!isEditing}
-                // placeholder="-10.00"
+                  name="sphereMin"
+                  type="number"
+                  step="0.25"
+                  value={formData.sphereMin}
+                  onChange={handleInputChange}
+                  error={errors.sphereMin}
+                  disabled={!isEditing}
+                  // placeholder="-10.00"
                 />
-                <FormInput
-                  label="Sphere Max"
-                name="sphereMax"
-                type="number"
-                step="0.25"
-                value={formData.sphereMax}
-                onChange={handleInputChange}
-                error={errors.sphereMax}
-                disabled={!isEditing}
-                // placeholder="+10.00"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <FormInput
+                    label="Sphere Max"
+                    name="sphereMax"
+                    type="number"
+                    step="0.25"
+                    value={formData.sphereMax}
+                    onChange={handleInputChange}
+                    error={errors.sphereMax}
+                    disabled={!isEditing}
+                    // placeholder="+10.00"
+                  />
+                  <FormInput
+                    label="Extra Charge"
+                    name="sphereExtraCharge"
+                    type="number"
+                    step="0.01"
+                    value={formData.sphereExtraCharge}
+                    onChange={handleInputChange}
+                    error={errors.sphereExtraCharge}
+                    disabled={!isEditing}
+                    placeholder="0.00"
+                    prefix="₹"
+                    min="0"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <FormInput
                   label="Cylinder Min"
-                name="cylinderMin"
-                type="number"
-                step="0.25"
-                value={formData.cylinderMin}
-                onChange={handleInputChange}
-                error={errors.cylinderMin}
-                disabled={!isEditing}
-                // placeholder="-6.00"
+                  name="cylinderMin"
+                  type="number"
+                  step="0.25"
+                  value={formData.cylinderMin}
+                  onChange={handleInputChange}
+                  error={errors.cylinderMin}
+                  disabled={!isEditing}
+                  // placeholder="-6.00"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <FormInput
+                    label="Cylinder Max"
+                    name="cylinderMax"
+                    type="number"
+                    step="0.25"
+                    value={formData.cylinderMax}
+                    onChange={handleInputChange}
+                    error={errors.cylinderMax}
+                    disabled={!isEditing}
+                    // placeholder="0.00"
+                  />
+                  <FormInput
+                    label="Extra Charge"
+                    name="cylinderExtraCharge"
+                    type="number"
+                    step="0.01"
+                    value={formData.cylinderExtraCharge}
+                    onChange={handleInputChange}
+                    error={errors.cylinderExtraCharge}
+                    disabled={!isEditing}
+                    placeholder="0.00"
+                    prefix="₹"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput
+                  label="Add Min"
+                  name="addMin"
+                  type="number"
+                  step="0.25"
+                  value={formData.addMin}
+                  onChange={handleInputChange}
+                  error={errors.addMin}
+                  disabled={!isEditing}
+                  // placeholder="0.00"
                 />
                 <FormInput
-                  label="Cylinder Max"
-                name="cylinderMax"
-                type="number"
-                step="0.25"
-                value={formData.cylinderMax}
-                onChange={handleInputChange}
-                error={errors.cylinderMax}
-                disabled={!isEditing}
-                // placeholder="0.00"
-              />
-            </div>
+                  label="Add Max"
+                  name="addMax"
+                  type="number"
+                  step="0.25"
+                  value={formData.addMax}
+                  onChange={handleInputChange}
+                  error={errors.addMax}
+                  disabled={!isEditing}
+                  // placeholder="6.00"
+                />
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
               <FormInput
-                label="Add Min"
-                name="addMin"
-                type="number"
-                step="0.25"
-                value={formData.addMin}
+                label="Range Text (Optional)"
+                name="rangeText"
+                value={formData.rangeText}
                 onChange={handleInputChange}
-                error={errors.addMin}
                 disabled={!isEditing}
-                // placeholder="0.00"
+                placeholder="e.g., SPH: -10.00 to +10.00, CYL: -6.00 to 0.00"
               />
-              <FormInput
-                label="Add Max"
-                name="addMax"
-                type="number"
-                step="0.25"
-                value={formData.addMax}
-                onChange={handleInputChange}
-                error={errors.addMax}
-                disabled={!isEditing}
-                // placeholder="6.00"
-              />
-            </div>
-
-            <FormInput
-              label="Range Text (Optional)"
-              name="rangeText"
-              value={formData.rangeText}
-              onChange={handleInputChange}
-              disabled={!isEditing}
-              placeholder="e.g., SPH: -10.00 to +10.00, CYL: -6.00 to 0.00"
-            />
             </CardContent>
           </Card>
 
@@ -647,7 +707,8 @@ export default function LensProductForm() {
 
               {formData.prices.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground text-xs">
-                  No prices added. Click "Add Price" to add pricing for different coatings.
+                  No prices added. Click "Add Price" to add pricing for
+                  different coatings.
                 </div>
               ) : (
                 formData.prices.map((price, index) => (
@@ -656,45 +717,45 @@ export default function LensProductForm() {
                     className="flex gap-2 items-start p-2 border rounded-md"
                   >
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <FormSelect
-                      label="Coating"
-                      name={`coating-${index}`}
-                      options={coatings}
-                      value={price.coatingId}
-                      onChange={(value) =>
-                        handlePriceChange(index, "coatingId", value)
-                      }
-                      error={errors[`prices.${index}.coatingId`]}
-                      required
-                      disabled={!isEditing}
-                      placeholder="Select coating"
-                      isSearchable
-                      formatOptionLabel={(option) => (
-                        <div>
-                          <div className="font-medium">{option.label}</div>
-                          {option.code && (
-                            <div className="text-xs text-muted-foreground">
-                              {option.code}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    />
-                    <FormInput
-                      label="Price (₹)"
-                      name={`price-${index}`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={price.price}
-                      onChange={(e) =>
-                        handlePriceChange(index, "price", e.target.value)
-                      }
-                      error={errors[`prices.${index}.price`]}
-                      required
-                      disabled={!isEditing}
-                      placeholder="0.00"
-                    />
+                      <FormSelect
+                        label="Coating"
+                        name={`coating-${index}`}
+                        options={coatings}
+                        value={price.coatingId}
+                        onChange={(value) =>
+                          handlePriceChange(index, "coatingId", value)
+                        }
+                        error={errors[`prices.${index}.coatingId`]}
+                        required
+                        disabled={!isEditing}
+                        placeholder="Select coating"
+                        isSearchable
+                        formatOptionLabel={(option) => (
+                          <div>
+                            <div className="font-medium">{option.label}</div>
+                            {option.code && (
+                              <div className="text-xs text-muted-foreground">
+                                {option.code}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      />
+                      <FormInput
+                        label="Price (₹)"
+                        name={`price-${index}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={price.price}
+                        onChange={(e) =>
+                          handlePriceChange(index, "price", e.target.value)
+                        }
+                        error={errors[`prices.${index}.price`]}
+                        required
+                        disabled={!isEditing}
+                        placeholder="0.00"
+                      />
                     </div>
                     {isEditing && (
                       <Button
@@ -708,10 +769,733 @@ export default function LensProductForm() {
                       </Button>
                     )}
                   </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                ))
+              )}
+            </CardContent>
+          </Card>
+          <div style={{ padding: "30px", backgroundColor: "lightgreen",borderRadius: "8px" }}>
+            <Card>
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-sm">Range Specifications</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormInput
+                    label="Product Code"
+                    name="productCode"
+                    value={formData.productCode}
+                    onChange={handleInputChange}
+                    error={errors.productCode}
+                    required
+                    disabled={!isEditing}
+                    placeholder="e.g., LP-001"
+                  />
+                  <FormInput
+                    label="Lens Name"
+                    name="lensName"
+                    value={formData.lensName}
+                    onChange={handleInputChange}
+                    error={errors.lensName}
+                    required
+                    disabled={!isEditing}
+                    placeholder="e.g., Progressive Blue Cut"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Sphere Min"
+                    name="sphereMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.sphereMin}
+                    onChange={handleInputChange}
+                    error={errors.sphereMin}
+                    disabled={!isEditing}
+                    // placeholder="-10.00"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <FormInput
+                      label="Sphere Max"
+                      name="sphereMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.sphereMax}
+                      onChange={handleInputChange}
+                      error={errors.sphereMax}
+                      disabled={!isEditing}
+                      // placeholder="+10.00"
+                    />
+                    <FormInput
+                      label="Extra Charge"
+                      name="sphereExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.sphereExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.sphereExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Cylinder Min"
+                    name="cylinderMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.cylinderMin}
+                    onChange={handleInputChange}
+                    error={errors.cylinderMin}
+                    disabled={!isEditing}
+                    // placeholder="-6.00"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <FormInput
+                      label="Cylinder Max"
+                      name="cylinderMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.cylinderMax}
+                      onChange={handleInputChange}
+                      error={errors.cylinderMax}
+                      disabled={!isEditing}
+                      // placeholder="0.00"
+                    />
+                    <FormInput
+                      label="Extra Charge"
+                      name="cylinderExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.cylinderExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.cylinderExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Add Min"
+                    name="addMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.addMin}
+                    onChange={handleInputChange}
+                    error={errors.addMin}
+                    disabled={!isEditing}
+                    // placeholder="0.00"
+                  />
+                  <FormInput
+                    label="Add Max"
+                    name="addMax"
+                    type="number"
+                    step="0.25"
+                    value={formData.addMax}
+                    onChange={handleInputChange}
+                    error={errors.addMax}
+                    disabled={!isEditing}
+                    // placeholder="6.00"
+                  />
+                </div>
+
+                <FormInput
+                  label="Range Text (Optional)"
+                  name="rangeText"
+                  value={formData.rangeText}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  placeholder="e.g., SPH: -10.00 to +10.00, CYL: -6.00 to 0.00"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Pricing */}
+            <Card>
+              <CardHeader className="p-3 pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Pricing by Coating</CardTitle>
+                  {isEditing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={handleAddPriceRow}
+                      className="gap-1.5 h-7"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Price
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 space-y-2">
+                {errors.prices && (
+                  <Alert variant="destructive" className="py-2">
+                    <AlertDescription className="text-xs">
+                      {errors.prices}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {formData.prices.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-xs">
+                    No prices added. Click "Add Price" to add pricing for
+                    different coatings.
+                  </div>
+                ) : (
+                  formData.prices.map((price, index) => (
+                    <div
+                      key={index}
+                      className="flex gap-2 items-start p-2 border rounded-md"
+                    >
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <FormSelect
+                          label="Coating"
+                          name={`coating-${index}`}
+                          options={coatings}
+                          value={price.coatingId}
+                          onChange={(value) =>
+                            handlePriceChange(index, "coatingId", value)
+                          }
+                          error={errors[`prices.${index}.coatingId`]}
+                          required
+                          disabled={!isEditing}
+                          placeholder="Select coating"
+                          isSearchable
+                          formatOptionLabel={(option) => (
+                            <div>
+                              <div className="font-medium">{option.label}</div>
+                              {option.code && (
+                                <div className="text-xs text-muted-foreground">
+                                  {option.code}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        />
+                        <FormInput
+                          label="Price (₹)"
+                          name={`price-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={price.price}
+                          onChange={(e) =>
+                            handlePriceChange(index, "price", e.target.value)
+                          }
+                          error={errors[`prices.${index}.price`]}
+                          required
+                          disabled={!isEditing}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      {isEditing && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => handleRemovePriceRow(index)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 mt-6"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <div style={{ padding: "30px", backgroundColor: "lightgreen",borderRadius: "8px" }}>
+            <Card>
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-sm">Range Specifications</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormInput
+                    label="Product Code"
+                    name="productCode"
+                    value={formData.productCode}
+                    onChange={handleInputChange}
+                    error={errors.productCode}
+                    required
+                    disabled={!isEditing}
+                    placeholder="e.g., LP-001"
+                  />
+                  <FormInput
+                    label="Lens Name"
+                    name="lensName"
+                    value={formData.lensName}
+                    onChange={handleInputChange}
+                    error={errors.lensName}
+                    required
+                    disabled={!isEditing}
+                    placeholder="e.g., Progressive Blue Cut"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Sphere Min"
+                    name="sphereMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.sphereMin}
+                    onChange={handleInputChange}
+                    error={errors.sphereMin}
+                    disabled={!isEditing}
+                    // placeholder="-10.00"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <FormInput
+                      label="Sphere Max"
+                      name="sphereMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.sphereMax}
+                      onChange={handleInputChange}
+                      error={errors.sphereMax}
+                      disabled={!isEditing}
+                      // placeholder="+10.00"
+                    />
+                    <FormInput
+                      label="Extra Charge"
+                      name="sphereExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.sphereExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.sphereExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Cylinder Min"
+                    name="cylinderMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.cylinderMin}
+                    onChange={handleInputChange}
+                    error={errors.cylinderMin}
+                    disabled={!isEditing}
+                    // placeholder="-6.00"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <FormInput
+                      label="Cylinder Max"
+                      name="cylinderMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.cylinderMax}
+                      onChange={handleInputChange}
+                      error={errors.cylinderMax}
+                      disabled={!isEditing}
+                      // placeholder="0.00"
+                    />
+                    <FormInput
+                      label="Extra Charge"
+                      name="cylinderExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.cylinderExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.cylinderExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Add Min"
+                    name="addMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.addMin}
+                    onChange={handleInputChange}
+                    error={errors.addMin}
+                    disabled={!isEditing}
+                    // placeholder="0.00"
+                  />
+                  <FormInput
+                    label="Add Max"
+                    name="addMax"
+                    type="number"
+                    step="0.25"
+                    value={formData.addMax}
+                    onChange={handleInputChange}
+                    error={errors.addMax}
+                    disabled={!isEditing}
+                    // placeholder="6.00"
+                  />
+                </div>
+
+                <FormInput
+                  label="Range Text (Optional)"
+                  name="rangeText"
+                  value={formData.rangeText}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  placeholder="e.g., SPH: -10.00 to +10.00, CYL: -6.00 to 0.00"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Pricing */}
+            <Card>
+              <CardHeader className="p-3 pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Pricing by Coating</CardTitle>
+                  {isEditing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={handleAddPriceRow}
+                      className="gap-1.5 h-7"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Price
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 space-y-2">
+                {errors.prices && (
+                  <Alert variant="destructive" className="py-2">
+                    <AlertDescription className="text-xs">
+                      {errors.prices}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {formData.prices.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-xs">
+                    No prices added. Click "Add Price" to add pricing for
+                    different coatings.
+                  </div>
+                ) : (
+                  formData.prices.map((price, index) => (
+                    <div
+                      key={index}
+                      className="flex gap-2 items-start p-2 border rounded-md"
+                    >
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <FormSelect
+                          label="Coating"
+                          name={`coating-${index}`}
+                          options={coatings}
+                          value={price.coatingId}
+                          onChange={(value) =>
+                            handlePriceChange(index, "coatingId", value)
+                          }
+                          error={errors[`prices.${index}.coatingId`]}
+                          required
+                          disabled={!isEditing}
+                          placeholder="Select coating"
+                          isSearchable
+                          formatOptionLabel={(option) => (
+                            <div>
+                              <div className="font-medium">{option.label}</div>
+                              {option.code && (
+                                <div className="text-xs text-muted-foreground">
+                                  {option.code}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        />
+                        <FormInput
+                          label="Price (₹)"
+                          name={`price-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={price.price}
+                          onChange={(e) =>
+                            handlePriceChange(index, "price", e.target.value)
+                          }
+                          error={errors[`prices.${index}.price`]}
+                          required
+                          disabled={!isEditing}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      {isEditing && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => handleRemovePriceRow(index)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 mt-6"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <div style={{ padding: "30px", backgroundColor: "lightgreen",borderRadius: "8px" }}>
+            <Card>
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-sm">Range Specifications</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormInput
+                    label="Product Code"
+                    name="productCode"
+                    value={formData.productCode}
+                    onChange={handleInputChange}
+                    error={errors.productCode}
+                    required
+                    disabled={!isEditing}
+                    placeholder="e.g., LP-001"
+                  />
+                  <FormInput
+                    label="Lens Name"
+                    name="lensName"
+                    value={formData.lensName}
+                    onChange={handleInputChange}
+                    error={errors.lensName}
+                    required
+                    disabled={!isEditing}
+                    placeholder="e.g., Progressive Blue Cut"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Sphere Min"
+                    name="sphereMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.sphereMin}
+                    onChange={handleInputChange}
+                    error={errors.sphereMin}
+                    disabled={!isEditing}
+                    // placeholder="-10.00"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <FormInput
+                      label="Sphere Max"
+                      name="sphereMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.sphereMax}
+                      onChange={handleInputChange}
+                      error={errors.sphereMax}
+                      disabled={!isEditing}
+                      // placeholder="+10.00"
+                    />
+                    <FormInput
+                      label="Extra Charge"
+                      name="sphereExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.sphereExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.sphereExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Cylinder Min"
+                    name="cylinderMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.cylinderMin}
+                    onChange={handleInputChange}
+                    error={errors.cylinderMin}
+                    disabled={!isEditing}
+                    // placeholder="-6.00"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <FormInput
+                      label="Cylinder Max"
+                      name="cylinderMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.cylinderMax}
+                      onChange={handleInputChange}
+                      error={errors.cylinderMax}
+                      disabled={!isEditing}
+                      // placeholder="0.00"
+                    />
+                    <FormInput
+                      label="Extra Charge"
+                      name="cylinderExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.cylinderExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.cylinderExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormInput
+                    label="Add Min"
+                    name="addMin"
+                    type="number"
+                    step="0.25"
+                    value={formData.addMin}
+                    onChange={handleInputChange}
+                    error={errors.addMin}
+                    disabled={!isEditing}
+                    // placeholder="0.00"
+                  />
+                  <FormInput
+                    label="Add Max"
+                    name="addMax"
+                    type="number"
+                    step="0.25"
+                    value={formData.addMax}
+                    onChange={handleInputChange}
+                    error={errors.addMax}
+                    disabled={!isEditing}
+                    // placeholder="6.00"
+                  />
+                </div>
+
+                <FormInput
+                  label="Range Text (Optional)"
+                  name="rangeText"
+                  value={formData.rangeText}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  placeholder="e.g., SPH: -10.00 to +10.00, CYL: -6.00 to 0.00"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Pricing */}
+            <Card>
+              <CardHeader className="p-3 pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Pricing by Coating</CardTitle>
+                  {isEditing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={handleAddPriceRow}
+                      className="gap-1.5 h-7"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Price
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 space-y-2">
+                {errors.prices && (
+                  <Alert variant="destructive" className="py-2">
+                    <AlertDescription className="text-xs">
+                      {errors.prices}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {formData.prices.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-xs">
+                    No prices added. Click "Add Price" to add pricing for
+                    different coatings.
+                  </div>
+                ) : (
+                  formData.prices.map((price, index) => (
+                    <div
+                      key={index}
+                      className="flex gap-2 items-start p-2 border rounded-md"
+                    >
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <FormSelect
+                          label="Coating"
+                          name={`coating-${index}`}
+                          options={coatings}
+                          value={price.coatingId}
+                          onChange={(value) =>
+                            handlePriceChange(index, "coatingId", value)
+                          }
+                          error={errors[`prices.${index}.coatingId`]}
+                          required
+                          disabled={!isEditing}
+                          placeholder="Select coating"
+                          isSearchable
+                          formatOptionLabel={(option) => (
+                            <div>
+                              <div className="font-medium">{option.label}</div>
+                              {option.code && (
+                                <div className="text-xs text-muted-foreground">
+                                  {option.code}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        />
+                        <FormInput
+                          label="Price (₹)"
+                          name={`price-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={price.price}
+                          onChange={(e) =>
+                            handlePriceChange(index, "price", e.target.value)
+                          }
+                          error={errors[`prices.${index}.price`]}
+                          required
+                          disabled={!isEditing}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      {isEditing && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => handleRemovePriceRow(index)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 mt-6"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </form>
       )}
     </div>

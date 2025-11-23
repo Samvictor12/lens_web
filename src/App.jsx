@@ -44,6 +44,12 @@ import LensTintingMain from "./pages/LensTinting/LensTintingMain";
 import LensTintingForm from "./pages/LensTinting/LensTintingForm";
 import LensProductMain from "./pages/LensProductMaster/LensProductMain";
 import LensProductForm from "./pages/LensProductMaster/LensProductForm";
+import LensFittingMain from "./pages/LensFittingMaster/LensFittingMain";
+import LensFittingForm from "./pages/LensFittingMaster/LensFittingForm";
+import LocationMain from "./pages/LocationMaster/LocationMain";
+import LocationForm from "./pages/LocationMaster/LocationForm";
+import TrayMain from "./pages/TrayMaster/TrayMain";
+import TrayForm from "./pages/TrayMaster/TrayForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -149,6 +155,15 @@ const AppRoutes = () => (
       <Route path="/masters/lens-product" element={<ProtectedRoute><LensProductMain /></ProtectedRoute>} />
       <Route path="/masters/lens-product/:mode" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />
       <Route path="/masters/lens-product/:mode/:id" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-fitting" element={<ProtectedRoute><LensFittingMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-fitting/:mode" element={<ProtectedRoute><LensFittingForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-fitting/:mode/:id" element={<ProtectedRoute><LensFittingForm /></ProtectedRoute>} />
+      <Route path="/masters/location" element={<ProtectedRoute><LocationMain /></ProtectedRoute>} />
+      <Route path="/masters/location/:mode" element={<ProtectedRoute><LocationForm /></ProtectedRoute>} />
+      <Route path="/masters/location/:mode/:id" element={<ProtectedRoute><LocationForm /></ProtectedRoute>} />
+      <Route path="/masters/tray" element={<ProtectedRoute><TrayMain /></ProtectedRoute>} />
+      <Route path="/masters/tray/:mode" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
+      <Route path="/masters/tray/:mode/:id" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

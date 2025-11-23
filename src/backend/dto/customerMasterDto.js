@@ -122,6 +122,22 @@ export const validateCreateCustomerMaster = (data) => {
         }
     }
 
+    // Validate sale_person_id if provided
+    if (data.sale_person_id !== undefined && data.sale_person_id !== null && data.sale_person_id !== '') {
+        const salePersonId = parseInt(data.sale_person_id);
+        if (isNaN(salePersonId) || salePersonId <= 0) {
+            errors.push({ field: 'sale_person_id', message: 'Sale person ID must be a valid positive number' });
+        }
+    }
+
+    // Validate delivery_person_id if provided
+    if (data.delivery_person_id !== undefined && data.delivery_person_id !== null && data.delivery_person_id !== '') {
+        const deliveryPersonId = parseInt(data.delivery_person_id);
+        if (isNaN(deliveryPersonId) || deliveryPersonId <= 0) {
+            errors.push({ field: 'delivery_person_id', message: 'Delivery person ID must be a valid positive number' });
+        }
+    }
+
     return {
         isValid: errors.length === 0,
         errors,
@@ -139,6 +155,8 @@ export const validateCreateCustomerMaster = (data) => {
             gstin: data.gstin?.trim() || null,
             credit_limit: data.credit_limit ? parseInt(data.credit_limit) : null,
             outstanding_credit: data.outstanding_credit ? parseInt(data.outstanding_credit) : null,
+            sale_person_id: data.sale_person_id ? parseInt(data.sale_person_id) : null,
+            delivery_person_id: data.delivery_person_id ? parseInt(data.delivery_person_id) : null,
             active_status: data.active_status !== undefined ? data.active_status : true, // Default to true
             delete_status: false, // Default to false for new records
             notes: data.notes?.trim() || null,
@@ -239,12 +257,28 @@ export const validateUpdateCustomerMaster = (data) => {
         }
     }
 
+    // Validate sale_person_id if provided
+    if (data.sale_person_id !== undefined && data.sale_person_id !== null && data.sale_person_id !== '') {
+        const salePersonId = parseInt(data.sale_person_id);
+        if (isNaN(salePersonId) || salePersonId <= 0) {
+            errors.push({ field: 'sale_person_id', message: 'Sale person ID must be a valid positive number' });
+        }
+    }
+
+    // Validate delivery_person_id if provided
+    if (data.delivery_person_id !== undefined && data.delivery_person_id !== null && data.delivery_person_id !== '') {
+        const deliveryPersonId = parseInt(data.delivery_person_id);
+        if (isNaN(deliveryPersonId) || deliveryPersonId <= 0) {
+            errors.push({ field: 'delivery_person_id', message: 'Delivery person ID must be a valid positive number' });
+        }
+    }
+
     const cleanedData = {};
     Object.keys(data).forEach(key => {
         if (data[key] !== undefined) {
             if (key === 'updatedBy') {
                 cleanedData[key] = parseInt(data[key]);
-            } else if (key === 'credit_limit' || key === 'outstanding_credit' || key === 'businessCategory_id') {
+            } else if (key === 'credit_limit' || key === 'outstanding_credit' || key === 'businessCategory_id' || key === 'sale_person_id' || key === 'delivery_person_id') {
                 cleanedData[key] = (data[key] ? parseInt(data[key]) : null);
             } else if (typeof data[key] === 'string') {
                 cleanedData[key] = data[key].trim();

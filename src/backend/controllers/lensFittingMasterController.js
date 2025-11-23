@@ -14,7 +14,7 @@ export class LensFittingMasterController {
    */
   async create(req, res, next) {
     try {
-      const { name, short_name, description, activeStatus } = req.body;
+      const { name, short_name, description, fitting_price, activeStatus } = req.body;
 
       // Validation
       if (!name || !short_name) {
@@ -30,6 +30,7 @@ export class LensFittingMasterController {
         name: name.trim(),
         short_name: short_name.trim(),
         description: description?.trim(),
+        fitting_price: fitting_price ? parseFloat(fitting_price) : 0,
         activeStatus,
         createdBy: userId
       };
@@ -115,13 +116,14 @@ export class LensFittingMasterController {
         });
       }
 
-      const { name, short_name, description, activeStatus } = req.body;
+      const { name, short_name, description, fitting_price, activeStatus } = req.body;
       const userId = req.user?.id || 1;
 
       const updateData = {
         name: name?.trim(),
         short_name: short_name?.trim(),
         description: description?.trim(),
+        fitting_price: fitting_price !== undefined ? parseFloat(fitting_price) : undefined,
         activeStatus,
         updatedBy: userId
       };

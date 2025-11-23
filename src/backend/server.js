@@ -26,6 +26,8 @@ import departmentRoutes from './routes/department.routes.js';
 import priceMappingRoutes from './routes/priceMappings.routes.js';
 import lensFittingRoutes from './routes/lensFittingMaster.routes.js';
 import lensDiaRoutes from './routes/lensDiaMaster.routes.js';
+import locationMasterRoutes from './routes/locationMaster.routes.js';
+import trayMasterRoutes from './routes/trayMaster.routes.js';
 import lensTintingRoutes from './routes/lensTintings.routes.js';
 
 // Load environment variables
@@ -107,6 +109,8 @@ app.use('/api/department', departmentRoutes);
 app.use('/api/price-mappings', priceMappingRoutes);
 app.use('/api/lens-fittings', lensFittingRoutes);
 app.use('/api/lens-dias', lensDiaRoutes);
+app.use('/api/v1/location-master', locationMasterRoutes);
+app.use('/api/v1/tray-master', trayMasterRoutes);
 app.use('/api/v1/lens-tintings', lensTintingRoutes);
 
 // Basic route for testing

@@ -853,6 +853,110 @@ export class UserMasterService {
       );
     }
   }
+
+  /**
+   * Get sales persons dropdown (users from Sales department)
+   * @returns {Promise<Array>} List of sales persons for dropdown
+   */
+  async getSalesPersonsDropdown() {
+    try {
+      const salesPersons = await prisma.user.findMany({
+        where: {
+          active_status: true,
+          delete_status: false,
+          departmentDetails: {
+            department: "Sales",
+            active_status: true,
+            delete_status: false,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          usercode: true,
+          email: true,
+          departmentDetails: {
+            select: {
+              id: true,
+              department: true,
+            },
+          },
+        },
+        orderBy: {
+          name: "asc",
+        },
+      });
+
+      return salesPersons.map((user) => ({
+        id: user.id,
+        label: `${user.name} (${user.usercode})`,
+        value: user.id,
+        name: user.name,
+        usercode: user.usercode,
+        email: user.email,
+        department: user.departmentDetails?.department,
+      }));
+    } catch (error) {
+      console.error("Error fetching sales persons dropdown:", error);
+      throw new APIError(
+        "Failed to fetch sales persons dropdown",
+        500,
+        "FETCH_SALES_PERSONS_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Get delivery persons dropdown (users from Delivery department)
+   * @returns {Promise<Array>} List of delivery persons for dropdown
+   */
+  async getDeliveryPersonsDropdown() {
+    try {
+      const deliveryPersons = await prisma.user.findMany({
+        where: {
+          active_status: true,
+          delete_status: false,
+          departmentDetails: {
+            department: "Delivery",
+            active_status: true,
+            delete_status: false,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          usercode: true,
+          email: true,
+          departmentDetails: {
+            select: {
+              id: true,
+              department: true,
+            },
+          },
+        },
+        orderBy: {
+          name: "asc",
+        },
+      });
+
+      return deliveryPersons.map((user) => ({
+        id: user.id,
+        label: `${user.name} (${user.usercode})`,
+        value: user.id,
+        name: user.name,
+        usercode: user.usercode,
+        email: user.email,
+        department: user.departmentDetails?.department,
+      }));
+    } catch (error) {
+      console.error("Error fetching delivery persons dropdown:", error);
+      throw new APIError(
+        "Failed to fetch delivery persons dropdown",
+        500,
+        "FETCH_DELIVERY_PERSONS_ERROR"
+      );
+    }
+  }
 }
 
 export default UserMasterService;

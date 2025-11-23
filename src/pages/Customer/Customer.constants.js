@@ -21,6 +21,8 @@ export const defaultCustomer = {
   categoryId: null,
   gstNumber: "",
   creditLimit: "",
+  salePersonId: null,
+  deliveryPersonId: null,
   remarks: "",
   activeStatus: true,
 };

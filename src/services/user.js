@@ -335,3 +335,19 @@ export async function resetPassword(email, otp, newPassword) {
     data: { email, otp, newPassword },
   });
 }
+
+/**
+ * Get sales persons dropdown
+ * @returns {Promise<Array>} List of sales persons for dropdown
+ */
+export async function getSalesPersonsDropdown() {
+  return await apiClient("get", "/user-master/sales-persons/dropdown");
+}
+
+/**
+ * Get delivery persons dropdown
+ * @returns {Promise<Array>} List of delivery persons for dropdown
+ */
+export async function getDeliveryPersonsDropdown() {
+  return await apiClient("get", "/user-master/delivery-persons/dropdown");
+}
