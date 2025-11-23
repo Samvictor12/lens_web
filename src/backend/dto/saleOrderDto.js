@@ -101,6 +101,14 @@ export const validateCreateSaleOrder = (data) => {
     errors.push({ field: 'freeLens', message: 'Free lens must be a boolean value' });
   }
 
+  if (data.urgentOrder !== undefined && typeof data.urgentOrder !== 'boolean') {
+    errors.push({ field: 'urgentOrder', message: 'Urgent order must be a boolean value' });
+  }
+
+  if (data.freeFitting !== undefined && typeof data.freeFitting !== 'boolean') {
+    errors.push({ field: 'freeFitting', message: 'Free fitting must be a boolean value' });
+  }
+
   // Lens details validation
   if (data.lens_id !== undefined && data.lens_id !== null && data.lens_id !== '') {
     const lensId = parseInt(data.lens_id);
@@ -217,10 +225,29 @@ export const validateCreateSaleOrder = (data) => {
     errors.push({ field: 'lensPrice', message: 'Lens price must be a valid positive number' });
   }
 
+  if (data.fittingPrice !== undefined && data.fittingPrice !== null && data.fittingPrice !== '' && !isValidPositiveNumber(data.fittingPrice)) {
+    errors.push({ field: 'fittingPrice', message: 'Fitting price must be a valid positive number' });
+  }
+
   if (data.discount !== undefined && data.discount !== null && data.discount !== '') {
     const discount = parseFloat(data.discount);
     if (isNaN(discount) || discount < 0 || discount > 100) {
       errors.push({ field: 'discount', message: 'Discount must be a number between 0 and 100' });
+    }
+  }
+
+  if (data.additionalPrice !== undefined && data.additionalPrice !== null) {
+    if (!Array.isArray(data.additionalPrice)) {
+      errors.push({ field: 'additionalPrice', message: 'Additional price must be an array' });
+    } else {
+      data.additionalPrice.forEach((item, index) => {
+        if (!item.name || typeof item.name !== 'string') {
+          errors.push({ field: `additionalPrice[${index}].name`, message: 'Additional price name is required and must be a string' });
+        }
+        if (item.value !== undefined && !isValidPositiveNumber(item.value)) {
+          errors.push({ field: `additionalPrice[${index}].value`, message: 'Additional price value must be a valid positive number' });
+        }
+      });
     }
   }
 
@@ -242,6 +269,8 @@ export const validateCreateSaleOrder = (data) => {
       remark: data.remark?.trim() || null,
       itemRefNo: data.itemRefNo?.trim() || null,
       freeLens: data.freeLens || false,
+      urgentOrder: data.urgentOrder || false,
+      freeFitting: data.freeFitting || false,
       lens_id: data.lens_id ? parseInt(data.lens_id) : null,
       category_id: data.category_id ? parseInt(data.category_id) : null,
       Type_id: data.Type_id ? parseInt(data.Type_id) : null,
@@ -276,7 +305,9 @@ export const validateCreateSaleOrder = (data) => {
       actualTime: data.actualTime?.trim() || null,
       dispatchNotes: data.dispatchNotes?.trim() || null,
       lensPrice: data.lensPrice ? parseFloat(data.lensPrice) : 0,
+      fittingPrice: data.fittingPrice ? parseFloat(data.fittingPrice) : 0,
       discount: data.discount ? parseFloat(data.discount) : 0,
+      additionalPrice: data.additionalPrice || null,
       createdBy: parseInt(data.createdBy),
       updatedBy: parseInt(data.createdBy)
     } : null
@@ -335,10 +366,20 @@ export const validateUpdateSaleOrder = (data) => {
     errors.push({ field: 'lensPrice', message: 'Lens price must be a valid positive number' });
   }
 
+  if (data.fittingPrice !== undefined && data.fittingPrice !== null && data.fittingPrice !== '' && !isValidPositiveNumber(data.fittingPrice)) {
+    errors.push({ field: 'fittingPrice', message: 'Fitting price must be a valid positive number' });
+  }
+
   if (data.discount !== undefined && data.discount !== null && data.discount !== '') {
     const discount = parseFloat(data.discount);
     if (isNaN(discount) || discount < 0 || discount > 100) {
       errors.push({ field: 'discount', message: 'Discount must be a number between 0 and 100' });
+    }
+  }
+
+  if (data.additionalPrice !== undefined && data.additionalPrice !== null) {
+    if (!Array.isArray(data.additionalPrice)) {
+      errors.push({ field: 'additionalPrice', message: 'Additional price must be an array' });
     }
   }
 
@@ -356,6 +397,8 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.remark !== undefined) updateData.remark = data.remark?.trim() || null;
   if (data.itemRefNo !== undefined) updateData.itemRefNo = data.itemRefNo?.trim() || null;
   if (data.freeLens !== undefined) updateData.freeLens = data.freeLens;
+  if (data.urgentOrder !== undefined) updateData.urgentOrder = data.urgentOrder;
+  if (data.freeFitting !== undefined) updateData.freeFitting = data.freeFitting;
   if (data.lens_id !== undefined) updateData.lens_id = data.lens_id ? parseInt(data.lens_id) : null;
   if (data.category_id !== undefined) updateData.category_id = data.category_id ? parseInt(data.category_id) : null;
   if (data.Type_id !== undefined) updateData.Type_id = data.Type_id ? parseInt(data.Type_id) : null;
@@ -390,7 +433,9 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.actualTime !== undefined) updateData.actualTime = data.actualTime?.trim() || null;
   if (data.dispatchNotes !== undefined) updateData.dispatchNotes = data.dispatchNotes?.trim() || null;
   if (data.lensPrice !== undefined) updateData.lensPrice = data.lensPrice ? parseFloat(data.lensPrice) : 0;
+  if (data.fittingPrice !== undefined) updateData.fittingPrice = data.fittingPrice ? parseFloat(data.fittingPrice) : 0;
   if (data.discount !== undefined) updateData.discount = data.discount ? parseFloat(data.discount) : 0;
+  if (data.additionalPrice !== undefined) updateData.additionalPrice = data.additionalPrice || null;
 
   return {
     isValid: errors.length === 0,

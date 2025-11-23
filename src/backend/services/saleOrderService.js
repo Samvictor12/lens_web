@@ -12,7 +12,7 @@ export class SaleOrderService {
    * @returns {Promise<string>} Generated order number (e.g., SO-2025-001)
    */
   async generateOrderNumber() {
-    const year = new Date().getFullYear();a
+    const year = new Date().getFullYear();
     const prefix = `SO-${year}-`;
     
     // Get the latest order number for this year
@@ -47,7 +47,7 @@ export class SaleOrderService {
     try {
       // Validate customer exists
       const customer = await prisma.customer.findUnique({
-        where: { id: orderData.customerId, deleteStatus: false }
+        where: { id: orderData.customerId, delete_status: false }
       });
 
       if (!customer) {
@@ -145,6 +145,8 @@ export class SaleOrderService {
           remark: orderData.remark,
           itemRefNo: orderData.itemRefNo,
           freeLens: orderData.freeLens ?? false,
+          urgentOrder: orderData.urgentOrder ?? false,
+          freeFitting: orderData.freeFitting ?? false,
           
           // Lens details
           lens_id: orderData.lens_id,
@@ -191,7 +193,9 @@ export class SaleOrderService {
           
           // Billing information
           lensPrice: orderData.lensPrice ?? 0,
+          fittingPrice: orderData.fittingPrice ?? 0,
           discount: orderData.discount ?? 0,
+          additionalPrice: orderData.additionalPrice || null,
           
           // Audit fields
           createdBy: userId,
@@ -459,7 +463,7 @@ export class SaleOrderService {
       // Validate customer if changed
       if (updateData.customerId) {
         const customer = await prisma.customer.findUnique({
-          where: { id: updateData.customerId, deleteStatus: false }
+          where: { id: updateData.customerId, delete_status: false }
         });
         if (!customer) {
           throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');

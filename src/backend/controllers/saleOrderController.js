@@ -17,15 +17,16 @@ export class SaleOrderController {
   constructor() {
     this.saleOrderService = new SaleOrderService();
   }
-  
+
   /**
    * Create a new sale order
    * POST /api/sale-orders
    */
   async create(req, res, next) {
     try {
+      const data = { ...req.body, createdBy: req.user?.id };
       // Validate request body
-      const validation = validateCreateSaleOrder(req.body);
+      const validation = validateCreateSaleOrder(data);
 
       if (!validation.isValid) {
         return res.status(400).json({
@@ -48,10 +49,10 @@ export class SaleOrderController {
     }
   }
 
-    /**
-   * Get all sale orders with filtering and pagination
-   * GET /api/sale-orders
-   */
+  /**
+ * Get all sale orders with filtering and pagination
+ * GET /api/sale-orders
+ */
   async list(req, res, next) {
     try {
       // Validate query parameters
@@ -112,6 +113,7 @@ export class SaleOrderController {
    */
   async update(req, res, next) {
     try {
+      const data = { ...req.body, updatedBy: req.user?.id };
       // Validate ID parameter
       const idValidation = validateIdParam(req.params.id);
 
@@ -124,7 +126,7 @@ export class SaleOrderController {
       }
 
       // Validate update data
-      const validation = validateUpdateSaleOrder(req.body);
+      const validation = validateUpdateSaleOrder(data);
 
       if (!validation.isValid) {
         return res.status(400).json({

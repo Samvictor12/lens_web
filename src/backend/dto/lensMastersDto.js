@@ -192,6 +192,12 @@ export const validateCreateLensType = validateCreateLensCategory;
 export const validateUpdateLensType = validateUpdateLensCategory;
 
 /**
+ * Validate Lens Tinting Create - Same as Coating (has short_name)
+ */
+export const validateCreateLensTinting = validateCreateLensCoating;
+export const validateUpdateLensTinting = validateUpdateLensCoating;
+
+/**
  * Validate Lens Product Create
  */
 export const validateCreateLensProduct = (data) => {

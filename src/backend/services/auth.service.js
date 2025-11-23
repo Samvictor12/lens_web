@@ -45,9 +45,9 @@ export class AuthService {
       }
 
       // Check if user is deleted
-      // if (user.delete_status === true) {
-      //   throw new APIError('You do not have login access. Please contact administrator.', 403, 'NO_LOGIN_ACCESS');
-      // }
+      if (user.delete_status === true) {
+        throw new APIError('You do not have login access. Please contact administrator.', 403, 'NO_LOGIN_ACCESS');
+      }
 
       // Check if user account is active
       if (user.active_status === false) {
@@ -55,15 +55,15 @@ export class AuthService {
       }
 
       // Check if login is enabled
-      // if (user.is_login === false) {
-      //   throw new APIError('Login is not enabled for this account. Please contact administrator.', 403, 'LOGIN_NOT_ENABLED');
-      // }
+      if (user.is_login === false) {
+        throw new APIError('Login is not enabled for this account. Please contact administrator.', 403, 'LOGIN_NOT_ENABLED');
+      }
 
       // Verify password
-      // const isPasswordValid = await bcrypt.compare(password, user.password);
-      // if (!isPasswordValid) {
-      //   throw new APIError('Invalid username or password', 401, 'INVALID_CREDENTIALS');
-      // }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        throw new APIError('Invalid username or password', 401, 'INVALID_CREDENTIALS');
+      }
 
       // Generate tokens
       const { accessToken, refreshToken } = await this.generateTokens(user);

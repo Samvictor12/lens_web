@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import SaleOrders from "./pages/SaleOrder/SaleOrderMain";
 import SaleOrderForm from "./pages/SaleOrder/SaleOrderForm";
+// import SaleOrderForm from "./components/forms/SaleOrderForm";
 import Customers from "./pages/Customer/CustomersMain";
 import CustomerForm from "./pages/Customer/CustomerForm";
 import Inventory from "./pages/Inventory";
@@ -39,6 +40,8 @@ import LensBrandMain from "./pages/LensBrandMaster/LensBrandMain";
 import LensBrandForm from "./pages/LensBrandMaster/LensBrandForm";
 import LensTypeMain from "./pages/LensTypeMaster/LensTypeMain";
 import LensTypeForm from "./pages/LensTypeMaster/LensTypeForm";
+import LensTintingMain from "./pages/LensTinting/LensTintingMain";
+import LensTintingForm from "./pages/LensTinting/LensTintingForm";
 import LensProductMain from "./pages/LensProductMaster/LensProductMain";
 import LensProductForm from "./pages/LensProductMaster/LensProductForm";
 import NotFound from "./pages/NotFound";
@@ -100,9 +103,9 @@ const AppRoutes = () => (
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
-      <Route path="/sales/orders/:mode" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
-      <Route path="/sales/orders/dif/:mode" element={<div className="flex overflow-auto h-screen"><SaleOrderForm /></div>} />
-      <Route path="/sales/orders/:mode/:id" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
+      <Route path="/sales/orders/dif/:mode" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
+      <Route path="/sales/orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
+      <Route path="/sales/orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
@@ -140,6 +143,9 @@ const AppRoutes = () => (
       <Route path="/masters/lens-type" element={<ProtectedRoute><LensTypeMain /></ProtectedRoute>} />
       <Route path="/masters/lens-type/:mode" element={<ProtectedRoute><LensTypeForm /></ProtectedRoute>} />
       <Route path="/masters/lens-type/:mode/:id" element={<ProtectedRoute><LensTypeForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-tinting" element={<ProtectedRoute><LensTintingMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-tinting/:mode" element={<ProtectedRoute><LensTintingForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-tinting/:mode/:id" element={<ProtectedRoute><LensTintingForm /></ProtectedRoute>} />
       <Route path="/masters/lens-product" element={<ProtectedRoute><LensProductMain /></ProtectedRoute>} />
       <Route path="/masters/lens-product/:mode" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />
       <Route path="/masters/lens-product/:mode/:id" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />

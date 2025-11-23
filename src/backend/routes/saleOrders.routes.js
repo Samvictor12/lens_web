@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { SaleOrderController } from '../controllers/saleOrderController.js';
-import { requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 const controller = new SaleOrderController();
@@ -559,7 +559,8 @@ const controller = new SaleOrderController();
  *       403:
  *         description: Forbidden - Insufficient permissions
  */
-router.post('/', 
+router.post('/',
+  authenticateToken,
   // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
   controller.create.bind(controller)
 );
@@ -622,6 +623,7 @@ router.post('/',
  *         description: Forbidden - Insufficient permissions
  */
 router.get('/',
+  authenticateToken,
   // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing
   controller.list.bind(controller)
 );
@@ -669,6 +671,7 @@ router.get('/',
  *         description: Forbidden - Insufficient permissions
  */
 router.get('/stats',
+  authenticateToken,
   // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
   controller.getStats.bind(controller)
 );
@@ -716,6 +719,7 @@ router.get('/stats',
  *         description: Forbidden - Insufficient permissions
  */
 router.get('/:id',
+  authenticateToken,
   // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing
   controller.getById.bind(controller)
 );
@@ -777,6 +781,7 @@ router.get('/:id',
  *         description: Forbidden - Insufficient permissions
  */
 router.put('/:id',
+  authenticateToken,
   // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
   controller.update.bind(controller)
 );
@@ -830,6 +835,7 @@ router.put('/:id',
  *         description: Forbidden - Insufficient permissions
  */
 router.patch('/:id/status',
+  authenticateToken,
   // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing
   controller.updateStatus.bind(controller)
 );
@@ -888,6 +894,7 @@ router.patch('/:id/status',
  *         description: Forbidden - Insufficient permissions
  */
 router.patch('/:id/dispatch',
+  authenticateToken,
   // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing
   controller.updateDispatchInfo.bind(controller)
 );
@@ -931,6 +938,7 @@ router.patch('/:id/dispatch',
  *         description: Forbidden - Insufficient permissions
  */
 router.delete('/:id',
+  authenticateToken,
   // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
   controller.delete.bind(controller)
 );

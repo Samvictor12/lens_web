@@ -49,7 +49,9 @@ export const getSaleOrderById = async (id) => {
  */
 export const createSaleOrder = async (data) => {
     try {
-        const response = await apiClient("post", "/sale-orders", data);
+        console.log("Creating sale order:", data);
+
+        const response = await apiClient("post", "/sale-orders", { data });
         return response;
     } catch (error) {
         throw new Error(
@@ -63,7 +65,7 @@ export const createSaleOrder = async (data) => {
  */
 export const updateSaleOrder = async (id, data) => {
     try {
-        const response = await apiClient("put", `/sale-orders/${id}`, data);
+        const response = await apiClient("put", `/sale-orders/${id}`, { data });
         return response;
     } catch (error) {
         throw new Error(
@@ -92,7 +94,7 @@ export const deleteSaleOrder = async (id) => {
 export const updateSaleOrderStatus = async (id, status) => {
     try {
         const response = await apiClient("patch", `/sale-orders/${id}/status`, {
-            status,
+            data: { status },
         });
         return response;
     } catch (error) {
@@ -108,11 +110,12 @@ export const updateSaleOrderStatus = async (id, status) => {
 export const getLensPriceId = async (lensId, coatingId) => {
     try {
         // Get all prices for the lens
-        const response = await apiClient("get", `/lens-products/${lensId}/prices`);
+        const response = await apiClient("get", `/v1/lens-products/${lensId}/prices`);
 
-        if (response.data.success && response.data.data) {
+        console.log("Lens Prices Response :", response);
+        if (response.success && response.data) {
             // Find the price entry that matches the coating
-            const priceEntry = response.data.data.find(
+            const priceEntry = response.data.find(
                 (price) => price.coating_id === coatingId
             );
 
@@ -141,14 +144,35 @@ export const getLensPriceId = async (lensId, coatingId) => {
 };
 
 /**
+ * Calculate product cost with customer Credit Limit
+ */
+export const checkCreditLimit = async (data) => {
+    try {
+        const customer = await apiClient("get", "/customer-master/" + data);
+        if (customer.success && customer.data) {
+            return customer.data.outstanding_credit;
+        } else {
+            return null;
+        }
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to calculate product cost"
+        );
+    }
+};
+
+
+/**
  * Calculate product cost with customer discount
  */
 export const calculateProductCost = async (data) => {
     try {
-        const response = await apiClient("post", "/lens-products/calculate-cost", {
-            customer_id: data.customer_id,
-            lensPrice_id: data.lensPrice_id,
-            quantity: data.quantity || 1,
+        const response = await apiClient("post", "/v1/lens-products/calculate-cost", {
+            data: {
+                customer_id: data.customer_id,
+                lensPrice_id: data.lensPrice_id,
+                quantity: data.quantity || 1,
+            }
         });
         return response;
     } catch (error) {
@@ -263,7 +287,7 @@ export const getLensCoatingsDropdown = async () => {
  */
 export const getLensTintingsDropdown = async () => {
     try {
-        const response = await apiClient("get", "/lens-tintings/dropdown");
+        const response = await apiClient("get", "/v1/lens-tintings/dropdown");
         return response;
     } catch (error) {
         throw new Error(

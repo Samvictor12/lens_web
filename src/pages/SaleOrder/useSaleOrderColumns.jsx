@@ -9,15 +9,23 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
       accessorKey: "orderNo",
       header: "Order #",
       sortable: true,
-      cell: ({ value }) => (
-        <span className="font-medium text-sm">{value}</span>
+      cell: (row) => (
+        <a
+          onClick={() => window.open(`/sales/orders/view/${row.id}`, "_blank")}
+          className="flex items-center gap-1.5 hover:underline cursor-pointer"
+        >
+          <div>
+            <div className="font-medium text-xs text-primary">{row.orderNo}</div>
+
+          </div>
+        </a>
       ),
     },
     {
       accessorKey: "customerName",
       header: "Customer",
       sortable: true,
-      cell: ({ row }) => (
+      cell: (row) => (
         <div className="flex flex-col">
           <span className="text-sm">{row.customer?.name || "N/A"}</span>
           {row.customer?.code && (
@@ -26,35 +34,38 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
             </span>
           )}
         </div>
-      ),
+      )
     },
     {
       accessorKey: "orderDate",
       header: "Order Date",
       sortable: true,
-      cell: ({ value }) => (
+      cell: (row) => (
         <span className="text-sm">
-          {value ? new Date(value).toLocaleDateString() : "N/A"}
+          {row.orderDate ? new Date(row.orderDate).toLocaleDateString() : "N/A"}
         </span>
       ),
     },
     {
       accessorKey: "type",
       header: "Type",
-      cell: ({ value }) => (
-        <span className="text-sm">{value || "N/A"}</span>
-      ),
+      cell: (row) => {
+        console.log("type", row.type);
+        return (
+          <span className="text-sm">{row.type || "N/A"}</span>
+        )
+      },
     },
     {
       accessorKey: "status",
       header: "Status",
       sortable: true,
-      cell: ({ value }) => (
+      cell: (row) => (
         <Badge
-          className={`${statusColors[value] || statusColors.DRAFT} text-xs`}
+          className={`${statusColors[row.status] || statusColors.DRAFT} text-xs`}
           variant="outline"
         >
-          {value ? value.replace(/_/g, " ") : "DRAFT"}
+          {row.status ? row.status.replace(/_/g, " ") : "DRAFT"}
         </Badge>
       ),
     },
@@ -63,11 +74,12 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
       header: "Price",
       align: "right",
       sortable: true,
-      cell: ({ value, row }) => {
-        const price = value || 0;
+      cell: (row) => {
+        console.log("lensPrice", row);
+        const price = row.lensPrice || 0;
         const discount = row.discount || 0;
         const finalPrice = price - (price * discount) / 100;
-        
+
         return (
           <div className="flex flex-col items-end">
             <span className="font-semibold text-sm">
@@ -86,26 +98,8 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
       accessorKey: "actions",
       header: "Actions",
       align: "right",
-      cell: ({ row }) => (
+      cell: (row) => (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            className="h-7 w-7 p-0"
-            onClick={() => navigate(`/sales/orders/view/${row.id}`)}
-            title="View"
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            className="h-7 w-7 p-0"
-            onClick={() => navigate(`/sales/orders/edit/${row.id}`)}
-            title="Edit"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
           <Button
             variant="ghost"
             size="xs"

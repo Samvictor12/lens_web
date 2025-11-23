@@ -7,16 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
-import {
-  getSaleOrders,
-  deleteSaleOrder,
-  getCustomersDropdown,
-} from "@/services/saleOrder";
-import { saleOrderFilters } from "./SaleOrder.constants";
-import { useSaleOrderColumns } from "./useSaleOrderColumns";
-import SaleOrderFilter from "./SaleOrderFilter";
+import { getLensTintings, deleteLensTinting } from "@/services/lensTinting";
+import { lensTintingFilters } from "./LensTinting.constants";
+import { useLensTintingColumns } from "./useLensTintingColumns";
+import LensTintingFilter from "./LensTintingFilter";
 
-export default function SaleOrderMain() {
+export default function LensTintings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,108 +27,90 @@ export default function SaleOrderMain() {
   const [sorting, setSorting] = useState([]);
 
   // Filter states
-  const [filters, setFilters] = useState(saleOrderFilters);
-  const [tempFilters, setTempFilters] = useState(saleOrderFilters);
+  const [filters, setFilters] = useState(lensTintingFilters);
+  const [tempFilters, setTempFilters] = useState(lensTintingFilters);
 
-  // Sale order data
-  const [saleOrders, setSaleOrders] = useState([]);
+  // Tinting data
+  const [tintings, setTintings] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-
-  // Customers for filter dropdown
-  const [customers, setCustomers] = useState([]);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState(null);
+  const [tintingToDelete, setTintingToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Handle delete order click
-  const handleDeleteClick = (order) => {
-    setOrderToDelete(order);
+  // Handle delete tinting click
+  const handleDeleteClick = (tinting) => {
+    setTintingToDelete(tinting);
     setDeleteDialogOpen(true);
   };
 
   // Get table columns with delete handler
-  const columns = useSaleOrderColumns(navigate, handleDeleteClick);
+  const columns = useLensTintingColumns(navigate, handleDeleteClick);
 
-  // Fetch customers for filter dropdown
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const response = await getCustomersDropdown();
-        if (response.success) {
-          setCustomers(response.data || []);
-        }
-      } catch (error) {
-        console.error("Error fetching customers:", error);
-      }
-    };
-    fetchCustomers();
-  }, []);
-
-  // Fetch sale orders from API
-  const fetchSaleOrders = async () => {
+  // Fetch tintings from API
+  const fetchTintings = async () => {
     try {
       setIsLoading(true);
       const sortField = sorting[0]?.id || "createdAt";
       const sortDirection = sorting[0]?.desc ? "desc" : "asc";
 
-      const response = await getSaleOrders(
-        pageIndex + 1, // Backend uses 1-indexed pages
-        pageSize,
-        searchQuery,
-        filters,
-        sortField,
-        sortDirection
-      );
+      const params = {
+        page: pageIndex + 1,
+        limit: pageSize,
+        search: searchQuery,
+        sortBy: sortField,
+        sortOrder: sortDirection,
+        activeStatus: filters.activeStatus,
+      };
 
-      if (response.success) {
-        setSaleOrders(response.data || []);
-        setTotalCount(response.pagination?.total || 0);
-      }
+      const response = await getLensTintings(params);
+      setTintings(response.data);
+      setTotalCount(response.pagination.total);
     } catch (error) {
-      console.error("Error fetching sale orders:", error);
+      console.error("Error fetching lens tintings:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch sale orders",
+        description: error.message || "Failed to fetch lens tintings",
         variant: "destructive",
       });
-      setSaleOrders([]);
+      setTintings([]);
       setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch sale orders on mount and when dependencies change
+  // Fetch tintings on mount and when dependencies change
   useEffect(() => {
-    fetchSaleOrders();
+    fetchTintings();
   }, [pageIndex, pageSize, searchQuery, filters, sorting]);
 
-  // Handle delete sale order
+  // Handle delete tinting
   const handleDeleteConfirm = async () => {
-    if (!orderToDelete) return;
+    if (!tintingToDelete) return;
 
     try {
       setIsDeleting(true);
-      await deleteSaleOrder(orderToDelete.id);
+      await deleteLensTinting(tintingToDelete.id);
 
       toast({
         title: "Success",
-        description: `Sale order "${orderToDelete.orderNo}" has been deleted successfully.`,
-        success: true,
+        description: `Lens tinting "${tintingToDelete.name}" has been deleted successfully.`,
       });
 
       setDeleteDialogOpen(false);
-      setOrderToDelete(null);
+      setTintingToDelete(null);
 
-      // Refresh sale orders list
-      fetchSaleOrders();
+      // Refresh tinting list
+      fetchTintings();
     } catch (error) {
-      console.error("Error deleting sale order:", error);
+      console.error("Error deleting lens tinting:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete sale order.",
+        description:
+          error.message ||
+          "Failed to delete lens tinting. The tinting may have existing sale orders.",
         variant: "destructive",
       });
     } finally {
@@ -142,26 +120,19 @@ export default function SaleOrderMain() {
 
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
-    return (
-      filters.status !== "all" ||
-      filters.customerId !== null ||
-      filters.startDate !== null ||
-      filters.endDate !== null
-    );
+    return filters.activeStatus !== "all";
   }, [filters]);
 
   const handleApplyFilters = () => {
     setFilters(tempFilters);
     setShowFilterDialog(false);
-    setPageIndex(0); // Reset to first page
   };
 
   const handleClearFilters = () => {
-    const clearedFilters = saleOrderFilters;
+    const clearedFilters = lensTintingFilters;
     setTempFilters(clearedFilters);
     setFilters(clearedFilters);
     setShowFilterDialog(false);
-    setPageIndex(0);
   };
 
   const handleCancelFilters = () => {
@@ -169,25 +140,29 @@ export default function SaleOrderMain() {
     setShowFilterDialog(false);
   };
 
+  // For client-side display, we use the tintings directly from API
+  // Backend handles filtering, so we just display what we receive
+  const displayTintings = tintings;
+
   return (
     <div className="flex flex-col h-full p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            Sale Orders
+            Lens Tintings
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage all customer orders
+            Manage lens tinting master data
           </p>
         </div>
         <div className="flex gap-1.5">
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => window.open("/sales/orders/add", "_blank")}
+            onClick={() => navigate("/masters/lens-tinting/add")}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Order</span>
+            <span className="hidden sm:inline">Add Tinting</span>
           </Button>
         </div>
       </div>
@@ -198,17 +173,14 @@ export default function SaleOrderMain() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search orders by order number, customer..."
+              placeholder="Search lens tintings..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPageIndex(0); // Reset to first page on search
-              }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-8 text-sm"
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <SaleOrderFilter
+            <LensTintingFilter
               filters={filters}
               tempFilters={tempFilters}
               setTempFilters={setTempFilters}
@@ -218,7 +190,6 @@ export default function SaleOrderMain() {
               onApplyFilters={handleApplyFilters}
               onClearFilters={handleClearFilters}
               onCancelFilters={handleCancelFilters}
-              customers={customers}
             />
           </div>
         </div>
@@ -227,7 +198,7 @@ export default function SaleOrderMain() {
       {/* Table View */}
       <div className="flex-1 min-h-0">
         <Table
-          data={saleOrders}
+          data={displayTintings}
           columns={columns}
           pageIndex={pageIndex}
           pageSize={pageSize}
@@ -241,7 +212,7 @@ export default function SaleOrderMain() {
           setSorting={setSorting}
           sorting={sorting}
           pagination={true}
-          emptyMessage="No sale orders found"
+          emptyMessage="No lens tintings found"
         />
       </div>
 
@@ -250,11 +221,11 @@ export default function SaleOrderMain() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDeleteConfirm}
-        title="Delete Sale Order?"
+        title="Delete Lens Tinting?"
         description={
-          orderToDelete
-            ? `Are you sure you want to delete order "${orderToDelete.orderNo}"? This action cannot be undone.`
-            : "Are you sure you want to delete this sale order?"
+          tintingToDelete
+            ? `Are you sure you want to delete "${tintingToDelete.name}"? This action cannot be undone and will fail if the tinting has existing sale orders.`
+            : "Are you sure you want to delete this lens tinting?"
         }
         isDeleting={isDeleting}
       />

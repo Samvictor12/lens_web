@@ -16,7 +16,7 @@ Card.displayName = "Card";
 
 const CardHeader = React.forwardRef(
   ({ className, ...props }, ref) => {
-    const headerClasses = "flex flex-col space-y-1.5";
+    const headerClasses = "flex mb-2";
     const finalClasses = className ? `${headerClasses} ${className}` : headerClasses;
     
     return (

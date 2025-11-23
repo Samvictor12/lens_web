@@ -26,6 +26,7 @@ import departmentRoutes from './routes/department.routes.js';
 import priceMappingRoutes from './routes/priceMappings.routes.js';
 import lensFittingRoutes from './routes/lensFittingMaster.routes.js';
 import lensDiaRoutes from './routes/lensDiaMaster.routes.js';
+import lensTintingRoutes from './routes/lensTintings.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -106,6 +107,7 @@ app.use('/api/department', departmentRoutes);
 app.use('/api/price-mappings', priceMappingRoutes);
 app.use('/api/lens-fittings', lensFittingRoutes);
 app.use('/api/lens-dias', lensDiaRoutes);
+app.use('/api/v1/lens-tintings', lensTintingRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

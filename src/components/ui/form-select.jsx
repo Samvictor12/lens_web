@@ -19,6 +19,7 @@ const FormSelect = React.forwardRef(
       disabled,
       containerClassName,
       className,
+      singleLine = false,
       ...props
     },
     ref
@@ -146,7 +147,7 @@ const FormSelect = React.forwardRef(
 
     return (
       <div className={cn("space-y-1.5", containerClassName)}>
-        <div className="flex justify-between items-center gap-2">
+        <div className={`flex gap-2 ${singleLine ? "items-center" : "flex-col justify-between"}`}>
 
           {/* Label */}
           {label && (

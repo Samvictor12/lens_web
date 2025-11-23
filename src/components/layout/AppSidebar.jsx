@@ -141,6 +141,11 @@ const masterItems = [
         icon: Sparkles,
       },
       {
+        title: "Lens Tinting",
+        url: "/masters/lens-tinting",
+        icon: Sparkles,
+      },
+      {
         title: "Lens Brands",
         url: "/masters/lens-brand",
         icon: Award,

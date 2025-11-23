@@ -8,6 +8,8 @@ export const defaultSaleOrder = {
   remark: "",
   itemRefNo: "",
   freeLens: false,
+  freeFitting: false,
+  urgentOrder: false,
   
   // Lens Information
   lens_id: null,
@@ -54,7 +56,9 @@ export const defaultSaleOrder = {
   
   // Billing
   lensPrice: 0,
+  fittingPrice: 0,
   discount: 0,
+  additionalPrice: [],
 };
 
 export const orderStatusOptions = [
@@ -79,7 +83,6 @@ export const dispatchStatusOptions = [
 ];
 
 export const saleOrderFilters = {
-  status: "all",
   startDate: null,
   endDate: null,
   customerId: null,

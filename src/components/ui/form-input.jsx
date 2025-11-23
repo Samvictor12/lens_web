@@ -16,6 +16,7 @@ const FormInput = React.forwardRef(
       containerClassName,
       showCharCount,
       maxLength,
+      singleLine = false,
       ...props
     },
     ref
@@ -27,7 +28,7 @@ const FormInput = React.forwardRef(
 
     return (
       <div className={cn("space-y-1.5", containerClassName)}>
-        <div className="flex justify-between items-center gap-2">
+        <div className={`flex gap-2 ${singleLine ? "items-center" : "flex-col justify-between"}`}>
           {/* Label */}
           {label && (
             <Label htmlFor={inputId} className="text-xs min-w-[60px] w-[180px]">

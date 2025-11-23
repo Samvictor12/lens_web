@@ -171,6 +171,31 @@ async function seedTestData() {
         update: {},
         create: { name: 'Light Gray', short_name: 'LG', description: 'Light gray tint', activeStatus: true, deleteStatus: false, createdBy: 1 }
       }),
+      prisma.lensTintingMaster.upsert({
+        where: { name: 'Dark Gray' },
+        update: {},
+        create: { name: 'Dark Gray', short_name: 'DG', description: 'Dark gray tint', activeStatus: true, deleteStatus: false, createdBy: 1 }
+      }),
+      prisma.lensTintingMaster.upsert({
+        where: { name: 'Light Brown' },
+        update: {},
+        create: { name: 'Light Brown', short_name: 'LB', description: 'Light brown tint', activeStatus: true, deleteStatus: false, createdBy: 1 }
+      }),
+      prisma.lensTintingMaster.upsert({
+        where: { name: 'Dark Brown' },
+        update: {},
+        create: { name: 'Dark Brown', short_name: 'DB', description: 'Dark brown tint', activeStatus: true, deleteStatus: false, createdBy: 1 }
+      }),
+      prisma.lensTintingMaster.upsert({
+        where: { name: 'Green' },
+        update: {},
+        create: { name: 'Green', short_name: 'GRN', description: 'Green tint for outdoor use', activeStatus: true, deleteStatus: false, createdBy: 1 }
+      }),
+      prisma.lensTintingMaster.upsert({
+        where: { name: 'Photochromic' },
+        update: {},
+        create: { name: 'Photochromic', short_name: 'PHT', description: 'Light-reactive tint', activeStatus: true, deleteStatus: false, createdBy: 1 }
+      }),
     ]);
 
     console.log('✅ Lens master data created\n');
@@ -341,6 +366,8 @@ async function seedTestData() {
           customerRefNo: 'CUST-REF-001',
           status: 'CONFIRMED',
           type: 'Standard',
+          urgentOrder: true,
+          freeFitting: false,
           lens_id: lensProducts[0].id,
           category_id: lensCategories[0].id,
           Type_id: lensTypes[0].id,
@@ -373,6 +400,8 @@ async function seedTestData() {
           customerRefNo: 'CUST-REF-002',
           status: 'IN_PRODUCTION',
           type: 'Premium',
+          urgentOrder: false,
+          freeFitting: true,
           lens_id: lensProducts[1].id,
           category_id: lensCategories[1].id,
           Type_id: lensTypes[1].id,
@@ -406,6 +435,8 @@ async function seedTestData() {
           customerId: customers[2].id,
           status: 'DRAFT',
           type: 'Standard',
+          urgentOrder: false,
+          freeFitting: false,
           lens_id: lensProducts[0].id,
           category_id: lensCategories[0].id,
           Type_id: lensTypes[0].id,
