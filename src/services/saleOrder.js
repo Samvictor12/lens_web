@@ -49,8 +49,6 @@ export const getSaleOrderById = async (id) => {
  */
 export const createSaleOrder = async (data) => {
     try {
-        console.log("Creating sale order:", data);
-
         const response = await apiClient("post", "/sale-orders", { data });
         return response;
     } catch (error) {
@@ -112,7 +110,6 @@ export const getLensPriceId = async (lensId, coatingId) => {
         // Get all prices for the lens
         const response = await apiClient("get", `/v1/lens-products/${lensId}/prices`);
 
-        console.log("Lens Prices Response :", response);
         if (response.success && response.data) {
             // Find the price entry that matches the coating
             const priceEntry = response.data.find(
@@ -190,8 +187,6 @@ export const getCustomersDropdown = async () => {
         const response = await apiClient("get", "/customer-master/dropdown");
         return response;
     } catch (error) {
-        console.log("error", error);
-
         throw new Error(
             error.response?.data?.message || "Failed to fetch customers"
         );

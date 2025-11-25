@@ -561,7 +561,7 @@ const controller = new SaleOrderController();
  */
 router.post('/',
   authenticateToken,
-  // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
+  requireRole({ module: 'Sale Orders', actions: ['create'] }),
   controller.create.bind(controller)
 );
 
@@ -624,7 +624,7 @@ router.post('/',
  */
 router.get('/',
   authenticateToken,
-  // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing
+  requireRole({ module: 'Sale Orders', actions: ['read'] }),
   controller.list.bind(controller)
 );
 
@@ -672,7 +672,7 @@ router.get('/',
  */
 router.get('/stats',
   authenticateToken,
-  // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
+  requireRole({ module: 'Sale Orders', actions: ['read'] }),
   controller.getStats.bind(controller)
 );
 
@@ -720,7 +720,7 @@ router.get('/stats',
  */
 router.get('/:id',
   authenticateToken,
-  // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing
+  requireRole({ module: 'Sale Orders', actions: ['read'] }),
   controller.getById.bind(controller)
 );
 
@@ -782,7 +782,7 @@ router.get('/:id',
  */
 router.put('/:id',
   authenticateToken,
-  // requireRole(['Sales', 'Admin']),  // Temporarily disabled for testing
+  requireRole({ module: 'Sale Orders', actions: ['update'] }),
   controller.update.bind(controller)
 );
 
