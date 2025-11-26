@@ -90,7 +90,7 @@ export async function getLensFittings(
     sortOrder
   );
 
-  const response = await apiClient("get", "/v1/lens-fittings", {
+  const response = await apiClient("get", "/lens-fittings", {
     params,
   });
 
@@ -108,7 +108,7 @@ export async function getLensFittings(
  * @returns {Promise<Object>} Fitting data
  */
 export async function getLensFittingById(id) {
-  const response = await apiClient("get", `/v1/lens-fittings/${id}`);
+  const response = await apiClient("get", `/lens-fittings/${id}`);
 
   return {
     success: response.success,
@@ -123,7 +123,7 @@ export async function getLensFittingById(id) {
  */
 export async function createLensFitting(fittingData) {
   const backendData = mapToBackend(fittingData);
-  const response = await apiClient("post", "/v1/lens-fittings", {
+  const response = await apiClient("post", "/lens-fittings", {
     data: backendData,
   });
 
@@ -142,7 +142,7 @@ export async function createLensFitting(fittingData) {
  */
 export async function updateLensFitting(id, fittingData) {
   const backendData = mapToBackend(fittingData);
-  const response = await apiClient("put", `/v1/lens-fittings/${id}`, {
+  const response = await apiClient("put", `/lens-fittings/${id}`, {
     data: backendData,
   });
 
@@ -159,7 +159,7 @@ export async function updateLensFitting(id, fittingData) {
  * @returns {Promise<Object>} Success response
  */
 export async function deleteLensFitting(id) {
-  const response = await apiClient("delete", `/v1/lens-fittings/${id}`);
+  const response = await apiClient("delete", `/lens-fittings/${id}`);
 
   return {
     success: response.success,
@@ -172,7 +172,7 @@ export async function deleteLensFitting(id) {
  * @returns {Promise<Object>} Dropdown data
  */
 export async function getLensFittingDropdown() {
-  const response = await apiClient("get", "/v1/lens-fittings/dropdown");
+  const response = await apiClient("get", "/lens-fittings/dropdown");
 
   return {
     success: response.success,

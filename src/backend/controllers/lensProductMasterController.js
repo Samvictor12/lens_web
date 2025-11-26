@@ -525,7 +525,7 @@ export const getProductsWithPrices = async (req, res, next) => {
  */
 export const calculateProductCost = async (req, res, next) => {
   try {
-    const { customer_id, lensPrice_id, quantity } = req.body;
+    const { customer_id, lensPrice_id, fitting_id, quantity } = req.body;
 
     // Validate required fields
     if (!customer_id) {
@@ -544,6 +544,14 @@ export const calculateProductCost = async (req, res, next) => {
       });
     }
 
+    if (!fitting_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Fitting ID is required",
+        errors: [{ field: "fitting_id", message: "Fitting ID is required" }],
+      });
+    }
+
     // Validate quantity if provided
     if (quantity !== undefined) {
       const qty = parseInt(quantity);
@@ -559,6 +567,7 @@ export const calculateProductCost = async (req, res, next) => {
     const result = await lensProductMasterService.calculateProductCost({
       customer_id: parseInt(customer_id),
       lensPrice_id: parseInt(lensPrice_id),
+      fitting_id: parseInt(fitting_id),
       quantity: quantity ? parseInt(quantity) : 1,
     });
 

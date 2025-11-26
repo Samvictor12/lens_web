@@ -514,6 +514,14 @@ export const validateQueryParams = (query) => {
   const errors = [];
   const params = {};
 
+  // Allowed sort fields
+  const allowedSortFields = [
+    'id', 'orderNo', 'orderDate', 'status', 'type', 
+    'createdAt', 'updatedAt', 'customerRefNo', 'itemRefNo',
+    'dispatchStatus', 'lensPrice', 'fittingPrice', 'discount',
+    'customer', 'customerName'
+  ];
+
   if (query.page) {
     const page = parseInt(query.page);
     if (isNaN(page) || page < 1) {
@@ -570,7 +578,14 @@ export const validateQueryParams = (query) => {
   }
 
   if (query.sortBy) {
-    params.sortBy = query.sortBy;
+    if (!allowedSortFields.includes(query.sortBy)) {
+      errors.push({ 
+        field: 'sortBy', 
+        message: `Sort field must be one of: ${allowedSortFields.join(', ')}` 
+      });
+    } else {
+      params.sortBy = query.sortBy;
+    }
   }
 
   if (query.sortOrder && !['asc', 'desc'].includes(query.sortOrder)) {

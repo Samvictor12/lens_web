@@ -1,0 +1,1050 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RefreshCw, Eye } from 'lucide-react';
+import { format } from 'date-fns';
+import logsService from '@/services/logs';
+import { useToast } from '@/hooks/use-toast';
+import { Table } from '@/components/ui/table';
+import LogsFilter from './LogsFilter';
+import {
+  auditLogFilters,
+  errorLogFilters,
+  actionColors,
+  severityColors,
+} from './LogsViewer.constants';
+
+const LogsViewer = () => {
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('audit');
+  
+  // Pagination states
+  const [auditPageIndex, setAuditPageIndex] = useState(0);
+  const [auditPageSize, setAuditPageSize] = useState(20);
+  const [errorPageIndex, setErrorPageIndex] = useState(0);
+  const [errorPageSize, setErrorPageSize] = useState(20);
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditTotalCount, setAuditTotalCount] = useState(0);
+  const [auditFilters, setAuditFilters] = useState(auditLogFilters);
+  const [auditTempFilters, setAuditTempFilters] = useState(auditLogFilters);
+  const [showAuditFilterDialog, setShowAuditFilterDialog] = useState(false);
+
+  // Error Logs State
+  const [errorLogs, setErrorLogs] = useState([]);
+  const [errorLoading, setErrorLoading] = useState(false);
+  const [errorTotalCount, setErrorTotalCount] = useState(0);
+  const [errorFilters, setErrorFilters] = useState(errorLogFilters);
+  const [errorTempFilters, setErrorTempFilters] = useState(errorLogFilters);
+  const [showErrorFilterDialog, setShowErrorFilterDialog] = useState(false);
+
+  // Error Stats State
+  const [errorStats, setErrorStats] = useState(null);
+
+  // Detail Dialog State
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+
+  // Fetch Audit Logs
+  const fetchAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const params = {
+        page: auditPageIndex + 1, // Backend uses 1-indexed pages
+        limit: auditPageSize,
+        userId: auditFilters.userId || undefined,
+        entity: auditFilters.entity || undefined,
+        action: auditFilters.action || undefined,
+        entityId: auditFilters.entityId || undefined,
+        startDate: auditFilters.startDate || undefined,
+        endDate: auditFilters.endDate || undefined,
+      };
+
+      const response = await logsService.getAuditLogs(params);
+      
+      if (response.success) {
+        setAuditLogs(response.data || []);
+        setAuditTotalCount(response.pagination?.total || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to fetch audit logs',
+        variant: 'destructive',
+      });
+      setAuditLogs([]);
+      setAuditTotalCount(0);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  // Fetch Error Logs
+  const fetchErrorLogs = async () => {
+    setErrorLoading(true);
+    try {
+      const params = {
+        page: errorPageIndex + 1, // Backend uses 1-indexed pages
+        limit: errorPageSize,
+        userId: errorFilters.userId || undefined,
+        errorType: errorFilters.errorType || undefined,
+        severity: errorFilters.severity || undefined,
+        resolved: errorFilters.resolved || undefined,
+        startDate: errorFilters.startDate || undefined,
+        endDate: errorFilters.endDate || undefined,
+      };
+
+      const response = await logsService.getErrorLogs(params);
+      
+      if (response.success) {
+        setErrorLogs(response.data || []);
+        setErrorTotalCount(response.pagination?.total || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching error logs:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to fetch error logs',
+        variant: 'destructive',
+      });
+      setErrorLogs([]);
+      setErrorTotalCount(0);
+    } finally {
+      setErrorLoading(false);
+    }
+  };
+
+  // Fetch Error Stats
+  const fetchErrorStats = async () => {
+    try {
+      const params = {
+        startDate: errorFilters.startDate || undefined,
+        endDate: errorFilters.endDate || undefined,
+      };
+      const response = await logsService.getErrorStats(params);
+      
+      if (response.success) {
+        setErrorStats(response.data || null);
+      }
+    } catch (error) {
+      console.error('Error fetching error stats:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      setErrorStats(null);
+    }
+  };
+
+  // Initial load and when tab changes
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+    } else {
+      fetchErrorLogs();
+      fetchErrorStats();
+    }
+  }, [activeTab]);
+
+  // Fetch audit logs when dependencies change
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+    }
+  }, [auditPageIndex, auditPageSize, auditFilters]);
+
+  // Fetch error logs when dependencies change
+  useEffect(() => {
+    if (activeTab === 'error') {
+      fetchErrorLogs();
+    }
+  }, [errorPageIndex, errorPageSize, errorFilters]);
+
+  // Check if any audit filters are active
+  const hasActiveAuditFilters = useMemo(() => {
+    return (
+      auditFilters.userId !== null ||
+      auditFilters.entity !== null ||
+      auditFilters.action !== null ||
+      auditFilters.entityId !== null ||
+      auditFilters.startDate !== null ||
+      auditFilters.endDate !== null
+    );
+  }, [auditFilters]);
+
+  // Check if any error filters are active
+  const hasActiveErrorFilters = useMemo(() => {
+    return (
+      errorFilters.userId !== null ||
+      errorFilters.errorType !== null ||
+      errorFilters.severity !== null ||
+      errorFilters.resolved !== null ||
+      errorFilters.startDate !== null ||
+      errorFilters.endDate !== null
+    );
+  }, [errorFilters]);
+
+  // Handle apply audit filters
+  const handleApplyAuditFilters = () => {
+    setAuditFilters(auditTempFilters);
+    setShowAuditFilterDialog(false);
+    setAuditPageIndex(0); // Reset to first page
+  };
+
+  // Handle clear audit filters
+  const handleClearAuditFilters = () => {
+    const clearedFilters = auditLogFilters;
+    setAuditTempFilters(clearedFilters);
+    setAuditFilters(clearedFilters);
+    setShowAuditFilterDialog(false);
+    setAuditPageIndex(0);
+  };
+
+  // Handle cancel audit filters
+  const handleCancelAuditFilters = () => {
+    setAuditTempFilters(auditFilters);
+    setShowAuditFilterDialog(false);
+  };
+
+  // Handle apply error filters
+  const handleApplyErrorFilters = () => {
+    setErrorFilters(errorTempFilters);
+    setShowErrorFilterDialog(false);
+    setErrorPageIndex(0); // Reset to first page
+  };
+
+  // Handle clear error filters
+  const handleClearErrorFilters = () => {
+    const clearedFilters = errorLogFilters;
+    setErrorTempFilters(clearedFilters);
+    setErrorFilters(clearedFilters);
+    setShowErrorFilterDialog(false);
+    setErrorPageIndex(0);
+  };
+
+  // Handle cancel error filters
+  const handleCancelErrorFilters = () => {
+    setErrorTempFilters(errorFilters);
+    setShowErrorFilterDialog(false);
+  };
+
+  // Clear filters
+  const clearAuditFilters = () => {
+    setAuditFilters({
+      userId: '',
+      entity: '',
+      action: '',
+      entityId: '',
+      startDate: null,
+      endDate: null,
+    });
+  };
+
+  const clearErrorFilters = () => {
+    setErrorFilters({
+      userId: '',
+      errorType: '',
+      severity: '',
+      resolved: '',
+      startDate: null,
+      endDate: null,
+    });
+  };
+
+  // View log details
+  const viewLogDetails = (log) => {
+    setSelectedLog(log);
+    setDetailDialogOpen(true);
+  };
+
+  // Get action badge color
+  const getActionBadgeColor = (action) => {
+    switch (action) {
+      case 'CREATE':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'UPDATE':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'DELETE':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'READ':
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  // Get severity badge color
+  const getSeverityBadgeColor = (severity) => {
+    switch (severity) {
+      case 'CRITICAL':
+        return 'bg-red-500 text-white';
+      case 'ERROR':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'WARNING':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'INFO':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">System Logs</h1>
+          <p className="text-gray-600">View and monitor audit trails and error logs</p>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+          <TabsTrigger value="errors">Error Logs</TabsTrigger>
+        </TabsList>
+
+        {/* Audit Logs Tab */}
+        <TabsContent value="audit" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Filters</CardTitle>
+                  <CardDescription>Filter audit logs by various criteria</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={clearAuditFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Entity Filter */}
+                <div className="space-y-2">
+                  <Label>Entity/Module</Label>
+                  <Select
+                    value={auditFilters.entity}
+                    onValueChange={(value) => handleAuditFilterChange('entity', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select entity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entityOptions.map((entity) => (
+                        <SelectItem key={entity} value={entity}>
+                          {entity}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Action Filter */}
+                <div className="space-y-2">
+                  <Label>Action</Label>
+                  <Select
+                    value={auditFilters.action}
+                    onValueChange={(value) => handleAuditFilterChange('action', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {actionOptions.map((action) => (
+                        <SelectItem key={action} value={action}>
+                          {action}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Entity ID Filter */}
+                <div className="space-y-2">
+                  <Label>Record ID</Label>
+                  <Input
+                    type="number"
+                    placeholder="Enter record ID"
+                    value={auditFilters.entityId}
+                    onChange={(e) => handleAuditFilterChange('entityId', e.target.value)}
+                  />
+                </div>
+
+                {/* User ID Filter */}
+                <div className="space-y-2">
+                  <Label>User ID</Label>
+                  <Input
+                    type="number"
+                    placeholder="Enter user ID"
+                    value={auditFilters.userId}
+                    onChange={(e) => handleAuditFilterChange('userId', e.target.value)}
+                  />
+                </div>
+
+                {/* Start Date */}
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !auditFilters.startDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {auditFilters.startDate ? format(auditFilters.startDate, 'PPP') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={auditFilters.startDate}
+                        onSelect={(date) => handleAuditFilterChange('startDate', date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* End Date */}
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !auditFilters.endDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {auditFilters.endDate ? format(auditFilters.endDate, 'PPP') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={auditFilters.endDate}
+                        onSelect={(date) => handleAuditFilterChange('endDate', date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button onClick={() => fetchAuditLogs(1)} disabled={auditLoading}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+                <Button variant="outline" onClick={() => fetchAuditLogs(auditPagination.page)}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Audit Logs Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Audit Logs ({auditPagination.total} records)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {auditLoading ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No audit logs found</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Timestamp</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Entity</TableHead>
+                        <TableHead>Record ID</TableHead>
+                        <TableHead>Endpoint</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {auditLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-sm">
+                            {format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div className="font-medium">{log.user?.name || 'System'}</div>
+                              <div className="text-gray-500">{log.user?.email}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getActionBadgeColor(log.action)}>{log.action}</Badge>
+                          </TableCell>
+                          <TableCell className="font-medium">{log.entity}</TableCell>
+                          <TableCell>{log.entityId || '-'}</TableCell>
+                          <TableCell className="text-sm font-mono">{log.endpoint}</TableCell>
+                          <TableCell>
+                            <Badge variant={log.success ? 'default' : 'destructive'}>
+                              {log.success ? 'Success' : 'Failed'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => viewLogDetails(log)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {auditPagination.totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <div className="text-sm text-gray-600">
+                    Page {auditPagination.page} of {auditPagination.totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchAuditLogs(auditPagination.page - 1)}
+                      disabled={auditPagination.page === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchAuditLogs(auditPagination.page + 1)}
+                      disabled={auditPagination.page === auditPagination.totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Error Logs Tab */}
+        <TabsContent value="errors" className="space-y-4">
+          {/* Error Stats */}
+          {errorStats && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Total Errors</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{errorStats.totalErrors}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Unresolved</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">{errorStats.unresolvedErrors}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Resolved</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{errorStats.resolvedErrors}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Critical</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">
+                    {errorStats.errorsBySeverity?.find((s) => s.severity === 'CRITICAL')?.count || 0}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Filters</CardTitle>
+                  <CardDescription>Filter error logs by various criteria</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={clearErrorFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Error Type Filter */}
+                <div className="space-y-2">
+                  <Label>Error Type</Label>
+                  <Select
+                    value={errorFilters.errorType}
+                    onValueChange={(value) => handleErrorFilterChange('errorType', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select error type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {errorTypeOptions.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Severity Filter */}
+                <div className="space-y-2">
+                  <Label>Severity</Label>
+                  <Select
+                    value={errorFilters.severity}
+                    onValueChange={(value) => handleErrorFilterChange('severity', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select severity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {severityOptions.map((severity) => (
+                        <SelectItem key={severity} value={severity}>
+                          {severity}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Resolved Filter */}
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={errorFilters.resolved}
+                    onValueChange={(value) => handleErrorFilterChange('resolved', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All</SelectItem>
+                      <SelectItem value="false">Unresolved</SelectItem>
+                      <SelectItem value="true">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* User ID Filter */}
+                <div className="space-y-2">
+                  <Label>User ID</Label>
+                  <Input
+                    type="number"
+                    placeholder="Enter user ID"
+                    value={errorFilters.userId}
+                    onChange={(e) => handleErrorFilterChange('userId', e.target.value)}
+                  />
+                </div>
+
+                {/* Start Date */}
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !errorFilters.startDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {errorFilters.startDate ? format(errorFilters.startDate, 'PPP') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={errorFilters.startDate}
+                        onSelect={(date) => handleErrorFilterChange('startDate', date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* End Date */}
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !errorFilters.endDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {errorFilters.endDate ? format(errorFilters.endDate, 'PPP') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={errorFilters.endDate}
+                        onSelect={(date) => handleErrorFilterChange('endDate', date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button onClick={() => fetchErrorLogs(1)} disabled={errorLoading}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+                <Button variant="outline" onClick={() => { fetchErrorLogs(errorPagination.page); fetchErrorStats(); }}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Error Logs Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Error Logs ({errorPagination.total} records)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {errorLoading ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : errorLogs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No error logs found</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Timestamp</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Error Type</TableHead>
+                        <TableHead>Severity</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead>Endpoint</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {errorLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-sm">
+                            {format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div className="font-medium">{log.user?.name || 'System'}</div>
+                              <div className="text-gray-500">{log.user?.email}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{log.errorType}</TableCell>
+                          <TableCell>
+                            <Badge className={getSeverityBadgeColor(log.severity)}>{log.severity}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">{log.errorMessage}</TableCell>
+                          <TableCell className="text-sm font-mono">{log.endpoint}</TableCell>
+                          <TableCell>
+                            <Badge variant={log.resolved ? 'default' : 'destructive'}>
+                              {log.resolved ? 'Resolved' : 'Unresolved'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => viewLogDetails(log)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {errorPagination.totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <div className="text-sm text-gray-600">
+                    Page {errorPagination.page} of {errorPagination.totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchErrorLogs(errorPagination.page - 1)}
+                      disabled={errorPagination.page === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchErrorLogs(errorPagination.page + 1)}
+                      disabled={errorPagination.page === errorPagination.totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Log Details Dialog */}
+      <LogDetailsDialog
+        log={selectedLog}
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        type={activeTab}
+      />
+    </div>
+  );
+};
+
+// Log Details Dialog Component
+const LogDetailsDialog = ({ log, open, onClose, type }) => {
+  if (!log) return null;
+
+  const renderChanges = (changes) => {
+    if (!changes) return null;
+
+    return (
+      <div className="space-y-2">
+        {Object.entries(changes).map(([field, change]) => (
+          <div key={field} className="border-l-2 border-blue-500 pl-3 py-2">
+            <div className="font-medium text-sm">{field}</div>
+            <div className="grid grid-cols-2 gap-4 mt-1">
+              <div>
+                <div className="text-xs text-gray-500">Old Value:</div>
+                <div className="text-sm bg-red-50 p-2 rounded mt-1">
+                  {JSON.stringify(change.old, null, 2)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">New Value:</div>
+                <div className="text-sm bg-green-50 p-2 rounded mt-1">
+                  {JSON.stringify(change.new, null, 2)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{type === 'audit' ? 'Audit Log Details' : 'Error Log Details'}</DialogTitle>
+          <DialogDescription>
+            Detailed information about this log entry
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-gray-500">Timestamp</Label>
+              <div className="font-medium">{format(new Date(log.createdAt), 'PPP HH:mm:ss')}</div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">User</Label>
+              <div className="font-medium">{log.user?.name || 'System'}</div>
+            </div>
+            {type === 'audit' && (
+              <>
+                <div>
+                  <Label className="text-xs text-gray-500">Action</Label>
+                  <div className="font-medium">{log.action}</div>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Entity</Label>
+                  <div className="font-medium">{log.entity}</div>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Entity ID</Label>
+                  <div className="font-medium">{log.entityId || '-'}</div>
+                </div>
+              </>
+            )}
+            {type === 'errors' && (
+              <>
+                <div>
+                  <Label className="text-xs text-gray-500">Error Type</Label>
+                  <div className="font-medium">{log.errorType}</div>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Severity</Label>
+                  <div className="font-medium">{log.severity}</div>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Status</Label>
+                  <div className="font-medium">{log.resolved ? 'Resolved' : 'Unresolved'}</div>
+                </div>
+              </>
+            )}
+            <div>
+              <Label className="text-xs text-gray-500">IP Address</Label>
+              <div className="font-medium font-mono text-sm">{log.ipAddress || '-'}</div>
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs text-gray-500">Endpoint</Label>
+              <div className="font-medium font-mono text-sm">{log.endpoint || '-'}</div>
+            </div>
+          </div>
+
+          {/* Changes (Audit Logs) */}
+          {type === 'audit' && log.changes && (
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">Changes Made</Label>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                {renderChanges(log.changes)}
+              </div>
+            </div>
+          )}
+
+          {/* Old Values (Audit Logs) */}
+          {type === 'audit' && log.oldValues && (
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">Old Values</Label>
+              <pre className="bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">
+                {JSON.stringify(log.oldValues, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {/* New Values (Audit Logs) */}
+          {type === 'audit' && log.newValues && (
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">New Values</Label>
+              <pre className="bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">
+                {JSON.stringify(log.newValues, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {/* Error Details (Error Logs) */}
+          {type === 'errors' && (
+            <>
+              <div>
+                <Label className="text-sm font-semibold mb-2 block">Error Message</Label>
+                <div className="bg-red-50 border border-red-200 p-4 rounded-lg text-sm">
+                  {log.errorMessage}
+                </div>
+              </div>
+
+              {log.errorStack && (
+                <div>
+                  <Label className="text-sm font-semibold mb-2 block">Stack Trace</Label>
+                  <pre className="bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto max-h-60">
+                    {log.errorStack}
+                  </pre>
+                </div>
+              )}
+
+              {log.requestBody && (
+                <div>
+                  <Label className="text-sm font-semibold mb-2 block">Request Body</Label>
+                  <pre className="bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">
+                    {JSON.stringify(log.requestBody, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {log.resolved && log.resolution && (
+                <div>
+                  <Label className="text-sm font-semibold mb-2 block">Resolution</Label>
+                  <div className="bg-green-50 border border-green-200 p-4 rounded-lg text-sm">
+                    <div className="font-medium mb-1">
+                      Resolved by: {log.resolver?.name}
+                    </div>
+                    <div className="text-gray-600">{log.resolution}</div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      Resolved at: {format(new Date(log.resolvedAt), 'PPP HH:mm:ss')}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Metadata */}
+          {log.metadata && (
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">Additional Metadata</Label>
+              <pre className="bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">
+                {JSON.stringify(log.metadata, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default LogsViewer;

@@ -143,7 +143,7 @@ export default function SaleOrderMain() {
   // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
     return (
-      filters.status !== "all" ||
+      filters.status !== null ||
       filters.customerId !== null ||
       filters.startDate !== null ||
       filters.endDate !== null

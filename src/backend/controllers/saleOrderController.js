@@ -37,7 +37,7 @@ export class SaleOrderController {
       }
 
       const userId = req.user?.id || validation.data.createdBy;
-      const saleOrder = await this.saleOrderService.createSaleOrder(validation.data, userId);
+      const saleOrder = await this.saleOrderService.createSaleOrder(validation.data, userId, req);
 
       res.status(201).json({
         success: true,
@@ -66,7 +66,8 @@ export class SaleOrderController {
         });
       }
 
-      const result = await this.saleOrderService.getSaleOrders(validation.data);
+      const userId = req.user?.id || null;
+      const result = await this.saleOrderService.getSaleOrders(validation.data, req, userId);
 
       res.status(200).json({
         success: true,
@@ -95,7 +96,8 @@ export class SaleOrderController {
         });
       }
 
-      const saleOrder = await this.saleOrderService.getSaleOrderById(validation.data);
+      const userId = req.user?.id || null;
+      const saleOrder = await this.saleOrderService.getSaleOrderById(validation.data, req, userId);
 
       res.status(200).json({
         success: true,
@@ -140,7 +142,8 @@ export class SaleOrderController {
       const saleOrder = await this.saleOrderService.updateSaleOrder(
         idValidation.data,
         validation.data,
-        userId
+        userId,
+        req
       );
 
       res.status(200).json({
@@ -185,7 +188,8 @@ export class SaleOrderController {
       const saleOrder = await this.saleOrderService.updateStatus(
         idValidation.data,
         validation.data.status,
-        userId
+        userId,
+        req
       );
 
       res.status(200).json({
@@ -230,7 +234,8 @@ export class SaleOrderController {
       const saleOrder = await this.saleOrderService.updateDispatchInfo(
         idValidation.data,
         validation.data,
-        userId
+        userId,
+        req
       );
 
       res.status(200).json({
@@ -261,7 +266,7 @@ export class SaleOrderController {
       }
 
       const userId = req.user?.id || 1;
-      await this.saleOrderService.deleteSaleOrder(validation.data, userId);
+      await this.saleOrderService.deleteSaleOrder(validation.data, userId, req);
 
       res.status(200).json({
         success: true,

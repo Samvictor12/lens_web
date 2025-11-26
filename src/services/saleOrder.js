@@ -16,8 +16,8 @@ export const getSaleOrders = async (
             page,
             limit,
             search,
-            sortField,
-            sortDirection,
+            sortBy: sortField,        // Map sortField to sortBy for backend
+            sortOrder: sortDirection,  // Map sortDirection to sortOrder for backend
             ...filters,
         };
 
@@ -147,7 +147,7 @@ export const checkCreditLimit = async (data) => {
     try {
         const customer = await apiClient("get", "/customer-master/" + data);
         if (customer.success && customer.data) {
-            return customer.data.outstanding_credit;
+            return { outstanding_credit: customer.data.outstanding_credit, credit_limit: customer.data.credit_limit };
         } else {
             return null;
         }
@@ -168,6 +168,7 @@ export const calculateProductCost = async (data) => {
             data: {
                 customer_id: data.customer_id,
                 lensPrice_id: data.lensPrice_id,
+                fitting_id: data.fitting_id,
                 quantity: data.quantity || 1,
             }
         });

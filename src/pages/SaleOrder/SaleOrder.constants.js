@@ -83,6 +83,7 @@ export const dispatchStatusOptions = [
 ];
 
 export const saleOrderFilters = {
+  status: null,
   startDate: null,
   endDate: null,
   customerId: null,
