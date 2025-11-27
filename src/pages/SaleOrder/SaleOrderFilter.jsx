@@ -64,7 +64,7 @@ export default function SaleOrderFilter({
             <FormSelect
               name="status"
               options={[
-                { id: "all", name: "All Statuses" },
+                { id: null, name: "All Statuses" },
                 ...orderStatusOptions.map((opt) => ({
                   id: opt.value,
                   name: opt.label,

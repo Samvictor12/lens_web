@@ -992,7 +992,7 @@ class LensProductMasterService {
    */
   async calculateProductCost(params) {
     try {
-      const { customer_id, lensPrice_id, quantity = 1 } = params;
+      const { customer_id, lensPrice_id, fitting_id, quantity = 1 } = params;
 
       // Validate inputs
       if (!customer_id) {
@@ -1000,6 +1000,9 @@ class LensProductMasterService {
       }
       if (!lensPrice_id) {
         throw new APIError("Lens Price ID is required", 400, "LENS_PRICE_ID_REQUIRED");
+      }
+      if (!fitting_id) {
+        throw new APIError("Fitting ID is required", 400, "FITTING_ID_REQUIRED");
       }
 
       // Fetch customer
@@ -1054,6 +1057,21 @@ class LensProductMasterService {
         throw new APIError("Lens price not found", 404, "LENS_PRICE_NOT_FOUND");
       }
 
+      // Fetch fitting master with price
+      const fitting = await prisma.lensFittingMaster.findUnique({
+        where: { id: parseInt(fitting_id), deleteStatus: false },
+        select: {
+          id: true,
+          name: true,
+          short_name: true,
+          fitting_price: true,
+        },
+      });
+
+      if (!fitting) {
+        throw new APIError("Fitting not found", 404, "FITTING_NOT_FOUND");
+      }
+
       // Check for price mapping
       const priceMapping = await prisma.priceMapping.findFirst({
         where: {
@@ -1069,12 +1087,16 @@ class LensProductMasterService {
 
       // Calculate costs
       const basePrice = lensPrice.price;
+      const fittingPrice = fitting.fitting_price || 0;
       const totalQuantity = parseInt(quantity);
       
-      // Cost without discount
-      const costWithoutDiscount = basePrice * totalQuantity;
+      // Cost without discount (lens price + fitting price)
+      const lensCostWithoutDiscount = basePrice * totalQuantity;
+      const totalFittingPrice = fittingPrice * totalQuantity;
+      const costWithoutDiscount = lensCostWithoutDiscount + totalFittingPrice;
 
       // Cost with discount (if mapping exists)
+      let lensCostWithDiscount = lensCostWithoutDiscount;
       let costWithDiscount = costWithoutDiscount;
       let discountRate = 0;
       let discountAmount = 0;
@@ -1083,8 +1105,9 @@ class LensProductMasterService {
       if (priceMapping) {
         hasPriceMapping = true;
         discountRate = priceMapping.discountRate;
-        costWithDiscount = priceMapping.discountPrice * totalQuantity;
-        discountAmount = costWithoutDiscount - costWithDiscount;
+        lensCostWithDiscount = priceMapping.discountPrice * totalQuantity;
+        costWithDiscount = lensCostWithDiscount + totalFittingPrice;
+        discountAmount = lensCostWithoutDiscount - lensCostWithDiscount;
       }
 
       return {
@@ -1097,13 +1120,24 @@ class LensProductMasterService {
           category: lensPrice.lens.category,
         },
         coating: lensPrice.coating,
+        fitting: {
+          id: fitting.id,
+          name: fitting.name,
+          short_name: fitting.short_name,
+          fitting_price: fittingPrice,
+        },
         pricing: {
           lensPrice_id: lensPrice.id,
+          fitting_id: fitting.id,
           basePrice: basePrice,
+          fittingPrice: fittingPrice,
           quantity: totalQuantity,
           hasPriceMapping: hasPriceMapping,
           discountRate: discountRate,
           discountAmount: discountAmount,
+          lensCostWithoutDiscount: lensCostWithoutDiscount,
+          lensCostWithDiscount: lensCostWithDiscount,
+          totalFittingPrice: totalFittingPrice,
           costWithoutDiscount: costWithoutDiscount,
           costWithDiscount: costWithDiscount,
           finalCost: costWithDiscount,

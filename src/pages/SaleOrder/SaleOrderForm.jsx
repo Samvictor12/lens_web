@@ -51,7 +51,7 @@ export default function SaleOrderForm() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isCalculating, setIsCalculating] = useState(false);
-    const [customerCreditLimit, setCustomerCreditLimit] = useState();
+    const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null });
 
     // Master data states
     const [customers, setCustomers] = useState([]);
@@ -339,17 +339,17 @@ export default function SaleOrderForm() {
     };
 
     const checkCustomerCreditLimit = (customerId) => {
-        checkCreditLimit(customerId).then((outstandingCredit) => {
-            if (outstandingCredit === null || outstandingCredit === undefined || outstandingCredit === 0) {
+        checkCreditLimit(customerId).then(({ outstanding_credit, credit_limit }) => {
+            if (outstanding_credit === null || outstanding_credit === undefined || outstanding_credit === 0) {
                 toast({
                     title: "No Outstanding Credit",
                     description: "Customer has no outstanding credit.",
                     variant: "info",
                 });
-                setCustomerCreditLimit(0);
+                setCustomerCreditLimit({ outstanding_credit: 0, credit_limit: null });
                 setIsEditing(false);
             } else {
-                setCustomerCreditLimit(outstandingCredit);
+                setCustomerCreditLimit({ outstanding_credit, credit_limit });
             }
 
         });
@@ -440,14 +440,22 @@ export default function SaleOrderForm() {
             const response = await calculateProductCost({
                 customer_id: formData.customerId,
                 lensPrice_id: lensPriceId,
+                fitting_id: formData.fitting_id,
                 quantity: 1,
             });
 
+            const basePrice = formData.rightEye && formData.leftEye ?
+                response.data.pricing.basePrice :
+                formData.rightEye ?
+                    response.data.pricing.basePrice / 2 :
+                    formData.leftEye ? response.data.pricing.basePrice / 2 :
+                        0;
             if (response.success) {
                 // Update form with calculated values
                 setFormData((prev) => ({
                     ...prev,
-                    lensPrice: response.data.pricing.basePrice,
+                    lensPrice: basePrice,
+                    fittingPrice: response.data.pricing.fittingPrice,
                     discount: response.data.pricing.discountRate,
                 }));
 
@@ -472,6 +480,7 @@ export default function SaleOrderForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        handleCalculatePrice();
         if (!validateForm()) {
             console.log("Form Data on errors:", errors);
             toast({
@@ -800,7 +809,7 @@ export default function SaleOrderForm() {
                             disabled={mode !== "add" && !isEditing}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit ? `Credit Limit: ₹${customerCreditLimit}` : ""}
+                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.outstanding_credit}` : ""}
                         />
 
                         <FormInput
@@ -1341,24 +1350,30 @@ export default function SaleOrderForm() {
                                                 <span>Subtotal:</span>
                                                 <span>₹{((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                             </div>
-                                            {formData.discount > 0 && (
-                                                <div className="flex justify-between text-sm text-red-600">
-                                                    <span>Discount ({formData.discount}%):</span>
-                                                    <span>-₹{(((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (formData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex justify-between text-sm">
-                                                <span>After Discount:</span>
-                                                <span>₹{(((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                            {formData.freeLens && <div className="flex justify-between text-sm text-red-600">
+                                                <span>Free Lens:</span>
+                                                <span>-₹{(((formData.freeLens && formData.lensPrice || 0))).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                            </div>}
+                                            {formData.freeFitting && <div className="flex justify-between text-sm text-red-600">
+                                                <span>Free Fitting:</span>
+                                                <span>-₹{((formData.freeFitting && formData.fittingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                            </div>}
+                                            <div className="flex justify-between text-sm text-red-600">
+                                                <span>Discount ({formData.discount}%):</span>
+                                                <span>-₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (formData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                             </div>
-                                            <div className="flex justify-between text-sm">
+                                            {/* <div className="flex justify-between text-sm">
+                                                <span>After Discount:</span>
+                                                <span>₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                            </div> */}
+                                            {/* <div className="flex justify-between text-sm">
                                                 <span>GST (18%):</span>
                                                 <span>₹{(((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100) * 0.18).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                            </div> */}
                                             <Separator />
                                             <div className="flex justify-between font-semibold">
                                                 <span>Total Amount:</span>
-                                                <span className="text-green-600">₹{(((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100) * 1.18).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                <span className="text-green-600">₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                             </div>
                                         </CardContent>
                                     </Card>

@@ -1,9 +1,16 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
+import { logCreate, logUpdate, logDelete } from '../utils/auditLogger.js';
+import { 
+  logDatabaseError, 
+  logValidationError, 
+  logNotFoundError,
+  logBusinessError 
+} from '../utils/errorLogger.js';
 
 /**
  * Sale Order Service
- * Handles business logic for sale order management
+ * Handles business logic for sale order management with comprehensive audit logging
  */
 export class SaleOrderService {
 
@@ -41,9 +48,10 @@ export class SaleOrderService {
    * Create a new sale order
    * @param {Object} orderData - Sale order data
    * @param {number} userId - User creating the order
+   * @param {Object} req - Express request object (for audit logging)
    * @returns {Promise<Object>} Created sale order
    */
-  async createSaleOrder(orderData, userId) {
+  async createSaleOrder(orderData, userId, req = null) {
     try {
       // Validate customer exists
       const customer = await prisma.customer.findUnique({
@@ -51,7 +59,16 @@ export class SaleOrderService {
       });
 
       if (!customer) {
-        throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+        const error = new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+        await logNotFoundError({
+          error,
+          userId,
+          req,
+          resource: 'Customer',
+          resourceId: orderData.customerId,
+          metadata: { operation: 'createSaleOrder' }
+        });
+        throw error;
       }
 
       // Validate related entities if provided
@@ -245,8 +262,37 @@ export class SaleOrderService {
         }
       });
 
+      // ✅ LOG THE CREATE OPERATION
+      await logCreate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: saleOrder.id,
+        newValues: saleOrder,
+        req,
+        metadata: {
+          orderNo: saleOrder.orderNo,
+          customerId: saleOrder.customerId,
+          customerName: saleOrder.customer.name,
+          status: saleOrder.status,
+          operation: 'Sale order created successfully'
+        }
+      });
+
       return saleOrder;
     } catch (error) {
+      // ✅ LOG THE ERROR
+      if (!(error instanceof APIError)) {
+        await logDatabaseError({
+          error,
+          userId,
+          req,
+          metadata: {
+            operation: 'createSaleOrder',
+            input: orderData
+          }
+        });
+      }
+      
       if (error instanceof APIError) throw error;
       console.error('Error creating sale order:', error);
       throw new APIError('Failed to create sale order', 500, 'CREATE_ORDER_ERROR');
@@ -256,9 +302,11 @@ export class SaleOrderService {
   /**
    * Get all sale orders with pagination and filtering
    * @param {Object} queryParams - Query parameters
+   * @param {Object} req - Express request object (for audit logging)
+   * @param {number} userId - User requesting data (for audit logging)
    * @returns {Promise<Object>} Paginated sale orders
    */
-  async getSaleOrders(queryParams) {
+  async getSaleOrders(queryParams, req = null, userId = null) {
     try {
       const {
         page = 1,
@@ -311,11 +359,24 @@ export class SaleOrderService {
       const offset = (page - 1) * limit;
       const total = await prisma.saleOrder.count({ where });
 
+      // Build orderBy clause based on sortBy field
+      let orderBy;
+      
+      // Handle nested relation sorting
+      if (sortBy === 'customer') {
+        orderBy = { customer: { name: sortOrder } };
+      } else if (sortBy === 'customerName') {
+        orderBy = { customer: { name: sortOrder } };
+      } else {
+        // For direct fields on SaleOrder
+        orderBy = { [sortBy]: sortOrder };
+      }
+
       const saleOrders = await prisma.saleOrder.findMany({
         where,
         skip: offset,
         take: parseInt(limit),
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: orderBy,
         include: {
           customer: {
             select: {
@@ -356,6 +417,8 @@ export class SaleOrderService {
         }
       });
 
+      // Sale order read operations - no logging needed
+
       return {
         data: saleOrders,
         pagination: {
@@ -366,6 +429,17 @@ export class SaleOrderService {
         }
       };
     } catch (error) {
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'getSaleOrders',
+          queryParams
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
       console.error('Error fetching sale orders:', error);
       throw new APIError('Failed to fetch sale orders', 500, 'FETCH_ORDERS_ERROR');
     }
@@ -374,9 +448,11 @@ export class SaleOrderService {
   /**
    * Get a single sale order by ID
    * @param {number} id - Sale order ID
+   * @param {Object} req - Express request object (for audit logging)
+   * @param {number} userId - User requesting data (for audit logging)
    * @returns {Promise<Object>} Sale order details
    */
-  async getSaleOrderById(id) {
+  async getSaleOrderById(id, req = null, userId = null) {
     try {
       const saleOrder = await prisma.saleOrder.findUnique({
         where: { id },
@@ -431,12 +507,35 @@ export class SaleOrderService {
       });
 
       if (!saleOrder || saleOrder.deleteStatus) {
-        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        const error = new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        await logNotFoundError({
+          error,
+          userId,
+          req,
+          resource: 'SaleOrder',
+          resourceId: id,
+          metadata: { operation: 'getSaleOrderById' }
+        });
+        throw error;
       }
+
+      // Sale order read operation - no logging needed
 
       return saleOrder;
     } catch (error) {
       if (error instanceof APIError) throw error;
+      
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'getSaleOrderById',
+          saleOrderId: id
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
       console.error('Error fetching sale order:', error);
       throw new APIError('Failed to fetch sale order', 500, 'FETCH_ORDER_ERROR');
     }
@@ -447,17 +546,32 @@ export class SaleOrderService {
    * @param {number} id - Sale order ID
    * @param {Object} updateData - Updated data
    * @param {number} userId - User performing update
+   * @param {Object} req - Express request object (for audit logging)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateSaleOrder(id, updateData, userId) {
+  async updateSaleOrder(id, updateData, userId, req = null) {
     try {
-      // Check if order exists
+      // Check if order exists and get old values for audit trail
       const existing = await prisma.saleOrder.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+          customer: true,
+          lensProduct: true,
+          category: true
+        }
       });
 
       if (!existing || existing.deleteStatus) {
-        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        const error = new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        await logNotFoundError({
+          error,
+          userId,
+          req,
+          resource: 'SaleOrder',
+          resourceId: id,
+          metadata: { operation: 'updateSaleOrder' }
+        });
+        throw error;
       }
 
       // Validate customer if changed
@@ -518,9 +632,38 @@ export class SaleOrderService {
         }
       });
 
+      // ✅ LOG THE UPDATE OPERATION
+      await logUpdate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: updated.id,
+        oldValues: existing,
+        newValues: updated,
+        req,
+        metadata: {
+          orderNo: updated.orderNo,
+          customerName: updated.customer?.name,
+          updatedFields: Object.keys(updateData),
+          operation: 'Sale order updated successfully'
+        }
+      });
+
       return updated;
     } catch (error) {
       if (error instanceof APIError) throw error;
+      
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'updateSaleOrder',
+          saleOrderId: id,
+          input: updateData
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
       console.error('Error updating sale order:', error);
       throw new APIError('Failed to update sale order', 500, 'UPDATE_ORDER_ERROR');
     }
@@ -531,22 +674,47 @@ export class SaleOrderService {
    * @param {number} id - Sale order ID
    * @param {string} status - New status
    * @param {number} userId - User performing update
+   * @param {Object} req - Express request object (for audit logging)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateStatus(id, status, userId) {
+  async updateStatus(id, status, userId, req = null) {
     try {
       const existing = await prisma.saleOrder.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+          customer: true
+        }
       });
 
       if (!existing || existing.deleteStatus) {
-        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        const error = new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        await logNotFoundError({
+          error,
+          userId,
+          req,
+          resource: 'SaleOrder',
+          resourceId: id,
+          metadata: { operation: 'updateStatus' }
+        });
+        throw error;
       }
 
       // Validate status
       const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'DELIVERED'];
       if (!validStatuses.includes(status)) {
-        throw new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
+        const error = new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
+        await logValidationError({
+          error,
+          userId,
+          req,
+          validationDetails: {
+            field: 'status',
+            provided: status,
+            allowed: validStatuses
+          },
+          metadata: { operation: 'updateStatus', saleOrderId: id }
+        });
+        throw error;
       }
 
       const updated = await prisma.saleOrder.update({
@@ -572,9 +740,39 @@ export class SaleOrderService {
         }
       });
 
+      // ✅ LOG THE STATUS UPDATE
+      await logUpdate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: updated.id,
+        oldValues: { status: existing.status },
+        newValues: { status: updated.status },
+        req,
+        metadata: {
+          orderNo: updated.orderNo,
+          customerName: updated.customer?.name,
+          oldStatus: existing.status,
+          newStatus: updated.status,
+          operation: 'Sale order status updated'
+        }
+      });
+
       return updated;
     } catch (error) {
       if (error instanceof APIError) throw error;
+      
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'updateStatus',
+          saleOrderId: id,
+          newStatus: status
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
       console.error('Error updating order status:', error);
       throw new APIError('Failed to update order status', 500, 'UPDATE_STATUS_ERROR');
     }
@@ -585,16 +783,30 @@ export class SaleOrderService {
    * @param {number} id - Sale order ID
    * @param {Object} dispatchData - Dispatch information
    * @param {number} userId - User performing update
+   * @param {Object} req - Express request object (for audit logging)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateDispatchInfo(id, dispatchData, userId) {
+  async updateDispatchInfo(id, dispatchData, userId, req = null) {
     try {
       const existing = await prisma.saleOrder.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+          customer: true,
+          assignedPerson: true
+        }
       });
 
       if (!existing || existing.deleteStatus) {
-        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        const error = new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        await logNotFoundError({
+          error,
+          userId,
+          req,
+          resource: 'SaleOrder',
+          resourceId: id,
+          metadata: { operation: 'updateDispatchInfo' }
+        });
+        throw error;
       }
 
       // Validate assigned person if provided
@@ -653,9 +865,48 @@ export class SaleOrderService {
         }
       });
 
+      // ✅ LOG THE DISPATCH UPDATE
+      await logUpdate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: updated.id,
+        oldValues: {
+          dispatchStatus: existing.dispatchStatus,
+          assignedPerson_id: existing.assignedPerson_id,
+          estimatedDate: existing.estimatedDate,
+          actualDate: existing.actualDate
+        },
+        newValues: {
+          dispatchStatus: updated.dispatchStatus,
+          assignedPerson_id: updated.assignedPerson_id,
+          estimatedDate: updated.estimatedDate,
+          actualDate: updated.actualDate
+        },
+        req,
+        metadata: {
+          orderNo: updated.orderNo,
+          customerName: updated.customer?.name,
+          assignedTo: updated.assignedPerson?.name,
+          operation: 'Dispatch information updated'
+        }
+      });
+
       return updated;
     } catch (error) {
       if (error instanceof APIError) throw error;
+      
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'updateDispatchInfo',
+          saleOrderId: id,
+          input: dispatchData
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
       console.error('Error updating dispatch info:', error);
       throw new APIError('Failed to update dispatch information', 500, 'UPDATE_DISPATCH_ERROR');
     }
@@ -665,33 +916,80 @@ export class SaleOrderService {
    * Soft delete a sale order
    * @param {number} id - Sale order ID
    * @param {number} userId - User performing deletion
+   * @param {Object} req - Express request object (for audit logging)
    * @returns {Promise<boolean>} Success status
    */
-  async deleteSaleOrder(id, userId) {
+  async deleteSaleOrder(id, userId, req = null) {
     try {
       const existing = await prisma.saleOrder.findUnique({
         where: { id },
         include: {
+          customer: true,
           invoice: true,
           purchaseOrders: true
         }
       });
 
       if (!existing || existing.deleteStatus) {
-        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        const error = new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        await logNotFoundError({
+          error,
+          userId,
+          req,
+          resource: 'SaleOrder',
+          resourceId: id,
+          metadata: { operation: 'deleteSaleOrder' }
+        });
+        throw error;
       }
 
       // Check if order can be deleted
       if (existing.invoiceId) {
-        throw new APIError('Cannot delete sale order with an invoice', 400, 'HAS_INVOICE');
+        const error = new APIError('Cannot delete sale order with an invoice', 400, 'HAS_INVOICE');
+        await logBusinessError({
+          error,
+          userId,
+          req,
+          businessRule: 'Cannot delete sale order that has an associated invoice',
+          metadata: {
+            operation: 'deleteSaleOrder',
+            saleOrderId: id,
+            invoiceId: existing.invoiceId
+          }
+        });
+        throw error;
       }
 
       if (existing.purchaseOrders.length > 0) {
-        throw new APIError('Cannot delete sale order with purchase orders', 400, 'HAS_PURCHASE_ORDERS');
+        const error = new APIError('Cannot delete sale order with purchase orders', 400, 'HAS_PURCHASE_ORDERS');
+        await logBusinessError({
+          error,
+          userId,
+          req,
+          businessRule: 'Cannot delete sale order that has associated purchase orders',
+          metadata: {
+            operation: 'deleteSaleOrder',
+            saleOrderId: id,
+            purchaseOrderCount: existing.purchaseOrders.length
+          }
+        });
+        throw error;
       }
 
       if (['DELIVERED'].includes(existing.status)) {
-        throw new APIError('Cannot delete delivered sale order', 400, 'INVALID_STATUS');
+        const error = new APIError('Cannot delete delivered sale order', 400, 'INVALID_STATUS');
+        await logBusinessError({
+          error,
+          userId,
+          req,
+          businessRule: 'Cannot delete sale order with DELIVERED status',
+          metadata: {
+            operation: 'deleteSaleOrder',
+            saleOrderId: id,
+            currentStatus: existing.status
+          }
+        });
+        throw error;
       }
 
       // Soft delete
@@ -704,9 +1002,37 @@ export class SaleOrderService {
         }
       });
 
+      // ✅ LOG THE DELETE OPERATION
+      await logDelete({
+        userId,
+        entity: 'SaleOrder',
+        entityId: id,
+        oldValues: existing,
+        req,
+        metadata: {
+          orderNo: existing.orderNo,
+          customerName: existing.customer?.name,
+          status: existing.status,
+          deleteType: 'soft',
+          operation: 'Sale order deleted (soft delete)'
+        }
+      });
+
       return true;
     } catch (error) {
       if (error instanceof APIError) throw error;
+      
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'deleteSaleOrder',
+          saleOrderId: id
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
       console.error('Error deleting sale order:', error);
       throw new APIError('Failed to delete sale order', 500, 'DELETE_ORDER_ERROR');
     }

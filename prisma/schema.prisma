@@ -95,6 +95,9 @@ model User {
   locationUserUpdate         LocationMaster[]     @relation("locationUserUpdate")
   trayUserCreate             TrayMaster[]         @relation("trayUserCreate")
   trayUserUpdate             TrayMaster[]         @relation("trayUserUpdate")
+  auditLogs                  AuditLog[]           @relation("auditLogUser")
+  errorLogs                  ErrorLog[]           @relation("errorLogUser")
+  errorLogsResolved          ErrorLog[]           @relation("errorLogResolver")
 }
 
 model Role {
@@ -666,4 +669,56 @@ model TrayMaster {
   location      LocationMaster? @relation(fields: [location_id], references: [id])
   createdByUser User            @relation("trayUserCreate", fields: [createdBy], references: [id])
   updatedByUser User?           @relation("trayUserUpdate", fields: [updatedBy], references: [id])
+}
+
+// ============================================
+// AUDIT LOG & ERROR LOG TABLES
+// ============================================
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int?
+  action        String   // CREATE, UPDATE, DELETE, READ
+  entity        String   // Table/Model name (e.g., "SaleOrder", "Customer")
+  entityId      Int?     // ID of the affected record
+  oldValues     Json?    // Previous values (for UPDATE/DELETE)
+  newValues     Json?    // New values (for CREATE/UPDATE)
+  changes       Json?    // Specific field changes
+  ipAddress     String?
+  userAgent     String?
+  method        String?  // HTTP method (GET, POST, PUT, DELETE)
+  endpoint      String?  // API endpoint
+  statusCode    Int?     // HTTP status code
+  success       Boolean  @default(true)
+  errorMessage  String?  @db.Text
+  metadata      Json?    // Additional context
+  createdAt     DateTime @default(now())
+  // Relationship
+  user          User?    @relation("auditLogUser", fields: [userId], references: [id])
+}
+
+model ErrorLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int?
+  errorType     String   // Type of error (e.g., "ValidationError", "DatabaseError")
+  errorMessage  String   @db.Text
+  errorStack    String?  @db.Text
+  errorCode     String?  // Custom error code
+  statusCode    Int?     // HTTP status code
+  method        String?  // HTTP method
+  endpoint      String?  // API endpoint
+  requestBody   Json?    // Request payload
+  requestParams Json?    // Query/path parameters
+  ipAddress     String?
+  userAgent     String?
+  severity      String   @default("ERROR") // INFO, WARNING, ERROR, CRITICAL
+  resolved      Boolean  @default(false)
+  resolvedAt    DateTime?
+  resolvedBy    Int?
+  resolution    String?  @db.Text
+  metadata      Json?    // Additional error context
+  createdAt     DateTime @default(now())
+  // Relationships
+  user          User?    @relation("errorLogUser", fields: [userId], references: [id])
+  resolver      User?    @relation("errorLogResolver", fields: [resolvedBy], references: [id])
 }

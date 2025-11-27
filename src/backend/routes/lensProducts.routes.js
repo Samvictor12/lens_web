@@ -110,7 +110,7 @@ router.get("/", authenticateToken, lensProductController.getAllLensProducts);
  * @swagger
  * /api/v1/lens-products/calculate-cost:
  *   post:
- *     summary: Calculate product cost based on customer and price master
+ *     summary: Calculate product cost based on customer, lens price, and fitting
  *     tags: [Lens Products]
  *     security:
  *       - bearerAuth: []
@@ -123,6 +123,7 @@ router.get("/", authenticateToken, lensProductController.getAllLensProducts);
  *             required:
  *               - customer_id
  *               - lensPrice_id
+ *               - fitting_id
  *             properties:
  *               customer_id:
  *                 type: integer
@@ -130,6 +131,9 @@ router.get("/", authenticateToken, lensProductController.getAllLensProducts);
  *               lensPrice_id:
  *                 type: integer
  *                 description: Lens Price Master ID
+ *               fitting_id:
+ *                 type: integer
+ *                 description: Lens Fitting Master ID
  *               quantity:
  *                 type: integer
  *                 default: 1
@@ -138,6 +142,7 @@ router.get("/", authenticateToken, lensProductController.getAllLensProducts);
  *           example:
  *             customer_id: 1
  *             lensPrice_id: 5
+ *             fitting_id: 1
  *             quantity: 2
  *     responses:
  *       200:
