@@ -14,6 +14,7 @@ import SaleOrderForm from "./pages/SaleOrder/SaleOrderForm";
 // import SaleOrderForm from "./components/forms/SaleOrderForm";
 import Customers from "./pages/Customer/CustomersMain";
 import CustomerForm from "./pages/Customer/CustomerForm";
+import PriceMappingMain from "./pages/Customer/PriceMappingMain";
 import Inventory from "./pages/Inventory";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import Dispatch from "./pages/Dispatch";
@@ -114,6 +115,7 @@ const AppRoutes = () => (
       <Route path="/sales/orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
       <Route path="/sales/orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+      <Route path="/sales/customers/:customerId/price-mapping" element={<ProtectedRoute><PriceMappingMain /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />

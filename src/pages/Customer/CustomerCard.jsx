@@ -1,4 +1,4 @@
-import { Phone, Mail, Building, Trash2 } from "lucide-react";
+import { Phone, Mail, Building, Trash2, DollarSign } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
  * @param {Function} onView - Callback function when view button is clicked
  * @param {Function} onEdit - Callback function when edit button is clicked
  * @param {Function} onDelete - Callback function when delete button is clicked
+ * @param {Function} onPriceMapping - Callback function when price mapping button is clicked
  */
-export default function CustomerCard({ customer, onView, onEdit, onDelete }) {
+export default function CustomerCard({ customer, onView, onEdit, onDelete, onPriceMapping }) {
   return (
     <Card
       key={customer.id}
@@ -90,6 +91,15 @@ export default function CustomerCard({ customer, onView, onEdit, onDelete }) {
           onClick={() => onView(customer.id)}
         >
           View
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          className="h-7 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+          onClick={() => onPriceMapping && onPriceMapping(customer.id)}
+          title="Price Mapping"
+        >
+          <DollarSign className="h-3.5 w-3.5" />
         </Button>
         <Button
           variant="outline"

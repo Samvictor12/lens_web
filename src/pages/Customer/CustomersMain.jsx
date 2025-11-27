@@ -296,6 +296,7 @@ export default function Customers() {
                 customer={customer}
                 onView={(id) => navigate(`/sales/customers/view/${id}`)}
                 onDelete={handleDeleteClick}
+                onPriceMapping={(id) => navigate(`/sales/customers/${id}/price-mapping`)}
               />
             )}
             isLoading={isLoading}

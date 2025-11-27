@@ -1,4 +1,4 @@
-import { Building, Trash2 } from "lucide-react";
+import { Building, Trash2, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -94,6 +94,15 @@ export const useCustomerColumns = (navigate, onDelete) => {
           >
             View
           </Button> */}
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            onClick={() => navigate(`/sales/customers/${customer.id}/price-mapping`)}
+            title="Price Mapping"
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="xs"

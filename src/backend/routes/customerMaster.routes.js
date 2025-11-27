@@ -422,6 +422,46 @@ router.get('/dropdown',
 
 /**
  * @swagger
+ * /api/customer-master/minimal/{id}:
+ *   get:
+ *     summary: Get minimal customer data (id, code, name) for price mapping
+ *     tags: [Customer Master]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Customer ID
+ *     responses:
+ *       200:
+ *         description: Minimal customer data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     code:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *       404:
+ *         description: Customer not found
+ */
+router.get('/minimal/:id',
+    // authenticateToken,
+    controller.getMinimalById.bind(controller)
+);
+
+/**
+ * @swagger
  * /api/customer-master/stats:
  *   get:
  *     summary: Get customer statistics

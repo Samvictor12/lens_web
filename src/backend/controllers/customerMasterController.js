@@ -200,6 +200,35 @@ export class CustomerMasterController {
   }
 
   /**
+   * Get minimal customer data (id, code, name only)
+   * @route GET /api/customer-master/minimal/:id
+   */
+  async getMinimalById(req, res, next) {
+    try {
+      // Validate ID parameter
+      const validation = validateIdParam(req.params.id);
+
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validation.errors
+        });
+      }
+
+      // Get minimal customer data
+      const customerData = await this.customerMasterService.getMinimalCustomerById(validation.data);
+
+      res.json({
+        success: true,
+        data: customerData
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Check if customer email exists
    * @route POST /api/customer-master/check-email
    */

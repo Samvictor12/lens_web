@@ -275,6 +275,47 @@ export class CustomerMasterService {
   }
 
   /**
+   * Get minimal customer data (id, code, name only) for price mapping
+   * @param {number} id - Customer master ID
+   * @returns {Promise<Object>} Minimal customer data
+   */
+  async getMinimalCustomerById(id) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { 
+          id,
+          delete_status: false 
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      });
+
+      if (!customer) {
+        throw new APIError(
+          "Customer not found",
+          404,
+          "CUSTOMER_NOT_FOUND"
+        );
+      }
+
+      return customer;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error("Error fetching minimal customer data:", error);
+      throw new APIError(
+        "Failed to fetch customer data",
+        500,
+        "FETCH_CUSTOMER_ERROR"
+      );
+    }
+  }
+
+  /**
    * Update customer master
    * @param {number} id - Customer master ID
    * @param {Object} updateData - Data to update
