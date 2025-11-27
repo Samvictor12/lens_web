@@ -30,6 +30,34 @@ class LensProductMasterService {
         throw new APIError("Material not found", 404, "MATERIAL_NOT_FOUND");
       if (!type) throw new APIError("Type not found", 404, "TYPE_NOT_FOUND");
 
+      // Check for duplicate product (same brand, category, material, type combination)
+      const duplicateProduct = await prisma.lensProductMaster.findFirst({
+        where: {
+          brand_id: productData.brand_id,
+          category_id: productData.category_id,
+          material_id: productData.material_id,
+          type_id: productData.type_id,
+          deleteStatus: false,
+        },
+        select: {
+          id: true,
+          lens_name: true,
+          product_code: true,
+          brand: { select: { name: true } },
+          category: { select: { name: true } },
+          material: { select: { name: true } },
+          type: { select: { name: true } },
+        },
+      });
+
+      if (duplicateProduct) {
+        throw new APIError(
+          `A product with this combination already exists: ${duplicateProduct.brand.name} - ${duplicateProduct.category.name} - ${duplicateProduct.material.name} - ${duplicateProduct.type.name} (Product: ${duplicateProduct.lens_name})`,
+          400,
+          "DUPLICATE_PRODUCT_COMBINATION"
+        );
+      }
+
       // Validate coating IDs if prices are provided
       if (productData.prices && productData.prices.length > 0) {
         const coatingIds = productData.prices.map((p) => p.coating_id);
@@ -133,14 +161,16 @@ class LensProductMasterService {
         category_id,
         material_id,
         type_id,
+        groupBy,
       } = queryParams;
       console.log(
-        "activeStatus,brand_id,category_id,material_id,type_id",
+        "activeStatus,brand_id,category_id,material_id,type_id,groupBy",
         activeStatus,
         brand_id,
         category_id,
         material_id,
-        type_id
+        type_id,
+        groupBy
       );
 
       const where = { deleteStatus: false };
@@ -161,6 +191,96 @@ class LensProductMasterService {
       if (material_id) where.material_id = parseInt(material_id);
       if (type_id) where.type_id = parseInt(type_id);
 
+      // Handle group by request
+      if (groupBy) {
+        const validGroupByFields = ['brand_id', 'category_id', 'material_id', 'type_id'];
+        const groupByField = groupBy.toLowerCase();
+        
+        if (validGroupByFields.includes(groupByField)) {
+          const groupedData = await prisma.lensProductMaster.groupBy({
+            by: [groupByField],
+            where,
+            _count: {
+              id: true,
+            },
+          });
+
+          // Fetch related data for each group
+          const enrichedGroups = await Promise.all(
+            groupedData.map(async (group) => {
+              let relatedData = null;
+              const groupValue = group[groupByField];
+
+              if (groupByField === 'brand_id' && groupValue) {
+                relatedData = await prisma.lensBrandMaster.findUnique({
+                  where: { id: groupValue },
+                  select: { id: true, name: true },
+                });
+              } else if (groupByField === 'category_id' && groupValue) {
+                relatedData = await prisma.lensCategoryMaster.findUnique({
+                  where: { id: groupValue },
+                  select: { id: true, name: true },
+                });
+              } else if (groupByField === 'material_id' && groupValue) {
+                relatedData = await prisma.lensMaterialMaster.findUnique({
+                  where: { id: groupValue },
+                  select: { id: true, name: true },
+                });
+              } else if (groupByField === 'type_id' && groupValue) {
+                relatedData = await prisma.lensTypeMaster.findUnique({
+                  where: { id: groupValue },
+                  select: { id: true, name: true },
+                });
+              }
+
+              return {
+                [groupByField]: groupValue,
+                count: group._count.id,
+                name: relatedData?.name || 'Unknown',
+              };
+            })
+          );
+
+          return {
+            groupBy: groupByField,
+            data: enrichedGroups,
+          };
+        } else {
+          throw new APIError(
+            `Invalid groupBy field. Allowed values: ${validGroupByFields.join(', ')}`,
+            400,
+            "INVALID_GROUP_BY"
+          );
+        }
+      }
+
+      // Map frontend sortBy values to backend field names or relations
+      const sortFieldMap = {
+        lensName: 'lens_name',
+        productCode: 'product_code',
+        indexValue: 'index_value',
+        rangeText: 'range_text',
+        activeStatus: 'activeStatus',
+        createdAt: 'createdAt',
+        updatedAt: 'updatedAt',
+        brandName: 'brand',
+        categoryName: 'category',
+        materialName: 'material',
+        typeName: 'type',
+      };
+
+      const actualSortBy = sortFieldMap[sortBy] || sortBy;
+      
+      // Build orderBy based on whether it's a relation or direct field
+      let orderByClause;
+      if (['brand', 'category', 'material', 'type'].includes(actualSortBy)) {
+        // For related tables, use nested orderBy
+        orderByClause = { [actualSortBy]: { name: sortOrder } };
+      } else {
+        // For direct fields
+        orderByClause = { [actualSortBy]: sortOrder };
+      }
+
       const offset = (page - 1) * limit;
       const total = await prisma.lensProductMaster.count({ where });
 
@@ -168,7 +288,7 @@ class LensProductMasterService {
         where,
         skip: offset,
         take: parseInt(limit),
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: orderByClause,
         include: {
           brand: { select: { id: true, name: true } },
           category: { select: { id: true, name: true } },
@@ -190,6 +310,7 @@ class LensProductMasterService {
         },
       };
     } catch (error) {
+      if (error instanceof APIError) throw error;
       console.error("Error fetching lens products:", error);
       throw new APIError(
         "Failed to fetch lens products",
@@ -248,6 +369,36 @@ class LensProductMasterService {
 
       if (!existing || existing.deleteStatus) {
         throw new APIError("Lens product not found", 404, "PRODUCT_NOT_FOUND");
+      }
+
+      // Check for duplicate product (same brand, category, material, type combination)
+      // Exclude the current product being updated
+      const duplicateProduct = await prisma.lensProductMaster.findFirst({
+        where: {
+          brand_id: updateData.brand_id,
+          category_id: updateData.category_id,
+          material_id: updateData.material_id,
+          type_id: updateData.type_id,
+          deleteStatus: false,
+          id: { not: id }, // Exclude current product
+        },
+        select: {
+          id: true,
+          lens_name: true,
+          product_code: true,
+          brand: { select: { name: true } },
+          category: { select: { name: true } },
+          material: { select: { name: true } },
+          type: { select: { name: true } },
+        },
+      });
+
+      if (duplicateProduct) {
+        throw new APIError(
+          `A product with this combination already exists: ${duplicateProduct.brand.name} - ${duplicateProduct.category.name} - ${duplicateProduct.material.name} - ${duplicateProduct.type.name} (Product: ${duplicateProduct.lens_name})`,
+          400,
+          "DUPLICATE_PRODUCT_COMBINATION"
+        );
       }
 
       // Validate coating IDs if prices are provided

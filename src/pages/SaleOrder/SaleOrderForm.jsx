@@ -748,7 +748,7 @@ export default function SaleOrderForm() {
                                 ) : (
                                     <>
                                         <Save className="h-3.5 w-3.5" />
-                                        Create And Rise Po
+                                        Create & Rise Po
                                     </>
                                 )}
                             </Button>
@@ -768,7 +768,7 @@ export default function SaleOrderForm() {
                                 ) : (
                                     <>
                                         <Save className="h-3.5 w-3.5" />
-                                        Create And Print
+                                        Create & Print
                                     </>
                                 )}
                             </Button>

@@ -64,30 +64,40 @@ export const useLensProductColumns = (navigate, onDelete) => {
         <span className="text-xs">{product.typeName || "-"}</span>
       ),
     },
-    {
-      accessorKey: "prices",
-      header: "Prices",
-      sortable: false,
-      cell: (product) => {
-        const priceCount = product.prices?.length || 0;
-        if (priceCount === 0) return <span className="text-xs text-muted-foreground">No prices</span>;
-        
-        const minPrice = Math.min(...product.prices.map(p => parseFloat(p.price) || 0));
-        const maxPrice = Math.max(...product.prices.map(p => parseFloat(p.price) || 0));
-        
-        return (
-          <div className="text-xs">
-            <div className="font-medium">
-              {minPrice === maxPrice 
-                ? `₹${minPrice.toLocaleString("en-IN")}`
-                : `₹${minPrice.toLocaleString("en-IN")} - ₹${maxPrice.toLocaleString("en-IN")}`
-              }
-            </div>
-            <div className="text-muted-foreground">{priceCount} coating{priceCount > 1 ? 's' : ''}</div>
-          </div>
-        );
-      },
-    },
+    // {
+    //   accessorKey: "prices",
+    //   header: "Prices",
+    //   sortable: false,
+    //   cell: (product) => {
+    //     const priceCount = product.prices?.length || 0;
+    //     if (priceCount === 0)
+    //       return (
+    //         <span className="text-xs text-muted-foreground">No prices</span>
+    //       );
+
+    //     const minPrice = Math.min(
+    //       ...product.prices.map((p) => parseFloat(p.price) || 0)
+    //     );
+    //     const maxPrice = Math.max(
+    //       ...product.prices.map((p) => parseFloat(p.price) || 0)
+    //     );
+
+    //     return (
+    //       <div className="text-xs">
+    //         <div className="font-medium">
+    //           {minPrice === maxPrice
+    //             ? `₹${minPrice.toLocaleString("en-IN")}`
+    //             : `₹${minPrice.toLocaleString(
+    //                 "en-IN"
+    //               )} - ₹${maxPrice.toLocaleString("en-IN")}`}
+    //         </div>
+    //         <div className="text-muted-foreground">
+    //           {priceCount} coating{priceCount > 1 ? "s" : ""}
+    //         </div>
+    //       </div>
+    //     );
+    //   },
+    // },
     {
       accessorKey: "activeStatus",
       header: "Status",
@@ -107,14 +117,6 @@ export const useLensProductColumns = (navigate, onDelete) => {
       sortable: false,
       cell: (product) => (
         <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            className="h-7 px-2 text-xs"
-            onClick={() => navigate(`/masters/lens-product/view/${product.id}`)}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
           <Button
             variant="ghost"
             size="xs"

@@ -87,6 +87,22 @@ export const getLensProducts = async (params = {}) => {
 };
 
 /**
+ * Get grouped lens products
+ * @param {string} groupBy - Field to group by (brand_id, category_id, material_id, type_id)
+ * @param {Object} filters - Additional filters
+ * @returns {Promise<Object>} - Response with grouped data
+ */
+export const getGroupedLensProducts = async (groupBy, filters = {}) => {
+  const response = await apiClient("get", "/v1/lens-products", { 
+    params: { 
+      groupBy,
+      ...filters 
+    } 
+  });
+  return response;
+};
+
+/**
  * Get lens product by ID with prices
  * @param {string|number} id - Lens product ID
  * @returns {Promise<Object>} - Lens product data with prices
@@ -138,7 +154,8 @@ export const getBrandDropdown = async () => {
     params: { activeStatus: "true", limit: 100 } 
   });
   return response.data?.map(brand => ({
-    value: brand.id,
+    id: brand.id,
+    name: brand.name,
     label: brand.name,
     code: brand.code
   })) || [];
@@ -153,7 +170,8 @@ export const getCategoryDropdown = async () => {
     params: { activeStatus: "true", limit: 100 } 
   });
   return response.data?.map(category => ({
-    value: category.id,
+    id: category.id,
+    name: category.name,
     label: category.name,
     code: category.code
   })) || [];
@@ -168,7 +186,8 @@ export const getMaterialDropdown = async () => {
     params: { activeStatus: "true", limit: 100 } 
   });
   return response.data?.map(material => ({
-    value: material.id,
+    id: material.id,
+    name: material.name,
     label: material.name,
     code: material.code
   })) || [];
@@ -183,7 +202,8 @@ export const getTypeDropdown = async () => {
     params: { activeStatus: "true", limit: 100 } 
   });
   return response.data?.map(type => ({
-    value: type.id,
+    id: type.id,
+    name: type.name,
     label: type.name,
     code: type.code
   })) || [];
@@ -198,7 +218,8 @@ export const getCoatingDropdown = async () => {
     params: { activeStatus: "true", limit: 100 } 
   });
   return response.data?.map(coating => ({
-    value: coating.id,
+    id: coating.id,
+    name: coating.name,
     label: coating.name,
     code: coating.code
   })) || [];

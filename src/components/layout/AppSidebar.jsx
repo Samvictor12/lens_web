@@ -107,6 +107,12 @@ const navItems = [
 
 const masterItems = [
   {
+    title: "Business Categories",
+    url: "/masters/business-categories",
+    icon: Tag,
+    // allowedRoles: ["admin", "sales"],
+  },
+  {
     title: "Customers",
     url: "/sales/customers",
     icon: Users,
@@ -119,10 +125,23 @@ const masterItems = [
     // allowedRoles: ["admin", "inventory"],
   },
   {
-    title: "Business Categories",
-    url: "/masters/business-categories",
-    icon: Tag,
-    // allowedRoles: ["admin", "sales"],
+    title: "Admin Masters",
+    icon: Eye,
+    // allowedRoles: ["admin"],
+    subItems: [
+      {
+        title: "Departments",
+        url: "/masters/departments",
+        icon: Briefcase,
+        // allowedRoles: ["admin"],
+      },
+      {
+        title: "Users",
+        url: "/masters/users",
+        icon: UserCog,
+        // allowedRoles: ["admin"],
+      },
+    ],
   },
   {
     title: "Lens Masters",
@@ -188,18 +207,7 @@ const masterItems = [
       },
     ],
   },
-  {
-    title: "Departments",
-    url: "/masters/departments",
-    icon: Briefcase,
-    // allowedRoles: ["admin"],
-  },
-  {
-    title: "Users",
-    url: "/masters/users",
-    icon: UserCog,
-    // allowedRoles: ["admin"],
-  },
+
   {
     title: "Price Mapping",
     url: "/masters/price-mapping",
@@ -221,28 +229,28 @@ export const AppSidebar = () => {
   const [openSubmenus, setOpenSubmenus] = React.useState({});
 
   const isActive = (path) => location.pathname === path;
-  
+
   const toggleSubmenu = (title) => {
-    setOpenSubmenus(prev => ({
+    setOpenSubmenus((prev) => ({
       ...prev,
-      [title]: !prev[title]
+      [title]: !prev[title],
     }));
   };
 
   const isSubmenuActive = (subItems) => {
-    return subItems?.some(item => location.pathname.startsWith(item.url));
+    return subItems?.some((item) => location.pathname.startsWith(item.url));
   };
 
-  // ROLE ACCESS DISABLED - Show all items for now
-  // const filteredNavItems = navItems.filter((item) =>
-  //   hasPermission(item.allowedRoles)
-  // );
   const filteredNavItems = navItems;
 
-  // const filteredMasterItems = masterItems.filter((item) =>
-  //   hasPermission(item.allowedRoles)
-  // );
   const filteredMasterItems = masterItems;
+
+  const isMasterActive = filteredMasterItems.some(item => {
+    if (item.subItems) {
+      return item.subItems.some(sub => location.pathname.startsWith(sub.url));
+    }
+    return location.pathname.startsWith(item.url);
+  });
 
   return (
     <TooltipProvider>
@@ -299,7 +307,13 @@ export const AppSidebar = () => {
           {filteredMasterItems.length > 0 && (
             <SidebarGroup>
               <SidebarGroupLabel
-                className={state === "collapsed" ? "hidden" : ""}
+                className={
+                  state === "collapsed"
+                    ? "hidden"
+                    : isMasterActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    : ""
+                }
               >
                 Masters
               </SidebarGroupLabel>
@@ -309,7 +323,10 @@ export const AppSidebar = () => {
                     <React.Fragment key={item.title}>
                       {item.subItems ? (
                         <Collapsible.Root
-                          open={openSubmenus[item.title] || isSubmenuActive(item.subItems)}
+                          open={
+                            openSubmenus[item.title] ||
+                            isSubmenuActive(item.subItems)
+                          }
                           onOpenChange={() => toggleSubmenu(item.title)}
                         >
                           <SidebarMenuItem>
@@ -317,7 +334,11 @@ export const AppSidebar = () => {
                               <TooltipTrigger asChild>
                                 <Collapsible.Trigger asChild>
                                   <SidebarMenuButton
-                                    className={isSubmenuActive(item.subItems) ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : ""}
+                                    className={
+                                      isSubmenuActive(item.subItems)
+                                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                        : ""
+                                    }
                                   >
                                     <item.icon className="h-4 w-4" />
                                     {state !== "collapsed" && (
@@ -325,7 +346,10 @@ export const AppSidebar = () => {
                                         <span>{item.title}</span>
                                         <ChevronRight
                                           className={`ml-auto h-4 w-4 transition-transform ${
-                                            openSubmenus[item.title] || isSubmenuActive(item.subItems) ? "rotate-90" : ""
+                                            openSubmenus[item.title] ||
+                                            isSubmenuActive(item.subItems)
+                                              ? "rotate-90"
+                                              : ""
                                           }`}
                                         />
                                       </>
@@ -340,7 +364,7 @@ export const AppSidebar = () => {
                               )}
                             </Tooltip>
                           </SidebarMenuItem>
-                          
+
                           <Collapsible.Content>
                             {state !== "collapsed" && (
                               <SidebarMenu className="ml-4 border-l pl-2">
@@ -356,7 +380,9 @@ export const AppSidebar = () => {
                                         }
                                       >
                                         <subItem.icon className="h-3.5 w-3.5" />
-                                        <span className="text-sm">{subItem.title}</span>
+                                        <span className="text-sm">
+                                          {subItem.title}
+                                        </span>
                                       </NavLink>
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>
@@ -366,14 +392,19 @@ export const AppSidebar = () => {
                           </Collapsible.Content>
                         </Collapsible.Root>
                       ) : (
-                        <SidebarMenuItem>
+                        <SidebarMenuItem
+                          key={item.title}
+                          className={location.pathname.startsWith(item.url)
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                            : ""}
+                        >
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <SidebarMenuButton asChild>
                                 <NavLink
                                   to={item.url}
                                   className={({ isActive }) =>
-                                    isActive
+                                    isActive || location.pathname.startsWith(item.url)
                                       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                                       : "hover:bg-sidebar-accent/50"
                                   }

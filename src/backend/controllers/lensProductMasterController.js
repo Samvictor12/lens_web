@@ -73,6 +73,7 @@ export const getAllLensProducts = async (req, res, next) => {
         ? parseInt(req.query.material_id)
         : undefined,
       type_id: req.query.type_id ? parseInt(req.query.type_id) : undefined,
+      activeStatus: req.query.activeStatus,
       search: req.query.search,
     };
 
