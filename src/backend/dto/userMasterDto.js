@@ -112,7 +112,10 @@ export const validateCreateUserMaster = (data) => {
         }
     }
 
-    if (data.department_id !== undefined && data.department_id !== null && data.department_id !== '') {
+    // Department validation (required)
+    if (!data.department_id) {
+        errors.push({ field: 'department_id', message: 'Department is required' });
+    } else {
         const deptId = parseInt(data.department_id);
         if (isNaN(deptId) || deptId <= 0) {
             errors.push({ field: 'department_id', message: 'Department ID must be a valid positive number' });
@@ -230,10 +233,15 @@ export const validateUpdateUserMaster = (data) => {
         }
     }
 
-    if (data.department_id !== undefined && data.department_id !== null && data.department_id !== '') {
-        const deptId = parseInt(data.department_id);
-        if (isNaN(deptId) || deptId <= 0) {
-            errors.push({ field: 'department_id', message: 'Department ID must be a valid positive number' });
+    // Department validation (required)
+    if (data.department_id !== undefined) {
+        if (!data.department_id) {
+            errors.push({ field: 'department_id', message: 'Department is required' });
+        } else {
+            const deptId = parseInt(data.department_id);
+            if (isNaN(deptId) || deptId <= 0) {
+                errors.push({ field: 'department_id', message: 'Department ID must be a valid positive number' });
+            }
         }
     }
 

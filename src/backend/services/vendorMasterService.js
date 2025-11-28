@@ -126,10 +126,8 @@ export class VendorMasterService {
       }
 
       if (filters.category) {
-        where.category = {
-          contains: filters.category,
-          mode: "insensitive",
-        };
+        // Category is stored as ID (string representation of businessCategory_id)
+        where.category = filters.category;
       }
 
       if (filters.email) {
@@ -416,10 +414,9 @@ export class VendorMasterService {
 
       return vendors.map((vendor) => ({
         id: vendor.id,
-        label: `${vendor.name} (${vendor.code})${
+        name: `${vendor.name} (${vendor.code})${
           vendor.city ? ` - ${vendor.city}` : ""
         }`,
-        value: vendor.id,
         code: vendor.code,
         phone: vendor.phone,
       }));

@@ -3,14 +3,16 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormSelect } from "@/components/ui/form-select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { getLocationDropdown } from "@/services/location";
 
 export default function TrayFilter({
@@ -55,23 +57,88 @@ export default function TrayFilter({
   return (
     <>
       <div className="flex items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="xs"
-          className="gap-1.5 h-8"
-          onClick={() => {
-            setTempFilters(filters);
-            setShowFilterDialog(true);
-          }}
-        >
-          <Filter className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Filters</span>
-          {hasActiveFilters && (
-            <Badge variant="default" className="ml-1 h-4 px-1 text-xs">
-              •
-            </Badge>
-          )}
-        </Button>
+        <Sheet open={showFilterDialog} onOpenChange={setShowFilterDialog}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="xs"
+              className="gap-1.5 h-8 relative"
+              onClick={() => setTempFilters(filters)}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span className="text-sm">Filters</span>
+              {hasActiveFilters && (
+                <Badge variant="default" className="ml-1 h-4 px-1 text-xs">
+                  •
+                </Badge>
+              )}
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Filter Trays</SheetTitle>
+              <SheetDescription>
+                Apply filters to refine your tray list
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="status-filter" className="text-sm font-medium">
+                  Status
+                </Label>
+                <FormSelect
+                  name="activeStatus"
+                  options={activeStatusOptions}
+                  value={tempFilters.activeStatus}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      activeStatus: value,
+                    });
+                  }}
+                  placeholder="All trays"
+                  isSearchable={false}
+                  isClearable={false}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="location-filter" className="text-sm font-medium">
+                  Location
+                </Label>
+                <FormSelect
+                  name="location_id"
+                  options={locations}
+                  value={tempFilters.location_id}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      location_id: value,
+                    });
+                  }}
+                  placeholder="All locations"
+                  isSearchable={true}
+                  isClearable={true}
+                />
+              </div>
+            </div>
+
+            <SheetFooter className="flex flex-row gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onCancelFilters}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button size="xs" onClick={onApplyFilters} className="flex-1">
+                Apply Filters
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
         {hasActiveFilters && (
           <Button
             variant="ghost"
@@ -84,65 +151,6 @@ export default function TrayFilter({
           </Button>
         )}
       </div>
-
-      <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Filter Trays</DialogTitle>
-            <DialogDescription className="text-xs">
-              Apply filters to refine your tray list
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-4">
-            <FormSelect
-              label="Status"
-              name="activeStatus"
-              options={activeStatusOptions}
-              value={tempFilters.activeStatus}
-              onChange={(value) => {
-                setTempFilters({
-                  ...tempFilters,
-                  activeStatus: value,
-                });
-              }}
-              placeholder="All trays"
-              isSearchable={false}
-              isClearable={false}
-            />
-
-            <FormSelect
-              label="Location"
-              name="location_id"
-              options={locations}
-              value={tempFilters.location_id}
-              onChange={(value) => {
-                setTempFilters({
-                  ...tempFilters,
-                  location_id: value,
-                });
-              }}
-              placeholder="All locations"
-              isSearchable={true}
-              isClearable={true}
-            />
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={onCancelFilters}
-              className="h-8"
-            >
-              Cancel
-            </Button>
-            <Button size="xs" onClick={onApplyFilters} className="h-8">
-              Apply Filters
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

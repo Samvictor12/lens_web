@@ -665,6 +665,7 @@ export class UserMasterService {
         data: {
           username: loginData.username,
           password: hashedPassword,
+          role_id: loginData.role_id !== undefined ? loginData.role_id : existingUser.role_id,
           is_login:
             loginData.is_login !== undefined ? loginData.is_login : true,
           updatedAt: new Date(),
@@ -768,6 +769,11 @@ export class UserMasterService {
         // If same password, don't update it (no need to rehash)
       }
 
+      // Update role_id if provided
+      if (loginData.role_id !== undefined) {
+        updateData.role_id = loginData.role_id;
+      }
+
       // Update is_login if provided
       if (loginData.is_login !== undefined) {
         updateData.is_login = loginData.is_login;
@@ -831,6 +837,7 @@ export class UserMasterService {
           usercode: true,
           email: true,
           username: true,
+          role_id: true,
           is_login: true,
           // Password is never returned for security
         },

@@ -2,14 +2,16 @@ import { X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormSelect } from "@/components/ui/form-select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export default function DepartmentFilter({
   filters,
@@ -33,23 +35,69 @@ export default function DepartmentFilter({
     <>
       {/* Filter Button */}
       <div className="flex items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="xs"
-          className="gap-1.5 h-8"
-          onClick={() => {
-            setTempFilters(filters);
-            setShowFilterDialog(true);
-          }}
-        >
-          <Filter className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Filters</span>
-          {hasActiveFilters && (
-            <Badge variant="default" className="ml-1 h-4 px-1 text-xs">
-              •
-            </Badge>
-          )}
-        </Button>
+        <Sheet open={showFilterDialog} onOpenChange={setShowFilterDialog}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="xs"
+              className="gap-1.5 h-8 relative"
+              onClick={() => setTempFilters(filters)}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span className="text-sm">Filters</span>
+              {hasActiveFilters && (
+                <Badge variant="default" className="ml-1 h-4 px-1 text-xs">
+                  •
+                </Badge>
+              )}
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Filter Departments</SheetTitle>
+              <SheetDescription>
+                Apply filters to refine your department list
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Active Status Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="status-filter" className="text-sm font-medium">
+                  Status
+                </Label>
+                <FormSelect
+                  name="active_status"
+                  options={activeStatusOptions}
+                  value={tempFilters.active_status}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      active_status: value,
+                    });
+                  }}
+                  placeholder="All departments"
+                  isSearchable={false}
+                  isClearable={false}
+                />
+              </div>
+            </div>
+
+            <SheetFooter className="flex flex-row gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onCancelFilters}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button size="xs" onClick={onApplyFilters} className="flex-1">
+                Apply Filters
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
         {hasActiveFilters && (
           <Button
             variant="ghost"
@@ -62,59 +110,6 @@ export default function DepartmentFilter({
           </Button>
         )}
       </div>
-
-      {/* Filter Dialog */}
-      <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Filter Departments</DialogTitle>
-            <DialogDescription className="text-xs">
-              Apply filters to refine your department list
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-4">
-            {/* Active Status Filter */}
-            <FormSelect
-              label="Status"
-              name="active_status"
-              options={activeStatusOptions}
-              value={tempFilters.active_status}
-              onChange={(value) => {
-                setTempFilters({
-                  ...tempFilters,
-                  active_status: value,
-                });
-              }}
-              placeholder="All departments"
-              isSearchable={false}
-              isClearable={false}
-            />
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onCancelFilters}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClearFilters}
-            >
-              Clear All
-            </Button>
-            <Button type="button" size="sm" onClick={onApplyFilters}>
-              Apply Filters
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

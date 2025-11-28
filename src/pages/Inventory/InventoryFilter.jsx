@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
-import { X, Filter } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { FormInput } from "@/components/ui/form-input";
-import { FormSelect } from "@/components/ui/form-select";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
+import React from 'react';
+import { X, Filter } from 'lucide-react';
+
+// UI Components
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
   Sheet,
   SheetContent,
@@ -13,10 +12,14 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet";
-import { getBusinessCategoryDropdown } from "@/services/businessCategory";
+} from '@/components/ui/sheet';
+import { FormSelect } from '@/components/ui/form-select';
+import { Badge } from '@/components/ui/badge';
 
-export default function CustomerFilter({
+// Constants
+import { inventoryStatusOptions } from './Inventory.constants';
+
+const InventoryFilter = ({
   filters,
   tempFilters,
   setTempFilters,
@@ -26,31 +29,20 @@ export default function CustomerFilter({
   onApplyFilters,
   onClearFilters,
   onCancelFilters,
-}) {
-  const [businessCategories, setBusinessCategories] = useState([]);
-
-  // Fetch business categories on mount
-  useEffect(() => {
-    const fetchBusinessCategories = async () => {
-      try {
-        const response = await getBusinessCategoryDropdown();
-        if (response.success) {
-          setBusinessCategories(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching business categories:", error);
-      }
-    };
-
-    fetchBusinessCategories();
-  }, []);
-
-  // Active status options for dropdown
-  const activeStatusOptions = [
-    { id: "all", name: "All" },
-    { id: true, name: "Active" },
-    { id: false, name: "Inactive" },
+  dropdownData = {}, 
+}) => {
+  // Transform status options for FormSelect
+  const statusOptions = [
+    { id: 'all', name: 'All Statuses' },
+    ...inventoryStatusOptions.map(option => ({ id: option.value, name: option.label }))
   ];
+
+  // Transform dropdown data for FormSelect
+  const lensProductOptions = dropdownData.lensProducts?.map(item => ({ id: item.id, name: item.name })) || [];
+  const categoryOptions = dropdownData.categories?.map(item => ({ id: item.id, name: item.name })) || [];
+  const locationOptions = dropdownData.locations?.map(item => ({ id: item.id, name: item.name })) || [];
+
+
 
   return (
     <>
@@ -75,47 +67,68 @@ export default function CustomerFilter({
           </SheetTrigger>
           <SheetContent>
             <SheetHeader>
-              <SheetTitle>Filter Customers</SheetTitle>
+              <SheetTitle>Filter Inventory</SheetTitle>
               <SheetDescription>
-                Apply filters to refine your customer list
+                Apply filters to refine your inventory list
               </SheetDescription>
             </SheetHeader>
 
             <div className="space-y-4 py-4">
-              {/* Active Status Filter */}
+              {/* Status Filter */}
               <div className="space-y-2">
                 <Label htmlFor="status-filter" className="text-sm font-medium">
                   Status
                 </Label>
                 <FormSelect
-                  name="active_status"
-                  options={activeStatusOptions}
-                  value={tempFilters.active_status}
+                  name="status"
+                  options={statusOptions}
+                  value={tempFilters.status}
                   onChange={(value) => {
                     setTempFilters({
                       ...tempFilters,
-                      active_status: value,
+                      status: value,
                     });
                   }}
-                  placeholder="All customers"
+                  placeholder="All statuses"
                   isSearchable={false}
                   isClearable={false}
                 />
               </div>
 
-              {/* Business Category Filter */}
+              {/* Lens Product Filter */}
               <div className="space-y-2">
-                <Label htmlFor="category-filter" className="text-sm font-medium">
-                  Business Category
+                <Label htmlFor="lens-filter" className="text-sm font-medium">
+                  Lens Product
                 </Label>
                 <FormSelect
-                  name="businessCategory_id"
-                  options={businessCategories}
-                  value={tempFilters.businessCategory_id}
+                  name="lens_id"
+                  options={lensProductOptions}
+                  value={tempFilters.lens_id}
                   onChange={(value) => {
                     setTempFilters({
                       ...tempFilters,
-                      businessCategory_id: value,
+                      lens_id: value,
+                    });
+                  }}
+                  placeholder="All lens products"
+                  isSearchable={true}
+                  isClearable={true}
+                />
+              </div>
+
+              {/* Category Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="category-filter" className="text-sm font-medium">
+                  Category
+                </Label>
+                <FormSelect
+                  name="category_id"
+                  options={categoryOptions}
+                  value={tempFilters.category_id}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      category_id: value,
                     });
                   }}
                   placeholder="All categories"
@@ -124,23 +137,24 @@ export default function CustomerFilter({
                 />
               </div>
 
-              {/* City Filter */}
+              {/* Location Filter */}
               <div className="space-y-2">
-                <Label htmlFor="city-filter" className="text-sm font-medium">
-                  City
+                <Label htmlFor="location-filter" className="text-sm font-medium">
+                  Location
                 </Label>
-                <FormInput
-                  name="city"
-                  type="text"
-                  placeholder="Enter city name"
-                  value={tempFilters.city}
-                  onChange={(e) =>
+                <FormSelect
+                  name="location_id"
+                  options={locationOptions}
+                  value={tempFilters.location_id}
+                  onChange={(value) => {
                     setTempFilters({
                       ...tempFilters,
-                      city: e.target.value,
-                    })
-                  }
-                  helperText="Search customers by city (case insensitive)"
+                      location_id: value,
+                    });
+                  }}
+                  placeholder="All locations"
+                  isSearchable={true}
+                  isClearable={true}
                 />
               </div>
             </div>
@@ -174,4 +188,6 @@ export default function CustomerFilter({
       </div>
     </>
   );
-}
+};
+
+export default InventoryFilter;

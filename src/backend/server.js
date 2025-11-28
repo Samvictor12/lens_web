@@ -30,6 +30,8 @@ import locationMasterRoutes from './routes/locationMaster.routes.js';
 import trayMasterRoutes from './routes/trayMaster.routes.js';
 import lensTintingRoutes from './routes/lensTintings.routes.js';
 import logsRoutes from './routes/logs.routes.js';
+import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
+import inventoryRoutes from './routes/inventory.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -114,6 +116,8 @@ app.use('/api/v1/location-master', locationMasterRoutes);
 app.use('/api/v1/tray-master', trayMasterRoutes);
 app.use('/api/v1/lens-tintings', lensTintingRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

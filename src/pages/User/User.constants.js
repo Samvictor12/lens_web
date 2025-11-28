@@ -16,7 +16,6 @@ export const defaultUser = {
   city: "",
   state: "",
   pincode: "",
-  roleId: null,
   department_id: null,
   salary: "",
   activeStatus: true,

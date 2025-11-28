@@ -16,7 +16,9 @@ import Customers from "./pages/Customer/CustomersMain";
 import CustomerForm from "./pages/Customer/CustomerForm";
 import PriceMappingMain from "./pages/Customer/PriceMappingMain";
 import Inventory from "./pages/Inventory";
-import PurchaseOrders from "./pages/PurchaseOrders";
+import InventoryMain from "./pages/Inventory/InventoryMain";
+import PurchaseOrders from "./pages/PurchaseOrder/PurchaseOrdersMain";
+import PurchaseOrderForm from "./pages/PurchaseOrder/PurchaseOrderForm";
 import Dispatch from "./pages/Dispatch";
 import Billing from "./pages/Billing";
 import Payments from "./pages/Payments";
@@ -118,8 +120,17 @@ const AppRoutes = () => (
       <Route path="/sales/customers/:customerId/price-mapping" element={<ProtectedRoute><PriceMappingMain /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
-      <Route path="/inventory/stock" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-      <Route path="/inventory/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
+      
+      {/* Inventory Routes */}
+      <Route path="/inventory/items" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      
+      <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
+      <Route path="/masters/purchase-orders/:mode" element={<ProtectedRoute><PurchaseOrderForm /></ProtectedRoute>} />
+      <Route path="/masters/purchase-orders/:mode/:id" element={<ProtectedRoute><PurchaseOrderForm /></ProtectedRoute>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />

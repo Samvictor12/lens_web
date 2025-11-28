@@ -14,9 +14,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { getBusinessCategoryDropdown } from "@/services/businessCategory";
+import { getVendorDropdown } from "@/services/vendor";
+import { statusOptions } from "./PurchaseOrder.constants";
 
-export default function CustomerFilter({
+export default function PurchaseOrderFilter({
   filters,
   tempFilters,
   setTempFilters,
@@ -27,22 +28,22 @@ export default function CustomerFilter({
   onClearFilters,
   onCancelFilters,
 }) {
-  const [businessCategories, setBusinessCategories] = useState([]);
+  const [vendors, setVendors] = useState([]);
 
-  // Fetch business categories on mount
+  // Fetch vendors on mount
   useEffect(() => {
-    const fetchBusinessCategories = async () => {
+    const fetchVendors = async () => {
       try {
-        const response = await getBusinessCategoryDropdown();
+        const response = await getVendorDropdown();
         if (response.success) {
-          setBusinessCategories(response.data);
+          setVendors(response.data);
         }
       } catch (error) {
-        console.error("Error fetching business categories:", error);
+        console.error("Error fetching vendors:", error);
       }
     };
 
-    fetchBusinessCategories();
+    fetchVendors();
   }, []);
 
   // Active status options for dropdown
@@ -75,9 +76,9 @@ export default function CustomerFilter({
           </SheetTrigger>
           <SheetContent>
             <SheetHeader>
-              <SheetTitle>Filter Customers</SheetTitle>
+              <SheetTitle>Filter Purchase Orders</SheetTitle>
               <SheetDescription>
-                Apply filters to refine your customer list
+                Apply filters to refine your purchase order list
               </SheetDescription>
             </SheetHeader>
 
@@ -85,7 +86,7 @@ export default function CustomerFilter({
               {/* Active Status Filter */}
               <div className="space-y-2">
                 <Label htmlFor="status-filter" className="text-sm font-medium">
-                  Status
+                  Active Status
                 </Label>
                 <FormSelect
                   name="active_status"
@@ -97,50 +98,87 @@ export default function CustomerFilter({
                       active_status: value,
                     });
                   }}
-                  placeholder="All customers"
+                  placeholder="All purchase orders"
                   isSearchable={false}
                   isClearable={false}
                 />
               </div>
 
-              {/* Business Category Filter */}
+              {/* PO Status Filter */}
               <div className="space-y-2">
-                <Label htmlFor="category-filter" className="text-sm font-medium">
-                  Business Category
+                <Label htmlFor="po-status-filter" className="text-sm font-medium">
+                  PO Status
                 </Label>
                 <FormSelect
-                  name="businessCategory_id"
-                  options={businessCategories}
-                  value={tempFilters.businessCategory_id}
+                  name="status"
+                  options={statusOptions}
+                  value={tempFilters.status}
                   onChange={(value) => {
                     setTempFilters({
                       ...tempFilters,
-                      businessCategory_id: value,
+                      status: value,
                     });
                   }}
-                  placeholder="All categories"
+                  placeholder="All statuses"
+                  isSearchable={false}
+                  isClearable={true}
+                />
+              </div>
+
+              {/* Vendor Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="vendor-filter" className="text-sm font-medium">
+                  Vendor
+                </Label>
+                <FormSelect
+                  name="vendor_id"
+                  options={vendors}
+                  value={tempFilters.vendor_id}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      vendor_id: value,
+                    });
+                  }}
+                  placeholder="All vendors"
                   isSearchable={true}
                   isClearable={true}
                 />
               </div>
 
-              {/* City Filter */}
+              {/* Date Range Filters */}
               <div className="space-y-2">
-                <Label htmlFor="city-filter" className="text-sm font-medium">
-                  City
+                <Label htmlFor="start-date-filter" className="text-sm font-medium">
+                  Order Date From
                 </Label>
                 <FormInput
-                  name="city"
-                  type="text"
-                  placeholder="Enter city name"
-                  value={tempFilters.city}
+                  name="start_date"
+                  type="date"
+                  value={tempFilters.start_date}
                   onChange={(e) =>
                     setTempFilters({
                       ...tempFilters,
-                      city: e.target.value,
+                      start_date: e.target.value,
                     })
                   }
-                  helperText="Search customers by city (case insensitive)"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="end-date-filter" className="text-sm font-medium">
+                  Order Date To
+                </Label>
+                <FormInput
+                  name="end_date"
+                  type="date"
+                  value={tempFilters.end_date}
+                  onChange={(e) =>
+                    setTempFilters({
+                      ...tempFilters,
+                      end_date: e.target.value,
+                    })
+                  }
+                  helperText={tempFilters.start_date ? "Filter orders by date range" : "Select start date first"}
                 />
               </div>
             </div>

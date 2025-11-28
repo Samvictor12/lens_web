@@ -24,6 +24,10 @@ import {
   Warehouse,
   MapPin,
   Box,
+  PackagePlus,
+  ArrowUpDown,
+  BarChart2,
+  ClipboardList,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
@@ -60,16 +64,41 @@ const navItems = [
     icon: ShoppingCart,
     // allowedRoles: ["admin", "sales"],
   },
-
   {
     title: "Inventory",
-    url: "/inventory/stock",
     icon: Package,
     // allowedRoles: ["admin", "inventory"],
+    subItems: [
+      {
+        title: "Inventory Items",
+        url: "/inventory/items",
+        icon: Package,
+      },
+      {
+        title: "Inward Entry",
+        url: "/inventory/inward",
+        icon: PackagePlus,
+      },
+      {
+        title: "Transactions",
+        url: "/inventory/transactions",
+        icon: ArrowUpDown,
+      },
+      {
+        title: "Stock Summary",
+        url: "/inventory/stock",
+        icon: ClipboardList,
+      },
+      {
+        title: "Reports",
+        url: "/inventory/reports",
+        icon: BarChart2,
+      },
+    ],
   },
   {
     title: "Purchase Orders",
-    url: "/inventory/purchase-orders",
+    url: "/masters/purchase-orders",
     icon: Receipt,
     // allowedRoles: ["admin", "inventory"],
   },
@@ -252,6 +281,13 @@ export const AppSidebar = () => {
     return location.pathname.startsWith(item.url);
   });
 
+  const isNavActive = filteredNavItems.some(item => {
+    if (item.subItems) {
+      return item.subItems.some(sub => location.pathname.startsWith(sub.url));
+    }
+    return location.pathname.startsWith(item.url);
+  });
+
   return (
     <TooltipProvider>
       <Sidebar
@@ -268,37 +304,111 @@ export const AppSidebar = () => {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredNavItems.map((item) => (
-                  <SidebarMenuItem
-                    key={item.title}
-                    className={
-                      isActive(item.url)
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        : ""
-                    }
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <SidebarMenuButton asChild>
-                          <NavLink
-                            to={item.url}
-                            className={({ isActive }) =>
-                              isActive
-                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                : "hover:bg-sidebar-accent/50"
-                            }
-                          >
-                            <item.icon className="h-4 w-4" />
-                            {state !== "collapsed" && <span>{item.title}</span>}
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </TooltipTrigger>
-                      {state === "collapsed" && (
-                        <TooltipContent side="right" className="ml-2">
-                          {item.title}
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </SidebarMenuItem>
+                  <React.Fragment key={item.title}>
+                    {item.subItems ? (
+                      <Collapsible.Root
+                        open={
+                          openSubmenus[item.title] ||
+                          isSubmenuActive(item.subItems)
+                        }
+                        onOpenChange={() => toggleSubmenu(item.title)}
+                      >
+                        <SidebarMenuItem>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Collapsible.Trigger asChild>
+                                <SidebarMenuButton
+                                  className={
+                                    isSubmenuActive(item.subItems)
+                                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                      : ""
+                                  }
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  {state !== "collapsed" && (
+                                    <>
+                                      <span>{item.title}</span>
+                                      <ChevronRight
+                                        className={`ml-auto h-4 w-4 transition-transform ${
+                                          openSubmenus[item.title] ||
+                                          isSubmenuActive(item.subItems)
+                                            ? "rotate-90"
+                                            : ""
+                                        }`}
+                                      />
+                                    </>
+                                  )}
+                                </SidebarMenuButton>
+                              </Collapsible.Trigger>
+                            </TooltipTrigger>
+                            {state === "collapsed" && (
+                              <TooltipContent side="right" className="ml-2">
+                                {item.title}
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </SidebarMenuItem>
+
+                        <Collapsible.Content>
+                          {state !== "collapsed" && (
+                            <SidebarMenu className="ml-4 border-l pl-2">
+                              {item.subItems.map((subItem) => (
+                                <SidebarMenuItem key={subItem.title}>
+                                  <SidebarMenuButton asChild>
+                                    <NavLink
+                                      to={subItem.url}
+                                      className={({ isActive }) =>
+                                        isActive
+                                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                          : "hover:bg-sidebar-accent/50"
+                                      }
+                                    >
+                                      <subItem.icon className="h-3.5 w-3.5" />
+                                      <span className="text-sm">
+                                        {subItem.title}
+                                      </span>
+                                    </NavLink>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              ))}
+                            </SidebarMenu>
+                          )}
+                        </Collapsible.Content>
+                      </Collapsible.Root>
+                    ) : (
+                      <SidebarMenuItem
+                        key={item.title}
+                        className={
+                          isActive(item.url)
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                            : ""
+                        }
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <SidebarMenuButton asChild>
+                              <NavLink
+                                to={item.url}
+                                className={({ isActive }) =>
+                                  isActive
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                    : "hover:bg-sidebar-accent/50"
+                                }
+                              >
+                                <item.icon className="h-4 w-4" />
+                                {state !== "collapsed" && <span>{item.title}</span>}
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </TooltipTrigger>
+                          {state === "collapsed" && (
+                            <TooltipContent side="right" className="ml-2">
+                              {item.title}
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </SidebarMenuItem>
+                    )}
+                  </React.Fragment>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>

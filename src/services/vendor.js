@@ -71,13 +71,13 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
       params.active_status = filters.active_status;
     }
 
-    // Category filter (contains search, case insensitive)
-    if (filters.category && filters.category.trim()) {
-      params.category = filters.category.trim();
+    // Category filter (ID from dropdown)
+    if (filters.category && filters.category !== "all" && filters.category !== null) {
+      params.category = filters.category;
     }
 
     // City filter (contains search, case insensitive)
-    if (filters.city && filters.city.trim()) {
+    if (filters.city && typeof filters.city === 'string' && filters.city.trim()) {
       params.city = filters.city.trim();
     }
   }

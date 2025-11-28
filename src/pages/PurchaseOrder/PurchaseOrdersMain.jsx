@@ -1,6 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Upload,
+  Download,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -9,19 +14,18 @@ import { ViewToggle } from "@/components/ui/view-toggle";
 import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getUsers, deleteUser } from "@/services/user";
-import { userFilters } from "./User.constants";
-import UserFilter from "./UserFilter";
-import { useUserColumns } from "./useUserColumns";
-import UserLoginDialog from "./UserLoginDialog";
-import UserCard from "./UserCard";
+import { getPurchaseOrders, deletePurchaseOrder } from "@/services/purchaseOrder";
+import { purchaseOrderFilters } from "./PurchaseOrder.constants";
+import PurchaseOrderFilter from "./PurchaseOrderFilter";
+import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
+import PurchaseOrderCard from "./PurchaseOrderCard";
 
-export default function Users() {
+export default function PurchaseOrders() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState(
-    () => localStorage.getItem("usersView") || "card"
+    () => localStorage.getItem("purchaseOrdersView") || "card"
   );
   const [isLoading, setIsLoading] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
@@ -34,45 +38,35 @@ export default function Users() {
   const [sorting, setSorting] = useState([]);
 
   // Filter states
-  const [filters, setFilters] = useState(userFilters);
-  const [tempFilters, setTempFilters] = useState(userFilters);
+  const [filters, setFilters] = useState(purchaseOrderFilters);
+  const [tempFilters, setTempFilters] = useState(purchaseOrderFilters);
   
-  // User data
-  const [users, setUsers] = useState([]);
+  // Purchase Order data
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [poToDelete, setPoToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Login dialog state
-  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-
-  // Handle delete user click
-  const handleDeleteClick = (user) => {
-    setUserToDelete(user);
+  // Handle delete purchase order click
+  const handleDeleteClick = (po) => {
+    setPoToDelete(po);
     setDeleteDialogOpen(true);
   };
 
-  // Handle login settings click
-  const handleLoginClick = (user) => {
-    setSelectedUser(user);
-    setLoginDialogOpen(true);
-  };
+  // Get table columns with delete handler
+  const columns = usePurchaseOrderColumns(navigate, handleDeleteClick);
 
-  // Get table columns with delete and login handlers
-  const columns = useUserColumns(navigate, handleDeleteClick, handleLoginClick);
-
-  // Fetch users from API
-  const fetchUsers = async () => {
+  // Fetch purchase orders from API
+  const fetchPurchaseOrders = async () => {
     try {
       setIsLoading(true);
       const sortField = sorting[0]?.id || "createdAt";
       const sortDirection = sorting[0]?.desc ? "desc" : "asc";
       
-      const response = await getUsers(
+      const response = await getPurchaseOrders(
         pageIndex + 1, // Backend uses 1-indexed pages
         pageSize,
         searchQuery,
@@ -82,51 +76,51 @@ export default function Users() {
       );
       
       if (response.success) {
-        setUsers(response.data);
+        setPurchaseOrders(response.data);
         setTotalCount(response.pagination.total);
       }
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Error fetching purchase orders:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch users",
+        description: error.message || "Failed to fetch purchase orders",
         variant: "destructive",
       });
-      setUsers([]);
+      setPurchaseOrders([]);
       setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch users on mount and when dependencies change
+  // Fetch purchase orders on mount and when dependencies change
   useEffect(() => {
-    fetchUsers();
+    fetchPurchaseOrders();
   }, [pageIndex, pageSize, searchQuery, filters, sorting]);
 
-  // Handle delete user
+  // Handle delete purchase order
   const handleDeleteConfirm = async () => {
-    if (!userToDelete) return;
+    if (!poToDelete) return;
 
     try {
       setIsDeleting(true);
-      await deleteUser(userToDelete.id);
+      await deletePurchaseOrder(poToDelete.id);
       
       toast({
         title: "Success",
-        description: `User "${userToDelete.name}" has been deleted successfully.`,
+        description: `Purchase Order "${poToDelete.poNumber}" has been deleted successfully.`,
       });
       
       setDeleteDialogOpen(false);
-      setUserToDelete(null);
+      setPoToDelete(null);
       
-      // Refresh user list
-      fetchUsers();
+      // Refresh purchase order list
+      fetchPurchaseOrders();
     } catch (error) {
-      console.error("Error deleting user:", error);
+      console.error("Error deleting purchase order:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete user.",
+        description: error.message || "Failed to delete purchase order.",
         variant: "destructive",
       });
     } finally {
@@ -138,15 +132,17 @@ export default function Users() {
   const hasActiveFilters = useMemo(() => {
     return (
       filters.active_status !== "all" ||
-      filters.department_id !== null ||
-      filters.role_id !== null
+      filters.status !== null ||
+      filters.vendor_id !== null ||
+      filters.start_date !== "" ||
+      filters.end_date !== ""
     );
   }, [filters]);
 
   // Save view preference
   const handleViewChange = (newView) => {
     setView(newView);
-    localStorage.setItem("usersView", newView);
+    localStorage.setItem("purchaseOrdersView", newView);
   };
 
   const handleApplyFilters = () => {
@@ -155,7 +151,7 @@ export default function Users() {
   };
 
   const handleClearFilters = () => {
-    const clearedFilters = userFilters;
+    const clearedFilters = purchaseOrderFilters;
     setTempFilters(clearedFilters);
     setFilters(clearedFilters);
     setShowFilterDialog(false);
@@ -166,29 +162,61 @@ export default function Users() {
     setShowFilterDialog(false);
   };
 
-  // For client-side display, we use the users directly from API
+  // For client-side display, we use the purchase orders directly from API
   // Backend handles filtering, so we just display what we receive
-  const displayUsers = users;
+  const displayPurchaseOrders = purchaseOrders;
+
+  const handleUpload = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Excel upload functionality will be available soon.",
+    });
+  };
+
+  const handleDownloadSample = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Sample template download will be available soon.",
+    });
+  };
 
   return (
     <div className="flex flex-col h-full p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            Users
+            Purchase Orders
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage user master data
+            Manage purchase orders and vendor purchases
           </p>
         </div>
         <div className="flex gap-1.5">
           <Button
+            variant="outline"
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => navigate("/masters/users/add")}
+            onClick={handleDownloadSample}
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Download Sample</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="xs"
+            className="gap-1.5 h-8"
+            onClick={handleUpload}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Upload</span>
+          </Button>
+          <Button
+            size="xs"
+            className="gap-1.5 h-8"
+            onClick={() => navigate("/masters/purchase-orders/add")}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add User</span>
+            <span className="hidden sm:inline">Add Purchase Order</span>
           </Button>
         </div>
       </div>
@@ -199,7 +227,7 @@ export default function Users() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
+              placeholder="Search purchase orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-8 text-sm"
@@ -207,7 +235,7 @@ export default function Users() {
           </div>
           <div className="flex items-center gap-1.5">
             <ViewToggle view={view} onViewChange={handleViewChange} />
-            <UserFilter
+            <PurchaseOrderFilter
               filters={filters}
               tempFilters={tempFilters}
               setTempFilters={setTempFilters}
@@ -226,7 +254,7 @@ export default function Users() {
       {view === "table" && (
         <div className="flex-1 min-h-0">
           <Table
-            data={displayUsers}
+            data={displayPurchaseOrders}
             columns={columns}
             pageIndex={pageIndex}
             pageSize={pageSize}
@@ -240,7 +268,7 @@ export default function Users() {
             setSorting={setSorting}
             sorting={sorting}
             pagination={true}
-            emptyMessage="No users found"
+            emptyMessage="No purchase orders found"
           />
         </div>
       )}
@@ -249,17 +277,16 @@ export default function Users() {
       {view === "card" && (
         <div className="flex-1 min-h-0">
           <CardGrid
-            items={displayUsers}
-            renderCard={(user) => (
-              <UserCard
-                user={user}
-                onView={(id) => navigate(`/masters/users/view/${id}`)}
+            items={displayPurchaseOrders}
+            renderCard={(po) => (
+              <PurchaseOrderCard
+                purchaseOrder={po}
+                onView={(id) => navigate(`/masters/purchase-orders/view/${id}`)}
                 onDelete={handleDeleteClick}
-                onLoginSettings={handleLoginClick}
               />
             )}
             isLoading={isLoading}
-            emptyMessage="No users found"
+            emptyMessage="No purchase orders found"
             pagination={true}
             pageIndex={pageIndex}
             pageSize={pageSize}
@@ -278,21 +305,13 @@ export default function Users() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDeleteConfirm}
-        title="Delete User?"
+        title="Delete Purchase Order?"
         description={
-          userToDelete
-            ? `Are you sure you want to delete "${userToDelete.name}"? This action cannot be undone.`
-            : "Are you sure you want to delete this user?"
+          poToDelete
+            ? `Are you sure you want to delete Purchase Order "${poToDelete.poNumber}"? This action cannot be undone.`
+            : "Are you sure you want to delete this purchase order?"
         }
         isDeleting={isDeleting}
-      />
-
-      {/* Login Credentials Dialog */}
-      <UserLoginDialog
-        open={loginDialogOpen}
-        onOpenChange={setLoginDialogOpen}
-        user={selectedUser}
-        onSuccess={fetchUsers}
       />
     </div>
   );
