@@ -282,9 +282,9 @@ export class CustomerMasterService {
   async getMinimalCustomerById(id) {
     try {
       const customer = await prisma.customer.findUnique({
-        where: { 
+        where: {
           id,
-          delete_status: false 
+          delete_status: false
         },
         select: {
           id: true,
@@ -494,6 +494,7 @@ export class CustomerMasterService {
           code: true,
           city: true,
           phone: true,
+          shopname: true,
         },
         orderBy: {
           name: "asc",
@@ -502,9 +503,10 @@ export class CustomerMasterService {
 
       return customers.map((customer) => ({
         id: customer.id,
-        label: `${customer.name} (${customer.code})${
-          customer.city ? ` - ${customer.city}` : ""
-        }`,
+        label: `${customer.name} (${customer.code})${customer.city ? ` - ${customer.city}` : ""
+          }`,
+        name: customer.name,
+        shopname: customer.shopname,
         value: customer.id,
         code: customer.code,
         phone: customer.phone,

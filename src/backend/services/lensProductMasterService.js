@@ -195,7 +195,7 @@ class LensProductMasterService {
       if (groupBy) {
         const validGroupByFields = ['brand_id', 'category_id', 'material_id', 'type_id'];
         const groupByField = groupBy.toLowerCase();
-        
+
         if (validGroupByFields.includes(groupByField)) {
           const groupedData = await prisma.lensProductMaster.groupBy({
             by: [groupByField],
@@ -270,7 +270,7 @@ class LensProductMasterService {
       };
 
       const actualSortBy = sortFieldMap[sortBy] || sortBy;
-      
+
       // Build orderBy based on whether it's a relation or direct field
       let orderByClause;
       if (['brand', 'category', 'material', 'type'].includes(actualSortBy)) {
@@ -904,7 +904,7 @@ class LensProductMasterService {
       }
 
       if (activeStatus !== undefined && activeStatus !== "all") {
-        where.activeStatus = activeStatus === "active";
+        where.activeStatus = activeStatus == 'true';
       }
       if (brand_id) where.brand_id = parseInt(brand_id);
       if (category_id) where.category_id = parseInt(category_id);
@@ -1089,7 +1089,7 @@ class LensProductMasterService {
       const basePrice = lensPrice.price;
       const fittingPrice = fitting.fitting_price || 0;
       const totalQuantity = parseInt(quantity);
-      
+
       // Cost without discount (lens price + fitting price)
       const lensCostWithoutDiscount = basePrice * totalQuantity;
       const totalFittingPrice = fittingPrice * totalQuantity;
@@ -1154,6 +1154,342 @@ class LensProductMasterService {
       );
     }
   }
+
+  /**
+   * Get hierarchical discount data for a specific customer
+   * @param {number} customerId - Customer ID
+   */
+  async getDiscountHierarchy(customerId) {
+    try {
+      // Check if customer exists
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId, delete_status: false },
+      });
+
+      if (!customer) {
+        throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+      }
+
+      // Check if customer has price mappings
+      const priceMappingCount = await prisma.priceMapping.count({
+        where: {
+          customer_id: customerId,
+        },
+      });
+
+      const hasPriceMapping = priceMappingCount > 0;
+
+      // Fetch all brands with products
+      const brands = await prisma.lensBrandMaster.findMany({
+        where: {
+          deleteStatus: false,
+          activeStatus: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          lensProductMasters: {
+            where: {
+              deleteStatus: false,
+              activeStatus: true,
+            },
+            select: {
+              id: true,
+              product_code: true,
+              lens_name: true,
+              lensPriceMasters: {
+                where: {
+                  deleteStatus: false,
+                  activeStatus: true,
+                },
+                select: {
+                  id: true,
+                  price: true,
+                  lens_id: true,
+                  coating_id: true,
+                  coating: {
+                    select: {
+                      id: true,
+                      name: true,
+                      short_name: true,
+                    },
+                  },
+                  priceMappings: {
+                    where: {
+                      customer_id: customerId,
+                    },
+                    select: {
+                      id: true,
+                      discountRate: true,
+                      discountPrice: true,
+                    },
+                  }, 
+                },
+                orderBy: {
+                  coating: {
+                    name: "asc",
+                  },
+                },
+              },
+            },
+            orderBy: {
+              lens_name: "asc",
+            },
+          },
+        },
+        orderBy: {
+          name: "asc",
+        },
+      });
+
+      // If customer has price mappings, replace standard prices with customer-specific prices
+      if (hasPriceMapping) {
+        // Get all price mappings for this customer
+        const priceMappings = await prisma.priceMapping.findMany({
+          where: {
+            customer_id: customerId,
+          },
+          select: {
+            lensPrice_id: true,
+            discountPrice: true,
+          },
+        });
+
+        // Create a map for quick lookup
+        const priceMappingMap = new Map(
+          priceMappings.map(pm => [pm.lensPrice_id, pm.discounted_price])
+        );
+
+        // Replace prices with customer-specific prices where available
+        brands.forEach(brand => {
+          brand.lensProductMasters.forEach(product => {
+            product.lensPriceMasters.forEach(priceRecord => {
+              const customerPrice = priceMappingMap.get(priceRecord.id);
+              if (customerPrice !== undefined) {
+                priceRecord.price = customerPrice;
+                priceRecord.isCustomerPrice = true;
+              } else {
+                priceRecord.isCustomerPrice = false;
+              }
+            });
+          });
+        });
+      }
+
+      return {
+        brands,
+        hasPriceMapping,
+        customer: {
+          id: customer.id,
+          code: customer.code,
+          name: customer.name,
+          shopname: customer.shopname,
+        },
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error fetching discount hierarchy:", error);
+      throw new APIError(
+        "Failed to fetch discount hierarchy",
+        500,
+        "FETCH_HIERARCHY_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Apply customer-specific discounts at brand, product, or coating level
+   * @param {number} customerId - Customer ID
+   * @param {Array} discounts - Array of discount objects
+   * @param {number} userId - User ID applying the discounts
+   */
+  async applyDiscounts(customerId, discounts, userId) {
+    try {
+      // Verify customer exists
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId, delete_status: false },
+      });
+
+      if (!customer) {
+        throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+      }
+
+      let affectedCount = 0;
+      const results = [];
+
+      for (const discount of discounts) {
+        const { type, brandId, productId, coatingId, priceId, discount: discountPercent } = discount;
+
+        if (type === "brand") {
+          // Apply discount to all products and coatings under this brand
+          const products = await prisma.lensProductMaster.findMany({
+            where: {
+              brand_id: brandId,
+              deleteStatus: false,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          const productIds = products.map((p) => p.id);
+
+          if (productIds.length > 0) {
+            const priceRecords = await prisma.lensPriceMaster.findMany({
+              where: {
+                lens_id: { in: productIds },
+                deleteStatus: false,
+                activeStatus: true,
+              },
+            });
+
+            // Create/update price mapping for each price with discount
+            for (const priceRecord of priceRecords) {
+              const originalPrice = priceRecord.price;
+              const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
+
+              await this.upsertPriceMapping(
+                customerId,
+                priceRecord.id,
+                discountedPrice,
+                userId
+              );
+
+              affectedCount++;
+            }
+
+            results.push({
+              type: "brand",
+              brandId,
+              affectedPrices: priceRecords.length,
+              discountPercent,
+            });
+          }
+        } else if (type === "product") {
+          // Apply discount to all coatings under this product
+          const priceRecords = await prisma.lensPriceMaster.findMany({
+            where: {
+              lens_id: productId,
+              deleteStatus: false,
+              activeStatus: true,
+            },
+          });
+
+          for (const priceRecord of priceRecords) {
+            const originalPrice = priceRecord.price;
+            const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
+
+            await this.upsertPriceMapping(
+              customerId,
+              priceRecord.id,
+              discountedPrice,
+              userId
+            );
+
+            affectedCount++;
+          }
+
+          results.push({
+            type: "product",
+            productId,
+            affectedPrices: priceRecords.length,
+            discountPercent,
+          });
+        } else if (type === "coating") {
+          // Apply discount to specific coating price
+          const priceRecord = await prisma.lensPriceMaster.findUnique({
+            where: { id: priceId },
+          });
+
+          if (priceRecord && !priceRecord.deleteStatus && priceRecord.activeStatus) {
+            const originalPrice = priceRecord.price;
+            const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
+
+            await this.upsertPriceMapping(
+              customerId,
+              priceId,
+              discountedPrice,
+              userId
+            );
+
+            affectedCount++;
+
+            results.push({
+              type: "coating",
+              priceId,
+              affectedPrices: 1,
+              discountPercent,
+              originalPrice,
+              discountedPrice,
+            });
+          }
+        }
+      }
+
+      return {
+        affected: affectedCount,
+        details: results,
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          code: customer.code,
+        },
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error applying discounts:", error);
+      throw new APIError(
+        "Failed to apply discounts",
+        500,
+        "APPLY_DISCOUNT_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Create or update price mapping for a customer
+   * @param {number} customerId - Customer ID
+   * @param {number} lensPriceId - Lens Price Master ID
+   * @param {number} discountedPrice - Discounted price
+   * @param {number} userId - User ID
+   */
+  async upsertPriceMapping(customerId, lensPriceId, discountedPrice, userId) {
+    try {
+      // Check if price mapping already exists
+      const existingMapping = await prisma.priceMapping.findFirst({
+        where: {
+          customer_id: customerId,
+          lensPrice_id: lensPriceId,
+        },
+      });
+
+      if (existingMapping) {
+        // Update existing mapping
+        await prisma.priceMapping.update({
+          where: { id: existingMapping.id },
+          data: {
+            discounted_price: discountedPrice,
+            updatedBy: userId,
+            updatedAt: new Date(),
+          },
+        });
+      } else {
+        // Create new mapping
+        await prisma.priceMapping.create({
+          data: {
+            customer_id: customerId,
+            lensPrice_id: lensPriceId,
+            discountPrice: discountedPrice,
+            createdBy: userId,
+            updatedBy: userId,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error upserting price mapping:", error);
+      throw error;
+    }
+  }
 }
 
 // Create and export service instance
@@ -1186,5 +1522,9 @@ export const getProductsWithPrices =
   serviceInstance.getProductsWithPrices.bind(serviceInstance);
 export const calculateProductCost =
   serviceInstance.calculateProductCost.bind(serviceInstance);
+export const getDiscountHierarchy =
+  serviceInstance.getDiscountHierarchy.bind(serviceInstance);
+export const applyDiscounts =
+  serviceInstance.applyDiscounts.bind(serviceInstance);
 
 export default LensProductMasterService;

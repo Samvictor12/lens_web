@@ -52,6 +52,7 @@ import LocationForm from "./pages/LocationMaster/LocationForm";
 import TrayMain from "./pages/TrayMaster/TrayMain";
 import TrayForm from "./pages/TrayMaster/TrayForm";
 import LogsViewer from "./pages/LogsViewer";
+import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -168,6 +169,7 @@ const AppRoutes = () => (
       <Route path="/masters/tray/:mode" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="/masters/tray/:mode/:id" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="/system/logs" element={<ProtectedRoute><LogsViewer /></ProtectedRoute>} />
+      <Route path="/system/discount-management" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

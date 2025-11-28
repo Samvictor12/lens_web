@@ -421,6 +421,104 @@ router.get(
   lensProductController.getProductsByCategory
 );
 
+// ============================================================================
+// DISCOUNT MANAGEMENT ROUTES (Must be before /:id route)
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/v1/lens-products/discount-hierarchy/{customerId}:
+ *   get:
+ *     summary: Get hierarchical data for discount management for a specific customer
+ *     tags: [Lens Products - Discounts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: customerId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Customer ID
+ *     responses:
+ *       200:
+ *         description: Hierarchical discount data retrieved successfully with customer-specific or standard pricing
+ */
+router.get(
+  "/discount-hierarchy/:customerId",
+  authenticateToken,
+  lensProductController.getDiscountHierarchy
+);
+
+/**
+ * @swagger
+ * /api/v1/lens-products/apply-discounts:
+ *   post:
+ *     summary: Apply customer-specific discounts at brand, product, or coating level
+ *     tags: [Lens Products - Discounts]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - customerId
+ *               - discounts
+ *             properties:
+ *               customerId:
+ *                 type: integer
+ *                 description: Customer ID for whom discounts are applied
+ *               discounts:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       enum: [brand, product, coating]
+ *                     brandId:
+ *                       type: integer
+ *                     productId:
+ *                       type: integer
+ *                     coatingId:
+ *                       type: integer
+ *                     priceId:
+ *                       type: integer
+ *                     discount:
+ *                       type: number
+ *                       minimum: 0
+ *                       maximum: 100
+ *           example:
+ *             customerId: 1
+ *             discounts:
+ *               - type: brand
+ *                 brandId: 1
+ *                 discount: 10
+ *               - type: product
+ *                 brandId: 1
+ *                 productId: 5
+ *                 discount: 15
+ *               - type: coating
+ *                 brandId: 1
+ *                 productId: 5
+ *                 coatingId: 2
+ *                 priceId: 12
+ *                 discount: 20
+ *     responses:
+ *       200:
+ *         description: Discounts applied successfully to customer-specific pricing
+ *       400:
+ *         description: Invalid request data
+ */
+router.post(
+  "/apply-discounts",
+  authenticateToken,
+  lensProductController.applyDiscounts
+);
+
 /**
  * @swagger
  * /api/v1/lens-products/{id}:
