@@ -581,3 +581,98 @@ export const calculateProductCost = async (req, res, next) => {
     next(error);
   }
 };
+
+// ============================================================================
+// DISCOUNT MANAGEMENT
+// ============================================================================
+
+/**
+ * Get hierarchical discount data for a specific customer
+ * @route GET /api/v1/lens-products/discount-hierarchy/:customerId
+ */
+export const getDiscountHierarchy = async (req, res, next) => {
+  try {
+    const { customerId } = req.params;
+    
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer ID is required",
+        errors: [{ field: "customerId", message: "Customer ID is required" }],
+      });
+    }
+
+    const data = await lensProductMasterService.getDiscountHierarchy(parseInt(customerId));
+    res.status(200).json({
+      success: true,
+      message: "Discount hierarchy retrieved successfully",
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Apply customer-specific discounts at brand, product, or coating level
+ * @route POST /api/v1/lens-products/apply-discounts
+ */
+export const applyDiscounts = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new APIError("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    const { customerId, discounts } = req.body;
+
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer ID is required",
+        errors: [{ field: "customerId", message: "Customer ID is required" }],
+      });
+    }
+
+    if (!discounts || !Array.isArray(discounts) || discounts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Discounts array is required",
+        errors: [{ field: "discounts", message: "Must provide at least one discount" }],
+      });
+    }
+
+    // Validate each discount
+    for (const discount of discounts) {
+      if (!discount.type || !["brand", "product", "coating"].includes(discount.type)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid discount type",
+          errors: [{ field: "type", message: "Type must be 'brand', 'product', or 'coating'" }],
+        });
+      }
+
+      if (typeof discount.discount !== "number" || discount.discount < 0 || discount.discount > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid discount percentage",
+          errors: [{ field: "discount", message: "Discount must be between 0 and 100" }],
+        });
+      }
+    }
+
+    const result = await lensProductMasterService.applyDiscounts(
+      parseInt(customerId),
+      discounts,
+      userId
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Discounts applied successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
