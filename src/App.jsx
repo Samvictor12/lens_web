@@ -116,7 +116,7 @@ const AppRoutes = () => (
       <Route path="/sales/orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
       <Route path="/sales/orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-      <Route path="/sales/customers/:customerId/price-mapping" element={<ProtectedRoute><PriceMappingMain /></ProtectedRoute>} />
+      <Route path="/sales/customers/:customerId/price-mapping" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
@@ -169,7 +169,7 @@ const AppRoutes = () => (
       <Route path="/masters/tray/:mode" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="/masters/tray/:mode/:id" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="/system/logs" element={<ProtectedRoute><LogsViewer /></ProtectedRoute>} />
-      <Route path="/system/discount-management" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
+      <Route path="/masters/price-mapping" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>

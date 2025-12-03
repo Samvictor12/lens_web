@@ -1298,9 +1298,10 @@ class LensProductMasterService {
   }
 
   /**
-   * Apply customer-specific discounts at brand, product, or coating level
+   * Apply customer-specific discounts - Optimized to only handle coating-level discounts
+   * Frontend cascades brand/product discounts to coatings before sending
    * @param {number} customerId - Customer ID
-   * @param {Array} discounts - Array of discount objects
+   * @param {Array} discounts - Array of coating-level discount objects
    * @param {number} userId - User ID applying the discounts
    */
   async applyDiscounts(customerId, discounts, userId) {
@@ -1317,112 +1318,40 @@ class LensProductMasterService {
       let affectedCount = 0;
       const results = [];
 
+      // Process all discounts (all should be coating-level from frontend)
       for (const discount of discounts) {
-        const { type, brandId, productId, coatingId, priceId, discount: discountPercent } = discount;
+        const { priceId, discount: discountPercent } = discount;
 
-        if (type === "brand") {
-          // Apply discount to all products and coatings under this brand
-          const products = await prisma.lensProductMaster.findMany({
-            where: {
-              brand_id: brandId,
-              deleteStatus: false,
-            },
-            select: {
-              id: true,
-            },
-          });
+        // Fetch the original price record with status checks in WHERE clause
+        const priceRecord = await prisma.lensPriceMaster.findFirst({
+          where: { 
+            id: priceId,
+            deleteStatus: false,
+            activeStatus: true
+          },
+        });
 
-          const productIds = products.map((p) => p.id);
+        if (priceRecord) {
+          const originalPrice = priceRecord.price;
+          const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
 
-          if (productIds.length > 0) {
-            const priceRecords = await prisma.lensPriceMaster.findMany({
-              where: {
-                lens_id: { in: productIds },
-                deleteStatus: false,
-                activeStatus: true,
-              },
-            });
+          // Upsert price mapping
+          await this.upsertPriceMapping(
+            customerId,
+            priceId,
+            discountedPrice,
+            discountPercent,
+            userId
+          );
 
-            // Create/update price mapping for each price with discount
-            for (const priceRecord of priceRecords) {
-              const originalPrice = priceRecord.price;
-              const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
-
-              await this.upsertPriceMapping(
-                customerId,
-                priceRecord.id,
-                discountedPrice,
-                userId
-              );
-
-              affectedCount++;
-            }
-
-            results.push({
-              type: "brand",
-              brandId,
-              affectedPrices: priceRecords.length,
-              discountPercent,
-            });
-          }
-        } else if (type === "product") {
-          // Apply discount to all coatings under this product
-          const priceRecords = await prisma.lensPriceMaster.findMany({
-            where: {
-              lens_id: productId,
-              deleteStatus: false,
-              activeStatus: true,
-            },
-          });
-
-          for (const priceRecord of priceRecords) {
-            const originalPrice = priceRecord.price;
-            const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
-
-            await this.upsertPriceMapping(
-              customerId,
-              priceRecord.id,
-              discountedPrice,
-              userId
-            );
-
-            affectedCount++;
-          }
+          affectedCount++;
 
           results.push({
-            type: "product",
-            productId,
-            affectedPrices: priceRecords.length,
+            priceId,
+            originalPrice,
             discountPercent,
+            discountedPrice,
           });
-        } else if (type === "coating") {
-          // Apply discount to specific coating price
-          const priceRecord = await prisma.lensPriceMaster.findUnique({
-            where: { id: priceId },
-          });
-
-          if (priceRecord && !priceRecord.deleteStatus && priceRecord.activeStatus) {
-            const originalPrice = priceRecord.price;
-            const discountedPrice = originalPrice - (originalPrice * discountPercent) / 100;
-
-            await this.upsertPriceMapping(
-              customerId,
-              priceId,
-              discountedPrice,
-              userId
-            );
-
-            affectedCount++;
-
-            results.push({
-              type: "coating",
-              priceId,
-              affectedPrices: 1,
-              discountPercent,
-              originalPrice,
-              discountedPrice,
-            });
-          }
         }
       }
 
@@ -1451,9 +1380,10 @@ class LensProductMasterService {
    * @param {number} customerId - Customer ID
    * @param {number} lensPriceId - Lens Price Master ID
    * @param {number} discountedPrice - Discounted price
+   * @param {number} discountRate - Discount percentage
    * @param {number} userId - User ID
    */
-  async upsertPriceMapping(customerId, lensPriceId, discountedPrice, userId) {
+  async upsertPriceMapping(customerId, lensPriceId, discountedPrice, discountRate, userId) {
     try {
       // Check if price mapping already exists
       const existingMapping = await prisma.priceMapping.findFirst({
@@ -1468,7 +1398,8 @@ class LensProductMasterService {
         await prisma.priceMapping.update({
           where: { id: existingMapping.id },
           data: {
-            discounted_price: discountedPrice,
+            discountPrice: discountedPrice,
+            discountRate: discountRate,
             updatedBy: userId,
             updatedAt: new Date(),
           },
@@ -1480,6 +1411,7 @@ class LensProductMasterService {
             customer_id: customerId,
             lensPrice_id: lensPriceId,
             discountPrice: discountedPrice,
+            discountRate: discountRate,
             createdBy: userId,
             updatedBy: userId,
           },
