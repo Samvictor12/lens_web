@@ -279,6 +279,20 @@ export const getLensCoatingsDropdown = async () => {
 };
 
 /**
+ * Get dropdown options for lens materials
+ */
+export const getLensMaterialsDropdown = async () => {
+    try {
+        const response = await apiClient("get", "/v1/lens-materials/dropdown");
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch lens materials"
+        );
+    }
+};
+
+/**
  * Get dropdown options for lens tintings
  */
 export const getLensTintingsDropdown = async () => {

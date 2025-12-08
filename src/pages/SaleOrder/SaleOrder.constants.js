@@ -30,9 +30,7 @@ export const defaultSaleOrder = {
   rightAxis: "",
   rightAdd: "",
   rightDia: "",
-  rightBase: "",
-  rightBaseSize: "",
-  rightBled: "",
+  // base and bled removed
   
   // Left Eye Specs
   leftSpherical: "",
@@ -40,9 +38,7 @@ export const defaultSaleOrder = {
   leftAxis: "",
   leftAdd: "",
   leftDia: "",
-  leftBase: "",
-  leftBaseSize: "",
-  leftBled: "",
+  // base and bled removed
   
   // Dispatch Info (when status = READY_FOR_DISPATCH)
   dispatchStatus: "Pending",

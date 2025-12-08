@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model DepartmentDetails {
@@ -248,6 +249,7 @@ model LensMaterialMaster {
   Usercreated        User                @relation("materialUserCreate", fields: [createdBy], references: [id])
   Userupdated        User?               @relation("materialUserUpdate", fields: [updatedBy], references: [id])
   lensProductMasters LensProductMaster[]
+  saleOrders         SaleOrder[]
 }
 
 model LensCoatingMaster {
@@ -304,20 +306,21 @@ model LensDiaMaster {
 }
 
 model LensTintingMaster {
-  id           Int         @id @default(autoincrement())
-  name         String      @unique
-  short_name   String
-  description  String?
-  activeStatus Boolean     @default(true)
-  deleteStatus Boolean     @default(false)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime?   @updatedAt
-  createdBy    Int
-  updatedBy    Int?
+  id            Int         @id @default(autoincrement())
+  name          String      @unique
+  short_name    String
+  description   String?
+  tinting_price Float?
+  activeStatus  Boolean     @default(true)
+  deleteStatus  Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime?   @updatedAt
+  createdBy     Int
+  updatedBy     Int?
   // Relationships Fields
-  Usercreated  User        @relation("TintingUserCreate", fields: [createdBy], references: [id])
-  Userupdated  User?       @relation("TintingUserUpdate", fields: [updatedBy], references: [id])
-  saleOrders   SaleOrder[]
+  Usercreated   User        @relation("TintingUserCreate", fields: [createdBy], references: [id])
+  Userupdated   User?       @relation("TintingUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders    SaleOrder[]
 }
 
 model LensBrandMaster {
@@ -569,6 +572,7 @@ model SaleOrder {
   Type_id          Int? // "Glass", "Plastic", "Polycarbonate", "Trivex"
   dia_id           Int?
   fitting_id       Int? // "Standard", "Premium", "Custom"
+  material_id      Int? // Material type reference
   coating_id       Int? // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
   tinting_id       Int? // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
   lensProduct      LensProductMaster?  @relation(fields: [lens_id], references: [id])
@@ -576,6 +580,7 @@ model SaleOrder {
   lensType         LensTypeMaster?     @relation(fields: [Type_id], references: [id])
   dia              LensDiaMaster?      @relation(fields: [dia_id], references: [id])
   fitting          LensFittingMaster?  @relation(fields: [fitting_id], references: [id])
+  material         LensMaterialMaster? @relation(fields: [material_id], references: [id])
   coating          LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
   tinting          LensTintingMaster?  @relation(fields: [tinting_id], references: [id])
   // Eye selection
@@ -587,18 +592,14 @@ model SaleOrder {
   rightAxis        String?
   rightAdd         String?
   rightDia         String?
-  rightBase        String?
-  rightBaseSize    String?
-  rightBled        String?
+  // rightBase, rightBaseSize, rightBled removed
   // Left eye specifications
   leftSpherical    String?
   leftCylindrical  String?
   leftAxis         String?
   leftAdd          String?
   leftDia          String?
-  leftBase         String?
-  leftBaseSize     String?
-  leftBled         String?
+  // leftBase, leftBaseSize, leftBled removed
   // Dispatch information
   dispatchStatus    String?             @default("Pending") // "Pending", "Assigned", "In Transit", "Delivered"
   assignedPerson_id Int?

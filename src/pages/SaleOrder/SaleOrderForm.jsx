@@ -23,6 +23,7 @@ import {
     getLensDiaDropdown,
     getLensFittingsDropdown,
     getLensCoatingsDropdown,
+    getLensMaterialsDropdown,
     getLensTintingsDropdown,
     getUsersDropdown,
     getLensPriceId,
@@ -61,6 +62,7 @@ export default function SaleOrderForm() {
     const [dias, setDias] = useState([]);
     const [fittings, setFittings] = useState([]);
     const [coatings, setCoatings] = useState([]);
+    const [materials, setMaterials] = useState([]);
     const [tintings, setTintings] = useState([]);
     const [users, setUsers] = useState([]);
 
@@ -81,6 +83,7 @@ export default function SaleOrderForm() {
                 diasRes,
                 fittingsRes,
                 coatingsRes,
+                materialsRes,
                 tintingsRes,
                 usersRes,
             ] = await Promise.all([
@@ -91,6 +94,7 @@ export default function SaleOrderForm() {
                 getLensDiaDropdown(),
                 getLensFittingsDropdown(),
                 getLensCoatingsDropdown(),
+                getLensMaterialsDropdown(),
                 getLensTintingsDropdown(),
                 getUsersDropdown(),
             ]);
@@ -103,6 +107,7 @@ export default function SaleOrderForm() {
             if (diasRes.success) setDias(diasRes.data || []);
             if (fittingsRes.success) setFittings(fittingsRes.data || []);
             if (coatingsRes.success) setCoatings(coatingsRes.data || []);
+            if (materialsRes.success) setMaterials(materialsRes.data || []);
             if (tintingsRes.success) setTintings(tintingsRes.data || []);
             if (usersRes.success) setUsers(usersRes.data || []);
         } catch (error) {
@@ -194,6 +199,9 @@ export default function SaleOrderForm() {
         }
         if (!formData.fitting_id && !formData.freeFitting) {
             newErrors.fitting_id = "Fitting type is required (or check Free Fitting)";
+        }
+        if (!formData.material_id) {
+            newErrors.material_id = "Material is required";
         }
         if (!formData.tinting_id) {
             newErrors.tinting_id = "Tinting is required";
@@ -375,9 +383,6 @@ export default function SaleOrderForm() {
                 rightAxis: "",
                 rightAdd: "",
                 rightDia: "",
-                rightBase: "",
-                rightBaseSize: "",
-                rightBled: "",
             }));
         }
 
@@ -389,9 +394,6 @@ export default function SaleOrderForm() {
                 leftAxis: "",
                 leftAdd: "",
                 leftDia: "",
-                leftBase: "",
-                leftBaseSize: "",
-                leftBled: "",
             }));
         }
     };
@@ -994,6 +996,18 @@ export default function SaleOrderForm() {
                                     error={errors.fitting_id}
                                 />
                                 <FormSelect
+                                    singleLine={true} label="Material"
+                                    name="material_id"
+                                    options={materials}
+                                    value={formData.material_id}
+                                    onChange={(value) => handleSelectChange("material_id", value)}
+                                    placeholder="Material"
+                                    isSearchable={false}
+                                    disabled={!isEditing}
+                                    required
+                                    error={errors.material_id}
+                                />
+                                <FormSelect
                                     singleLine={true} label="Tinting Name"
                                     name="tinting_id"
                                     options={tintings}
@@ -1005,11 +1019,7 @@ export default function SaleOrderForm() {
                                     required
                                     error={errors.tinting_id}
                                 />
-                            </div>
-
-                            {/* Row 4 - Coating (changed order as per MD) */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="md:col-span-3">
+                                <div className="md:col-span-2">
                                     <FormSelect
                                         singleLine={true} label="Coating Name"
                                         name="coating_id"
@@ -1024,7 +1034,6 @@ export default function SaleOrderForm() {
                                     />
                                 </div>
                             </div>
-
 
                         </CardContent>
                     </Card>
@@ -1100,27 +1109,7 @@ export default function SaleOrderForm() {
                                             onChange={handleChange}
                                             disabled={!isEditing || !formData.rightEye}
                                         />
-                                        <FormInput
-                                            singleLine={true} label="Base"
-                                            name="rightBase"
-                                            value={formData.rightBase}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
-                                        />
-                                        <FormInput
-                                            singleLine={true} label="Base Size"
-                                            name="rightBaseSize"
-                                            value={formData.rightBaseSize}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
-                                        />
-                                        <FormInput
-                                            singleLine={true} label="Bled"
-                                            name="rightBled"
-                                            value={formData.rightBled}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
-                                        />
+                                        {/* Base and bled fields removed */}
                                     </div>
                                 </div>
 
@@ -1189,27 +1178,7 @@ export default function SaleOrderForm() {
                                             onChange={handleChange}
                                             disabled={!isEditing || !formData.leftEye}
                                         />
-                                        <FormInput
-                                            singleLine={true} label="Base"
-                                            name="leftBase"
-                                            value={formData.leftBase}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
-                                        />
-                                        <FormInput
-                                            singleLine={true} label="Base Size"
-                                            name="leftBaseSize"
-                                            value={formData.leftBaseSize}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
-                                        />
-                                        <FormInput
-                                            singleLine={true} label="Bled"
-                                            name="leftBled"
-                                            value={formData.leftBled}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
-                                        />
+                                        {/* Base and bled fields removed */}
                                     </div>
                                 </div>
 

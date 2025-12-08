@@ -90,6 +90,15 @@ export class SaleOrderService {
         }
       }
 
+      if (orderData.material_id) {
+        const material = await prisma.lensMaterialMaster.findUnique({
+          where: { id: orderData.material_id, deleteStatus: false }
+        });
+        if (!material) {
+          throw new APIError('Lens material not found', 404, 'MATERIAL_NOT_FOUND');
+        }
+      }
+
       if (orderData.coating_id) {
         const coating = await prisma.lensCoatingMaster.findUnique({
           where: { id: orderData.coating_id, deleteStatus: false }
@@ -171,6 +180,7 @@ export class SaleOrderService {
           Type_id: orderData.Type_id,
           dia_id: orderData.dia_id,
           fitting_id: orderData.fitting_id,
+          material_id: orderData.material_id,
           coating_id: orderData.coating_id,
           tinting_id: orderData.tinting_id,
           
@@ -184,9 +194,6 @@ export class SaleOrderService {
           rightAxis: orderData.rightAxis,
           rightAdd: orderData.rightAdd,
           rightDia: orderData.rightDia,
-          rightBase: orderData.rightBase,
-          rightBaseSize: orderData.rightBaseSize,
-          rightBled: orderData.rightBled,
           
           // Left eye specifications
           leftSpherical: orderData.leftSpherical,
@@ -194,9 +201,6 @@ export class SaleOrderService {
           leftAxis: orderData.leftAxis,
           leftAdd: orderData.leftAdd,
           leftDia: orderData.leftDia,
-          leftBase: orderData.leftBase,
-          leftBaseSize: orderData.leftBaseSize,
-          leftBled: orderData.leftBled,
           
           // Dispatch information
           dispatchStatus: orderData.dispatchStatus || 'Pending',
@@ -473,6 +477,7 @@ export class SaleOrderService {
           },
           category: true,
           lensType: true,
+          material: true,
           coating: true,
           fitting: true,
           dia: true,
@@ -612,6 +617,7 @@ export class SaleOrderService {
           lensProduct: true,
           category: true,
           lensType: true,
+          material: true,
           coating: true,
           fitting: true,
           dia: true,

@@ -287,15 +287,6 @@ const controller = new SaleOrderController();
  *         rightDia:
  *           type: string
  *           description: Right eye diameter
- *         rightBase:
- *           type: string
- *           description: Right eye base
- *         rightBaseSize:
- *           type: string
- *           description: Right eye base size
- *         rightBled:
- *           type: string
- *           description: Right eye bled
  *         leftSpherical:
  *           type: string
  *           description: Left eye spherical value
@@ -315,15 +306,6 @@ const controller = new SaleOrderController();
  *         leftDia:
  *           type: string
  *           description: Left eye diameter
- *         leftBase:
- *           type: string
- *           description: Left eye base
- *         leftBaseSize:
- *           type: string
- *           description: Left eye base size
- *         leftBled:
- *           type: string
- *           description: Left eye bled
  *         lensPrice:
  *           type: number
  *           minimum: 0

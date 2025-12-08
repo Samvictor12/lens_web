@@ -177,7 +177,7 @@ export const deleteLensMaterial = async (req, res, next) => {
  */
 export const getLensMaterialsDropdown = async (req, res, next) => {
   try {
-    const materials = await lensMaterialService.getLensMaterialsForDropdown();
+    const materials = await lensMaterialService.getMaterialDropdown();
     res.status(200).json({
       success: true,
       message: 'Lens materials dropdown retrieved successfully',
