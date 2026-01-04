@@ -271,21 +271,21 @@ model LensCoatingMaster {
 }
 
 model LensFittingMaster {
-  id           Int         @id @default(autoincrement())
-  name         String      @unique
-  short_name   String
-  description  String?
+  id            Int         @id @default(autoincrement())
+  name          String      @unique
+  short_name    String
+  description   String?
   fitting_price Float?
-  activeStatus Boolean     @default(true)
-  deleteStatus Boolean     @default(false)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime?   @updatedAt
-  createdBy    Int
-  updatedBy    Int?
+  activeStatus  Boolean     @default(true)
+  deleteStatus  Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime?   @updatedAt
+  createdBy     Int
+  updatedBy     Int?
   // Relationships Fields
-  Usercreated  User        @relation("FittingUserCreate", fields: [createdBy], references: [id])
-  Userupdated  User?       @relation("FittingUserUpdate", fields: [updatedBy], references: [id])
-  saleOrders   SaleOrder[]
+  Usercreated   User        @relation("FittingUserCreate", fields: [createdBy], references: [id])
+  Userupdated   User?       @relation("FittingUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders    SaleOrder[]
 }
 
 model LensDiaMaster {
@@ -357,40 +357,40 @@ model LensTypeMaster {
 }
 
 model LensProductMaster {
-  id                   Int                @id @default(autoincrement())
-  brand_id             Int
-  category_id          Int
-  material_id          Int
-  type_id              Int
-  product_code         String
-  lens_name            String
-  index_value          Int?
-  sphere_min           Float?
-  sphere_max           Float?
-  sphere_extra_charge  Float?             @default(0) // Extra charge if sphere exceeds max
-  cyl_min              Float?
-  cyl_max              Float?
-  cylinder_extra_charge Float?            @default(0) // Extra charge if cylinder exceeds max
-  add_min              Float?
-  add_max              Float?
-  range_text           String?
+  id                    Int                @id @default(autoincrement())
+  brand_id              Int
+  category_id           Int
+  material_id           Int
+  type_id               Int
+  product_code          String
+  lens_name             String
+  index_value           Int?
+  sphere_min            Float?
+  sphere_max            Float?
+  sphere_extra_charge   Float?             @default(0) // Extra charge if sphere exceeds max
+  cyl_min               Float?
+  cyl_max               Float?
+  cylinder_extra_charge Float?             @default(0) // Extra charge if cylinder exceeds max
+  add_min               Float?
+  add_max               Float?
+  range_text            String?
   // Default fields
-  activeStatus         Boolean            @default(true)
-  deleteStatus         Boolean            @default(false)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime?          @updatedAt
-  createdBy            Int
-  updatedBy            Int?
+  activeStatus          Boolean            @default(true)
+  deleteStatus          Boolean            @default(false)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime?          @updatedAt
+  createdBy             Int
+  updatedBy             Int?
   // Relationships Fields
-  brand            LensBrandMaster    @relation(fields: [brand_id], references: [id])
-  category         LensCategoryMaster @relation(fields: [category_id], references: [id])
-  material         LensMaterialMaster @relation(fields: [material_id], references: [id])
-  type             LensTypeMaster     @relation(fields: [type_id], references: [id])
-  Usercreated      User               @relation("productUserCreate", fields: [createdBy], references: [id])
-  Userupdated      User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
+  brand                 LensBrandMaster    @relation(fields: [brand_id], references: [id])
+  category              LensCategoryMaster @relation(fields: [category_id], references: [id])
+  material              LensMaterialMaster @relation(fields: [material_id], references: [id])
+  type                  LensTypeMaster     @relation(fields: [type_id], references: [id])
+  Usercreated           User               @relation("productUserCreate", fields: [createdBy], references: [id])
+  Userupdated           User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
-  lensPriceMasters LensPriceMaster[]
-  saleOrders       SaleOrder[]
+  lensPriceMasters      LensPriceMaster[]
+  saleOrders            SaleOrder[]
 }
 
 model LensPriceMaster {
@@ -551,54 +551,54 @@ model PriceMapping {
 }
 
 model SaleOrder {
-  id               Int                 @id @default(autoincrement())
-  orderNo          String              @unique // e.g., SO-2025-001
-  customerId       Int
-  customer         Customer            @relation(fields: [customerId], references: [id])
-  status           SaleOrderStatus     @default(DRAFT)
+  id                Int                 @id @default(autoincrement())
+  orderNo           String              @unique // e.g., SO-2025-001
+  customerId        Int
+  customer          Customer            @relation(fields: [customerId], references: [id])
+  status            SaleOrderStatus     @default(DRAFT)
   // Basic order information
-  customerRefNo    String? // Customer reference number
-  orderDate        DateTime            @default(now())
-  type             String? // "Normal Processing", "Rush Processing", "Premium Processing"
-  deliverySchedule DateTime?
-  remark           String?
-  itemRefNo        String?
-  freeLens         Boolean             @default(false)
-  urgentOrder      Boolean             @default(false)
-  freeFitting      Boolean             @default(false)
+  customerRefNo     String? // Customer reference number
+  orderDate         DateTime            @default(now())
+  type              String? // "Normal Processing", "Rush Processing", "Premium Processing"
+  deliverySchedule  DateTime?
+  remark            String?
+  itemRefNo         String?
+  freeLens          Boolean             @default(false)
+  urgentOrder       Boolean             @default(false)
+  freeFitting       Boolean             @default(false)
   // Lens details
-  lens_id          Int?
-  category_id      Int? // "Single Vision", "BiFocal", "Progressive", "Reading"
-  Type_id          Int? // "Glass", "Plastic", "Polycarbonate", "Trivex"
-  dia_id           Int?
-  fitting_id       Int? // "Standard", "Premium", "Custom"
-  material_id      Int? // Material type reference
-  coating_id       Int? // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
-  tinting_id       Int? // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
-  lensProduct      LensProductMaster?  @relation(fields: [lens_id], references: [id])
-  category         LensCategoryMaster? @relation(fields: [category_id], references: [id])
-  lensType         LensTypeMaster?     @relation(fields: [Type_id], references: [id])
-  dia              LensDiaMaster?      @relation(fields: [dia_id], references: [id])
-  fitting          LensFittingMaster?  @relation(fields: [fitting_id], references: [id])
-  material         LensMaterialMaster? @relation(fields: [material_id], references: [id])
-  coating          LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
-  tinting          LensTintingMaster?  @relation(fields: [tinting_id], references: [id])
+  lens_id           Int?
+  category_id       Int? // "Single Vision", "BiFocal", "Progressive", "Reading"
+  Type_id           Int? // "Glass", "Plastic", "Polycarbonate", "Trivex"
+  dia_id            Int?
+  fitting_id        Int? // "Standard", "Premium", "Custom"
+  material_id       Int? // Material type reference
+  coating_id        Int? // "Anti-Reflection", "UV Protection", "Blue Light", "Scratch Resistant"
+  tinting_id        Int? // "Clear", "Light Brown", "Dark Brown", "Gray", "Green"
+  lensProduct       LensProductMaster?  @relation(fields: [lens_id], references: [id])
+  category          LensCategoryMaster? @relation(fields: [category_id], references: [id])
+  lensType          LensTypeMaster?     @relation(fields: [Type_id], references: [id])
+  dia               LensDiaMaster?      @relation(fields: [dia_id], references: [id])
+  fitting           LensFittingMaster?  @relation(fields: [fitting_id], references: [id])
+  material          LensMaterialMaster? @relation(fields: [material_id], references: [id])
+  coating           LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
+  tinting           LensTintingMaster?  @relation(fields: [tinting_id], references: [id])
   // Eye selection
-  rightEye         Boolean             @default(false)
-  leftEye          Boolean             @default(false)
+  rightEye          Boolean             @default(false)
+  leftEye           Boolean             @default(false)
   // Right eye specifications
-  rightSpherical   String?
-  rightCylindrical String?
-  rightAxis        String?
-  rightAdd         String?
-  rightDia         String?
+  rightSpherical    String?
+  rightCylindrical  String?
+  rightAxis         String?
+  rightAdd          String?
+  rightDia          String?
   // rightBase, rightBaseSize, rightBled removed
   // Left eye specifications
-  leftSpherical    String?
-  leftCylindrical  String?
-  leftAxis         String?
-  leftAdd          String?
-  leftDia          String?
+  leftSpherical     String?
+  leftCylindrical   String?
+  leftAxis          String?
+  leftAdd           String?
+  leftDia           String?
   // leftBase, leftBaseSize, leftBled removed
   // Dispatch information
   dispatchStatus    String?             @default("Pending") // "Pending", "Assigned", "In Transit", "Delivered"
@@ -609,10 +609,13 @@ model SaleOrder {
   actualDate        DateTime?
   actualTime        String?
   dispatchNotes     String?
-  
+
   // Billing information
   lensPrice       Float           @default(0)
+  rightEyeExtra   Float           @default(0)
+  leftEyeExtra    Float           @default(0)
   fittingPrice    Float           @default(0)
+  tintingPrice    Float           @default(0)
   discount        Float           @default(0) // Percentage discount
   additionalPrice Json? // For any additional charges
   // Relations
@@ -676,49 +679,49 @@ model TrayMaster {
 // ============================================
 
 model AuditLog {
-  id            Int      @id @default(autoincrement())
-  userId        Int?
-  action        String   // CREATE, UPDATE, DELETE, READ
-  entity        String   // Table/Model name (e.g., "SaleOrder", "Customer")
-  entityId      Int?     // ID of the affected record
-  oldValues     Json?    // Previous values (for UPDATE/DELETE)
-  newValues     Json?    // New values (for CREATE/UPDATE)
-  changes       Json?    // Specific field changes
-  ipAddress     String?
-  userAgent     String?
-  method        String?  // HTTP method (GET, POST, PUT, DELETE)
-  endpoint      String?  // API endpoint
-  statusCode    Int?     // HTTP status code
-  success       Boolean  @default(true)
-  errorMessage  String?  @db.Text
-  metadata      Json?    // Additional context
-  createdAt     DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  userId       Int?
+  action       String // CREATE, UPDATE, DELETE, READ
+  entity       String // Table/Model name (e.g., "SaleOrder", "Customer")
+  entityId     Int? // ID of the affected record
+  oldValues    Json? // Previous values (for UPDATE/DELETE)
+  newValues    Json? // New values (for CREATE/UPDATE)
+  changes      Json? // Specific field changes
+  ipAddress    String?
+  userAgent    String?
+  method       String? // HTTP method (GET, POST, PUT, DELETE)
+  endpoint     String? // API endpoint
+  statusCode   Int? // HTTP status code
+  success      Boolean  @default(true)
+  errorMessage String?  @db.Text
+  metadata     Json? // Additional context
+  createdAt    DateTime @default(now())
   // Relationship
-  user          User?    @relation("auditLogUser", fields: [userId], references: [id])
+  user         User?    @relation("auditLogUser", fields: [userId], references: [id])
 }
 
 model ErrorLog {
-  id            Int      @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   userId        Int?
-  errorType     String   // Type of error (e.g., "ValidationError", "DatabaseError")
-  errorMessage  String   @db.Text
-  errorStack    String?  @db.Text
-  errorCode     String?  // Custom error code
-  statusCode    Int?     // HTTP status code
-  method        String?  // HTTP method
-  endpoint      String?  // API endpoint
-  requestBody   Json?    // Request payload
-  requestParams Json?    // Query/path parameters
+  errorType     String // Type of error (e.g., "ValidationError", "DatabaseError")
+  errorMessage  String    @db.Text
+  errorStack    String?   @db.Text
+  errorCode     String? // Custom error code
+  statusCode    Int? // HTTP status code
+  method        String? // HTTP method
+  endpoint      String? // API endpoint
+  requestBody   Json? // Request payload
+  requestParams Json? // Query/path parameters
   ipAddress     String?
   userAgent     String?
-  severity      String   @default("ERROR") // INFO, WARNING, ERROR, CRITICAL
-  resolved      Boolean  @default(false)
+  severity      String    @default("ERROR") // INFO, WARNING, ERROR, CRITICAL
+  resolved      Boolean   @default(false)
   resolvedAt    DateTime?
   resolvedBy    Int?
-  resolution    String?  @db.Text
-  metadata      Json?    // Additional error context
-  createdAt     DateTime @default(now())
+  resolution    String?   @db.Text
+  metadata      Json? // Additional error context
+  createdAt     DateTime  @default(now())
   // Relationships
-  user          User?    @relation("errorLogUser", fields: [userId], references: [id])
-  resolver      User?    @relation("errorLogResolver", fields: [resolvedBy], references: [id])
+  user          User?     @relation("errorLogUser", fields: [userId], references: [id])
+  resolver      User?     @relation("errorLogResolver", fields: [resolvedBy], references: [id])
 }

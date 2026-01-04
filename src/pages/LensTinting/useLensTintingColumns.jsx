@@ -45,6 +45,18 @@ export const useLensTintingColumns = (navigate, onDelete) => {
       ),
     },
     {
+      accessorKey: "tinting_price",
+      header: "Price",
+      sortable: true,
+      cell: (tinting) => (
+        <span className="text-xs font-medium">
+          {tinting.tinting_price !== null && tinting.tinting_price !== undefined
+            ? `₹${parseFloat(tinting.tinting_price).toFixed(2)}`
+            : "-"}
+        </span>
+      ),
+    },
+    {
       accessorKey: "orderCount",
       header: "Sale Orders",
       sortable: false,

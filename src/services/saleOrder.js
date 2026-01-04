@@ -294,10 +294,15 @@ export const getLensMaterialsDropdown = async () => {
 
 /**
  * Get dropdown options for lens tintings
+ * @param {Object} filters - Optional filters { name, short_name }
  */
-export const getLensTintingsDropdown = async () => {
+export const getLensTintingsDropdown = async (filters = {}) => {
     try {
-        const response = await apiClient("get", "/v1/lens-tintings/dropdown");
+        const params = {};
+        if (filters.name) params.name = filters.name;
+        if (filters.short_name) params.short_name = filters.short_name;
+
+        const response = await apiClient("get", "/v1/lens-tintings/dropdown", { params });
         return response;
     } catch (error) {
         throw new Error(
@@ -316,6 +321,48 @@ export const getUsersDropdown = async () => {
     } catch (error) {
         throw new Error(
             error.response?.data?.message || "Failed to fetch users"
+        );
+    }
+};
+
+/**
+ * Get lens product details by ID including min/max ranges and extra charges
+ */
+export const getLensProductById = async (lensId) => {
+    try {
+        const response = await apiClient("get", `/v1/lens-products/${lensId}`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch lens product details"
+        );
+    }
+};
+
+/**
+ * Get fitting details by ID including fitting price
+ */
+export const getFittingById = async (fittingId) => {
+    try {
+        const response = await apiClient("get", `/lens-fittings/${fittingId}`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch fitting details"
+        );
+    }
+};
+
+/**
+ * Get tinting details by ID including tinting price
+ */
+export const getTintingById = async (tintingId) => {
+    try {
+        const response = await apiClient("get", `/v1/lens-tintings/${tintingId}`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch tinting details"
         );
     }
 };

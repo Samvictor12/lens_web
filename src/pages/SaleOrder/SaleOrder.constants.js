@@ -52,7 +52,10 @@ export const defaultSaleOrder = {
   
   // Billing
   lensPrice: 0,
+  rightEyeExtra: 0,
+  leftEyeExtra: 0,
   fittingPrice: 0,
+  tintingPrice: 0,
   discount: 0,
   additionalPrice: [],
 };

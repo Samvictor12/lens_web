@@ -159,6 +159,13 @@ export const validateCreateSaleOrder = (data) => {
     }
   }
 
+  if (data.material_id !== undefined && data.material_id !== null && data.material_id !== '') {
+    const materialId = parseInt(data.material_id);
+    if (isNaN(materialId) || materialId <= 0) {
+      errors.push({ field: 'material_id', message: 'Material ID must be a valid positive number' });
+    }
+  }
+
   // Eye selection validation
   if (data.rightEye !== undefined && typeof data.rightEye !== 'boolean') {
     errors.push({ field: 'rightEye', message: 'Right eye must be a boolean value' });
@@ -225,6 +232,10 @@ export const validateCreateSaleOrder = (data) => {
 
   if (data.fittingPrice !== undefined && data.fittingPrice !== null && data.fittingPrice !== '' && !isValidPositiveNumber(data.fittingPrice)) {
     errors.push({ field: 'fittingPrice', message: 'Fitting price must be a valid positive number' });
+  }
+
+  if (data.tintingPrice !== undefined && data.tintingPrice !== null && data.tintingPrice !== '' && !isValidPositiveNumber(data.tintingPrice)) {
+    errors.push({ field: 'tintingPrice', message: 'Tinting price must be a valid positive number' });
   }
 
   if (data.discount !== undefined && data.discount !== null && data.discount !== '') {
@@ -297,7 +308,10 @@ export const validateCreateSaleOrder = (data) => {
       actualTime: data.actualTime?.trim() || null,
       dispatchNotes: data.dispatchNotes?.trim() || null,
       lensPrice: data.lensPrice ? parseFloat(data.lensPrice) : 0,
+      rightEyeExtra: data.rightEyeExtra ? parseFloat(data.rightEyeExtra) : 0,
+      leftEyeExtra: data.leftEyeExtra ? parseFloat(data.leftEyeExtra) : 0,
       fittingPrice: data.fittingPrice ? parseFloat(data.fittingPrice) : 0,
+      tintingPrice: data.tintingPrice ? parseFloat(data.tintingPrice) : 0,
       discount: data.discount ? parseFloat(data.discount) : 0,
       additionalPrice: data.additionalPrice || null,
       createdBy: parseInt(data.createdBy),
@@ -362,6 +376,10 @@ export const validateUpdateSaleOrder = (data) => {
     errors.push({ field: 'fittingPrice', message: 'Fitting price must be a valid positive number' });
   }
 
+  if (data.tintingPrice !== undefined && data.tintingPrice !== null && data.tintingPrice !== '' && !isValidPositiveNumber(data.tintingPrice)) {
+    errors.push({ field: 'tintingPrice', message: 'Tinting price must be a valid positive number' });
+  }
+
   if (data.discount !== undefined && data.discount !== null && data.discount !== '') {
     const discount = parseFloat(data.discount);
     if (isNaN(discount) || discount < 0 || discount > 100) {
@@ -372,6 +390,13 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.additionalPrice !== undefined && data.additionalPrice !== null) {
     if (!Array.isArray(data.additionalPrice)) {
       errors.push({ field: 'additionalPrice', message: 'Additional price must be an array' });
+    }
+  }
+
+  if (data.material_id !== undefined && data.material_id !== null && data.material_id !== '') {
+    const materialId = parseInt(data.material_id);
+    if (isNaN(materialId) || materialId <= 0) {
+      errors.push({ field: 'material_id', message: 'Material ID must be a valid positive number' });
     }
   }
 
@@ -398,6 +423,7 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.fitting_id !== undefined) updateData.fitting_id = data.fitting_id ? parseInt(data.fitting_id) : null;
   if (data.coating_id !== undefined) updateData.coating_id = data.coating_id ? parseInt(data.coating_id) : null;
   if (data.tinting_id !== undefined) updateData.tinting_id = data.tinting_id ? parseInt(data.tinting_id) : null;
+  if (data.material_id !== undefined) updateData.material_id = data.material_id ? parseInt(data.material_id) : null;
   if (data.rightEye !== undefined) updateData.rightEye = data.rightEye;
   if (data.leftEye !== undefined) updateData.leftEye = data.leftEye;
   if (data.rightSpherical !== undefined) updateData.rightSpherical = data.rightSpherical?.trim() || null;
@@ -419,7 +445,10 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.actualTime !== undefined) updateData.actualTime = data.actualTime?.trim() || null;
   if (data.dispatchNotes !== undefined) updateData.dispatchNotes = data.dispatchNotes?.trim() || null;
   if (data.lensPrice !== undefined) updateData.lensPrice = data.lensPrice ? parseFloat(data.lensPrice) : 0;
+  if (data.rightEyeExtra !== undefined) updateData.rightEyeExtra = data.rightEyeExtra ? parseFloat(data.rightEyeExtra) : 0;
+  if (data.leftEyeExtra !== undefined) updateData.leftEyeExtra = data.leftEyeExtra ? parseFloat(data.leftEyeExtra) : 0;
   if (data.fittingPrice !== undefined) updateData.fittingPrice = data.fittingPrice ? parseFloat(data.fittingPrice) : 0;
+  if (data.tintingPrice !== undefined) updateData.tintingPrice = data.tintingPrice ? parseFloat(data.tintingPrice) : 0;
   if (data.discount !== undefined) updateData.discount = data.discount ? parseFloat(data.discount) : 0;
   if (data.additionalPrice !== undefined) updateData.additionalPrice = data.additionalPrice || null;
 

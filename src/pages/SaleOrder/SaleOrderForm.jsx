@@ -28,6 +28,9 @@ import {
     getUsersDropdown,
     getLensPriceId,
     calculateProductCost,
+    getLensProductById,
+    getFittingById,
+    getTintingById,
 } from "@/services/saleOrder.js";
 import {
     defaultSaleOrder,
@@ -53,6 +56,7 @@ export default function SaleOrderForm() {
     const [isSaving, setIsSaving] = useState(false);
     const [isCalculating, setIsCalculating] = useState(false);
     const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null });
+    const [priceBreakdown, setPriceBreakdown] = useState(null);
 
     // Master data states
     const [customers, setCustomers] = useState([]);
@@ -136,6 +140,45 @@ export default function SaleOrderForm() {
                     setOriginalData(order);
                     document.title = `${order.orderNo} - View Sale Order`
                     console.log("Field Order", order);
+                    
+                    // Reconstruct price breakdown from saved data
+                    if (order.lensPrice || order.fittingPrice || order.tintingPrice) {
+                        const reconstructedBreakdown = {
+                            lensPrice: order.lensPrice || 0,
+                            rightEyeExtra: order.rightEyeExtra || 0,
+                            leftEyeExtra: order.leftEyeExtra || 0,
+                            fittingPrice: order.fittingPrice || 0,
+                            tintingPrice: order.tintingPrice || 0,
+                            coatingPrice: order.lensPrice || 0, // Coating price stored in lensPrice
+                            extraCharges: {
+                                rightSphere: 0,
+                                leftSphere: 0,
+                                rightCylinder: 0,
+                                leftCylinder: 0,
+                                total: (order.rightEyeExtra || 0) + (order.leftEyeExtra || 0)
+                            },
+                            baseLensPrice: (order.lensPrice || 0) + (order.rightEyeExtra || 0) + (order.leftEyeExtra || 0) + (order.fittingPrice || 0) + (order.tintingPrice || 0),
+                            additionalPriceTotal: order.additionalPrice?.reduce((acc, curr) => acc + (parseFloat(curr.value) || 0), 0) || 0,
+                            subtotal: 0,
+                            freeLensDeduction: order.freeLens ? (order.lensPrice || 0) : 0,
+                            freeFittingDeduction: order.freeFitting ? (order.fittingPrice || 0) : 0,
+                            discountPercentage: order.discount || 0,
+                            discountAmount: 0,
+                            finalTotal: 0
+                        };
+                        
+                        // Calculate subtotal
+                        reconstructedBreakdown.subtotal = reconstructedBreakdown.baseLensPrice + reconstructedBreakdown.additionalPriceTotal;
+                        
+                        // Calculate discount
+                        const subtotalAfterFreeItems = reconstructedBreakdown.subtotal - reconstructedBreakdown.freeLensDeduction - reconstructedBreakdown.freeFittingDeduction;
+                        reconstructedBreakdown.discountAmount = (subtotalAfterFreeItems * reconstructedBreakdown.discountPercentage) / 100;
+                        
+                        // Calculate final total
+                        reconstructedBreakdown.finalTotal = subtotalAfterFreeItems - reconstructedBreakdown.discountAmount;
+                        
+                        setPriceBreakdown(reconstructedBreakdown);
+                    }
                 } else {
                     toast({
                         title: "Error",
@@ -194,9 +237,7 @@ export default function SaleOrderForm() {
         if (!formData.lens_id) {
             newErrors.lens_id = "Lens name is required";
         }
-        if (!formData.dia_id) {
-            newErrors.dia_id = "Dia is required";
-        }
+        // Dia is optional - removed required validation
         if (!formData.fitting_id && !formData.freeFitting) {
             newErrors.fitting_id = "Fitting type is required (or check Free Fitting)";
         }
@@ -224,48 +265,48 @@ export default function SaleOrderForm() {
             if (!formData.rightCylindrical || formData.rightCylindrical === "") {
                 newErrors.rightCylindrical = "Cylindrical is required";
             }
-            if (!formData.rightAxis || formData.rightAxis === "") {
-                newErrors.rightAxis = "Axis is required";
-            }
-            if (!formData.rightAdd || formData.rightAdd === "") {
-                newErrors.rightAdd = "Add is required";
-            }
+            // Axis is optional - removed required validation
+            // Add is optional - removed required validation
 
             // Range validations for right eye
             if (formData.rightSpherical && formData.rightSpherical !== "") {
                 const val = parseFloat(formData.rightSpherical);
                 if (isNaN(val)) {
                     newErrors.rightSpherical = "Must be a valid number";
-                } else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
-                    newErrors.rightSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
+                //     newErrors.rightSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
+                // }
             }
 
             if (formData.rightCylindrical && formData.rightCylindrical !== "") {
                 const val = parseFloat(formData.rightCylindrical);
                 if (isNaN(val)) {
                     newErrors.rightCylindrical = "Must be a valid number";
-                } else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
-                    newErrors.rightCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
+                //     newErrors.rightCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
+                // }
             }
 
             if (formData.rightAxis && formData.rightAxis !== "") {
                 const val = parseFloat(formData.rightAxis);
                 if (isNaN(val)) {
                     newErrors.rightAxis = "Must be a valid number";
-                } else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
-                    newErrors.rightAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
+                //     newErrors.rightAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
+                // }
             }
 
             if (formData.rightAdd && formData.rightAdd !== "") {
                 const val = parseFloat(formData.rightAdd);
                 if (isNaN(val)) {
                     newErrors.rightAdd = "Must be a valid number";
-                } else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
-                    newErrors.rightAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
+                //     newErrors.rightAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
+                // }
             }
         }
 
@@ -278,48 +319,48 @@ export default function SaleOrderForm() {
             if (!formData.leftCylindrical || formData.leftCylindrical === "") {
                 newErrors.leftCylindrical = "Cylindrical is required";
             }
-            if (!formData.leftAxis || formData.leftAxis === "") {
-                newErrors.leftAxis = "Axis is required";
-            }
-            if (!formData.leftAdd || formData.leftAdd === "") {
-                newErrors.leftAdd = "Add is required";
-            }
+            // Axis is optional - removed required validation
+            // Add is optional - removed required validation
 
             // Range validations for left eye
             if (formData.leftSpherical && formData.leftSpherical !== "") {
                 const val = parseFloat(formData.leftSpherical);
                 if (isNaN(val)) {
                     newErrors.leftSpherical = "Must be a valid number";
-                } else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
-                    newErrors.leftSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
+                //     newErrors.leftSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
+                // }
             }
 
             if (formData.leftCylindrical && formData.leftCylindrical !== "") {
                 const val = parseFloat(formData.leftCylindrical);
                 if (isNaN(val)) {
                     newErrors.leftCylindrical = "Must be a valid number";
-                } else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
-                    newErrors.leftCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
+                //     newErrors.leftCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
+                // }
             }
 
             if (formData.leftAxis && formData.leftAxis !== "") {
                 const val = parseFloat(formData.leftAxis);
                 if (isNaN(val)) {
                     newErrors.leftAxis = "Must be a valid number";
-                } else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
-                    newErrors.leftAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
+                //     newErrors.leftAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
+                // }
             }
 
             if (formData.leftAdd && formData.leftAdd !== "") {
                 const val = parseFloat(formData.leftAdd);
                 if (isNaN(val)) {
                     newErrors.leftAdd = "Must be a valid number";
-                } else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
-                    newErrors.leftAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
-                }
+                } 
+                // else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
+                //     newErrors.leftAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
+                // }
             }
         }
 
@@ -419,14 +460,51 @@ export default function SaleOrderForm() {
         try {
             setIsCalculating(true);
 
-            // Step 1: Get lensPrice_id from LensPriceMaster
+            // Initialize price breakdown
+            const breakdown = {
+                // Left section - individual prices (shown in form fields)
+                lensPrice: 0,           // Coating price (half if one eye, full if both)
+                rightEyeExtra: 0,       // Right eye extra charges
+                leftEyeExtra: 0,        // Left eye extra charges
+                fittingPrice: 0,        // Full fitting price
+                tintingPrice: 0,        // Full tinting price
+                
+                // Right section - breakdown for display
+                baseLensPrice: 0,       // Total: Coating + Extra + Fitting + Tinting
+                coatingPrice: 0,        // Full coating price (for both eyes)
+                extraCharges: {
+                    rightSphere: 0,
+                    leftSphere: 0,
+                    rightCylinder: 0,
+                    leftCylinder: 0,
+                    total: 0
+                },
+                additionalPriceTotal: 0,
+                subtotal: 0,
+                freeLensDeduction: 0,
+                freeFittingDeduction: 0,
+                discountPercentage: 0,
+                discountAmount: 0,
+                finalTotal: 0
+            };
+
+            // Step 1: Get lens product details (for ranges and extra charges)
+            const lensProductResponse = await getLensProductById(formData.lens_id);
+            if (!lensProductResponse.success || !lensProductResponse.data) {
+                toast({
+                    title: "Error",
+                    description: "Failed to fetch lens product details",
+                    variant: "destructive",
+                });
+                return;
+            }
+            const lensProduct = lensProductResponse.data;
+
+            // Step 2: Get coating price from LensPriceMaster
             const lensPriceResponse = await getLensPriceId(
                 formData.lens_id,
                 formData.coating_id
             );
-
-            console.log("Lens Price Response in Form :", lensPriceResponse);
-
             if (!lensPriceResponse.success || !lensPriceResponse.data) {
                 toast({
                     title: "Price Not Found",
@@ -435,40 +513,155 @@ export default function SaleOrderForm() {
                 });
                 return;
             }
+            const fullCoatingPrice = lensPriceResponse.data.price || 0;
 
-            const lensPriceId = lensPriceResponse.data.id;
+            // Calculate number of eyes selected
+            const eyesCount = (formData.rightEye ? 1 : 0) + (formData.leftEye ? 1 : 0);
 
-            // Step 2: Calculate cost using existing API
-            const response = await calculateProductCost({
-                customer_id: formData.customerId,
-                lensPrice_id: lensPriceId,
-                fitting_id: formData.fitting_id,
-                quantity: 1,
-            });
+            // LEFT SECTION: Lens Price (half if one eye, full if both eyes)
+            breakdown.lensPrice = eyesCount === 1 ? fullCoatingPrice / 2 : fullCoatingPrice;
 
-            const basePrice = formData.rightEye && formData.leftEye ?
-                response.data.pricing.basePrice :
-                formData.rightEye ?
-                    response.data.pricing.basePrice / 2 :
-                    formData.leftEye ? response.data.pricing.basePrice / 2 :
-                        0;
-            if (response.success) {
-                // Update form with calculated values
-                setFormData((prev) => ({
-                    ...prev,
-                    lensPrice: basePrice,
-                    fittingPrice: response.data.pricing.fittingPrice,
-                    discount: response.data.pricing.discountRate,
-                }));
-
-                toast({
-                    title: "Price Calculated",
-                    description: response.data.pricing.hasPriceMapping
-                        ? `Base: ₹${response.data.pricing.basePrice}, Discount: ${response.data.pricing.discountRate}%, Final: ₹${response.data.pricing.finalCost}`
-                        : `Price: ₹${response.data.pricing.finalCost} (No discount available)`,
-                    success: true,
-                });
+            // Step 3: Calculate extra charges for out-of-range sphere/cylinder
+            // Right Eye - Sphere
+            if (formData.rightEye && formData.rightSpherical) {
+                const rightSphere = parseFloat(formData.rightSpherical) || 0;
+                if ((lensProduct.sphere_max && rightSphere > lensProduct.sphere_max) ||
+                    (lensProduct.sphere_min && rightSphere < lensProduct.sphere_min)) {
+                    breakdown.extraCharges.rightSphere = (lensProduct.sphere_extra_charge || 0) / 2;
+                }
             }
+
+            // Left Eye - Sphere
+            if (formData.leftEye && formData.leftSpherical) {
+                const leftSphere = parseFloat(formData.leftSpherical) || 0;
+                if ((lensProduct.sphere_max && leftSphere > lensProduct.sphere_max) ||
+                    (lensProduct.sphere_min && leftSphere < lensProduct.sphere_min)) {
+                    breakdown.extraCharges.leftSphere = (lensProduct.sphere_extra_charge || 0) / 2;
+                }
+            }
+
+            // Right Eye - Cylinder
+            if (formData.rightEye && formData.rightCylindrical) {
+                const rightCyl = parseFloat(formData.rightCylindrical) || 0;
+                if ((lensProduct.cyl_max && rightCyl > lensProduct.cyl_max) ||
+                    (lensProduct.cyl_min && rightCyl < lensProduct.cyl_min)) {
+                    breakdown.extraCharges.rightCylinder = (lensProduct.cylinder_extra_charge || 0) / 2;
+                }
+            }
+
+            // Left Eye - Cylinder
+            if (formData.leftEye && formData.leftCylindrical) {
+                const leftCyl = parseFloat(formData.leftCylindrical) || 0;
+                if ((lensProduct.cyl_max && leftCyl > lensProduct.cyl_max) ||
+                    (lensProduct.cyl_min && leftCyl < lensProduct.cyl_min)) {
+                    breakdown.extraCharges.leftCylinder = (lensProduct.cylinder_extra_charge || 0) / 2;
+                }
+            }
+
+            breakdown.extraCharges.total = 
+                breakdown.extraCharges.rightSphere + 
+                breakdown.extraCharges.leftSphere + 
+                breakdown.extraCharges.rightCylinder + 
+                breakdown.extraCharges.leftCylinder;
+
+            // LEFT SECTION: Split extra charges by eye
+            breakdown.rightEyeExtra = breakdown.extraCharges.rightSphere + breakdown.extraCharges.rightCylinder;
+            breakdown.leftEyeExtra = breakdown.extraCharges.leftSphere + breakdown.extraCharges.leftCylinder;
+
+            // Step 4: Get tinting price (full price)
+            if (formData.tinting_id) {
+                try {
+                    const tintingResponse = await getTintingById(formData.tinting_id);
+                    if (tintingResponse.success && tintingResponse.data) {
+                        breakdown.tintingPrice = parseFloat(tintingResponse.data.tinting_price) || 0;
+                    }
+                } catch (error) {
+                    console.error("Error fetching tinting price:", error);
+                }
+            }
+
+            // Step 5: Get fitting price (full price)
+            if (formData.fitting_id) {
+                try {
+                    const fittingResponse = await getFittingById(formData.fitting_id);
+                    if (fittingResponse.success && fittingResponse.data) {
+                        breakdown.fittingPrice = parseFloat(fittingResponse.data.fitting_price) || 0;
+                    }
+                } catch (error) {
+                    console.error("Error fetching fitting price:", error);
+                }
+            }
+
+            // RIGHT SECTION: Base Lens Price = Coating + Extra + Fitting + Tinting
+            breakdown.baseLensPrice = 
+                breakdown.lensPrice + 
+                breakdown.extraCharges.total + 
+                breakdown.fittingPrice + 
+                breakdown.tintingPrice;
+
+            // RIGHT SECTION: Additional Price Total
+            breakdown.additionalPriceTotal = formData.additionalPrice?.reduce(
+                (acc, curr) => acc + (parseFloat(curr.value) || 0), 
+                0
+            ) || 0;
+
+            // RIGHT SECTION: Subtotal = Base Lens Price + Additional Price
+            breakdown.subtotal = breakdown.baseLensPrice + breakdown.additionalPriceTotal;
+
+            // RIGHT SECTION: Free Lens Deduction (reduce coating price)
+            if (formData.freeLens) {
+                breakdown.freeLensDeduction = breakdown.lensPrice;
+            }
+
+            // RIGHT SECTION: Free Fitting Deduction
+            if (formData.freeFitting && formData.fitting_id) {
+                breakdown.freeFittingDeduction = breakdown.fittingPrice;
+            }
+
+            // Step 6: Get discount percentage from customer business category
+            try {
+                const costingResponse = await calculateProductCost({
+                    customer_id: formData.customerId,
+                    lensPrice_id: lensPriceResponse.data.id,
+                    fitting_id: formData.fitting_id,
+                    quantity: 1,
+                });
+                if (costingResponse.success && costingResponse.data) {
+                    breakdown.discountPercentage = costingResponse.data.pricing.discountRate || 0;
+                }
+            } catch (error) {
+                console.error("Error fetching discount:", error);
+            }
+
+            // RIGHT SECTION: Calculate discount on (Subtotal - Free Lens - Free Fitting)
+            const subtotalAfterFreeItems = breakdown.subtotal - breakdown.freeLensDeduction - breakdown.freeFittingDeduction;
+            breakdown.discountAmount = (subtotalAfterFreeItems * breakdown.discountPercentage) / 100;
+
+            // RIGHT SECTION: Final Total
+            breakdown.finalTotal = subtotalAfterFreeItems - breakdown.discountAmount;
+
+            // Update form data with left section values
+            setFormData((prev) => ({
+                ...prev,
+                lensPrice: breakdown.lensPrice,
+                rightEyeExtra: breakdown.rightEyeExtra,
+                leftEyeExtra: breakdown.leftEyeExtra,
+                fittingPrice: breakdown.fittingPrice,
+                tintingPrice: breakdown.tintingPrice,
+                discount: breakdown.discountPercentage,
+            }));
+
+            // Store price breakdown for display
+            setPriceBreakdown(breakdown);
+
+            console.log("Price Breakdown:", breakdown);
+
+            // toast({
+            //     title: "Price Calculated",
+            //     description: `Final Total: ₹${breakdown.finalTotal.toFixed(2)} (Discount: ${breakdown.discountPercentage}%)`,
+            //     success: true,
+            // });
+
         } catch (error) {
             toast({
                 title: "Error",
@@ -482,7 +675,10 @@ export default function SaleOrderForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        handleCalculatePrice();
+        
+        // Wait for price calculation to complete before validating and saving
+        await handleCalculatePrice();
+        
         if (!validateForm()) {
             console.log("Form Data on errors:", errors);
             toast({
@@ -917,7 +1113,7 @@ export default function SaleOrderForm() {
                 </Card>
 
                 {/* Block 2, 3, 4: Tabbed View */}
-                <div className="flex flex-col gap-3 md:w-[65%] md:h-full md:overflow-auto">
+                <div className="flex flex-col gap-3 md:w-[65%] md:h-full md:overflow-auto pb-3">
 
 
                     <Card>
@@ -1083,7 +1279,7 @@ export default function SaleOrderForm() {
                                             disabled={!isEditing || !formData.rightEye}
                                             error={errors.rightCylindrical}
                                         />
-                                        <FormInput
+                                        {formData.rightCylindrical && formData.rightCylindrical != 0 && < FormInput
                                             singleLine={true} label="Axis"
                                             type="number"
                                             name="rightAxis"
@@ -1091,7 +1287,7 @@ export default function SaleOrderForm() {
                                             onChange={handleChange}
                                             disabled={!isEditing || !formData.rightEye}
                                             error={errors.rightAxis}
-                                        />
+                                        />}
                                         <FormInput
                                             singleLine={true} label="Add"
                                             type="number"
@@ -1152,7 +1348,7 @@ export default function SaleOrderForm() {
                                             disabled={!isEditing || !formData.leftEye}
                                             error={errors.leftCylindrical}
                                         />
-                                        <FormInput
+                                        {formData.leftCylindrical && formData.leftCylindrical != 0 && <FormInput
                                             singleLine={true} label="Axis"
                                             type="number"
                                             name="leftAxis"
@@ -1160,7 +1356,7 @@ export default function SaleOrderForm() {
                                             onChange={handleChange}
                                             disabled={!isEditing || !formData.leftEye}
                                             error={errors.leftAxis}
-                                        />
+                                        />}
                                         <FormInput
                                             singleLine={true} label="Add"
                                             type="number"
@@ -1220,24 +1416,61 @@ export default function SaleOrderForm() {
 
                             <div className="flex md:flex-row flex-col gap-4">
                                 <div className="flex flex-col gap-2 mr-4 w-full">
-                                    <FormInput
-                                        singleLine={true}
-                                        label="Lens Price"
-                                        type="number"
-                                        name="lensPrice"
-                                        value={formData.lensPrice}
-                                        onChange={handleChange}
-                                        disabled={true}
-                                    />
-                                    <FormInput
-                                        singleLine={true}
-                                        label="Fitting Price"
-                                        type="number"
-                                        name="fittingPrice"
-                                        value={formData.fittingPrice}
-                                        onChange={handleChange}
-                                        disabled={true}
-                                    />
+                                    {formData.lensPrice > 0 && (
+                                        <FormInput
+                                            singleLine={true}
+                                            label="Lens Price"
+                                            type="number"
+                                            name="lensPrice"
+                                            value={formData.lensPrice}
+                                            onChange={handleChange}
+                                            disabled={true}
+                                        />
+                                    )}
+                                    {formData.rightEyeExtra > 0 && (
+                                        <FormInput
+                                            singleLine={true}
+                                            label="Right Eye Extra"
+                                            type="number"
+                                            name="rightEyeExtra"
+                                            value={formData.rightEyeExtra}
+                                            onChange={handleChange}
+                                            disabled={true}
+                                        />
+                                    )}
+                                    {formData.leftEyeExtra > 0 && (
+                                        <FormInput
+                                            singleLine={true}
+                                            label="Left Eye Extra"
+                                            type="number"
+                                            name="leftEyeExtra"
+                                            value={formData.leftEyeExtra}
+                                            onChange={handleChange}
+                                            disabled={true}
+                                        />
+                                    )}
+                                    {formData.fittingPrice > 0 && (
+                                        <FormInput
+                                            singleLine={true}
+                                            label="Fitting Price"
+                                            type="number"
+                                            name="fittingPrice"
+                                            value={formData.fittingPrice}
+                                            onChange={handleChange}
+                                            disabled={true}
+                                        />
+                                    )}
+                                    {formData.tintingPrice > 0 && (
+                                        <FormInput
+                                            singleLine={true}
+                                            label="Tinting Price"
+                                            type="number"
+                                            name="tintingPrice"
+                                            value={formData.tintingPrice}
+                                            onChange={handleChange}
+                                            disabled={true}
+                                        />
+                                    )}
 
                                     {formData.additionalPrice &&
                                         formData.additionalPrice.length > 0 ? (
@@ -1315,35 +1548,80 @@ export default function SaleOrderForm() {
                                 <div className="flex flex-col gap-2 w-full">
                                     <Card className="bg-gray-50">
                                         <CardContent className="flex flex-col p-2 gap-3">
-                                            <div className="flex justify-between text-sm">
-                                                <span>Subtotal:</span>
-                                                <span>₹{((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div>
-                                            {formData.freeLens && <div className="flex justify-between text-sm text-red-600">
-                                                <span>Free Lens:</span>
-                                                <span>-₹{(((formData.freeLens && formData.lensPrice || 0))).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div>}
-                                            {formData.freeFitting && <div className="flex justify-between text-sm text-red-600">
-                                                <span>Free Fitting:</span>
-                                                <span>-₹{((formData.freeFitting && formData.fittingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div>}
-                                            <div className="flex justify-between text-sm text-red-600">
-                                                <span>Discount ({formData.discount}%):</span>
-                                                <span>-₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (formData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div>
-                                            {/* <div className="flex justify-between text-sm">
-                                                <span>After Discount:</span>
-                                                <span>₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div> */}
-                                            {/* <div className="flex justify-between text-sm">
-                                                <span>GST (18%):</span>
-                                                <span>₹{(((formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100) * 0.18).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div> */}
-                                            <Separator />
-                                            <div className="flex justify-between font-semibold">
-                                                <span>Total Amount:</span>
-                                                <span className="text-green-600">₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.coatingPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                            {priceBreakdown ? (
+                                                <>
+                                                    {/* Base Lens Price - No breakdown */}
+                                                    <div className="flex justify-between text-sm font-medium">
+                                                        <span>Base Lens Price:</span>
+                                                        <span>₹{priceBreakdown.baseLensPrice.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+
+                                                    {priceBreakdown.additionalPriceTotal > 0 && (
+                                                        <div className="flex justify-between text-sm">
+                                                            <span>Additional Price:</span>
+                                                            <span>₹{priceBreakdown.additionalPriceTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <Separator />
+                                                    <div className="flex justify-between text-sm font-medium">
+                                                        <span>Subtotal:</span>
+                                                        <span>₹{priceBreakdown.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+
+                                                    {priceBreakdown.freeLensDeduction > 0 && (
+                                                        <div className="flex justify-between text-sm text-red-600">
+                                                            <span>Free Lens (Coating)</span>
+                                                            <span>-₹{priceBreakdown.freeLensDeduction.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {priceBreakdown.freeFittingDeduction > 0 && (
+                                                        <div className="flex justify-between text-sm text-red-600">
+                                                            <span>Free Fitting</span>
+                                                            <span>-₹{priceBreakdown.freeFittingDeduction.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {priceBreakdown.discountPercentage > 0 && (
+                                                        <div className="flex justify-between text-sm text-red-600">
+                                                            <span>Discount ({priceBreakdown.discountPercentage}%)</span>
+                                                            <span>-₹{priceBreakdown.discountAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <Separator />
+                                                    <div className="flex justify-between font-semibold text-base">
+                                                        <span>Total Amount:</span>
+                                                        <span className="text-green-600">₹{priceBreakdown.finalTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {/* Fallback to old calculation if no breakdown */}
+                                                    <div className="flex justify-between text-sm">
+                                                        <span>Subtotal:</span>
+                                                        <span>₹{((formData.lensPrice || 0) + (formData.lensPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (formData.fittingPrice || 0) + (formData.tintingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    {formData.freeLens && <div className="flex justify-between text-sm text-red-600">
+                                                        <span>Free Lens:</span>
+                                                        <span>-₹{(((formData.freeLens && formData.lensPrice || 0))).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>}
+                                                    {formData.freeFitting && <div className="flex justify-between text-sm text-red-600">
+                                                        <span>Free Fitting:</span>
+                                                        <span>-₹{((formData.freeFitting && formData.fittingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>}
+                                                    <div className="flex justify-between text-sm text-red-600">
+                                                        <span>Discount ({formData.discount}%):</span>
+                                                        <span>-₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.lensPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (formData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    <Separator />
+                                                    <div className="flex justify-between font-semibold">
+                                                        <span>Total Amount:</span>
+                                                        <span className="text-green-600">₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.lensPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                </>
+                                            )}
                                         </CardContent>
                                     </Card>
 
