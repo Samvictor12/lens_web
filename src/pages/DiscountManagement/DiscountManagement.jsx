@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,16 +16,24 @@ import {
     RotateCcw,
     AlertCircle,
     User,
+    ChevronsDownUp,
+    ChevronsUpDown,
+    ArrowLeft,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/services/apiClient';
 import { FormSelect } from '@/components/ui/form-select';
 
 export default function DiscountManagement() {
+    const { customerId: urlCustomerId } = useParams();
+    const navigate = useNavigate();
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Check if in embedded mode (customer ID from URL)
+    const isEmbeddedMode = !!urlCustomerId;
 
     // Customer selection
     const [customers, setCustomers] = useState([]);
@@ -37,15 +46,45 @@ export default function DiscountManagement() {
     // Expansion states
     const [expandedBrands, setExpandedBrands] = useState(new Set());
     const [expandedProducts, setExpandedProducts] = useState(new Set());
+    const [isAllExpanded, setIsAllExpanded] = useState(false);
 
     // Discount changes tracking
     const [discountChanges, setDiscountChanges] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-    // Fetch customers on mount
+    // Store brand and product level discount values for display only
+    const [brandDiscounts, setBrandDiscounts] = useState({});
+    const [productDiscounts, setProductDiscounts] = useState({});
+
+    // Fetch customers on mount (only in standalone mode)
     useEffect(() => {
-        fetchCustomers();
-    }, []);
+        if (!isEmbeddedMode) {
+            fetchCustomers();
+        }
+    }, [isEmbeddedMode]);
+
+    // Load customer from URL in embedded mode
+    useEffect(() => {
+        if (isEmbeddedMode && urlCustomerId) {
+            // Fetch the specific customer details
+            const loadCustomerFromUrl = async () => {
+                try {
+                    const response = await apiClient('get', `/customer-master/${urlCustomerId}`);
+                    if (response.success) {
+                        setSelectedCustomer(response.data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching customer:', error);
+                    toast({
+                        title: 'Error',
+                        description: 'Failed to load customer details',
+                        variant: 'destructive',
+                    });
+                }
+            };
+            loadCustomerFromUrl();
+        }
+    }, [isEmbeddedMode, urlCustomerId, toast]);
 
     // Fetch hierarchical data when customer is selected
     useEffect(() => {
@@ -77,8 +116,47 @@ export default function DiscountManagement() {
         try {
             const response = await apiClient('get', `/V1/lens-products/discount-hierarchy/${selectedCustomer.id}`);
             if (response.success) {
-                setBrandsData(response.data.brands || []);
+                console.log("Discount data fetched:", response.data);
+
+                const brands = response.data.brands || [];
+                setBrandsData(brands);
                 setCustomerHasPriceMapping(response.data.hasPriceMapping || false);
+
+                // If customer has custom pricing, populate discount states from existing data
+                if (response.data.hasPriceMapping) {
+                    const newBrandDiscounts = {};
+                    const newProductDiscounts = {};
+                    const newDiscountChanges = {};
+
+                    brands.forEach(brand => {
+                        brand.lensProductMasters?.forEach(product => {
+                            product.lensPriceMasters?.forEach(priceData => {
+                                // Check if this coating has a price mapping with discount rate
+                                if (priceData.priceMappings && priceData.priceMappings.length > 0) {
+                                    const mapping = priceData.priceMappings[0];
+                                    const discountRate = mapping.discountRate || 0;
+
+                                    if (discountRate > 0) {
+                                        // Store the coating-level discount
+                                        newDiscountChanges[`coating_${priceData.id}`] = {
+                                            type: 'coating',
+                                            brandId: brand.id,
+                                            productId: product.id,
+                                            coatingId: priceData.coating.id,
+                                            priceId: priceData.id,
+                                            discount: discountRate,
+                                        };
+                                    }
+                                }
+                            });
+                        });
+                    });
+
+                    // Set the discount changes state (this will show the discount values in coating inputs)
+                    setDiscountChanges(newDiscountChanges);
+
+                    // Note: We don't set hasUnsavedChanges to true since these are already saved discounts
+                }
             }
         } catch (error) {
             console.error('Error fetching discount data:', error);
@@ -113,7 +191,41 @@ export default function DiscountManagement() {
         setExpandedProducts(newExpanded);
     };
 
-    // Handle discount changes
+    // Toggle Expand/Collapse all functionality
+    const toggleExpandCollapseAll = () => {
+        if (isAllExpanded) {
+            // Collapse all
+            setExpandedBrands(new Set());
+            setExpandedProducts(new Set());
+            setIsAllExpanded(false);
+
+            toast({
+                title: 'Collapsed All',
+                description: 'All brands and products are now collapsed',
+            });
+        } else {
+            // Expand all
+            const allBrandIds = new Set(brandsData.map(b => b.id));
+            const allProductIds = new Set();
+
+            brandsData.forEach(brand => {
+                brand.lensProductMasters?.forEach(product => {
+                    allProductIds.add(product.id);
+                });
+            });
+
+            setExpandedBrands(allBrandIds);
+            setExpandedProducts(allProductIds);
+            setIsAllExpanded(true);
+
+            toast({
+                title: 'Expanded All',
+                description: 'All brands and products are now expanded',
+            });
+        }
+    };
+
+    // Handle discount changes - Optimized to directly update coating prices
     const handleBrandDiscount = (brandId, value) => {
         const discount = parseFloat(value) || 0;
         if (discount < 0 || discount > 100) {
@@ -125,15 +237,46 @@ export default function DiscountManagement() {
             return;
         }
 
-        setDiscountChanges((prev) => ({
+        // Store brand-level discount for display
+        setBrandDiscounts(prev => ({
             ...prev,
-            [`brand_${brandId}`]: {
-                type: 'brand',
-                brandId,
-                discount,
-            },
+            [brandId]: discount
         }));
+
+        // Find the brand and apply discount to ALL coatings in ALL products
+        const brand = brandsData.find(b => b.id === brandId);
+        if (!brand || !brand.lensProductMasters) return;
+
+        const newChanges = { ...discountChanges };
+        const newProductDiscounts = { ...productDiscounts };
+
+        // Cascade discount to all products and coatings in this brand
+        brand.lensProductMasters.forEach(product => {
+            // Set product-level discount for display
+            newProductDiscounts[product.id] = discount;
+
+            if (product.lensPriceMasters) {
+                product.lensPriceMasters.forEach(priceData => {
+                    newChanges[`coating_${priceData.id}`] = {
+                        type: 'coating',
+                        brandId,
+                        productId: product.id,
+                        coatingId: priceData.coating.id,
+                        priceId: priceData.id,
+                        discount,
+                    };
+                });
+            }
+        });
+
+        setProductDiscounts(newProductDiscounts);
+        setDiscountChanges(newChanges);
         setHasUnsavedChanges(true);
+
+        toast({
+            title: 'Brand Discount Applied',
+            description: `${discount}% discount applied to all products and coatings in ${brand.name}`,
+        });
     };
 
     const handleProductDiscount = (brandId, productId, value) => {
@@ -147,16 +290,40 @@ export default function DiscountManagement() {
             return;
         }
 
-        setDiscountChanges((prev) => ({
+        // Store product-level discount for display
+        setProductDiscounts(prev => ({
             ...prev,
-            [`product_${productId}`]: {
-                type: 'product',
+            [productId]: discount
+        }));
+
+        // Find the product and apply discount to ALL coatings
+        const brand = brandsData.find(b => b.id === brandId);
+        if (!brand) return;
+
+        const product = brand.lensProductMasters?.find(p => p.id === productId);
+        if (!product || !product.lensPriceMasters) return;
+
+        const newChanges = { ...discountChanges };
+
+        // Cascade discount to all coatings in this product
+        product.lensPriceMasters.forEach(priceData => {
+            newChanges[`coating_${priceData.id}`] = {
+                type: 'coating',
                 brandId,
                 productId,
+                coatingId: priceData.coating.id,
+                priceId: priceData.id,
                 discount,
-            },
-        }));
+            };
+        });
+
+        setDiscountChanges(newChanges);
         setHasUnsavedChanges(true);
+
+        toast({
+            title: 'Product Discount Applied',
+            description: `${discount}% discount applied to all coatings in ${product.lens_name}`,
+        });
     };
 
     const handleCoatingDiscount = (brandId, productId, coatingId, priceId, value) => {
@@ -218,6 +385,8 @@ export default function DiscountManagement() {
                     description: `Discounts applied successfully to ${response.data.affected} items`,
                 });
                 setDiscountChanges({});
+                setBrandDiscounts({});
+                setProductDiscounts({});
                 setHasUnsavedChanges(false);
                 fetchDiscountData(); // Refresh data
             }
@@ -236,6 +405,8 @@ export default function DiscountManagement() {
     // Reset changes
     const resetChanges = () => {
         setDiscountChanges({});
+        setBrandDiscounts({});
+        setProductDiscounts({});
         setHasUnsavedChanges(false);
         toast({
             title: 'Changes Reset',
@@ -284,7 +455,13 @@ export default function DiscountManagement() {
                                     → ₹{discountedPrice.toFixed(2)}
                                 </span>
                             )}
+                            {currentDiscount > 0 && (
+                                <Badge variant="secondary" className="ml-2">
+                                    -{currentDiscount}%
+                                </Badge>
+                            )}
                         </div>
+
                     </div>
                 </div>
 
@@ -310,11 +487,7 @@ export default function DiscountManagement() {
                         />
                         <Percent className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    {currentDiscount > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                            -{currentDiscount}%
-                        </Badge>
-                    )}
+
                 </div>
             </div>
         );
@@ -326,6 +499,9 @@ export default function DiscountManagement() {
         const productKey = `product_${product.id}`;
         const currentDiscount = getCurrentDiscount(productKey);
         const hasCoatings = product.lensPriceMasters && product.lensPriceMasters.length > 0;
+
+        // Get product-level discount value for display
+        const productDiscountValue = productDiscounts[product.id] || '';
 
         return (
             <div key={product.id} className="border-l-2 border-primary/20 ml-6 pl-4 space-y-2">
@@ -365,33 +541,30 @@ export default function DiscountManagement() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Label className="text-xs text-muted-foreground mr-2">
-                            Apply to all coatings:
-                        </Label>
-                        <div className="flex items-center gap-1">
-                            <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.1"
-                                placeholder="0"
-                                value={currentDiscount || ''}
-                                onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleProductDiscount(brand.id, product.id, e.target.value);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-20 h-8 text-sm"
-                            />
-                            <Percent className="h-4 w-4 text-muted-foreground" />
+                    {!customerHasPriceMapping && (
+                        <div className="flex items-center gap-2">
+                            <Label className="text-xs text-muted-foreground mr-2">
+                                Apply to all coatings:
+                            </Label>
+                            <div className="flex items-center gap-1">
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    placeholder="0"
+                                    value={productDiscountValue}
+                                    onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleProductDiscount(brand.id, product.id, e.target.value);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-20 h-8 text-sm"
+                                />
+                                <Percent className="h-4 w-4 text-muted-foreground" />
+                            </div>
                         </div>
-                        {currentDiscount > 0 && (
-                            <Badge variant="default" className="ml-2">
-                                -{currentDiscount}%
-                            </Badge>
-                        )}
-                    </div>
+                    )}
                 </div>
 
                 {/* Coatings */}
@@ -412,6 +585,9 @@ export default function DiscountManagement() {
         const brandKey = `brand_${brand.id}`;
         const currentDiscount = getCurrentDiscount(brandKey);
         const hasProducts = brand.lensProductMasters && brand.lensProductMasters.length > 0;
+
+        // Get brand-level discount value for display
+        const brandDiscountValue = brandDiscounts[brand.id] || '';
 
         console.log('Rendering brand:', brand.name,
             '\nHas products:', hasProducts,
@@ -463,33 +639,30 @@ export default function DiscountManagement() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <Label className="text-sm text-muted-foreground mr-2">
-                                Apply to all products:
-                            </Label>
-                            <div className="flex items-center gap-1">
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.1"
-                                    placeholder="0"
-                                    value={currentDiscount || ''}
-                                    onChange={(e) => {
-                                        e.stopPropagation();
-                                        handleBrandDiscount(brand.id, e.target.value);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-24 h-9"
-                                />
-                                <Percent className="h-5 w-5 text-muted-foreground" />
+                        {!customerHasPriceMapping && (
+                            <div className="flex items-center gap-2">
+                                <Label className="text-sm text-muted-foreground mr-2">
+                                    Apply to all products:
+                                </Label>
+                                <div className="flex items-center gap-1">
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.1"
+                                        placeholder="0"
+                                        value={brandDiscountValue}
+                                        onChange={(e) => {
+                                            e.stopPropagation();
+                                            handleBrandDiscount(brand.id, e.target.value);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-24 h-9"
+                                    />
+                                    <Percent className="h-5 w-5 text-muted-foreground" />
+                                </div>
                             </div>
-                            {currentDiscount > 0 && (
-                                <Badge variant="default" className="text-base ml-2">
-                                    -{currentDiscount}%
-                                </Badge>
-                            )}
-                        </div>
+                        )}
                     </div>
 
                     {/* Products */}
@@ -507,11 +680,29 @@ export default function DiscountManagement() {
         <div className="flex flex-col h-full p-3 gap-3">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">Customer Discount Management</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Apply customer-specific discounts at brand, product, or coating level
-                    </p>
+                <div className="flex items-center gap-3">
+                    {isEmbeddedMode && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => navigate("/sales/customers")}
+                            disabled={saving}
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                    )}
+                    <div>
+                        <h1 className="text-2xl font-bold">
+                            {'Customer Discount Management'}
+                        </h1>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            {isEmbeddedMode
+                                ? `Manage pricing for ${selectedCustomer?.name || 'Customer'}`
+                                : 'Apply customer-specific discounts at brand, product, or coating level'
+                            }
+                        </p>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -539,102 +730,104 @@ export default function DiscountManagement() {
                 </div>
             </div>
 
-            {/* Customer Selection */}
+            {/* Customer Selection - Compact */}
             <Card>
-                <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                        <User className="h-5 w-5 text-primary" />
+                <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                        {/* Customer Dropdown or Read-only Display */}
                         <div className="flex-1">
-                            <Label className="text-sm font-medium mb-2 block">
-                                Select Customer <span className="text-red-500">*</span>
-                            </Label>
-                            <FormSelect
-                                value={selectedCustomer?.id || ''}
-                                onChange={(value) => {
-                                    const customer = customers.find(c => c.id === parseInt(value));
-                                    setSelectedCustomer(customer || null);
-                                    setBrandsData([]);
-                                    setDiscountChanges({});
-                                    setHasUnsavedChanges(false);
-                                }}
-                                options={customers.map(c => ({
-                                    value: c.id,
-                                    label: `${c.name} (${c.code}) - ${c.shopname || 'N/A'}`
-                                }))}
-                                placeholder="Search and select customer..."
-                                className="w-full"
-                            />
+                            {isEmbeddedMode ? (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium">
+                                            {selectedCustomer?.name || 'Loading...'}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {selectedCustomer?.code} {selectedCustomer?.shopname && `• ${selectedCustomer.shopname}`}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <FormSelect
+                                    value={selectedCustomer?.id || ''}
+                                    onChange={(value) => {
+                                        const customer = customers.find(c => c.id === parseInt(value));
+                                        setSelectedCustomer(customer || null);
+                                        setBrandsData([]);
+                                        setDiscountChanges({});
+                                        setBrandDiscounts({});
+                                        setProductDiscounts({});
+                                        setExpandedBrands(new Set());
+                                        setExpandedProducts(new Set());
+                                        setIsAllExpanded(false);
+                                        setHasUnsavedChanges(false);
+                                    }}
+                                    options={customers.map(c => ({
+                                        value: c.id,
+                                        label: `${c.name} (${c.code}) - ${c.shopname || 'N/A'}`
+                                    }))}
+                                    placeholder="Select Customer..."
+                                    className="w-full"
+                                />
+                            )}
                         </div>
+
+                        {/* Search Box - Only visible when customer selected */}
                         {selectedCustomer && (
-                            <div className="flex flex-col items-end">
-                                <Badge variant={customerHasPriceMapping ? "default" : "secondary"}>
-                                    {customerHasPriceMapping ? 'Has Custom Pricing' : 'Standard Pricing'}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground mt-1">
-                                    {customerHasPriceMapping
-                                        ? 'Showing customer-specific prices'
-                                        : 'Showing standard catalog prices'}
-                                </span>
+                            <div className="flex-1">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search brands or products..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9"
+                                    />
+                                </div>
                             </div>
+                        )}
+
+                        {/* Pricing Status Badge */}
+                        {selectedCustomer && (
+                            <Badge
+                                variant={customerHasPriceMapping ? "default" : "secondary"}
+                                className="px-3 py-1.5"
+                            >
+                                {customerHasPriceMapping ? '✓ Custom Pricing' : '○ Standard Pricing'}
+                            </Badge>
+                        )}
+
+                        {/* Expand/Collapse All Toggle Button */}
+                        {selectedCustomer && brandsData.length > 0 && (
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={toggleExpandCollapseAll}
+                                title={isAllExpanded ? "Collapse All" : "Expand All"}
+                            >
+                                {isAllExpanded ? (
+                                    <ChevronsUpDown className="h-4 w-4" />
+                                ) : (
+                                    <ChevronsDownUp className="h-4 w-4" />
+                                )}
+                            </Button>
                         )}
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Search - Only show if customer selected */}
-            {/* {selectedCustomer && (
-        <Card>
-          <CardContent className="p-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search brands or products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )} */}
-
-            {/* Info Card - Only show if customer selected */}
-            {/* {selectedCustomer && (
-        <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-          <CardContent className="p-3">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-900 dark:text-blue-100">
-                  Customer: {selectedCustomer.name}
-                </p>
-                <ul className="mt-2 space-y-1 text-blue-800 dark:text-blue-200">
-                  <li>• <strong>Brand level:</strong> Applies to all products and coatings under the brand</li>
-                  <li>• <strong>Product level:</strong> Applies to all coatings for that specific product</li>
-                  <li>• <strong>Coating level:</strong> Applies to that specific coating only</li>
-                  <li className="mt-2 text-xs text-blue-600 dark:text-blue-300">
-                    {customerHasPriceMapping 
-                      ? 'Discounts will be applied to customer-specific prices' 
-                      : 'Discounts will create customer-specific pricing (currently using standard prices)'}
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )} */}
-
             {/* Brands List */}
             <div className="flex-1 overflow-y-auto">
                 {!selectedCustomer ? (
-                    <Card>
+                    <Card className="border-2 border-dashed">
                         <CardContent className="p-8 text-center">
-                            <User className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                            <p className="text-lg font-medium text-muted-foreground">
-                                Please select a customer to manage discounts
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                                Choose a customer from the dropdown above to view and apply discounts
+                            <User className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                            <h3 className="text-lg font-semibold text-muted-foreground mb-1">
+                                No Customer Selected
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                                Select a customer to manage discounts
                             </p>
                         </CardContent>
                     </Card>

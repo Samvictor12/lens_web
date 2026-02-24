@@ -184,7 +184,12 @@ export const deleteLensTinting = async (req, res, next) => {
  */
 export const getLensTintingsDropdown = async (req, res, next) => {
   try {
-    const tintings = await lensTintingService.getTintingDropdown();
+    const filters = {
+      name: req.query.name || undefined,
+      short_name: req.query.short_name || undefined,
+    };
+
+    const tintings = await lensTintingService.getTintingDropdown(filters);
     res.status(200).json({
       success: true,
       message: "Lens tintings dropdown retrieved successfully",

@@ -1,0 +1,28 @@
+# Backend Dockerfile - Node.js + Express (Full image with all dependencies)
+FROM node:20
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Copy Prisma schema
+COPY prisma ./prisma/
+
+# Install production dependencies
+RUN npm Ci --legacy-peer-deps
+
+# Copy backend source code
+COPY src/backend ./src/backend
+
+# Create necessary directories
+RUN mkdir -p uploads/products uploads/boxes public
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Expose backend port
+EXPOSE 6001
+
+# Run migrations and start the server
+CMD ["npm", "run", "build:server"]

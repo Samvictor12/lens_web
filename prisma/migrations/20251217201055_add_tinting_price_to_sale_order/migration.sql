@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "SaleOrder" ADD COLUMN     "tintingPrice" DOUBLE PRECISION NOT NULL DEFAULT 0;

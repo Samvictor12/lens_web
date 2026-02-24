@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { APIError } from '../middleware/errorHandler.js';
+import { APIError } from '../utils/errors.js';
 
 /**
  * Lens Tinting Master Service
@@ -21,6 +21,7 @@ export class LensTintingMasterService {
                     name: tintingData.name,
                     short_name: tintingData.short_name,
                     description: tintingData.description,
+                    tinting_price: tintingData.tinting_price,
                     activeStatus: tintingData.activeStatus ?? true,
                     deleteStatus: false,
                     createdBy: tintingData.createdBy,
@@ -134,6 +135,7 @@ export class LensTintingMasterService {
                     name: updateData.name,
                     short_name: updateData.short_name,
                     description: updateData.description,
+                    tinting_price: updateData.tinting_price,
                     activeStatus: updateData.activeStatus,
                     updatedBy: updateData.updatedBy
                 },
@@ -179,11 +181,29 @@ export class LensTintingMasterService {
         }
     }
 
-    async getTintingDropdown() {
+    async getTintingDropdown(filters = {}) {
         try {
+            const where = { activeStatus: true, deleteStatus: false };
+
+            // Filter by name (partial match, case-insensitive)
+            if (filters.name) {
+                where.name = {
+                    contains: filters.name,
+                    mode: 'insensitive'
+                };
+            }
+
+            // Filter by short_name (partial match, case-insensitive)
+            if (filters.short_name) {
+                where.short_name = {
+                    contains: filters.short_name,
+                    mode: 'insensitive'
+                };
+            }
+
             const tintings = await prisma.lensTintingMaster.findMany({
-                where: { activeStatus: true, deleteStatus: false },
-                select: { id: true, name: true, short_name: true, description: true },
+                where,
+                select: { id: true, name: true, short_name: true, description: true, tinting_price: true },
                 orderBy: { name: 'asc' }
             });
 
@@ -192,7 +212,8 @@ export class LensTintingMasterService {
                 label: t.name,
                 value: t.id,
                 short_name: t.short_name,
-                description: t.description
+                description: t.description,
+                tinting_price: t.tinting_price
             }));
         } catch (error) {
             console.error('Error fetching tinting dropdown:', error);

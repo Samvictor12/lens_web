@@ -9,6 +9,7 @@ export const defaultLensTinting = {
   name: "",
   short_name: "",
   description: "",
+  tinting_price: 0,
   activeStatus: true,
 };
 

@@ -37,6 +37,7 @@ export default function LensTintingForm() {
             name: tinting.name || "",
             short_name: tinting.short_name || "",
             description: tinting.description || "",
+            tinting_price: tinting.tinting_price || "",
             activeStatus:
               tinting.activeStatus !== undefined
                 ? tinting.activeStatus
@@ -277,6 +278,20 @@ export default function LensTintingForm() {
                 required
                 error={errors.short_name}
                 helperText={!errors.short_name && "Enter a short code (e.g., 'CLR', 'LBR')"}
+              />
+
+              {/* Tinting Price */}
+              <FormInput
+                label="Tinting Price"
+                name="tinting_price"
+                type="number"
+                step="0.01"
+                value={formData.tinting_price}
+                onChange={handleChange}
+                disabled={isReadOnly}
+                placeholder="Enter tinting price"
+                error={errors.tinting_price}
+                helperText={!errors.tinting_price && "Enter the price for this tinting (optional)"}
               />
 
               {/* Description */}

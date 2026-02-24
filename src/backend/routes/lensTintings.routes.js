@@ -36,6 +36,10 @@ const router = express.Router();
  *               description:
  *                 type: string
  *                 maxLength: 500
+ *               tinting_price:
+ *                 type: number
+ *                 format: float
+ *                 description: Price for tinting service
  *     responses:
        201:
          description: Tinting created successfully
@@ -69,10 +73,21 @@ router.get('/', authenticateToken, lensTintingController.getAllLensTintings);
  * @swagger
  * /api/v1/lens-tintings/dropdown:
  *   get:
- *     summary: Get lens tintings for dropdown
+ *     summary: Get lens tintings for dropdown with optional filters
  *     tags: [Lens Tintings]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: name
+ *         schema:
+ *           type: string
+ *         description: Filter by tinting name (partial match, case-insensitive)
+ *       - in: query
+ *         name: short_name
+ *         schema:
+ *           type: string
+ *         description: Filter by tinting short name (partial match, case-insensitive)
  *     responses:
        200:
          description: Dropdown data retrieved successfully
@@ -140,6 +155,12 @@ router.get('/:id', authenticateToken, lensTintingController.getLensTintingById);
  *                 type: string
  *               description:
  *                 type: string
+ *               tinting_price:
+ *                 type: number
+ *                 format: float
+ *                 description: Price for tinting service
+ *               activeStatus:
+ *                 type: boolean
  *     responses:
        200:
          description: Tinting updated successfully

@@ -159,6 +159,13 @@ export const validateCreateSaleOrder = (data) => {
     }
   }
 
+  if (data.material_id !== undefined && data.material_id !== null && data.material_id !== '') {
+    const materialId = parseInt(data.material_id);
+    if (isNaN(materialId) || materialId <= 0) {
+      errors.push({ field: 'material_id', message: 'Material ID must be a valid positive number' });
+    }
+  }
+
   // Eye selection validation
   if (data.rightEye !== undefined && typeof data.rightEye !== 'boolean') {
     errors.push({ field: 'rightEye', message: 'Right eye must be a boolean value' });
@@ -169,16 +176,14 @@ export const validateCreateSaleOrder = (data) => {
   }
 
   // Eye specifications validation (right)
-  ['rightSpherical', 'rightCylindrical', 'rightAxis', 'rightAdd', 'rightDia', 
-   'rightBase', 'rightBaseSize', 'rightBled'].forEach(field => {
+  ['rightSpherical', 'rightCylindrical', 'rightAxis', 'rightAdd', 'rightDia'].forEach(field => {
     if (data[field] && !isValidLength(data[field], 0, 50)) {
       errors.push({ field, message: `${field} must not exceed 50 characters` });
     }
   });
 
   // Eye specifications validation (left)
-  ['leftSpherical', 'leftCylindrical', 'leftAxis', 'leftAdd', 'leftDia',
-   'leftBase', 'leftBaseSize', 'leftBled'].forEach(field => {
+  ['leftSpherical', 'leftCylindrical', 'leftAxis', 'leftAdd', 'leftDia'].forEach(field => {
     if (data[field] && !isValidLength(data[field], 0, 50)) {
       errors.push({ field, message: `${field} must not exceed 50 characters` });
     }
@@ -227,6 +232,10 @@ export const validateCreateSaleOrder = (data) => {
 
   if (data.fittingPrice !== undefined && data.fittingPrice !== null && data.fittingPrice !== '' && !isValidPositiveNumber(data.fittingPrice)) {
     errors.push({ field: 'fittingPrice', message: 'Fitting price must be a valid positive number' });
+  }
+
+  if (data.tintingPrice !== undefined && data.tintingPrice !== null && data.tintingPrice !== '' && !isValidPositiveNumber(data.tintingPrice)) {
+    errors.push({ field: 'tintingPrice', message: 'Tinting price must be a valid positive number' });
   }
 
   if (data.discount !== undefined && data.discount !== null && data.discount !== '') {
@@ -280,22 +289,16 @@ export const validateCreateSaleOrder = (data) => {
       tinting_id: data.tinting_id ? parseInt(data.tinting_id) : null,
       rightEye: data.rightEye || false,
       leftEye: data.leftEye || false,
-      rightSpherical: data.rightSpherical?.trim() || null,
-      rightCylindrical: data.rightCylindrical?.trim() || null,
-      rightAxis: data.rightAxis?.trim() || null,
-      rightAdd: data.rightAdd?.trim() || null,
-      rightDia: data.rightDia?.trim() || null,
-      rightBase: data.rightBase?.trim() || null,
-      rightBaseSize: data.rightBaseSize?.trim() || null,
-      rightBled: data.rightBled?.trim() || null,
-      leftSpherical: data.leftSpherical?.trim() || null,
-      leftCylindrical: data.leftCylindrical?.trim() || null,
-      leftAxis: data.leftAxis?.trim() || null,
-      leftAdd: data.leftAdd?.trim() || null,
-      leftDia: data.leftDia?.trim() || null,
-      leftBase: data.leftBase?.trim() || null,
-      leftBaseSize: data.leftBaseSize?.trim() || null,
-      leftBled: data.leftBled?.trim() || null,
+  rightSpherical: data.rightSpherical?.trim() || null,
+  rightCylindrical: data.rightCylindrical?.trim() || null,
+  rightAxis: data.rightAxis?.trim() || null,
+  rightAdd: data.rightAdd?.trim() || null,
+  rightDia: data.rightDia?.trim() || null,
+  leftSpherical: data.leftSpherical?.trim() || null,
+  leftCylindrical: data.leftCylindrical?.trim() || null,
+  leftAxis: data.leftAxis?.trim() || null,
+  leftAdd: data.leftAdd?.trim() || null,
+  leftDia: data.leftDia?.trim() || null,
       dispatchStatus: data.dispatchStatus || 'Pending',
       assignedPerson_id: data.assignedPerson_id ? parseInt(data.assignedPerson_id) : null,
       dispatchId: data.dispatchId?.trim() || null,
@@ -305,7 +308,10 @@ export const validateCreateSaleOrder = (data) => {
       actualTime: data.actualTime?.trim() || null,
       dispatchNotes: data.dispatchNotes?.trim() || null,
       lensPrice: data.lensPrice ? parseFloat(data.lensPrice) : 0,
+      rightEyeExtra: data.rightEyeExtra ? parseFloat(data.rightEyeExtra) : 0,
+      leftEyeExtra: data.leftEyeExtra ? parseFloat(data.leftEyeExtra) : 0,
       fittingPrice: data.fittingPrice ? parseFloat(data.fittingPrice) : 0,
+      tintingPrice: data.tintingPrice ? parseFloat(data.tintingPrice) : 0,
       discount: data.discount ? parseFloat(data.discount) : 0,
       additionalPrice: data.additionalPrice || null,
       createdBy: parseInt(data.createdBy),
@@ -370,6 +376,10 @@ export const validateUpdateSaleOrder = (data) => {
     errors.push({ field: 'fittingPrice', message: 'Fitting price must be a valid positive number' });
   }
 
+  if (data.tintingPrice !== undefined && data.tintingPrice !== null && data.tintingPrice !== '' && !isValidPositiveNumber(data.tintingPrice)) {
+    errors.push({ field: 'tintingPrice', message: 'Tinting price must be a valid positive number' });
+  }
+
   if (data.discount !== undefined && data.discount !== null && data.discount !== '') {
     const discount = parseFloat(data.discount);
     if (isNaN(discount) || discount < 0 || discount > 100) {
@@ -380,6 +390,13 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.additionalPrice !== undefined && data.additionalPrice !== null) {
     if (!Array.isArray(data.additionalPrice)) {
       errors.push({ field: 'additionalPrice', message: 'Additional price must be an array' });
+    }
+  }
+
+  if (data.material_id !== undefined && data.material_id !== null && data.material_id !== '') {
+    const materialId = parseInt(data.material_id);
+    if (isNaN(materialId) || materialId <= 0) {
+      errors.push({ field: 'material_id', message: 'Material ID must be a valid positive number' });
     }
   }
 
@@ -406,6 +423,7 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.fitting_id !== undefined) updateData.fitting_id = data.fitting_id ? parseInt(data.fitting_id) : null;
   if (data.coating_id !== undefined) updateData.coating_id = data.coating_id ? parseInt(data.coating_id) : null;
   if (data.tinting_id !== undefined) updateData.tinting_id = data.tinting_id ? parseInt(data.tinting_id) : null;
+  if (data.material_id !== undefined) updateData.material_id = data.material_id ? parseInt(data.material_id) : null;
   if (data.rightEye !== undefined) updateData.rightEye = data.rightEye;
   if (data.leftEye !== undefined) updateData.leftEye = data.leftEye;
   if (data.rightSpherical !== undefined) updateData.rightSpherical = data.rightSpherical?.trim() || null;
@@ -413,17 +431,11 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.rightAxis !== undefined) updateData.rightAxis = data.rightAxis?.trim() || null;
   if (data.rightAdd !== undefined) updateData.rightAdd = data.rightAdd?.trim() || null;
   if (data.rightDia !== undefined) updateData.rightDia = data.rightDia?.trim() || null;
-  if (data.rightBase !== undefined) updateData.rightBase = data.rightBase?.trim() || null;
-  if (data.rightBaseSize !== undefined) updateData.rightBaseSize = data.rightBaseSize?.trim() || null;
-  if (data.rightBled !== undefined) updateData.rightBled = data.rightBled?.trim() || null;
   if (data.leftSpherical !== undefined) updateData.leftSpherical = data.leftSpherical?.trim() || null;
   if (data.leftCylindrical !== undefined) updateData.leftCylindrical = data.leftCylindrical?.trim() || null;
   if (data.leftAxis !== undefined) updateData.leftAxis = data.leftAxis?.trim() || null;
   if (data.leftAdd !== undefined) updateData.leftAdd = data.leftAdd?.trim() || null;
   if (data.leftDia !== undefined) updateData.leftDia = data.leftDia?.trim() || null;
-  if (data.leftBase !== undefined) updateData.leftBase = data.leftBase?.trim() || null;
-  if (data.leftBaseSize !== undefined) updateData.leftBaseSize = data.leftBaseSize?.trim() || null;
-  if (data.leftBled !== undefined) updateData.leftBled = data.leftBled?.trim() || null;
   if (data.dispatchStatus !== undefined) updateData.dispatchStatus = data.dispatchStatus?.trim() || null;
   if (data.assignedPerson_id !== undefined) updateData.assignedPerson_id = data.assignedPerson_id ? parseInt(data.assignedPerson_id) : null;
   if (data.dispatchId !== undefined) updateData.dispatchId = data.dispatchId?.trim() || null;
@@ -433,7 +445,10 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.actualTime !== undefined) updateData.actualTime = data.actualTime?.trim() || null;
   if (data.dispatchNotes !== undefined) updateData.dispatchNotes = data.dispatchNotes?.trim() || null;
   if (data.lensPrice !== undefined) updateData.lensPrice = data.lensPrice ? parseFloat(data.lensPrice) : 0;
+  if (data.rightEyeExtra !== undefined) updateData.rightEyeExtra = data.rightEyeExtra ? parseFloat(data.rightEyeExtra) : 0;
+  if (data.leftEyeExtra !== undefined) updateData.leftEyeExtra = data.leftEyeExtra ? parseFloat(data.leftEyeExtra) : 0;
   if (data.fittingPrice !== undefined) updateData.fittingPrice = data.fittingPrice ? parseFloat(data.fittingPrice) : 0;
+  if (data.tintingPrice !== undefined) updateData.tintingPrice = data.tintingPrice ? parseFloat(data.tintingPrice) : 0;
   if (data.discount !== undefined) updateData.discount = data.discount ? parseFloat(data.discount) : 0;
   if (data.additionalPrice !== undefined) updateData.additionalPrice = data.additionalPrice || null;
 

@@ -13,6 +13,9 @@ const mapToBackend = (frontendData) => {
     name: frontendData.name,
     short_name: frontendData.short_name,
     description: frontendData.description || null,
+    tinting_price: frontendData.tinting_price !== "" && frontendData.tinting_price !== null 
+      ? parseFloat(frontendData.tinting_price) 
+      : null,
     activeStatus: frontendData.activeStatus ?? true,
   };
 };
@@ -28,6 +31,9 @@ const mapFromBackend = (backendData) => {
     name: backendData.name || "",
     short_name: backendData.short_name || "",
     description: backendData.description || "",
+    tinting_price: backendData.tinting_price !== null && backendData.tinting_price !== undefined
+      ? backendData.tinting_price
+      : null,
     activeStatus: backendData.activeStatus ?? true,
     orderCount: backendData._count?.saleOrders || 0,
     createdAt: backendData.createdAt,
