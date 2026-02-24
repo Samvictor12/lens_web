@@ -1097,6 +1097,63 @@ export class SaleOrderService {
       throw new APIError('Failed to fetch statistics', 500, 'FETCH_STATS_ERROR');
     }
   }
+  /**
+   * Get sale orders dropdown options
+   * @param {Object} req - Express request object (for audit logging)
+   * @param {number} userId - User requesting data (for audit logging)
+   * @returns {Promise<Array>} Sale orders dropdown data
+   */
+  async getSaleOrdersDropdown(req = null, userId = null) {
+    try {
+      const saleOrders = await prisma.saleOrder.findMany({
+        where: {
+          deleteStatus: false,
+          activeStatus: true
+        },
+        select: {
+          id: true,
+          orderNo: true,
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              code: true
+            }
+          },
+          status: true,
+          createdAt: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      // Format data for dropdown: value = id, label = "orderNo - customerName"
+      const dropdownData = saleOrders.map(order => ({
+        value: order.id,
+        label: `${order.orderNo} - ${order.customer.name}`,
+        orderNo: order.orderNo,
+        customerName: order.customer.name,
+        customerCode: order.customer.code,
+        status: order.status
+      }));
+
+      return dropdownData;
+    } catch (error) {
+      // ✅ LOG THE ERROR
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: {
+          operation: 'getSaleOrdersDropdown'
+        }
+      }).catch(err => console.error('Error log failed:', err));
+      
+      console.error('Error fetching sale orders dropdown:', error);
+      throw new APIError('Failed to fetch sale orders dropdown', 500, 'FETCH_DROPDOWN_ERROR');
+    }
+  }
 }
 
 export default SaleOrderService;

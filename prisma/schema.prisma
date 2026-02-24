@@ -245,6 +245,8 @@ model LensCategoryMaster {
   lensProductMasters LensProductMaster[]
   saleOrders         SaleOrder[]
   purchaseOrders     PurchaseOrder[]
+  inventoryItems     InventoryItem[]
+  inventoryStock     InventoryStock[]
 }
 
 model LensMaterialMaster {
@@ -280,6 +282,8 @@ model LensCoatingMaster {
   lensPriceMasters LensPriceMaster[]
   saleOrders       SaleOrder[]
   purchaseOrders   PurchaseOrder[]
+  inventoryItems   InventoryItem[]
+  inventoryStock   InventoryStock[]
 }
 
 model LensFittingMaster {
@@ -372,6 +376,8 @@ model LensTypeMaster {
   lensProductMasters LensProductMaster[]
   saleOrders         SaleOrder[]
   purchaseOrders     PurchaseOrder[]
+  inventoryItems     InventoryItem[]
+  inventoryStock     InventoryStock[]
 }
 
 model LensProductMaster {
@@ -410,6 +416,9 @@ model LensProductMaster {
   lensPriceMasters LensPriceMaster[]
   saleOrders       SaleOrder[]
   purchaseOrders   PurchaseOrder[]
+  inventoryItems   InventoryItem[]
+  inventoryStock   InventoryStock[]
+  inventoryAlerts  InventoryAlert[]
 }
 
 model LensPriceMaster {
@@ -564,6 +573,10 @@ model PurchaseOrder {
   supplierInvoiceNo    String?             // e.g., BL080984-25/26
   purchaseType         String?             // Local/Interstate
   placeOfSupply        String?             // State name (e.g., Maharashtra)
+  
+  // Purchase Order Type
+  orderType            String              @default("Single") // "Single", "Bulk"
+  lensBulkSelection    Json?               // Bulk lens data when orderType is "Bulk"
   itemDescription      String?             // Item/Service Name
   taxAccount           String?             // Tax Account Name (e.g., GST@5%)
   

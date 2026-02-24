@@ -31,6 +31,79 @@ const isValidDate = (date) => {
 };
 
 /**
+ * Validate bulk lens selection item
+ */
+const validateBulkLensItem = (item, index) => {
+  const itemErrors = [];
+  
+  if (!item.lens_id || !isValidInteger(item.lens_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].lens_id`, 
+      message: 'Valid lens ID is required' 
+    });
+  }
+  
+  if (!item.quantity || !isValidFloat(item.quantity) || parseFloat(item.quantity) <= 0) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].quantity`, 
+      message: 'Quantity must be greater than 0' 
+    });
+  }
+  
+  if (!item.unitPrice || !isValidFloat(item.unitPrice) || parseFloat(item.unitPrice) < 0) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].unitPrice`, 
+      message: 'Unit price must be 0 or greater' 
+    });
+  }
+
+  // Optional fields validation
+  if (item.category_id && !isValidInteger(item.category_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].category_id`, 
+      message: 'Invalid category ID' 
+    });
+  }
+
+  if (item.coating_id && !isValidInteger(item.coating_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].coating_id`, 
+      message: 'Invalid coating ID' 
+    });
+  }
+
+  if (item.Type_id && !isValidInteger(item.Type_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].Type_id`, 
+      message: 'Invalid type ID' 
+    });
+  }
+
+  if (item.fitting_id && !isValidInteger(item.fitting_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].fitting_id`, 
+      message: 'Invalid fitting ID' 
+    });
+  }
+
+  if (item.dia_id && !isValidInteger(item.dia_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].dia_id`, 
+      message: 'Invalid dia ID' 
+    });
+  }
+
+  if (item.tinting_id && !isValidInteger(item.tinting_id)) {
+    itemErrors.push({ 
+      field: `lensBulkSelection[${index}].tinting_id`, 
+      message: 'Invalid tinting ID' 
+    });
+  }
+  
+  return itemErrors;
+};
+
+/**
  * Validate create purchase order data
  */
 export const validateCreatePurchaseOrder = (data) => {
@@ -134,6 +207,52 @@ export const validateCreatePurchaseOrder = (data) => {
     errors.push({ field: 'actualDeliveryDate', message: 'Invalid actual delivery date' });
   }
 
+  // orderType validation
+  if (data.orderType && !['Single', 'Bulk'].includes(data.orderType)) {
+    errors.push({ field: 'orderType', message: 'Order type must be either "Single" or "Bulk"' });
+  }
+
+  // lensBulkSelection validation for Bulk orders
+  if (data.orderType === 'Bulk') {
+    if (!data.lensBulkSelection) {
+      errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection is required for bulk orders' });
+    } else {
+      try {
+        const bulkData = typeof data.lensBulkSelection === 'string' 
+          ? JSON.parse(data.lensBulkSelection) 
+          : data.lensBulkSelection;
+        
+        if (!Array.isArray(bulkData) || bulkData.length === 0) {
+          errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection must be a non-empty array' });
+        } else {
+          // Validate each bulk item
+          bulkData.forEach((item, index) => {
+            // Validate spherical and cylindrical values
+            if (item.spherical === undefined || item.spherical === null) {
+              errors.push({ field: `lensBulkSelection[${index}].spherical`, message: 'Spherical value is required for bulk item' });
+            }
+            if (item.cylindrical === undefined || item.cylindrical === null) {
+              errors.push({ field: `lensBulkSelection[${index}].cylindrical`, message: 'Cylindrical value is required for bulk item' });
+            }
+            if (!item.quantity || parseFloat(item.quantity) <= 0) {
+              errors.push({ field: `lensBulkSelection[${index}].quantity`, message: 'Valid quantity is required for bulk item' });
+            }
+            if (item.unitPrice !== undefined && parseFloat(item.unitPrice) < 0) {
+              errors.push({ field: `lensBulkSelection[${index}].unitPrice`, message: 'Unit price cannot be negative' });
+            }
+          });
+        }
+      } catch (parseError) {
+        errors.push({ field: 'lensBulkSelection', message: 'Invalid JSON format for bulk lens selection' });
+      }
+    }
+  }
+
+  // For Single orders, ensure individual lens fields are provided
+  if (data.orderType === 'Single' || !data.orderType) {
+    // Individual lens validation logic can be added here if needed
+  }
+
   // createdBy validation
   if (!data.createdBy) {
     errors.push({ field: 'createdBy', message: 'Created by user ID is required' });
@@ -189,6 +308,12 @@ export const validateCreatePurchaseOrder = (data) => {
       orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
       expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate) : null,
       actualDeliveryDate: data.actualDeliveryDate ? new Date(data.actualDeliveryDate) : null,
+      orderType: data.orderType || 'Single',
+      lensBulkSelection: data.orderType === 'Bulk' && data.lensBulkSelection 
+        ? (typeof data.lensBulkSelection === 'string' 
+           ? JSON.parse(data.lensBulkSelection) 
+           : data.lensBulkSelection) 
+        : null,
       status: data.status || 'PENDING',
       notes: data.notes?.trim() || null,
       narration: data.narration?.trim() || null,
@@ -256,6 +381,47 @@ export const validateUpdatePurchaseOrder = (data) => {
 
   if (data.actualDeliveryDate !== undefined && !isValidDate(data.actualDeliveryDate)) {
     errors.push({ field: 'actualDeliveryDate', message: 'Invalid actual delivery date' });
+  }
+
+  // orderType validation
+  if (data.orderType !== undefined && !['Single', 'Bulk'].includes(data.orderType)) {
+    errors.push({ field: 'orderType', message: 'Order type must be either "Single" or "Bulk"' });
+  }
+
+  // lensBulkSelection validation for Bulk orders
+  if (data.orderType === 'Bulk') {
+    if (!data.lensBulkSelection) {
+      errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection is required for bulk orders' });
+    } else {
+      try {
+        const bulkData = typeof data.lensBulkSelection === 'string' 
+          ? JSON.parse(data.lensBulkSelection) 
+          : data.lensBulkSelection;
+        
+        if (!Array.isArray(bulkData) || bulkData.length === 0) {
+          errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection must be a non-empty array' });
+        } else {
+          // Validate each bulk item
+          bulkData.forEach((item, index) => {
+            // Validate spherical and cylindrical values
+            if (item.spherical === undefined || item.spherical === null) {
+              errors.push({ field: `lensBulkSelection[${index}].spherical`, message: 'Spherical value is required for bulk item' });
+            }
+            if (item.cylindrical === undefined || item.cylindrical === null) {
+              errors.push({ field: `lensBulkSelection[${index}].cylindrical`, message: 'Cylindrical value is required for bulk item' });
+            }
+            if (!item.quantity || parseFloat(item.quantity) <= 0) {
+              errors.push({ field: `lensBulkSelection[${index}].quantity`, message: 'Valid quantity is required for bulk item' });
+            }
+            if (item.unitPrice !== undefined && parseFloat(item.unitPrice) < 0) {
+              errors.push({ field: `lensBulkSelection[${index}].unitPrice`, message: 'Unit price cannot be negative' });
+            }
+          });
+        }
+      } catch (parseError) {
+        errors.push({ field: 'lensBulkSelection', message: 'Invalid JSON format for bulk lens selection' });
+      }
+    }
   }
 
   return {

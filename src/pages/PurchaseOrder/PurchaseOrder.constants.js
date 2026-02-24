@@ -4,6 +4,8 @@ export const defaultPurchaseOrder = {
   reference_id: "",
   vendorId: null,
   saleOrderId: null,
+  orderType: "Single",
+  lensBulkSelection: null,
   lens_id: null,
   category_id: null,
   Type_id: null,
@@ -62,6 +64,12 @@ export const statusOptions = [
 export const purchaseTypeOptions = [
   { value: "Local", label: "Local" },
   { value: "Interstate", label: "Interstate" },
+];
+
+// Order type options
+export const orderTypeOptions = [
+  { value: "Single", label: "Single Purchase" },
+  { value: "Bulk", label: "Bulk Purchase" },
 ];
 
 // Active status options

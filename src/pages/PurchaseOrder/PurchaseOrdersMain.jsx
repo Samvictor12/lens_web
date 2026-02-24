@@ -5,14 +5,19 @@ import {
   Search,
   Upload,
   Download,
+  TrendingUp,
+  Package,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { ViewToggle } from "@/components/ui/view-toggle";
 import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { getPurchaseOrders, deletePurchaseOrder } from "@/services/purchaseOrder";
 import { purchaseOrderFilters } from "./PurchaseOrder.constants";
@@ -49,6 +54,19 @@ export default function PurchaseOrders() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [poToDelete, setPoToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Dashboard statistics
+  const [dashboardStats, setDashboardStats] = useState({
+    totalOrders: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    totalValue: 0,
+    avgOrderValue: 0,
+    recentActivity: []
+  });
+  
+  // Active tab state
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   // Handle delete purchase order click
   const handleDeleteClick = (po) => {
@@ -97,6 +115,11 @@ export default function PurchaseOrders() {
   useEffect(() => {
     fetchPurchaseOrders();
   }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+
+  // Calculate dashboard stats when purchase orders change
+  useEffect(() => {
+    calculateDashboardStats();
+  }, [purchaseOrders]);
 
   // Handle delete purchase order
   const handleDeleteConfirm = async () => {
@@ -150,6 +173,29 @@ export default function PurchaseOrders() {
     setShowFilterDialog(false);
   };
 
+  // Calculate dashboard statistics
+  const calculateDashboardStats = () => {
+    const totalOrders = purchaseOrders.length;
+    const pendingOrders = purchaseOrders.filter(po => po.status === 'PENDING').length;
+    const completedOrders = purchaseOrders.filter(po => po.status === 'COMPLETED').length;
+    const totalValue = purchaseOrders.reduce((sum, po) => sum + parseFloat(po.totalValue || 0), 0);
+    const avgOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
+    
+    // Get recent activity (last 5 orders)
+    const recentActivity = [...purchaseOrders]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5);
+    
+    setDashboardStats({
+      totalOrders,
+      pendingOrders,
+      completedOrders,
+      totalValue,
+      avgOrderValue,
+      recentActivity
+    });
+  };
+
   const handleClearFilters = () => {
     const clearedFilters = purchaseOrderFilters;
     setTempFilters(clearedFilters);
@@ -179,6 +225,96 @@ export default function PurchaseOrders() {
       description: "Sample template download will be available soon.",
     });
   };
+
+  // Dashboard component
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats.totalOrders}</div>
+            <p className="text-xs text-muted-foreground">All purchase orders</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{dashboardStats.pendingOrders}</div>
+            <p className="text-xs text-muted-foreground">Awaiting completion</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed Orders</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{dashboardStats.completedOrders}</div>
+            <p className="text-xs text-muted-foreground">Successfully completed</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{dashboardStats.totalValue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Avg: ₹{Math.round(dashboardStats.avgOrderValue).toLocaleString()}</p>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Purchase Orders</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {dashboardStats.recentActivity.length > 0 ? (
+            <div className="space-y-3">
+              {dashboardStats.recentActivity.map((po) => (
+                <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                     onClick={() => navigate(`/masters/purchase-orders/view/${po.id}`)}>
+                  <div className="flex-1">
+                    <div className="font-medium">{po.poNumber}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {po.vendor?.name || 'Unknown Vendor'} • ₹{parseFloat(po.totalValue || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      po.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                      po.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {po.status}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {new Date(po.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4">No recent activity</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
@@ -221,84 +357,99 @@ export default function PurchaseOrders() {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <Card className="p-1 sm:p-1 flex-shrink-0">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search purchase orders..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-8 text-sm"
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <ViewToggle view={view} onViewChange={handleViewChange} />
-            <PurchaseOrderFilter
-              filters={filters}
-              tempFilters={tempFilters}
-              setTempFilters={setTempFilters}
-              showFilterDialog={showFilterDialog}
-              setShowFilterDialog={setShowFilterDialog}
-              hasActiveFilters={hasActiveFilters}
-              onApplyFilters={handleApplyFilters}
-              onClearFilters={handleClearFilters}
-              onCancelFilters={handleCancelFilters}
-            />
-          </div>
-        </div>
-      </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="dashboard">Inventory Dashboard</TabsTrigger>
+          <TabsTrigger value="list">Purchase Orders List</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="dashboard" className="flex-1 mt-0">
+          {renderDashboard()}
+        </TabsContent>
+        
+        <TabsContent value="list" className="flex-1 flex flex-col mt-0">
 
-      {/* Table View */}
-      {view === "table" && (
-        <div className="flex-1 min-h-0">
-          <Table
-            data={displayPurchaseOrders}
-            columns={columns}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={setPageIndex}
-            loading={isLoading}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPageIndex(0);
-            }}
-            setSorting={setSorting}
-            sorting={sorting}
-            pagination={true}
-            emptyMessage="No purchase orders found"
-          />
-        </div>
-      )}
+          {/* Search and Filters */}
+          <Card className="p-1 sm:p-1 flex-shrink-0 mb-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search purchase orders..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-8 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ViewToggle view={view} onViewChange={handleViewChange} />
+                <PurchaseOrderFilter
+                  filters={filters}
+                  tempFilters={tempFilters}
+                  setTempFilters={setTempFilters}
+                  showFilterDialog={showFilterDialog}
+                  setShowFilterDialog={setShowFilterDialog}
+                  hasActiveFilters={hasActiveFilters}
+                  onApplyFilters={handleApplyFilters}
+                  onClearFilters={handleClearFilters}
+                  onCancelFilters={handleCancelFilters}
+                />
+              </div>
+            </div>
+          </Card>
 
-      {/* Card View */}
-      {view === "card" && (
-        <div className="flex-1 min-h-0">
-          <CardGrid
-            items={displayPurchaseOrders}
-            renderCard={(po) => (
-              <PurchaseOrderCard
-                purchaseOrder={po}
-                onView={(id) => navigate(`/masters/purchase-orders/view/${id}`)}
-                onDelete={handleDeleteClick}
+          {/* Table View */}
+          {view === "table" && (
+            <div className="flex-1 min-h-0">
+              <Table
+                data={displayPurchaseOrders}
+                columns={columns}
+                pageIndex={pageIndex}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPageIndex}
+                loading={isLoading}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPageIndex(0);
+                }}
+                setSorting={setSorting}
+                sorting={sorting}
+                pagination={true}
+                emptyMessage="No purchase orders found"
               />
-            )}
-            isLoading={isLoading}
-            emptyMessage="No purchase orders found"
-            pagination={true}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={setPageIndex}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPageIndex(0);
-            }}
-          />
-        </div>
-      )}
+            </div>
+          )}
+
+          {/* Card View */}
+          {view === "card" && (
+            <div className="flex-1 min-h-0">
+              <CardGrid
+                items={displayPurchaseOrders}
+                renderCard={(po) => (
+                  <PurchaseOrderCard
+                    purchaseOrder={po}
+                    onView={(id) => navigate(`/masters/purchase-orders/view/${id}`)}
+                    onDelete={handleDeleteClick}
+                  />
+                )}
+                isLoading={isLoading}
+                emptyMessage="No purchase orders found"
+                pagination={true}
+                pageIndex={pageIndex}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setPageIndex}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPageIndex(0);
+                }}
+              />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog

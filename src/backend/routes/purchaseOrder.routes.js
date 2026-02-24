@@ -24,6 +24,26 @@ router.get(
 );
 
 /**
+ * @route   GET /api/purchase-orders/order-types/dropdown
+ * @desc    Get order types dropdown list
+ * @access  Private
+ */
+router.get(
+  "/order-types/dropdown",
+  purchaseOrderController.getOrderTypesDropdown.bind(purchaseOrderController)
+);
+
+/**
+ * @route   POST /api/purchase-orders/calculate-bulk-totals
+ * @desc    Calculate totals for bulk lens selection
+ * @access  Private
+ */
+router.post(
+  "/calculate-bulk-totals",
+  purchaseOrderController.calculateBulkTotals.bind(purchaseOrderController)
+);
+
+/**
  * @route   POST /api/purchase-orders
  * @desc    Create a new purchase order
  * @access  Private

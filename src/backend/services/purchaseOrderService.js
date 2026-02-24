@@ -37,6 +37,44 @@ class PurchaseOrderService {
   }
 
   /**
+   * Process bulk lens selection and calculate totals
+   * @param {Array} bulkSelection - Array of bulk lens items
+   * @returns {Object} Calculated totals for bulk order
+   */
+  async processBulkLensSelection(bulkSelection) {
+    try {
+      let totalQuantity = 0;
+      let totalSubtotal = 0;
+      
+      // Process each bulk item
+      for (const item of bulkSelection) {
+        const quantity = parseFloat(item.quantity) || 0;
+        const unitPrice = parseFloat(item.unitPrice) || 0;
+        const subtotal = quantity * unitPrice;
+        
+        totalQuantity += quantity;
+        totalSubtotal += subtotal;
+        
+        // Add calculated subtotal to the item
+        item.subtotal = subtotal;
+      }
+      
+      return {
+        totalQuantity,
+        totalSubtotal,
+        processedItems: bulkSelection
+      };
+    } catch (error) {
+      console.error("Error processing bulk lens selection:", error);
+      throw new APIError(
+        "Failed to process bulk lens selection",
+        500,
+        "PROCESS_BULK_ERROR"
+      );
+    }
+  }
+
+  /**
    * Create a new purchase order
    * @param {Object} poData - Purchase order data
    * @returns {Promise<Object>} Created purchase order
@@ -56,6 +94,24 @@ class PurchaseOrderService {
             "DUPLICATE_REFERENCE_ID"
           );
         }
+      }
+
+      // Handle bulk order processing
+      if (poData.orderType === 'Bulk' && poData.lensBulkSelection) {
+        const bulkProcessing = await this.processBulkLensSelection(poData.lensBulkSelection);
+        
+        // Update totals based on bulk calculation
+        poData.quantity = bulkProcessing.totalQuantity;
+        poData.subtotal = bulkProcessing.totalSubtotal;
+        
+        // Calculate total with discount and tax
+        const discountAmount = (bulkProcessing.totalSubtotal * (poData.discountPercentage || 0)) / 100;
+        const afterDiscount = bulkProcessing.totalSubtotal - discountAmount;
+        const taxAmount = poData.taxAmount || 0;
+        const roundOff = poData.roundOff || 0;
+        
+        poData.totalValue = afterDiscount + taxAmount + roundOff;
+        poData.lensBulkSelection = bulkProcessing.processedItems;
       }
 
       const purchaseOrder = await prisma.purchaseOrder.create({
@@ -267,8 +323,11 @@ class PurchaseOrderService {
         prisma.purchaseOrder.count({ where }),
       ]);
 
+      // Format the purchase orders to handle bulk data
+      const formattedPOs = purchaseOrders.map(po => this.formatPurchaseOrderResponse(po));
+
       return {
-        data: purchaseOrders,
+        data: formattedPOs,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -284,6 +343,41 @@ class PurchaseOrderService {
         "FETCH_POS_ERROR"
       );
     }
+  }
+
+  /**
+   * Format purchase order response with bulk data
+   * @param {Object} purchaseOrder - Purchase order from database
+   * @returns {Object} Formatted purchase order
+   */
+  formatPurchaseOrderResponse(purchaseOrder) {
+    if (!purchaseOrder) return null;
+
+    const formatted = { ...purchaseOrder };
+
+    // If it's a bulk order, ensure lensBulkSelection is properly formatted
+    if (formatted.orderType === 'Bulk' && formatted.lensBulkSelection) {
+      try {
+        // Ensure bulk selection is an array
+        if (typeof formatted.lensBulkSelection === 'string') {
+          formatted.lensBulkSelection = JSON.parse(formatted.lensBulkSelection);
+        }
+        
+        // Add summary for bulk orders
+        if (Array.isArray(formatted.lensBulkSelection)) {
+          formatted.bulkSummary = {
+            totalItems: formatted.lensBulkSelection.length,
+            totalQuantity: formatted.lensBulkSelection.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0),
+            totalAmount: formatted.lensBulkSelection.reduce((sum, item) => sum + (parseFloat(item.subtotal) || 0), 0)
+          };
+        }
+      } catch (error) {
+        console.error("Error formatting bulk selection:", error);
+        formatted.lensBulkSelection = null;
+      }
+    }
+
+    return formatted;
   }
 
   /**
@@ -395,7 +489,7 @@ class PurchaseOrderService {
         throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
       }
 
-      return purchaseOrder;
+      return this.formatPurchaseOrderResponse(purchaseOrder);
     } catch (error) {
       if (error instanceof APIError) {
         throw error;
@@ -444,6 +538,24 @@ class PurchaseOrderService {
         }
       }
 
+      // Handle bulk order processing if being updated to bulk or bulk data is modified
+      if (updateData.orderType === 'Bulk' && updateData.lensBulkSelection) {
+        const bulkProcessing = await this.processBulkLensSelection(updateData.lensBulkSelection);
+        
+        // Update totals based on bulk calculation
+        updateData.quantity = bulkProcessing.totalQuantity;
+        updateData.subtotal = bulkProcessing.totalSubtotal;
+        
+        // Calculate total with discount and tax
+        const discountAmount = (bulkProcessing.totalSubtotal * (updateData.discountPercentage || 0)) / 100;
+        const afterDiscount = bulkProcessing.totalSubtotal - discountAmount;
+        const taxAmount = updateData.taxAmount || 0;
+        const roundOff = updateData.roundOff || 0;
+        
+        updateData.totalValue = afterDiscount + taxAmount + roundOff;
+        updateData.lensBulkSelection = bulkProcessing.processedItems;
+      }
+
       const updatedPO = await prisma.purchaseOrder.update({
         where: { id },
         data: {
@@ -484,7 +596,7 @@ class PurchaseOrderService {
         },
       });
 
-      return updatedPO;
+      return this.formatPurchaseOrderResponse(updatedPO);
     } catch (error) {
       if (error instanceof APIError) {
         throw error;

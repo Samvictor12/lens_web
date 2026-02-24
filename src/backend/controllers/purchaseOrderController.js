@@ -169,6 +169,56 @@ class PurchaseOrderController {
       next(error);
     }
   }
+
+  /**
+   * Calculate bulk order totals
+   */
+  async calculateBulkTotals(req, res, next) {
+    try {
+      const { lensBulkSelection } = req.body;
+
+      if (!lensBulkSelection || !Array.isArray(lensBulkSelection)) {
+        return res.status(400).json({
+          success: false,
+          message: "Bulk lens selection array is required",
+        });
+      }
+
+      const result = await purchaseOrderService.processBulkLensSelection(lensBulkSelection);
+
+      res.status(200).json({
+        success: true,
+        message: "Bulk totals calculated successfully",
+        data: {
+          totalQuantity: result.totalQuantity,
+          totalSubtotal: result.totalSubtotal,
+          processedItems: result.processedItems,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get purchase order types dropdown
+   */
+  async getOrderTypesDropdown(req, res, next) {
+    try {
+      const orderTypes = [
+        { value: 'Single', label: 'Single Purchase' },
+        { value: 'Bulk', label: 'Bulk Purchase' }
+      ];
+
+      res.status(200).json({
+        success: true,
+        message: "Order types fetched successfully",
+        data: orderTypes,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new PurchaseOrderController();

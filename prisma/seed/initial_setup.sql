@@ -7,14 +7,14 @@
 
 -- 1. CREATE DEPARTMENTS
 -- ==========================================
-INSERT INTO "DepartmentDetails" (id, department, active_status, delete_status, "createdAt", "createdBy", "updatedAt")
+INSERT INTO "DepartmentDetails" (id, department, active_status, delete_status, "createdAt", "createdBy", "updatedAt", "updatedBy")
 VALUES 
-  (1, 'Administration', true, false, NOW(), 1, NOW()),
-  (2, 'Sales', true, false, NOW(), 1, NOW()),
-  (3, 'Accounts', true, false, NOW(), 1, NOW()),
-  (4, 'Inventory', true, false, NOW(), 1, NOW()),
-  (5, 'Production', true, false, NOW(), 1, NOW()),
-  (6, 'Dispatch', true, false, NOW(), 1, NOW())
+  (1, 'Administration', true, false, NOW(), 1, NOW(), NULL),
+  (2, 'Sales', true, false, NOW(), 1, NOW(), NULL),
+  (3, 'Accounts', true, false, NOW(), 1, NOW(), NULL),
+  (4, 'Inventory', true, false, NOW(), 1, NOW(), NULL),
+  (5, 'Production', true, false, NOW(), 1, NOW(), NULL),
+  (6, 'Dispatch', true, false, NOW(), 1, NOW(), NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- Reset sequence for DepartmentDetails
@@ -115,39 +115,62 @@ ON CONFLICT DO NOTHING;
 
 -- 4. CREATE ADMIN USER
 -- ==========================================
--- Default password: Admin@123
+-- Default password: demo123
 -- NOTE: Change this password immediately after first login!
 INSERT INTO "User" (
   id,
   name, 
   email, 
-  username, 
+  phonenumber,
+  alternatenumber,
+  bloodgroup,
   usercode,
+  username, 
   password, 
+  is_login,
   role_id, 
+  address,
+  city,
+  state,
+  pincode,
+  salary,
   department_id,
   active_status, 
   delete_status, 
   "createdAt", 
   "createdBy", 
-  "updatedAt"
+  "updatedAt",
+  "updatedBy"
 )
 VALUES (
   1,
   'System Administrator',
-  'admin@lensapp.com',
+  'admin@lensbilling.com',
+  NULL,
+  NULL,
+  NULL,
+  'ADM001',
   'admin',
-  'USR001',
-  '$2b$10$YourHashedPasswordHere', -- Replace with actual bcrypt hash of 'Admin@123'
+  '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- bcrypt hash of 'demo123'
+  false,
   1, -- Admin role
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
   1, -- Administration department
   true,
   false,
   NOW(),
   1,
-  NOW()
+  NOW(),
+  NULL
 )
-ON CONFLICT (username) DO NOTHING;
+ON CONFLICT (username) DO UPDATE SET
+  password = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+  email = 'admin@lensbilling.com',
+  "updatedAt" = NOW();
 
 -- Reset sequence for User
 SELECT setval('"User_id_seq"', (SELECT MAX(id) FROM "User"));
@@ -178,12 +201,12 @@ ORDER BY p.subject, p.action;
 
 
 -- ==========================================
--- TO GENERATE PASSWORD HASH
+-- PASSWORD HASH INFORMATION
 -- ==========================================
--- Use Node.js to generate the bcrypt hash:
--- 
--- const bcrypt = require('bcrypt');
--- const password = 'Admin@123';
--- bcrypt.hash(password, 10).then(hash => console.log(hash));
+-- The password hash above is for 'demo123'
+-- Generated using: bcrypt.hash('demo123', 10)
+-- Hash: $2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
 --
--- Then replace the password hash in the INSERT statement above
+-- Credentials:
+-- Username: admin
+-- Password: demo123

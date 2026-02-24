@@ -37,12 +37,12 @@ export class AuthService {
         }
       });
 
-      console.log("User ", user, user.password, bcrypt.hashSync(password, 10));
-
-
       if (!user) {
+        console.log("User not found for username:", username);
         throw new APIError('Invalid username or password', 401, 'INVALID_CREDENTIALS');
       }
+
+      console.log("User found:", user.username, "Password hash:", user.password);
 
       // Check if user is deleted
       if (user.delete_status === true) {

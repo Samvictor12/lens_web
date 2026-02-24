@@ -77,8 +77,8 @@ async function main() {
   // Step 2: Create user without department (set to NULL temporarily)
   const hashedSystemPassword = await bcrypt.hash('system123', 10);
   await prisma.$executeRaw`
-    INSERT INTO "User" (id, name, email, usercode, password, role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt")
-    VALUES (1, 'System Admin', 'system@lensbilling.com', 'SYS001', ${hashedSystemPassword}, 1, NULL, 1, true, false, NOW(), NOW())
+    INSERT INTO "User" (id, name, email, usercode, username, password, role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt")
+    VALUES (1, 'System Admin', 'system@lensbilling.com', 'SYS001', 'admin', ${hashedSystemPassword}, 1, NULL, 1, true, false, NOW(), NOW())
     ON CONFLICT (id) DO NOTHING
   `;
 
