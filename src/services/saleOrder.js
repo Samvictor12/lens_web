@@ -366,3 +366,17 @@ export const getTintingById = async (tintingId) => {
         );
     }
 };
+
+/**
+ * Get dropdown options for sale orders
+ */
+export const getSaleOrdersDropdown = async () => {
+    try {
+        const response = await apiClient("get", "/sale-orders/dropdown");
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch sale orders"
+        );
+    }
+};

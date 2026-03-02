@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
+import { FormSelect } from "@/components/ui/form-select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,6 +19,7 @@ import {
   enableUserLogin,
   updateUserLogin,
 } from "@/services/user";
+import { roleOptions } from "./User.constants";
 
 export default function UserLoginDialog({
   open,
@@ -34,6 +36,7 @@ export default function UserLoginDialog({
   const [loginData, setLoginData] = useState({
     username: "",
     password: "",
+    role_id: null,
     is_login: false,
   });
 
@@ -57,6 +60,7 @@ export default function UserLoginDialog({
             setLoginData({
               username: credentials.username || "",
               password: "",
+              role_id: credentials.role_id || null,
               is_login: credentials.is_login || false,
             });
           }
@@ -68,6 +72,7 @@ export default function UserLoginDialog({
           setLoginData({
             username: "",
             password: "",
+            role_id: null,
             is_login: false,
           });
         } finally {
@@ -88,6 +93,11 @@ export default function UserLoginDialog({
       newErrors.username = "Username is required";
     } else if (loginData.username.length < 3) {
       newErrors.username = "Username must be at least 3 characters";
+    }
+
+    // Role validation
+    if (!loginData.role_id) {
+      newErrors.role_id = "Role is required";
     }
 
     // Password validation
@@ -201,6 +211,28 @@ export default function UserLoginDialog({
                 required
                 error={errors.username}
                 placeholder="Enter username"
+              />
+
+              {/* Role Field */}
+              <FormSelect
+                label="Role"
+                name="role_id"
+                value={loginData.role_id}
+                onChange={(selectedOption) => {
+                  setLoginData((prev) => ({
+                    ...prev,
+                    role_id: selectedOption ? selectedOption.value : null,
+                  }));
+                  if (errors.role_id) {
+                    setErrors((prev) => ({ ...prev, role_id: "" }));
+                  }
+                }}
+                options={roleOptions}
+                required
+                error={errors.role_id}
+                placeholder="Select role"
+                isSearchable={false}
+                isClearable={true}
               />
 
               {/* Password Field */}

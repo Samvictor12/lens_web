@@ -294,6 +294,43 @@ export class SaleOrderController {
       next(error);
     }
   }
+
+  /**
+   * Get sale orders dropdown options
+   * GET /api/sale-orders/dropdown
+   */
+  async getDropdown(req, res, next) {
+    try {
+      const userId = req.user?.id;
+      const dropdownData = await this.saleOrderService.getSaleOrdersDropdown(req, userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Sale orders dropdown retrieved successfully',
+        data: dropdownData
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+  /**
+   * Get sale orders dropdown options
+   * GET /api/sale-orders/dropdown
+   */
+  async getDropdown(req, res, next) {
+    try {
+      const userId = req.user?.id;
+      const dropdownData = await this.saleOrderService.getSaleOrdersDropdown(req, userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Sale orders dropdown retrieved successfully',
+        data: dropdownData
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default SaleOrderController;

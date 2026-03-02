@@ -19,7 +19,6 @@ import {
   defaultUser,
   activeStatusOptions,
   bloodGroupOptions,
-  roleOptions,
 } from "./User.constants";
 
 export default function UserForm() {
@@ -96,7 +95,6 @@ export default function UserForm() {
               city: user.city || "",
               state: user.state || "",
               pincode: user.pincode || "",
-              roleId: user.role_id || null,
               department_id: user.department_id || null,
               salary: user.salary || "",
               activeStatus:
@@ -159,6 +157,11 @@ export default function UserForm() {
       newErrors.email = "Email is required";
     } else if (!validateEmail(formData.email)) {
       newErrors.email = "Invalid email format";
+    }
+
+    // Department validation (required)
+    if (!formData.department_id) {
+      newErrors.department_id = "Department is required";
     }
 
     // Phone validation
@@ -481,7 +484,7 @@ export default function UserForm() {
                 />
               </div>
 
-              {/* Row 4: Department, Role */}
+              {/* Row 4: Department */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormSelect
                   label="Department"
@@ -499,29 +502,10 @@ export default function UserForm() {
                   }}
                   placeholder="Select department"
                   isSearchable={true}
-                  isClearable={true}
+                  isClearable={false}
+                  required
                   disabled={isReadOnly}
                   error={errors.department_id}
-                />
-                <FormSelect
-                  label="Role"
-                  name="roleId"
-                  options={roleOptions}
-                  value={formData.roleId}
-                  onChange={(value) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      roleId: value,
-                    }));
-                    if (errors.roleId) {
-                      setErrors((prev) => ({ ...prev, roleId: "" }));
-                    }
-                  }}
-                  placeholder="Select role"
-                  isSearchable={false}
-                  isClearable={true}
-                  disabled={isReadOnly}
-                  error={errors.roleId}
                 />
               </div>
 

@@ -612,6 +612,64 @@ router.get('/',
 
 /**
  * @swagger
+ * /api/sale-orders/dropdown:
+ *   get:
+ *     summary: Get sale orders dropdown options
+ *     tags: [Sale Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sale orders dropdown retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sale orders dropdown retrieved successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       value:
+ *                         type: integer
+ *                         description: Sale order ID
+ *                         example: 1
+ *                       label:
+ *                         type: string
+ *                         description: Display text (orderNo - customerName)
+ *                         example: "SO-2025-001 - John Doe"
+ *                       orderNo:
+ *                         type: string
+ *                         example: "SO-2025-001"
+ *                       customerName:
+ *                         type: string
+ *                         example: "John Doe"
+ *                       customerCode:
+ *                         type: string
+ *                         example: "CUST-001"
+ *                       status:
+ *                         type: string
+ *                         example: "CONFIRMED"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Insufficient permissions
+ */
+router.get('/dropdown',
+  authenticateToken,
+  // requireRole({ module: 'Sale Orders', actions: ['read'] }),
+  controller.getDropdown.bind(controller)
+);
+
+/**
+ * @swagger
  * /api/sale-orders/stats:
  *   get:
  *     summary: Get sale order statistics

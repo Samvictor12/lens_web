@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
+import { ViewToggle } from "@/components/ui/view-toggle";
+import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getUsers, deleteUser } from "@/services/user";
@@ -12,11 +14,15 @@ import { userFilters } from "./User.constants";
 import UserFilter from "./UserFilter";
 import { useUserColumns } from "./useUserColumns";
 import UserLoginDialog from "./UserLoginDialog";
+import UserCard from "./UserCard";
 
 export default function Users() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState(
+    () => localStorage.getItem("usersView") || "card"
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   
@@ -137,6 +143,12 @@ export default function Users() {
     );
   }, [filters]);
 
+  // Save view preference
+  const handleViewChange = (newView) => {
+    setView(newView);
+    localStorage.setItem("usersView", newView);
+  };
+
   const handleApplyFilters = () => {
     setFilters(tempFilters);
     setShowFilterDialog(false);
@@ -194,6 +206,7 @@ export default function Users() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <ViewToggle view={view} onViewChange={handleViewChange} />
             <UserFilter
               filters={filters}
               tempFilters={tempFilters}
@@ -210,25 +223,55 @@ export default function Users() {
       </Card>
 
       {/* Table View */}
-      <div className="flex-1 min-h-0">
-        <Table
-          data={displayUsers}
-          columns={columns}
-          pageIndex={pageIndex}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          onPageChange={setPageIndex}
-          loading={isLoading}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setPageIndex(0);
-          }}
-          setSorting={setSorting}
-          sorting={sorting}
-          pagination={true}
-          emptyMessage="No users found"
-        />
-      </div>
+      {view === "table" && (
+        <div className="flex-1 min-h-0">
+          <Table
+            data={displayUsers}
+            columns={columns}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPageIndex}
+            loading={isLoading}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPageIndex(0);
+            }}
+            setSorting={setSorting}
+            sorting={sorting}
+            pagination={true}
+            emptyMessage="No users found"
+          />
+        </div>
+      )}
+
+      {/* Card View */}
+      {view === "card" && (
+        <div className="flex-1 min-h-0">
+          <CardGrid
+            items={displayUsers}
+            renderCard={(user) => (
+              <UserCard
+                user={user}
+                onView={(id) => navigate(`/masters/users/view/${id}`)}
+                onDelete={handleDeleteClick}
+                onLoginSettings={handleLoginClick}
+              />
+            )}
+            isLoading={isLoading}
+            emptyMessage="No users found"
+            pagination={true}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPageIndex}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPageIndex(0);
+            }}
+          />
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog

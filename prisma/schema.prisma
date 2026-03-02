@@ -98,6 +98,15 @@ model User {
   auditLogs                  AuditLog[]           @relation("auditLogUser")
   errorLogs                  ErrorLog[]           @relation("errorLogUser")
   errorLogsResolved          ErrorLog[]           @relation("errorLogResolver")
+  purchaseOrderCreatedBy     PurchaseOrder[]      @relation("poCreatedBy")
+  purchaseOrderUpdatedBy     PurchaseOrder[]      @relation("poUpdatedBy")
+  inventoryItemCreatedBy     InventoryItem[]      @relation("inventoryItemCreatedBy")
+  inventoryItemUpdatedBy     InventoryItem[]      @relation("inventoryItemUpdatedBy")
+  inventoryTransactionCreatedBy InventoryTransaction[] @relation("inventoryTransactionCreatedBy")
+  inventoryTransactionUpdatedBy InventoryTransaction[] @relation("inventoryTransactionUpdatedBy")
+  inventoryStockUpdatedBy    InventoryStock[]     @relation("inventoryStockUpdatedBy")
+  inventoryAlertCreatedBy    InventoryAlert[]     @relation("inventoryAlertCreatedBy")
+  inventoryAlertResolver     InventoryAlert[]     @relation("inventoryAlertResolver")
 }
 
 model Role {
@@ -216,6 +225,8 @@ model Vendor {
   userupdate     User?           @relation("vendorUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
   purchaseOrders PurchaseOrder[]
+  inventoryItems InventoryItem[]
+  inventoryTransactions InventoryTransaction[] @relation("inventoryVendorTransactions")
 }
 
 model LensCategoryMaster {
@@ -233,6 +244,9 @@ model LensCategoryMaster {
   Userupdated        User?               @relation("categoryUserUpdate", fields: [updatedBy], references: [id])
   lensProductMasters LensProductMaster[]
   saleOrders         SaleOrder[]
+  purchaseOrders     PurchaseOrder[]
+  inventoryItems     InventoryItem[]
+  inventoryStock     InventoryStock[]
 }
 
 model LensMaterialMaster {
@@ -268,6 +282,9 @@ model LensCoatingMaster {
   Userupdated      User?             @relation("coatingUserUpdate", fields: [updatedBy], references: [id])
   lensPriceMasters LensPriceMaster[]
   saleOrders       SaleOrder[]
+  purchaseOrders   PurchaseOrder[]
+  inventoryItems   InventoryItem[]
+  inventoryStock   InventoryStock[]
 }
 
 model LensFittingMaster {
@@ -283,9 +300,11 @@ model LensFittingMaster {
   createdBy     Int
   updatedBy     Int?
   // Relationships Fields
-  Usercreated   User        @relation("FittingUserCreate", fields: [createdBy], references: [id])
-  Userupdated   User?       @relation("FittingUserUpdate", fields: [updatedBy], references: [id])
-  saleOrders    SaleOrder[]
+  Usercreated  User        @relation("FittingUserCreate", fields: [createdBy], references: [id])
+  Userupdated    User?           @relation("FittingUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders     SaleOrder[]
+  purchaseOrders PurchaseOrder[]
+  inventoryItems InventoryItem[]
 }
 
 model LensDiaMaster {
@@ -301,8 +320,10 @@ model LensDiaMaster {
   updatedBy    Int?
   // Relationships Fields
   Usercreated  User        @relation("DiaUserCreate", fields: [createdBy], references: [id])
-  Userupdated  User?       @relation("DiaUserUpdate", fields: [updatedBy], references: [id])
-  saleOrders   SaleOrder[]
+  Userupdated    User?           @relation("DiaUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders     SaleOrder[]
+  purchaseOrders PurchaseOrder[]
+  inventoryItems InventoryItem[]
 }
 
 model LensTintingMaster {
@@ -318,9 +339,11 @@ model LensTintingMaster {
   createdBy     Int
   updatedBy     Int?
   // Relationships Fields
-  Usercreated   User        @relation("TintingUserCreate", fields: [createdBy], references: [id])
-  Userupdated   User?       @relation("TintingUserUpdate", fields: [updatedBy], references: [id])
-  saleOrders    SaleOrder[]
+  Usercreated  User        @relation("TintingUserCreate", fields: [createdBy], references: [id])
+  Userupdated    User?           @relation("TintingUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders     SaleOrder[]
+  purchaseOrders PurchaseOrder[]
+  inventoryItems InventoryItem[]
 }
 
 model LensBrandMaster {
@@ -354,6 +377,9 @@ model LensTypeMaster {
   Userupdated        User?               @relation("typeUserUpdate", fields: [updatedBy], references: [id])
   lensProductMasters LensProductMaster[]
   saleOrders         SaleOrder[]
+  purchaseOrders     PurchaseOrder[]
+  inventoryItems     InventoryItem[]
+  inventoryStock     InventoryStock[]
 }
 
 model LensProductMaster {
@@ -389,8 +415,12 @@ model LensProductMaster {
   Usercreated           User               @relation("productUserCreate", fields: [createdBy], references: [id])
   Userupdated           User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
-  lensPriceMasters      LensPriceMaster[]
-  saleOrders            SaleOrder[]
+  lensPriceMasters LensPriceMaster[]
+  saleOrders       SaleOrder[]
+  purchaseOrders   PurchaseOrder[]
+  inventoryItems   InventoryItem[]
+  inventoryStock   InventoryStock[]
+  inventoryAlerts  InventoryAlert[]
 }
 
 model LensPriceMaster {
@@ -482,18 +512,99 @@ enum POStatus {
 }
 
 model PurchaseOrder {
-  id          Int        @id @default(autoincrement())
-  poNumber    String     @unique // e.g., PO-2025-001
-  vendorId    Int
-  vendor      Vendor     @relation(fields: [vendorId], references: [id])
-  status      POStatus   @default(PENDING)
-  totalValue  Float
-  notes       String?
-  // items       POItem[]
-  saleOrderId Int?
-  saleOrder   SaleOrder? @relation(fields: [saleOrderId], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                   Int                 @id @default(autoincrement())
+  poNumber             String              @unique // Auto-generated: PO-2025-001
+  reference_id         String?             @unique // From vendor's external application (e.g., PUR1548)
+  
+  // Vendor & Sale Order
+  vendorId             Int
+  vendor               Vendor              @relation(fields: [vendorId], references: [id])
+  saleOrderId          Int?
+  saleOrder            SaleOrder?          @relation(fields: [saleOrderId], references: [id])
+  
+  // Lens Product Details (same as SaleOrder)
+  lens_id              Int?
+  lensProduct          LensProductMaster?  @relation(fields: [lens_id], references: [id])
+  category_id          Int?
+  category             LensCategoryMaster? @relation(fields: [category_id], references: [id])
+  Type_id              Int?
+  lensType             LensTypeMaster?     @relation(fields: [Type_id], references: [id])
+  dia_id               Int?
+  dia                  LensDiaMaster?      @relation(fields: [dia_id], references: [id])
+  fitting_id           Int?
+  fitting              LensFittingMaster?  @relation(fields: [fitting_id], references: [id])
+  coating_id           Int?
+  coating              LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
+  tinting_id           Int?
+  tinting              LensTintingMaster?  @relation(fields: [tinting_id], references: [id])
+  
+  // Eye selection (0.5 for each, 1 for both)
+  rightEye             Boolean             @default(false)
+  leftEye              Boolean             @default(false)
+  
+  // Right eye specifications
+  rightSpherical       String?
+  rightCylindrical     String?
+  rightAxis            String?
+  rightAdd             String?
+  rightDia             String?
+  rightBase            String?
+  rightBaseSize        String?
+  rightBled            String?
+  
+  // Left eye specifications
+  leftSpherical        String?
+  leftCylindrical      String?
+  leftAxis             String?
+  leftAdd              String?
+  leftDia              String?
+  leftBase             String?
+  leftBaseSize         String?
+  leftBled             String?
+  
+  // Quantity & Pricing (from Excel upload)
+  quantity             Float               @default(1) // 0.5 for single eye, 1 for both
+  unitPrice            Float               // Rate per item
+  subtotal             Float               // quantity × unitPrice
+  discountPercentage   Float               @default(0)
+  taxAmount            Float               @default(0)
+  roundOff             Float               @default(0)
+  totalValue           Float               // Final amount
+  
+  // Supplier Invoice Details (from Excel)
+  supplierInvoiceNo    String?             // e.g., BL080984-25/26
+  purchaseType         String?             // Local/Interstate
+  placeOfSupply        String?             // State name (e.g., Maharashtra)
+  
+  // Purchase Order Type
+  orderType            String              @default("Single") // "Single", "Bulk"
+  lensBulkSelection    Json?               // Bulk lens data when orderType is "Bulk"
+  itemDescription      String?             // Item/Service Name
+  taxAccount           String?             // Tax Account Name (e.g., GST@5%)
+  
+  // Dates & Status
+  orderDate            DateTime            @default(now())
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  status               POStatus            @default(PENDING)
+  
+  // Notes & Remarks
+  notes                String?
+  narration            String?             // Narration or Any Other Remarks
+  
+  // Audit Fields (consistent with your pattern)
+  activeStatus         Boolean             @default(true)
+  deleteStatus         Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  createdBy            Int
+  updatedAt            DateTime            @updatedAt
+  updatedBy            Int?
+  
+  // Relationships
+  createdByUser        User                @relation("poCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser        User?               @relation("poUpdatedBy", fields: [updatedBy], references: [id])
+  inventoryItems       InventoryItem[]
+  inventoryTransactions InventoryTransaction[] @relation("inventoryPOTransactions")
 }
 
 enum DispatchStatus {
@@ -635,6 +746,8 @@ model SaleOrder {
   createdByUser   User            @relation("saleOrderCreatedBy", fields: [createdBy], references: [id])
   updatedByUser   User?           @relation("saleOrderUpdatedBy", fields: [updatedBy], references: [id])
   assignedPerson  User?           @relation("saleOrderAssignedPerson", fields: [assignedPerson_id], references: [id])
+  inventoryItems  InventoryItem[]
+  inventoryTransactions InventoryTransaction[] @relation("inventorySaleTransactions")
 }
 
 model LocationMaster {
@@ -653,6 +766,11 @@ model LocationMaster {
   updatedByUser User?        @relation("locationUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
   trays         TrayMaster[]
+  inventoryItems InventoryItem[]
+  inventoryStock InventoryStock[]
+  inventoryAlerts InventoryAlert[]
+  inventoryFromTransactions InventoryTransaction[] @relation("inventoryFromLocation")
+  inventoryToTransactions InventoryTransaction[] @relation("inventoryToLocation")
 }
 
 model TrayMaster {
@@ -672,6 +790,238 @@ model TrayMaster {
   location      LocationMaster? @relation(fields: [location_id], references: [id])
   createdByUser User            @relation("trayUserCreate", fields: [createdBy], references: [id])
   updatedByUser User?           @relation("trayUserUpdate", fields: [updatedBy], references: [id])
+  // Relationship Tables
+  inventoryItems InventoryItem[]
+  inventoryStock InventoryStock[]
+  inventoryFromTransactions InventoryTransaction[] @relation("inventoryFromTray")
+  inventoryToTransactions InventoryTransaction[] @relation("inventoryToTray")
+}
+
+// ============================================
+// INVENTORY MODULE
+// ============================================
+
+enum InventoryTransactionType {
+  INWARD_PO          // Purchase Order Inward
+  INWARD_DIRECT      // Direct Inward (without PO)
+  OUTWARD_SALE       // Sale Order Outward
+  OUTWARD_RETURN     // Return to Vendor
+  TRANSFER           // Inter-location/tray transfer
+  ADJUSTMENT         // Stock adjustment (+ or -)
+  DAMAGE             // Damaged stock write-off
+}
+
+enum InventoryItemStatus {
+  AVAILABLE          // Ready for sale
+  RESERVED           // Reserved for sale order
+  IN_PRODUCTION      // Being processed
+  DAMAGED            // Damaged/unusable
+  RETURNED           // Returned by customer
+  QUALITY_CHECK      // Under quality inspection
+}
+
+// Main inventory table to track individual lens items
+model InventoryItem {
+  id                    Int                      @id @default(autoincrement())
+  batchNo               String?                  // Batch number from vendor
+  serialNo              String?                  // Individual serial number if applicable
+  
+  // Product Details
+  lens_id               Int
+  lensProduct           LensProductMaster        @relation(fields: [lens_id], references: [id])
+  category_id           Int?
+  category              LensCategoryMaster?      @relation(fields: [category_id], references: [id])
+  Type_id               Int?
+  lensType              LensTypeMaster?          @relation(fields: [Type_id], references: [id])
+  coating_id            Int?
+  coating               LensCoatingMaster?       @relation(fields: [coating_id], references: [id])
+  dia_id                Int?
+  dia                   LensDiaMaster?           @relation(fields: [dia_id], references: [id])
+  fitting_id            Int?
+  fitting               LensFittingMaster?       @relation(fields: [fitting_id], references: [id])
+  tinting_id            Int?
+  tinting               LensTintingMaster?       @relation(fields: [tinting_id], references: [id])
+  
+  // Physical Location
+  location_id           Int?
+  location              LocationMaster?          @relation(fields: [location_id], references: [id])
+  tray_id               Int?
+  tray                  TrayMaster?              @relation(fields: [tray_id], references: [id])
+  
+  // Quantity & Pricing
+  quantity              Float                    @default(1) // 0.5 for single eye, 1 for pair
+  costPrice             Float                    // Purchase/inward price
+  sellingPrice          Float?                   // Retail price
+  
+  // Eye Specifications (if applicable)
+  rightEye              Boolean                  @default(false)
+  leftEye               Boolean                  @default(false)
+  rightSpherical        String?
+  rightCylindrical      String?
+  rightAxis             String?
+  rightAdd              String?
+  leftSpherical         String?
+  leftCylindrical       String?
+  leftAxis              String?
+  leftAdd               String?
+  
+  // Status & Dates
+  status                InventoryItemStatus      @default(AVAILABLE)
+  expiryDate            DateTime?                // If applicable
+  manufactureDate       DateTime?                // Manufacturing date
+  inwardDate            DateTime                 @default(now())
+  
+  // Source Information
+  purchaseOrderId       Int?                     // If from PO
+  purchaseOrder         PurchaseOrder?           @relation(fields: [purchaseOrderId], references: [id])
+  vendorId              Int?                     // Source vendor
+  vendor                Vendor?                  @relation(fields: [vendorId], references: [id])
+  
+  // Sale Information (when sold)
+  saleOrderId           Int?                     // When reserved/sold
+  saleOrder             SaleOrder?               @relation(fields: [saleOrderId], references: [id])
+  reservedDate          DateTime?                // When reserved for sale
+  soldDate              DateTime?                // When actually sold
+  
+  // Quality & Condition
+  qualityGrade          String?                  // A, B, C grade
+  notes                 String?                  // Any special notes
+  
+  // Audit Fields
+  activeStatus          Boolean                  @default(true)
+  deleteStatus          Boolean                  @default(false)
+  createdAt             DateTime                 @default(now())
+  createdBy             Int
+  updatedAt             DateTime                 @updatedAt
+  updatedBy             Int?
+  createdByUser         User                     @relation("inventoryItemCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser         User?                    @relation("inventoryItemUpdatedBy", fields: [updatedBy], references: [id])
+  
+  // Relationship Tables
+  transactions          InventoryTransaction[]   @relation("inventoryItemTransactions")
+}
+
+// Track all inventory movements/transactions
+model InventoryTransaction {
+  id                    Int                      @id @default(autoincrement())
+  transactionNo         String                   @unique // Auto-generated: IT-2025-001
+  type                  InventoryTransactionType
+  
+  // Item Details
+  inventoryItemId       Int
+  inventoryItem         InventoryItem            @relation("inventoryItemTransactions", fields: [inventoryItemId], references: [id])
+  
+  // Quantity Movement
+  quantity              Float                    // Positive for inward, negative for outward
+  balanceAfter          Float                    // Running balance after this transaction
+  unitPrice             Float?                   // Price per unit for this transaction
+  totalValue            Float?                   // quantity × unitPrice
+  
+  // Location Movement
+  fromLocationId        Int?                     // Source location
+  fromLocation          LocationMaster?          @relation("inventoryFromLocation", fields: [fromLocationId], references: [id])
+  fromTrayId            Int?                     // Source tray
+  fromTray              TrayMaster?              @relation("inventoryFromTray", fields: [fromTrayId], references: [id])
+  
+  toLocationId          Int?                     // Destination location
+  toLocation            LocationMaster?          @relation("inventoryToLocation", fields: [toLocationId], references: [id])
+  toTrayId              Int?                     // Destination tray
+  toTray                TrayMaster?              @relation("inventoryToTray", fields: [toTrayId], references: [id])
+  
+  // Reference Documents
+  purchaseOrderId       Int?                     // If from PO inward
+  purchaseOrder         PurchaseOrder?           @relation("inventoryPOTransactions", fields: [purchaseOrderId], references: [id])
+  saleOrderId           Int?                     // If from sale outward
+  saleOrder             SaleOrder?               @relation("inventorySaleTransactions", fields: [saleOrderId], references: [id])
+  vendorId              Int?                     // Related vendor
+  vendor                Vendor?                  @relation("inventoryVendorTransactions", fields: [vendorId], references: [id])
+  
+  // Additional Info
+  reason                String?                  // Reason for adjustment/transfer
+  notes                 String?                  // Transaction notes
+  batchNo               String?                  // Batch reference
+  
+  // Audit Fields
+  transactionDate       DateTime                 @default(now())
+  createdAt             DateTime                 @default(now())
+  createdBy             Int
+  updatedAt             DateTime                 @updatedAt
+  updatedBy             Int?
+  createdByUser         User                     @relation("inventoryTransactionCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser         User?                    @relation("inventoryTransactionUpdatedBy", fields: [updatedBy], references: [id])
+}
+
+// Stock summary for quick lookups (can be generated view or maintained table)
+model InventoryStock {
+  id                    Int                      @id @default(autoincrement())
+  
+  // Product Identification
+  lens_id               Int
+  lensProduct           LensProductMaster        @relation(fields: [lens_id], references: [id])
+  category_id           Int?
+  category              LensCategoryMaster?      @relation(fields: [category_id], references: [id])
+  Type_id               Int?
+  lensType              LensTypeMaster?          @relation(fields: [Type_id], references: [id])
+  coating_id            Int?
+  coating               LensCoatingMaster?       @relation(fields: [coating_id], references: [id])
+  
+  // Location
+  location_id           Int?
+  location              LocationMaster?          @relation(fields: [location_id], references: [id])
+  tray_id               Int?
+  tray                  TrayMaster?              @relation(fields: [tray_id], references: [id])
+  
+  // Stock Quantities
+  totalStock            Float                    @default(0) // Total available stock
+  reservedStock         Float                    @default(0) // Reserved for sale orders
+  availableStock        Float                    @default(0) // Available for sale (total - reserved)
+  damagedStock          Float                    @default(0) // Damaged stock
+  
+  // Pricing
+  avgCostPrice          Float?                   // Average cost price
+  lastCostPrice         Float?                   // Latest purchase price
+  sellingPrice          Float?                   // Current selling price
+  
+  // Dates
+  lastInwardDate        DateTime?                // Last stock inward date
+  lastOutwardDate       DateTime?                // Last stock outward date
+  
+  // Audit Fields
+  updatedAt             DateTime                 @updatedAt
+  updatedBy             Int?
+  updatedByUser         User?                    @relation("inventoryStockUpdatedBy", fields: [updatedBy], references: [id])
+  
+  @@unique([lens_id, category_id, Type_id, coating_id, location_id, tray_id])
+}
+
+// Inventory alerts and notifications
+model InventoryAlert {
+  id                    Int                      @id @default(autoincrement())
+  alertType             String                   // LOW_STOCK, EXPIRY, DAMAGE, etc.
+  
+  // Product Details
+  lens_id               Int?
+  lensProduct           LensProductMaster?       @relation(fields: [lens_id], references: [id])
+  location_id           Int?
+  location              LocationMaster?          @relation(fields: [location_id], references: [id])
+  
+  // Alert Details
+  currentStock          Float?                   // Current stock level
+  thresholdLevel        Float?                   // Minimum threshold
+  message               String                   // Alert message
+  priority              String                   @default("MEDIUM") // HIGH, MEDIUM, LOW
+  
+  // Status
+  isRead                Boolean                  @default(false)
+  isResolved            Boolean                  @default(false)
+  resolvedAt            DateTime?
+  resolvedBy            Int?
+  resolver              User?                    @relation("inventoryAlertResolver", fields: [resolvedBy], references: [id])
+  
+  // Audit Fields
+  createdAt             DateTime                 @default(now())
+  createdBy             Int?
+  createdByUser         User?                    @relation("inventoryAlertCreatedBy", fields: [createdBy], references: [id])
 }
 
 // ============================================

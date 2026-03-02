@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { getBusinessCategoryDropdown } from "@/services/businessCategory";
 
 export default function CustomerFilter({
@@ -54,23 +56,110 @@ export default function CustomerFilter({
     <>
       {/* Filter Button */}
       <div className="flex items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="xs"
-          className="gap-1.5 h-8"
-          onClick={() => {
-            setTempFilters(filters);
-            setShowFilterDialog(true);
-          }}
-        >
-          <Filter className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Filters</span>
-          {hasActiveFilters && (
-            <Badge variant="default" className="ml-1 h-4 px-1 text-xs">
-              •
-            </Badge>
-          )}
-        </Button>
+        <Sheet open={showFilterDialog} onOpenChange={setShowFilterDialog}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="xs"
+              className="gap-1.5 h-8 relative"
+              onClick={() => setTempFilters(filters)}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span className="text-sm">Filters</span>
+              {hasActiveFilters && (
+                <Badge variant="default" className="ml-1 h-4 px-1 text-xs">
+                  •
+                </Badge>
+              )}
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Filter Customers</SheetTitle>
+              <SheetDescription>
+                Apply filters to refine your customer list
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Active Status Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="status-filter" className="text-sm font-medium">
+                  Status
+                </Label>
+                <FormSelect
+                  name="active_status"
+                  options={activeStatusOptions}
+                  value={tempFilters.active_status}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      active_status: value,
+                    });
+                  }}
+                  placeholder="All customers"
+                  isSearchable={false}
+                  isClearable={false}
+                />
+              </div>
+
+              {/* Business Category Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="category-filter" className="text-sm font-medium">
+                  Business Category
+                </Label>
+                <FormSelect
+                  name="businessCategory_id"
+                  options={businessCategories}
+                  value={tempFilters.businessCategory_id}
+                  onChange={(value) => {
+                    setTempFilters({
+                      ...tempFilters,
+                      businessCategory_id: value,
+                    });
+                  }}
+                  placeholder="All categories"
+                  isSearchable={true}
+                  isClearable={true}
+                />
+              </div>
+
+              {/* City Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="city-filter" className="text-sm font-medium">
+                  City
+                </Label>
+                <FormInput
+                  name="city"
+                  type="text"
+                  placeholder="Enter city name"
+                  value={tempFilters.city}
+                  onChange={(e) =>
+                    setTempFilters({
+                      ...tempFilters,
+                      city: e.target.value,
+                    })
+                  }
+                  helperText="Search customers by city (case insensitive)"
+                />
+              </div>
+            </div>
+
+            <SheetFooter className="flex flex-row gap-2">
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onCancelFilters}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button size="xs" onClick={onApplyFilters} className="flex-1">
+                Apply Filters
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
         {hasActiveFilters && (
           <Button
             variant="ghost"
@@ -83,84 +172,6 @@ export default function CustomerFilter({
           </Button>
         )}
       </div>
-
-      {/* Filter Dialog */}
-      <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Filter Customers</DialogTitle>
-            <DialogDescription className="text-xs">
-              Apply filters to refine your customer list
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-4">
-            {/* Active Status Filter */}
-            <FormSelect
-              label="Status"
-              name="active_status"
-              options={activeStatusOptions}
-              value={tempFilters.active_status}
-              onChange={(value) => {
-                setTempFilters({
-                  ...tempFilters,
-                  active_status: value,
-                });
-              }}
-              placeholder="All customers"
-              isSearchable={false}
-              isClearable={false}
-            />
-
-            {/* Business Category Filter */}
-            <FormSelect
-              label="Business Category"
-              name="businessCategory_id"
-              options={businessCategories}
-              value={tempFilters.businessCategory_id}
-              onChange={(value) => {
-                setTempFilters({
-                  ...tempFilters,
-                  businessCategory_id: value,
-                });
-              }}
-              placeholder="All categories"
-              isSearchable={true}
-              isClearable={true}
-            />
-
-            {/* City Filter */}
-            <FormInput
-              label="City"
-              name="city"
-              type="text"
-              placeholder="Enter city name"
-              value={tempFilters.city}
-              onChange={(e) =>
-                setTempFilters({
-                  ...tempFilters,
-                  city: e.target.value,
-                })
-              }
-              helperText="Search customers by city (case insensitive)"
-            />
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={onCancelFilters}
-              className="h-8"
-            >
-              Cancel
-            </Button>
-            <Button size="xs" onClick={onApplyFilters} className="h-8">
-              Apply Filters
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
