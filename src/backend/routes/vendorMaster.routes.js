@@ -514,6 +514,43 @@ router.get('/stats',
  *       500:
  *         description: Internal server error
  */
+/**
+ * @swagger
+ * /api/vendor-master/{id}/location:
+ *   get:
+ *     summary: Get vendor city and state by ID
+ *     tags: [Vendor Master]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Vendor master ID
+ *     responses:
+ *       200:
+ *         description: Vendor location
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     city:
+ *                       type: string
+ *                     state:
+ *                       type: string
+ *       404:
+ *         description: Vendor not found
+ */
+router.get('/:id/location',
+    // authenticateToken,
+    vendorMasterController.getLocation.bind(vendorMasterController));
+
 router.get('/:id',
     // authenticateToken,
     // requireRole(['Admin', 'Inventory', 'Sales']),

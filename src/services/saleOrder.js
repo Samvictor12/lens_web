@@ -380,3 +380,33 @@ export const getSaleOrdersDropdown = async () => {
         );
     }
 };
+/**
+ * Get lens products dropdown filtered by type and category
+ */
+export const getLensProductsFiltered = async (typeId, categoryId) => {
+    try {
+        const params = new URLSearchParams();
+        if (typeId) params.append("type_id", typeId);
+        if (categoryId) params.append("category_id", categoryId);
+        const response = await apiClient("get", `/v1/lens-products/dropdown?${params.toString()}`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch filtered lens products"
+        );
+    }
+};
+
+/**
+ * Get coatings available for a specific lens product (via LensPriceMaster)
+ */
+export const getLensCoatingsByLensProduct = async (lensId) => {
+    try {
+        const response = await apiClient("get", `/v1/lens-coatings/by-lens-product?lens_id=${lensId}`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch coatings for lens product"
+        );
+    }
+};

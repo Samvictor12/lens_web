@@ -1,15 +1,19 @@
-import { Building, Trash2 } from "lucide-react";
+import { Building, Trash2, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getStatusColor } from "./PurchaseOrder.constants";
+import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
+
+// Statuses that allow receiving
+const canReceive = (status) => ["DRAFT", "PARTIALLY_RECEIVED"].includes(status);
 
 /**
  * Custom hook that returns the table columns configuration for the purchase order list
  * @param {Function} navigate - React Router navigate function
  * @param {Function} onDelete - Delete handler function
+ * @param {Function} onReceive - Receive PO handler function
  * @returns {Array} Array of column definitions
  */
-export const usePurchaseOrderColumns = (navigate, onDelete) => {
+export const usePurchaseOrderColumns = (navigate, onDelete, onReceive) => {
   return [
     {
       accessorKey: "poNumber",
@@ -18,9 +22,11 @@ export const usePurchaseOrderColumns = (navigate, onDelete) => {
       cell: (po) => (
         <a
           href={`/masters/purchase-orders/view/${po.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={(e) => {
             e.preventDefault();
-            navigate(`/masters/purchase-orders/view/${po.id}`);
+            window.open(`/masters/purchase-orders/view/${po.id}`, "_blank");
           }}
           className="flex items-center gap-1.5 hover:underline cursor-pointer"
         >
@@ -47,6 +53,16 @@ export const usePurchaseOrderColumns = (navigate, onDelete) => {
       ),
     },
     {
+      accessorKey: "orderType",
+      header: "Type",
+      sortable: false,
+      cell: (po) => (
+        <Badge variant="outline" className="text-[10px] h-4 px-1">
+          {po.orderType || "Single"}
+        </Badge>
+      ),
+    },
+    {
       accessorKey: "orderDate",
       header: "Order Date",
       sortable: true,
@@ -58,10 +74,15 @@ export const usePurchaseOrderColumns = (navigate, onDelete) => {
     },
     {
       accessorKey: "quantity",
-      header: "Quantity",
+      header: "Ordered / Received",
       sortable: true,
       cell: (po) => (
-        <span className="text-xs">{po.quantity || 0}</span>
+        <div className="text-xs">
+          <span>{po.quantity || 0}</span>
+          {po.receivedQty > 0 && (
+            <span className="text-green-600 ml-1">/ {po.receivedQty}</span>
+          )}
+        </div>
       ),
     },
     {
@@ -85,7 +106,7 @@ export const usePurchaseOrderColumns = (navigate, onDelete) => {
             variant="outline"
             className={`${statusColor} text-xs`}
           >
-            {po.status}
+            {getStatusLabel(po.status)}
           </Badge>
         );
       },
@@ -108,6 +129,17 @@ export const usePurchaseOrderColumns = (navigate, onDelete) => {
       sortable: false,
       cell: (po) => (
         <div className="flex gap-1">
+          {canReceive(po.status) && (
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-7 px-2 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 gap-1"
+              onClick={() => onReceive && onReceive(po)}
+            >
+              <PackageCheck className="h-3.5 w-3.5" />
+              Receive
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="xs"

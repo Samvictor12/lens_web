@@ -152,14 +152,26 @@ export default function VendorForm() {
         : "Email is required";
     }
 
+    // City validation (required)
+    if (!formData.city || !formData.city.trim()) {
+      newErrors.city = "City is required";
+    }
+
+    // State validation (required)
+    if (!formData.state || !formData.state.trim()) {
+      newErrors.state = "State is required";
+    }
+
+    // Pincode validation (required, must be 6 digits)
+    if (!formData.pincode || !formData.pincode.trim()) {
+      newErrors.pincode = "Pincode is required";
+    } else if (!/^\d{6}$/.test(formData.pincode)) {
+      newErrors.pincode = "Pincode must be 6 digits";
+    }
+
     // GST validation (optional but must be valid if provided)
     if (formData.gstNumber && !validateGST(formData.gstNumber)) {
       newErrors.gstNumber = "Invalid GST number format";
-    }
-
-    // Pincode validation (optional but must be 6 digits if provided)
-    if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
-      newErrors.pincode = "Pincode must be 6 digits";
     }
 
     setErrors(newErrors);
@@ -526,31 +538,34 @@ export default function VendorForm() {
               {/* City, State & Pincode */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <FormInput
-                  label="City (Optional)"
+                  label="City"
                   name="city"
                   value={formData.city}
                   onChange={handleChange}
                   disabled={isReadOnly}
+                  required
                   error={errors.city}
                 />
 
                 <FormInput
-                  label="State (Optional)"
+                  label="State"
                   name="state"
                   value={formData.state}
                   onChange={handleChange}
                   disabled={isReadOnly}
+                  required
                   error={errors.state}
                 />
 
                 <FormInput
-                  label="Pincode (Optional)"
+                  label="Pincode"
                   name="pincode"
                   type="text"
                   value={formData.pincode}
                   onChange={handleChange}
                   disabled={isReadOnly}
                   maxLength={6}
+                  required
                   error={errors.pincode}
                   showCharCount={!!formData.pincode}
                 />

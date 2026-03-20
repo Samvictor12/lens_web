@@ -75,15 +75,21 @@ export const validateCreateVendorMaster = (data) => {
         errors.push({ field: 'address', message: 'Address must not exceed 500 characters' });
     }
 
-    if (data.city && !isValidLength(data.city, 0, 100)) {
+    if (!data.city || data.city.trim() === '') {
+        errors.push({ field: 'city', message: 'City is required' });
+    } else if (!isValidLength(data.city, 1, 100)) {
         errors.push({ field: 'city', message: 'City must not exceed 100 characters' });
     }
 
-    if (data.state && !isValidLength(data.state, 0, 100)) {
+    if (!data.state || data.state.trim() === '') {
+        errors.push({ field: 'state', message: 'State is required' });
+    } else if (!isValidLength(data.state, 1, 100)) {
         errors.push({ field: 'state', message: 'State must not exceed 100 characters' });
     }
 
-    if (data.pincode && !isValidLength(data.pincode, 0, 10)) {
+    if (!data.pincode || data.pincode.trim() === '') {
+        errors.push({ field: 'pincode', message: 'Pincode is required' });
+    } else if (!isValidLength(data.pincode, 1, 10)) {
         errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
     }
 
@@ -171,16 +177,34 @@ export const validateUpdateVendorMaster = (data) => {
         errors.push({ field: 'address', message: 'Address must not exceed 500 characters' });
     }
 
-    if (data.city !== undefined && data.city && !isValidLength(data.city, 0, 100)) {
-        errors.push({ field: 'city', message: 'City must not exceed 100 characters' });
+    if (data.city !== undefined) {
+        if (!data.city || data.city.trim() === '') {
+            errors.push({ field: 'city', message: 'City cannot be empty' });
+        } else if (!isValidLength(data.city, 1, 100)) {
+            errors.push({ field: 'city', message: 'City must not exceed 100 characters' });
+        }
+    } else {
+        errors.push({ field: 'city', message: 'City is required' });
     }
 
-    if (data.state !== undefined && data.state && !isValidLength(data.state, 0, 100)) {
-        errors.push({ field: 'state', message: 'State must not exceed 100 characters' });
+    if (data.state !== undefined) {
+        if (!data.state || data.state.trim() === '') {
+            errors.push({ field: 'state', message: 'State cannot be empty' });
+        } else if (!isValidLength(data.state, 1, 100)) {
+            errors.push({ field: 'state', message: 'State must not exceed 100 characters' });
+        }
+    } else {
+        errors.push({ field: 'state', message: 'State is required' });
     }
 
-    if (data.pincode !== undefined && data.pincode && !isValidLength(data.pincode, 0, 10)) {
-        errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
+    if (data.pincode !== undefined) {
+        if (!data.pincode || data.pincode.trim() === '') {
+            errors.push({ field: 'pincode', message: 'Pincode cannot be empty' });
+        } else if (!isValidLength(data.pincode, 1, 10)) {
+            errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
+        }
+    } else {
+        errors.push({ field: 'pincode', message: 'Pincode is required' });
     }
 
     if (data.category !== undefined && data.category && !isValidLength(data.category, 0, 100)) {

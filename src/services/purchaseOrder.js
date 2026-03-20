@@ -87,3 +87,22 @@ export const deletePurchaseOrder = async (id) => {
   const response = await apiClient("delete", `${PURCHASE_ORDER_BASE_URL}/${id}`);
   return response;
 };
+
+/**
+ * Receive a purchase order — create a GRN receipt record
+ * @param {number} id - Purchase Order ID
+ * @param {Object} data - { receivedDate, receivedItems, notes, createdBy }
+ */
+export const receivePurchaseOrder = async (id, data) => {
+  const response = await apiClient("post", `${PURCHASE_ORDER_BASE_URL}/${id}/receive`, { data });
+  return response;
+};
+
+/**
+ * Get all receipt records for a purchase order
+ * @param {number} id - Purchase Order ID
+ */
+export const getPOReceipts = async (id) => {
+  const response = await apiClient("get", `${PURCHASE_ORDER_BASE_URL}/${id}/receipts`);
+  return response;
+};

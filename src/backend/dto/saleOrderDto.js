@@ -314,6 +314,7 @@ export const validateCreateSaleOrder = (data) => {
       tintingPrice: data.tintingPrice ? parseFloat(data.tintingPrice) : 0,
       discount: data.discount ? parseFloat(data.discount) : 0,
       additionalPrice: data.additionalPrice || null,
+      offer_id: data.offer_id ? parseInt(data.offer_id) : null,
       createdBy: parseInt(data.createdBy),
       updatedBy: parseInt(data.createdBy)
     } : null
@@ -451,6 +452,7 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.tintingPrice !== undefined) updateData.tintingPrice = data.tintingPrice ? parseFloat(data.tintingPrice) : 0;
   if (data.discount !== undefined) updateData.discount = data.discount ? parseFloat(data.discount) : 0;
   if (data.additionalPrice !== undefined) updateData.additionalPrice = data.additionalPrice || null;
+  if (data.offer_id !== undefined) updateData.offer_id = data.offer_id ? parseInt(data.offer_id) : null;
 
   return {
     isValid: errors.length === 0,

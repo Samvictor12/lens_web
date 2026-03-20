@@ -217,6 +217,11 @@ const masterItems = [
         url: "/masters/lens-fitting",
         icon: Wrench,
       },
+      {
+        title: "Lens Offers",
+        url: "/masters/lens-offers",
+        icon: Tag,
+      },
     ],
   },
   {

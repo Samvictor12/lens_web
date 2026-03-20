@@ -201,6 +201,34 @@ export class LensCoatingMasterService {
     }
   }
 
+  async getCoatingsByLensProduct(lensId) {
+    try {
+      const priceMasters = await prisma.lensPriceMaster.findMany({
+        where: {
+          lens_id: lensId,
+          deleteStatus: false,
+          coating: { activeStatus: true, deleteStatus: false },
+        },
+        select: {
+          coating_id: true,
+          coating: { select: { id: true, name: true, short_name: true } },
+        },
+        distinct: ['coating_id'],
+      });
+
+      return priceMasters.map(pm => ({
+        id: pm.coating.id,
+        label: `${pm.coating.name} (${pm.coating.short_name})`,
+        value: pm.coating.id,
+        name: pm.coating.name,
+        short_name: pm.coating.short_name,
+      }));
+    } catch (error) {
+      console.error('Error fetching coatings by lens product:', error);
+      throw new APIError('Failed to fetch coatings for this lens product', 500, 'FETCH_COATINGS_BY_PRODUCT_ERROR');
+    }
+  }
+
   async getCoatingStats() {
     try {
       const [total, active, inactive] = await Promise.all([

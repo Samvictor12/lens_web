@@ -1,7 +1,11 @@
 import express from "express";
 import purchaseOrderController from "../controllers/purchaseOrderController.js";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
+
+// Apply auth middleware to all purchase order routes
+router.use(authenticateToken);
 
 /**
  * @route   POST /api/purchase-orders/generate-po-number
@@ -71,6 +75,26 @@ router.get(
 router.get(
   "/:id",
   purchaseOrderController.getPurchaseOrderById.bind(purchaseOrderController)
+);
+
+/**
+ * @route   POST /api/purchase-orders/:id/receive
+ * @desc    Receive a purchase order (create a receipt)
+ * @access  Private
+ */
+router.post(
+  "/:id/receive",
+  purchaseOrderController.receivePurchaseOrder.bind(purchaseOrderController)
+);
+
+/**
+ * @route   GET /api/purchase-orders/:id/receipts
+ * @desc    Get all receipts for a purchase order
+ * @access  Private
+ */
+router.get(
+  "/:id/receipts",
+  purchaseOrderController.getPOReceipts.bind(purchaseOrderController)
 );
 
 /**

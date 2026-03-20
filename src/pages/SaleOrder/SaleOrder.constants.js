@@ -9,7 +9,9 @@ export const defaultSaleOrder = {
   itemRefNo: "",
   freeLens: false,
   freeFitting: false,
+  onlyLens: false,
   urgentOrder: false,
+  offer_id: null,
   
   // Lens Information
   lens_id: null,

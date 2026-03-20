@@ -100,6 +100,8 @@ model User {
   errorLogsResolved          ErrorLog[]           @relation("errorLogResolver")
   purchaseOrderCreatedBy     PurchaseOrder[]      @relation("poCreatedBy")
   purchaseOrderUpdatedBy     PurchaseOrder[]      @relation("poUpdatedBy")
+  receiptCreatedBy           PurchaseOrderReceipt[] @relation("receiptCreatedBy")
+  receiptUpdatedBy           PurchaseOrderReceipt[] @relation("receiptUpdatedBy")
   inventoryItemCreatedBy     InventoryItem[]      @relation("inventoryItemCreatedBy")
   inventoryItemUpdatedBy     InventoryItem[]      @relation("inventoryItemUpdatedBy")
   inventoryTransactionCreatedBy InventoryTransaction[] @relation("inventoryTransactionCreatedBy")
@@ -107,6 +109,8 @@ model User {
   inventoryStockUpdatedBy    InventoryStock[]     @relation("inventoryStockUpdatedBy")
   inventoryAlertCreatedBy    InventoryAlert[]     @relation("inventoryAlertCreatedBy")
   inventoryAlertResolver     InventoryAlert[]     @relation("inventoryAlertResolver")
+  lensOffersCreatedBy        LensOffers[]         @relation("lensOffersCreatedBy")
+  lensOffersUpdatedBy        LensOffers[]         @relation("lensOffersUpdatedBy")
 }
 
 model Role {
@@ -285,6 +289,7 @@ model LensCoatingMaster {
   purchaseOrders   PurchaseOrder[]
   inventoryItems   InventoryItem[]
   inventoryStock   InventoryStock[]
+  lensOffers       LensOffers[]  // Offers specific to this coating
 }
 
 model LensFittingMaster {
@@ -421,6 +426,7 @@ model LensProductMaster {
   inventoryItems   InventoryItem[]
   inventoryStock   InventoryStock[]
   inventoryAlerts  InventoryAlert[]
+  lensOffers       LensOffers[]  // Offers specific to this lens product
 }
 
 model LensPriceMaster {
@@ -444,6 +450,53 @@ model LensPriceMaster {
 }
 
 // Forward declarations for related models
+
+// Offer Types for Lens Promotions
+enum OfferType {
+  VALUE              // Fixed amount discount (e.g., ₹100 off)
+  PERCENTAGE         // Percentage discount (e.g., 20% off)
+  EXCHANGE_PRODUCT   // Replace original pricing with special offer price
+}
+
+model LensOffers {
+  id                  Int                 @id @default(autoincrement())
+  offerName           String              // Offer name/title
+  description         String?             // Offer description
+  offerType           OfferType           // Type of offer (VALUE, PERCENTAGE, EXCHANGE_PRODUCT)
+  
+  // Discount values (based on offer type)
+  discountValue       Float?              // Fixed amount discount (for VALUE type)
+  discountPercentage  Float?              // Percentage discount (for PERCENTAGE type)
+  offerPrice          Float?              // Replacement price (for EXCHANGE_PRODUCT type)
+  
+  // Filters - if null, applies to all
+  lens_id             Int?                // Specific lens product (null = all lenses)
+  coating_id          Int?                // Specific coating (null = all coatings)
+  
+  // Time period
+  startDate           DateTime            // Offer valid from
+  endDate             DateTime            // Offer valid until
+  
+  // Status fields
+  activeStatus        Boolean             @default(true)
+  deleteStatus        Boolean             @default(false)
+  
+  // Audit fields
+  createdAt           DateTime            @default(now())
+  createdBy           Int
+  updatedAt           DateTime            @updatedAt
+  updatedBy           Int?
+  
+  // Relationships
+  lensProduct         LensProductMaster?  @relation(fields: [lens_id], references: [id])
+  coating             LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
+  createdByUser       User                @relation("lensOffersCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser       User?               @relation("lensOffersUpdatedBy", fields: [updatedBy], references: [id])
+  
+  // Relationship Tables
+  saleOrders          SaleOrder[]
+}
+
 enum SaleOrderStatus {
   DRAFT
   CONFIRMED
@@ -505,9 +558,11 @@ model Payment {
 }
 
 enum POStatus {
-  PENDING
-  ORDERED
+  DRAFT
+  PARTIALLY_RECEIVED
   RECEIVED
+  INVOICE_RECEIVED
+  CLOSED
   CANCELLED
 }
 
@@ -582,11 +637,14 @@ model PurchaseOrder {
   itemDescription      String?             // Item/Service Name
   taxAccount           String?             // Tax Account Name (e.g., GST@5%)
   
+  // Receive tracking
+  receivedQty          Float               @default(0) // Cumulative total received across all receipts
+  
   // Dates & Status
   orderDate            DateTime            @default(now())
   expectedDeliveryDate DateTime?
   actualDeliveryDate   DateTime?
-  status               POStatus            @default(PENDING)
+  status               POStatus            @default(DRAFT)
   
   // Notes & Remarks
   notes                String?
@@ -605,6 +663,37 @@ model PurchaseOrder {
   updatedByUser        User?               @relation("poUpdatedBy", fields: [updatedBy], references: [id])
   inventoryItems       InventoryItem[]
   inventoryTransactions InventoryTransaction[] @relation("inventoryPOTransactions")
+  receipts             PurchaseOrderReceipt[]
+}
+
+model PurchaseOrderReceipt {
+  id               Int           @id @default(autoincrement())
+  receiptNumber    String        @unique // Auto-generated: REC-0001
+  purchaseOrderId  Int
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  receivedDate     DateTime      @default(now())
+
+  // JSON array mirroring lensBulkSelection keys, with orderedQty + receivedQty per cell
+  // Single PO: [{ spherical, cylindrical, orderedQty, receivedQty, unitPrice }]
+  // Bulk PO:   same structure, keyed by sph/cyl combination
+  receivedItems    Json
+
+  totalReceivedQty Float         @default(0)
+  totalValue       Float         @default(0)
+  notes            String?
+  status           String        @default("PARTIAL") // PARTIAL | COMPLETE
+
+  // Audit
+  activeStatus     Boolean       @default(true)
+  deleteStatus     Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  createdBy        Int
+  updatedAt        DateTime      @updatedAt
+  updatedBy        Int?
+
+  createdByUser    User          @relation("receiptCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser    User?         @relation("receiptUpdatedBy", fields: [updatedBy], references: [id])
 }
 
 enum DispatchStatus {
@@ -677,6 +766,9 @@ model SaleOrder {
   freeLens          Boolean             @default(false)
   urgentOrder       Boolean             @default(false)
   freeFitting       Boolean             @default(false)
+  // Offer information
+  offer_id          Int?                // Applied offer (if any)
+  offer             LensOffers?         @relation(fields: [offer_id], references: [id])
   // Lens details
   lens_id           Int?
   category_id       Int? // "Single Vision", "BiFocal", "Progressive", "Reading"

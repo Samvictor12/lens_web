@@ -106,6 +106,36 @@ export class VendorMasterController {
   }
 
   /**
+   * Get vendor location (city and state)
+   * @route GET /api/vendor-master/:id/location
+   */
+  async getLocation(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validation.errors
+        });
+      }
+
+      const location = await this.vendorMasterService.getVendorLocation(validation.data);
+
+      res.json({
+        success: true,
+        data: {
+          city: location.city || null,
+          state: location.state || null,
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Update vendor master
    * @route PUT /api/vendor-master/:id
    */
