@@ -153,6 +153,37 @@ export class SaleOrderService {
         }
       }
 
+      // Validate and cross-verify offer if provided
+      if (orderData.offer_id) {
+        const offer = await prisma.lensOffers.findUnique({
+          where: { id: orderData.offer_id }
+        });
+        if (!offer || !offer.activeStatus) {
+          throw new APIError('Selected offer not found or is inactive', 400, 'OFFER_INVALID');
+        }
+        const now = new Date();
+        if (offer.startDate && new Date(offer.startDate) > now) {
+          throw new APIError('Selected offer has not started yet', 400, 'OFFER_NOT_STARTED');
+        }
+        if (offer.endDate && new Date(offer.endDate) < now) {
+          throw new APIError('Selected offer has expired', 400, 'OFFER_EXPIRED');
+        }
+        // Cannot apply an offer to a zero-total order
+        const orderTotal = (orderData.lensPrice || 0) + (orderData.fittingPrice || 0) +
+          (orderData.tintingPrice || 0) + (orderData.rightEyeExtra || 0) + (orderData.leftEyeExtra || 0);
+        if (orderTotal === 0) {
+          throw new APIError('Cannot apply an offer when the order total is ₹0', 400, 'OFFER_ZERO_TOTAL');
+        }
+        // For PERCENTAGE offers, the category discount should be zeroed out (offer replaced it)
+        if (offer.offerType === 'PERCENTAGE' && orderData.discount && orderData.discount !== 0) {
+          throw new APIError(
+            'Discount field must be 0 when a PERCENTAGE offer is applied',
+            400,
+            'OFFER_DISCOUNT_CONFLICT'
+          );
+        }
+      }
+
       // Generate order number
       const orderNo = await this.generateOrderNumber();
 
@@ -217,6 +248,9 @@ export class SaleOrderService {
           fittingPrice: orderData.fittingPrice ?? 0,
           discount: orderData.discount ?? 0,
           additionalPrice: orderData.additionalPrice || null,
+
+          // Offer
+          offer_id: orderData.offer_id || null,
           
           // Audit fields
           createdBy: userId,
@@ -261,6 +295,15 @@ export class SaleOrderService {
               id: true,
               name: true,
               email: true
+            }
+          },
+          offer: {
+            select: {
+              id: true,
+              offerName: true,
+              offerType: true,
+              discountValue: true,
+              discountPercentage: true
             }
           }
         }
@@ -507,6 +550,16 @@ export class SaleOrderService {
               name: true,
               email: true
             }
+          },
+          offer: {
+            select: {
+              id: true,
+              offerName: true,
+              offerType: true,
+              discountValue: true,
+              discountPercentage: true,
+              endDate: true
+            }
           }
         }
       });
@@ -589,6 +642,36 @@ export class SaleOrderService {
         }
       }
 
+      // Validate and cross-verify offer if provided
+      if (updateData.offer_id) {
+        const offer = await prisma.lensOffers.findUnique({
+          where: { id: updateData.offer_id }
+        });
+        if (!offer || !offer.activeStatus) {
+          throw new APIError('Selected offer not found or is inactive', 400, 'OFFER_INVALID');
+        }
+        const now = new Date();
+        if (offer.startDate && new Date(offer.startDate) > now) {
+          throw new APIError('Selected offer has not started yet', 400, 'OFFER_NOT_STARTED');
+        }
+        if (offer.endDate && new Date(offer.endDate) < now) {
+          throw new APIError('Selected offer has expired', 400, 'OFFER_EXPIRED');
+        }
+        // Cannot apply an offer to a zero-total order
+        const orderTotal = (updateData.lensPrice || 0) + (updateData.fittingPrice || 0) +
+          (updateData.tintingPrice || 0) + (updateData.rightEyeExtra || 0) + (updateData.leftEyeExtra || 0);
+        if (orderTotal === 0) {
+          throw new APIError('Cannot apply an offer when the order total is ₹0', 400, 'OFFER_ZERO_TOTAL');
+        }
+        if (offer.offerType === 'PERCENTAGE' && updateData.discount && updateData.discount !== 0) {
+          throw new APIError(
+            'Discount field must be 0 when a PERCENTAGE offer is applied',
+            400,
+            'OFFER_DISCOUNT_CONFLICT'
+          );
+        }
+      }
+
       // Prepare update object
       const dataToUpdate = {
         ...updateData,
@@ -633,6 +716,15 @@ export class SaleOrderService {
             select: {
               id: true,
               name: true
+            }
+          },
+          offer: {
+            select: {
+              id: true,
+              offerName: true,
+              offerType: true,
+              discountValue: true,
+              discountPercentage: true
             }
           }
         }

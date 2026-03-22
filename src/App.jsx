@@ -19,6 +19,7 @@ import Inventory from "./pages/Inventory";
 import InventoryMain from "./pages/Inventory/InventoryMain";
 import PurchaseOrders from "./pages/PurchaseOrder/PurchaseOrdersMain";
 import PurchaseOrderForm from "./pages/PurchaseOrder/PurchaseOrderForm";
+import PurchaseOrderReceive from "./pages/PurchaseOrder/PurchaseOrderReceive";
 import Dispatch from "./pages/Dispatch";
 import Billing from "./pages/Billing";
 import Payments from "./pages/Payments";
@@ -45,6 +46,8 @@ import LensTypeMain from "./pages/LensTypeMaster/LensTypeMain";
 import LensTypeForm from "./pages/LensTypeMaster/LensTypeForm";
 import LensTintingMain from "./pages/LensTinting/LensTintingMain";
 import LensTintingForm from "./pages/LensTinting/LensTintingForm";
+import LensOffersMain from "./pages/LensOffers/LensOffersMain";
+import LensOffersForm from "./pages/LensOffers/LensOffersForm";
 import LensProductMain from "./pages/LensProductMaster/LensProductMain";
 import LensProductForm from "./pages/LensProductMaster/LensProductForm";
 import LensFittingMain from "./pages/LensFittingMaster/LensFittingMain";
@@ -127,11 +130,11 @@ const AppRoutes = () => (
       <Route path="/inventory/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      
+      <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />      
       <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
-      <Route path="/masters/purchase-orders/:mode" element={<ProtectedRoute><PurchaseOrderForm /></ProtectedRoute>} />
-      <Route path="/masters/purchase-orders/:mode/:id" element={<ProtectedRoute><PurchaseOrderForm /></ProtectedRoute>} />
+      <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
+      <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
+      <Route path="/masters/purchase-orders/receive/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} /> 
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
@@ -167,6 +170,9 @@ const AppRoutes = () => (
       <Route path="/masters/lens-tinting" element={<ProtectedRoute><LensTintingMain /></ProtectedRoute>} />
       <Route path="/masters/lens-tinting/:mode" element={<ProtectedRoute><LensTintingForm /></ProtectedRoute>} />
       <Route path="/masters/lens-tinting/:mode/:id" element={<ProtectedRoute><LensTintingForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-offers" element={<ProtectedRoute><LensOffersMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-offers/:mode" element={<ProtectedRoute><LensOffersForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-offers/:mode/:id" element={<ProtectedRoute><LensOffersForm /></ProtectedRoute>} />
       <Route path="/masters/lens-product" element={<ProtectedRoute><LensProductMain /></ProtectedRoute>} />
       <Route path="/masters/lens-product/:mode" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />
       <Route path="/masters/lens-product/:mode/:id" element={<ProtectedRoute><LensProductForm /></ProtectedRoute>} />

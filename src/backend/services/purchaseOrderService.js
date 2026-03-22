@@ -687,6 +687,151 @@ class PurchaseOrderService {
       );
     }
   }
+
+  /**
+   * Generate next Receipt number (REC-0001)
+   */
+  async generateReceiptNumber() {
+    try {
+      const last = await prisma.purchaseOrderReceipt.findFirst({
+        where: { receiptNumber: { startsWith: "REC-" } },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!last) return "REC-0001";
+      const num = parseInt(last.receiptNumber.split("-")[1]) + 1;
+      return `REC-${String(num).padStart(4, "0")}`;
+    } catch (error) {
+      throw new APIError("Failed to generate receipt number", 500, "GENERATE_RECEIPT_NUM_ERROR");
+    }
+  }
+
+  /**
+   * Receive a purchase order (create a PurchaseOrderReceipt)
+   * Updates PO's receivedQty and status automatically.
+   * @param {number} poId
+   * @param {Object} receiptData - { receivedDate, receivedItems, notes, createdBy }
+   *   receivedItems for Bulk: [{ key, spherical, cylindrical, orderedQty, receivedQty, unitPrice }]
+   *   receivedItems for Single: [{ orderedQty, receivedQty, unitPrice }]
+   */
+  async receivePurchaseOrder(poId, receiptData) {
+    try {
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id: poId, deleteStatus: false },
+        include: { receipts: { where: { deleteStatus: false } } },
+      });
+
+      if (!po) throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
+      if (po.status === "RECEIVED") throw new APIError("This PO is already fully received", 400, "PO_ALREADY_RECEIVED");
+      if (po.status === "INVOICE_RECEIVED") throw new APIError("Invoice already received for this PO", 400, "PO_INVOICE_RECEIVED");
+      if (po.status === "CLOSED") throw new APIError("This PO is closed", 400, "PO_CLOSED");
+      if (po.status === "CANCELLED") throw new APIError("Cannot receive a cancelled PO", 400, "PO_CANCELLED");
+
+      const receiptNumber = await this.generateReceiptNumber();
+
+      // Calculate totals from received items
+      const totalReceivedQty = receiptData.receivedItems.reduce(
+        (sum, item) => sum + (parseFloat(item.receivedQty) || 0), 0
+      );
+      // Use frontend-computed total (includes tax); fall back to item-level calc if not provided
+      const totalValue = parseFloat(receiptData.totalValue) ||
+        receiptData.receivedItems.reduce(
+          (sum, item) => sum + ((parseFloat(item.receivedQty) || 0) * (parseFloat(item.unitPrice) || 0)), 0
+        );
+
+      // Calculate new cumulative received qty across all receipts
+      const prevReceivedQty = po.receipts.reduce(
+        (sum, r) => sum + (r.totalReceivedQty || 0), 0
+      );
+      const newCumulativeReceived = prevReceivedQty + totalReceivedQty;
+
+      // Determine receipt status
+      const receiptStatus = newCumulativeReceived >= po.quantity ? "COMPLETE" : "PARTIAL";
+
+      // Determine new PO status
+      let newPOStatus;
+      if (receiptStatus === "COMPLETE") {
+        newPOStatus = "RECEIVED";
+      } else {
+        newPOStatus = "PARTIALLY_RECEIVED";
+      }
+
+      // Run in a transaction
+      const [receipt] = await prisma.$transaction([
+        prisma.purchaseOrderReceipt.create({
+          data: {
+            receiptNumber,
+            purchaseOrderId: poId,
+            receivedDate: receiptData.receivedDate ? new Date(receiptData.receivedDate) : new Date(),
+            receivedItems: receiptData.receivedItems,
+            totalReceivedQty,
+            totalValue,
+            notes: receiptData.notes || null,
+            status: receiptStatus,
+            createdBy: receiptData.createdBy,
+          },
+        }),
+        prisma.purchaseOrder.update({
+          where: { id: poId },
+          data: {
+            receivedQty: newCumulativeReceived,
+            status: newPOStatus,
+            // Persist pricing details entered on the receive page
+            ...(receiptData.unitPrice !== undefined && { unitPrice: parseFloat(receiptData.unitPrice) || 0 }),
+            ...(receiptData.subtotal !== undefined && { subtotal: parseFloat(receiptData.subtotal) || 0 }),
+            ...(receiptData.taxAmount !== undefined && { taxAmount: parseFloat(receiptData.taxAmount) || 0 }),
+            ...(receiptData.totalValue !== undefined && { totalValue: parseFloat(receiptData.totalValue) || 0 }),
+            updatedBy: receiptData.createdBy,
+          },
+        }),
+      ]);
+
+      return {
+        receipt,
+        poStatus: newPOStatus,
+        cumulativeReceivedQty: newCumulativeReceived,
+        orderedQty: po.quantity,
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error receiving purchase order:", error);
+      throw new APIError("Failed to receive purchase order", 500, "RECEIVE_PO_ERROR");
+    }
+  }
+
+  /**
+   * Get all receipts for a purchase order
+   * @param {number} poId
+   */
+  async getPOReceipts(poId) {
+    try {
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id: poId, deleteStatus: false },
+      });
+      if (!po) throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
+
+      const receipts = await prisma.purchaseOrderReceipt.findMany({
+        where: { purchaseOrderId: poId, deleteStatus: false },
+        include: {
+          createdByUser: { select: { id: true, name: true, usercode: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const totalReceived = receipts.reduce((sum, r) => sum + (r.totalReceivedQty || 0), 0);
+
+      return {
+        receipts,
+        orderedQty: po.quantity,
+        totalReceivedQty: totalReceived,
+        pendingQty: Math.max(0, po.quantity - totalReceived),
+        poStatus: po.status,
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error fetching PO receipts:", error);
+      throw new APIError("Failed to fetch receipts", 500, "FETCH_RECEIPTS_ERROR");
+    }
+  }
 }
 
 export default new PurchaseOrderService();

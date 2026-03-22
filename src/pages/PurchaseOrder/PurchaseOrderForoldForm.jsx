@@ -27,8 +27,6 @@ import {
   getLensCoatingsDropdown,
   getLensTintingsDropdown,
   getSaleOrdersDropdown,
-  getLensProductsFiltered,
-  getLensCoatingsByLensProduct,
 } from "@/services/saleOrder";
 import { defaultPurchaseOrder, activeStatusOptions, statusOptions, purchaseTypeOptions, orderTypeOptions } from "./PurchaseOrder.constants";
 import BulkLensSelection from "./BulkLensSelection";
@@ -56,9 +54,6 @@ export default function PurchaseOrderForm() {
   const [lensFittings, setLensFittings] = useState([]);
   const [lensCoatings, setLensCoatings] = useState([]);
   const [lensTintings, setLensTintings] = useState([]);
-  // Filtered dropdown data (cascade)
-  const [filteredLensProducts, setFilteredLensProducts] = useState(null); // null = show all
-  const [filteredLensCoatings, setFilteredLensCoatings] = useState(null); // null = show all
 
   // Fetch dropdown data on mount
   useEffect(() => {
@@ -95,18 +90,6 @@ export default function PurchaseOrderForm() {
         if (lensFittingResponse.success) setLensFittings(lensFittingResponse.data);
         if (lensCoatingResponse.success) setLensCoatings(lensCoatingResponse.data);
         if (lensTintingResponse.success) setLensTintings(lensTintingResponse.data);
-
-        // Set default Type_id for new orders based on initial orderType
-        if (mode === "add" && lensTypeResponse.success) {
-          const initialOrderType = "Single"; // default tab
-          const targetName = initialOrderType === "Bulk" ? "STOCK" : "RX";
-          const match = lensTypeResponse.data.find(
-            (t) => (t.name || t.label || "").toUpperCase() === targetName
-          );
-          if (match) {
-            setFormData(prev => ({ ...prev, Type_id: match.id ?? match.value }));
-          }
-        }
       } catch (error) {
         console.error("Error fetching dropdown data:", error);
         toast({
@@ -152,31 +135,24 @@ export default function PurchaseOrderForm() {
             let convertedBulkSelection = null;
             if (po.lensBulkSelection && Array.isArray(po.lensBulkSelection)) {
               const selections = {};
-              let minSph = Infinity, maxSph = -Infinity;
-              let minCyl = Infinity, maxCyl = -Infinity;
-
               po.lensBulkSelection.forEach(item => {
                 const key = `sph_${item.spherical}_cyl_${item.cylindrical}`;
                 selections[key] = {
                   quantity: item.quantity,
                   unitPrice: item.unitPrice
                 };
-                minSph = Math.min(minSph, item.spherical);
-                maxSph = Math.max(maxSph, item.spherical);
-                minCyl = Math.min(minCyl, item.cylindrical);
-                maxCyl = Math.max(maxCyl, item.cylindrical);
               });
-
+              
               convertedBulkSelection = {
-                eyeSelection: "Single",
+                eyeSelection: "Single", // Default for existing data
                 additionWise: false,
                 ranges: {
-                  sphFrom: isFinite(minSph) ? minSph : 0,
-                  sphTo: isFinite(maxSph) ? maxSph : 2,
-                  cylFrom: isFinite(minCyl) ? minCyl : 0,
-                  cylTo: isFinite(maxCyl) ? maxCyl : 2,
-                  addFrom: "",
-                  addTo: "",
+                  sphFrom: 0,
+                  sphTo: 2,
+                  cylFrom: 0,
+                  cylTo: 2,
+                  addFrom: 1,
+                  addTo: 3
                 },
                 selections: selections
               };
@@ -251,7 +227,7 @@ export default function PurchaseOrderForm() {
               description: "Purchase order not found",
               variant: "destructive",
             });
-            window.close();
+            navigate("/masters/purchase-orders");
           }
         } catch (error) {
           console.error("Error fetching purchase order:", error);
@@ -260,7 +236,7 @@ export default function PurchaseOrderForm() {
             description: error.message || "Failed to fetch purchase order details",
             variant: "destructive",
           });
-          window.close();
+          navigate("/masters/purchase-orders");
         } finally {
           setIsLoading(false);
         }
@@ -317,7 +293,7 @@ export default function PurchaseOrderForm() {
       newErrors.Type_id = "Type is required";
     }
 
-    if (formData.orderType !== "Bulk" && (!formData.quantity || parseFloat(formData.quantity) <= 0)) {
+    if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
       newErrors.quantity = "Quantity must be greater than 0";
     }
 
@@ -371,80 +347,16 @@ export default function PurchaseOrderForm() {
 
   // Handle order type change
   const handleOrderTypeChange = (newOrderType) => {
-    setFilteredLensProducts(null);
-    setFilteredLensCoatings(null);
     setFormData(prev => {
       const updated = { ...prev, orderType: newOrderType };
-
-      // Auto-set default type based on order type
-      const targetName = newOrderType === "Bulk" ? "STOCK" : "RX";
-      const match = lensTypes.find(
-        (t) => (t.name || t.label || "").toUpperCase() === targetName
-      );
-      if (match) {
-        updated.Type_id = match.id ?? match.value;
-      }
-
-      // Reset lens-dependent fields on type switch
-      updated.lens_id = null;
-      updated.category_id = null;
-      updated.coating_id = null;
-      updated.tinting_id = null;
-      updated.dia_id = null;
-      updated.quantity = 0;
-      updated.unitPrice = 0;
-
+      
       // Clear bulk selection when switching to single
       if (newOrderType === "Single") {
         updated.lensBulkSelection = null;
       }
-
+      
       return updated;
     });
-  };
-
-  // Handle category change — fetch filtered lens products, reset dependent fields
-  const handleCategoryChange = async (value) => {
-    setFormData(prev => ({
-      ...prev,
-      category_id: value,
-      lens_id: null,
-      coating_id: null,
-      tinting_id: null,
-      dia_id: null,
-      quantity: 0,
-      unitPrice: 0,
-    }));
-    setFilteredLensCoatings(null);
-    if (errors.category_id) setErrors(prev => ({ ...prev, category_id: "" }));
-
-    if (value && formData.Type_id) {
-      try {
-        const response = await getLensProductsFiltered(formData.Type_id, value);
-        if (response.success) setFilteredLensProducts(response.data);
-      } catch (e) {
-        console.error("Failed to fetch filtered lens products:", e);
-      }
-    } else {
-      setFilteredLensProducts(null);
-    }
-  };
-
-  // Handle lens product change — fetch coatings for selected product, reset coating
-  const handleLensProductChange = async (value) => {
-    setFormData(prev => ({ ...prev, lens_id: value, coating_id: null }));
-    setFilteredLensCoatings(null);
-    if (errors.lens_id) setErrors(prev => ({ ...prev, lens_id: "" }));
-
-    if (value) {
-      try {
-        const response = await getLensCoatingsByLensProduct(value);
-        if (response.success) setFilteredLensCoatings(response.data);
-      } catch (e) {
-        console.error("Failed to fetch coatings for lens product:", e);
-        setFilteredLensCoatings([]); // empty = no coatings found
-      }
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -525,7 +437,7 @@ export default function PurchaseOrderForm() {
             title: "Success",
             description: "Purchase order created successfully!",
           });
-          window.close();
+          navigate("/masters/purchase-orders");
         } else {
           throw new Error(response.message || "Failed to create purchase order");
         }
@@ -541,7 +453,7 @@ export default function PurchaseOrderForm() {
 
           setOriginalData(formData);
           setIsEditing(false);
-          window.close();
+          navigate("/masters/purchase-orders");
         } else {
           throw new Error(response.message || "Failed to update purchase order");
         }
@@ -561,7 +473,7 @@ export default function PurchaseOrderForm() {
 
   const handleCancel = () => {
     if (mode === "view" && !isEditing) {
-      window.close();
+      navigate("/masters/purchase-orders");
     } else {
       const confirmCancel = window.confirm(
         "Are you sure? Any unsaved changes will be lost."
@@ -570,7 +482,7 @@ export default function PurchaseOrderForm() {
         setFormData(originalData);
         setIsEditing(false);
         setErrors({});
-        window.close();
+        navigate("/masters/purchase-orders");
       }
     }
   };
@@ -588,15 +500,14 @@ export default function PurchaseOrderForm() {
   // Render common purchase form fields
   // Basic form for bulk orders (without individual lens selection)
   const renderBasicPurchaseForm = () => (
-    <div className="flex flex-col md:flex-row gap-4 h-full md:overflow-hidden">
-      {/* Left Column - Order Info, Dates, Pricing, Invoice */}
-      <div className="md:w-[35%] flex flex-col gap-3 md:h-full md:overflow-y-auto md:overflow-x-hidden">
-        {/* Order Information */}
-        <Card>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Order Information</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-2">
+    <>
+      {/* Basic Information */}
+      <Card>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Basic Information</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <FormInput
               label="PO Number"
               name="poNumber"
@@ -604,8 +515,8 @@ export default function PurchaseOrderForm() {
               onChange={handleChange}
               disabled={true}
               required
-              singleLine
             />
+
             <FormInput
               label="Reference ID (Optional)"
               name="reference_id"
@@ -613,8 +524,8 @@ export default function PurchaseOrderForm() {
               onChange={handleChange}
               disabled={isReadOnly}
               placeholder="e.g., PUR1548"
-              singleLine
             />
+
             <FormSelect
               label="Vendor"
               name="vendorId"
@@ -627,8 +538,10 @@ export default function PurchaseOrderForm() {
               disabled={isReadOnly}
               required
               error={errors.vendorId}
-              singleLine
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormSelect
               label="Status"
               name="status"
@@ -642,8 +555,8 @@ export default function PurchaseOrderForm() {
               isClearable={false}
               disabled={isReadOnly}
               required
-              singleLine
             />
+
             <FormSelect
               label="Active Status"
               name="activeStatus"
@@ -660,114 +573,48 @@ export default function PurchaseOrderForm() {
               isClearable={false}
               disabled={isReadOnly}
               required
-              singleLine
             />
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Dates & Notes */}
-        <Card>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Dates & Notes</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-2">
-            <FormInput
-              label="Order Date"
-              name="orderDate"
-              type="date"
-              value={formData.orderDate}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              singleLine
-            />
-            <FormInput
-              label="Expected Delivery (Optional)"
-              name="expectedDeliveryDate"
-              type="date"
-              value={formData.expectedDeliveryDate}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              singleLine
-            />
-            <FormInput
-              label="Actual Delivery (Optional)"
-              name="actualDeliveryDate"
-              type="date"
-              value={formData.actualDeliveryDate}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              singleLine
-            />
-            <FormTextarea
-              label="Notes (Optional)"
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              rows={2}
-              placeholder="Any additional notes"
-              singleLine
-            />
-          </CardContent>
-        </Card>
+      {/* Lens Details for Bulk */}
+      {renderLensDetails(false)}
 
-        {/* Pricing Details */}
-        {renderPricingDetails()}
+      {/* Bulk Lens Selection - placed after lens details */}
+      <BulkLensSelection
+        value={formData.lensBulkSelection}
+        onChange={(value) => setFormData(prev => ({ 
+          ...prev, 
+          lensBulkSelection: value 
+        }))}
+        disabled={isReadOnly}
+      />
 
-        {/* Supplier Invoice Details */}
-        {renderSupplierInvoiceDetails()}
-
-        {mode === "add" && (
-          <Alert className="bg-primary/5 border-primary/20">
-            <AlertDescription className="text-xs">
-              Fields marked with <span className="text-destructive">*</span> are required.
-              Pricing calculations are automatic based on quantity and unit price.
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
-
-      {/* Right Column - Lens Details, Bulk Selection */}
-      <div className="md:w-[65%] flex flex-col gap-3 md:h-full md:overflow-auto pb-3">
-        {/* Lens Details for Bulk */}
-        {renderLensDetails(false, true)}
-
-        {/* Bulk Lens Selection */}
-        <BulkLensSelection
-          value={formData.lensBulkSelection}
-          onChange={(value) => {
-            // Sum all quantities across cells
-            const totalQty = Object.values(value.selections || {}).reduce((sum, sel) => {
-              if (sel && typeof sel === 'object') {
-                if ('quantity' in sel) return sum + (parseInt(sel.quantity) || 0);
-                return sum + Object.values(sel).reduce((s, v) => s + (parseInt(v) || 0), 0);
-              }
-              return sum + (parseInt(sel) || 0);
-            }, 0);
-            setFormData(prev => ({
-              ...prev,
-              lensBulkSelection: value,
-              quantity: totalQty > 0 ? totalQty : prev.quantity,
-            }));
-          }}
-          disabled={isReadOnly}
-          categoryName={lensCategories.find(c => String(c.id) === String(formData.category_id))?.label || ""}
-          lensId={formData.lens_id}
-        />
-      </div>
-    </div>
+      {/* Pricing and Invoice Details for Bulk */}
+      {renderPricingDetails()}
+      {renderDatesAndNotes()}
+      {renderSupplierInvoiceDetails()}
+      {mode === "add" && (
+        <Alert className="bg-primary/5 border-primary/20">
+          <AlertDescription className="text-xs">
+            Fields marked with <span className="text-destructive">*</span> are required.
+            Pricing calculations are automatic based on quantity and unit price.
+          </AlertDescription>
+        </Alert>
+      )}
+    </>
   );
 
   const renderPurchaseForm = () => (
-    <div className="flex flex-col md:flex-row gap-4 h-full md:overflow-hidden">
-      {/* Left Column - Order Info, Dates, Pricing, Invoice */}
-      <div className="md:w-[35%] flex flex-col gap-3 md:h-full md:overflow-y-auto md:overflow-x-hidden">
-        {/* Order Information */}
-        <Card>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Order Information</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-2">
+    <>
+      {/* Basic Information */}
+      <Card>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Basic Information</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <FormInput
               label="PO Number"
               name="poNumber"
@@ -775,8 +622,8 @@ export default function PurchaseOrderForm() {
               onChange={handleChange}
               disabled={true}
               required
-              singleLine
             />
+
             <FormInput
               label="Reference ID (Optional)"
               name="reference_id"
@@ -784,8 +631,8 @@ export default function PurchaseOrderForm() {
               onChange={handleChange}
               disabled={isReadOnly}
               placeholder="e.g., PUR1548"
-              singleLine
             />
+
             <FormSelect
               label="Vendor"
               name="vendorId"
@@ -798,8 +645,8 @@ export default function PurchaseOrderForm() {
               disabled={isReadOnly}
               required
               error={errors.vendorId}
-              singleLine
             />
+
             <FormSelect
               label="Sale Order (Optional)"
               name="saleOrderId"
@@ -816,8 +663,11 @@ export default function PurchaseOrderForm() {
               isClearable={true}
               disabled={isReadOnly}
               error={errors.saleOrderId}
-              singleLine
             />
+            
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormSelect
               label="Status"
               name="status"
@@ -831,8 +681,8 @@ export default function PurchaseOrderForm() {
               isClearable={false}
               disabled={isReadOnly}
               required
-              singleLine
             />
+
             <FormSelect
               label="Active Status"
               name="activeStatus"
@@ -849,86 +699,29 @@ export default function PurchaseOrderForm() {
               isClearable={false}
               disabled={isReadOnly}
               required
-              singleLine
             />
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Dates & Notes */}
-        <Card>
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Dates & Notes</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-2">
-            <FormInput
-              label="Order Date"
-              name="orderDate"
-              type="date"
-              value={formData.orderDate}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              singleLine
-            />
-            <FormInput
-              label="Expected Delivery (Optional)"
-              name="expectedDeliveryDate"
-              type="date"
-              value={formData.expectedDeliveryDate}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              singleLine
-            />
-            <FormInput
-              label="Actual Delivery (Optional)"
-              name="actualDeliveryDate"
-              type="date"
-              value={formData.actualDeliveryDate}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              singleLine
-            />
-            <FormTextarea
-              label="Notes (Optional)"
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              rows={2}
-              placeholder="Any additional notes"
-              singleLine
-            />
-          </CardContent>
-        </Card>
-
-        {/* Pricing Details */}
-        {renderPricingDetails()}
-
-        {/* Supplier Invoice Details */}
-        {renderSupplierInvoiceDetails()}
-
-        {mode === "add" && (
-          <Alert className="bg-primary/5 border-primary/20">
-            <AlertDescription className="text-xs">
-              Fields marked with <span className="text-destructive">*</span> are required.
-              Pricing calculations are automatic based on quantity and unit price.
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
-
-      {/* Right Column - Lens Details, Eye Specs */}
-      <div className="md:w-[65%] flex flex-col gap-3 md:h-full md:overflow-auto pb-3">
-        {renderLensDetails()}
-        {renderEyeSpecifications()}
-      </div>
-    </div>
+      {/* Rest of the form content will go here */}
+      {renderLensDetails()}
+      {renderEyeSpecifications()}
+      {renderPricingDetails()}
+      {renderDatesAndNotes()}
+      {renderSupplierInvoiceDetails()}
+      {mode === "add" && (
+        <Alert className="bg-primary/5 border-primary/20">
+          <AlertDescription className="text-xs">
+            Fields marked with <span className="text-destructive">*</span> are required.
+            Pricing calculations are automatic based on quantity and unit price.
+          </AlertDescription>
+        </Alert>
+      )}
+    </>
   );
 
-  const renderLensDetails = (showEyeSelection = true, isBulk = false) => {
-    const productsToShow = filteredLensProducts !== null ? filteredLensProducts : lensProducts;
-    const coatingsToShow = filteredLensCoatings !== null ? filteredLensCoatings : lensCoatings;
-    const lensProductDisabled = isReadOnly || !formData.Type_id || !formData.category_id;
-    return (
+  const renderLensDetails = (showEyeSelection = true) => (
     <Card>
       <CardHeader className="p-3 pb-2">
         <CardTitle className="text-sm">Lens Details</CardTitle>
@@ -949,9 +742,27 @@ export default function PurchaseOrderForm() {
             placeholder="Select type"
             isSearchable={true}
             isClearable={true}
-            disabled={true}
+            disabled={isReadOnly}
             required
             error={errors.Type_id}
+          />
+          <FormSelect
+            label="Lens Product"
+            name="lens_id"
+            options={lensProducts}
+            value={formData.lens_id}
+            onChange={(value) => {
+              setFormData((prev) => ({ ...prev, lens_id: value }));
+              if (errors.lens_id) {
+                setErrors((prev) => ({ ...prev, lens_id: "" }));
+              }
+            }}
+            placeholder="Select lens product"
+            isSearchable={true}
+            isClearable={true}
+            disabled={isReadOnly}
+            required
+            error={errors.lens_id}
           />
 
           <FormSelect
@@ -959,7 +770,12 @@ export default function PurchaseOrderForm() {
             name="category_id"
             options={lensCategories}
             value={formData.category_id}
-            onChange={handleCategoryChange}
+            onChange={(value) => {
+              setFormData((prev) => ({ ...prev, category_id: value }));
+              if (errors.category_id) {
+                setErrors((prev) => ({ ...prev, category_id: "" }));
+              }
+            }}
             placeholder="Select category"
             isSearchable={true}
             isClearable={true}
@@ -970,21 +786,8 @@ export default function PurchaseOrderForm() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FormSelect
-            label="Lens Product"
-            name="lens_id"
-            options={productsToShow}
-            value={formData.lens_id}
-            onChange={handleLensProductChange}
-            placeholder={lensProductDisabled && !isReadOnly ? "Select Category first" : "Select lens product"}
-            isSearchable={true}
-            isClearable={true}
-            disabled={lensProductDisabled}
-            required
-            error={errors.lens_id}
-          />
+          
 
-          {!isBulk && (
           <FormSelect
             label="Dia (Optional)"
             name="dia_id"
@@ -996,7 +799,6 @@ export default function PurchaseOrderForm() {
             isClearable={true}
             disabled={isReadOnly}
           />
-          )}
 
           {/* <FormSelect
             label="Fitting (Optional)"
@@ -1015,16 +817,15 @@ export default function PurchaseOrderForm() {
           <FormSelect
             label="Coating (Optional)"
             name="coating_id"
-            options={coatingsToShow}
+            options={lensCoatings}
             value={formData.coating_id}
             onChange={(value) => setFormData((prev) => ({ ...prev, coating_id: value }))}
-            placeholder={!formData.lens_id && !isReadOnly ? "Select Lens Product first" : "Select coating"}
+            placeholder="Select coating"
             isSearchable={true}
             isClearable={true}
-            disabled={isReadOnly || !formData.lens_id}
+            disabled={isReadOnly}
           />
 
-          {!isBulk && (
           <FormSelect
             label="Tinting (Optional)"
             name="tinting_id"
@@ -1036,7 +837,6 @@ export default function PurchaseOrderForm() {
             isClearable={true}
             disabled={isReadOnly}
           />
-          )}
         </div>
 
         {/* Eye Selection */}
@@ -1083,8 +883,7 @@ export default function PurchaseOrderForm() {
         )}
       </CardContent>
     </Card>
-    );
-  };
+  );
 
   const renderEyeSpecifications = () => {
     if (!formData.rightEye && !formData.leftEye) return null;
@@ -1136,20 +935,20 @@ export default function PurchaseOrderForm() {
       <CardHeader className="p-3 pb-2">
         <CardTitle className="text-sm">Pricing Details</CardTitle>
       </CardHeader>
-      <CardContent className="p-3 pt-0 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+      <CardContent className="p-3 pt-0 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <FormInput
             label="Quantity"
             name="quantity"
             type="number"
-            step="1"
-            min="1"
+            step="0.5"
+            min="0"
             value={formData.quantity}
             onChange={handleChange}
-            disabled={true}
+            disabled={isReadOnly}
             required
             error={errors.quantity}
-            helperText="1 for single eye, 2 for both"
+            helperText="0.5 for single eye, 1 for both"
           />
 
           <FormInput
@@ -1164,10 +963,20 @@ export default function PurchaseOrderForm() {
             prefix="₹"
             error={errors.unitPrice}
           />
+
+          <FormInput
+            label="Subtotal"
+            name="subtotal"
+            type="number"
+            value={formData.subtotal}
+            disabled={true}
+            prefix="₹"
+          />
         </div>
 
-        {/* Tax field with toggle */}
-        <div className="space-y-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Tax field with toggle */}
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Tax</Label>
               <div className="flex rounded-md border overflow-hidden text-xs">
@@ -1219,17 +1028,7 @@ export default function PurchaseOrderForm() {
                 prefix="₹"
               />
             )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <FormInput
-            label="Subtotal"
-            name="subtotal"
-            type="number"
-            value={formData.subtotal}
-            disabled={true}
-            prefix="₹"
-          />
+          </div>
 
           <FormInput
             label="Total Value"
@@ -1245,21 +1044,12 @@ export default function PurchaseOrderForm() {
     </Card>
   );
 
-  const renderSupplierInvoiceDetails = () => {
-    const selectedVendor = vendors.find(v => String(v.value ?? v.id) === String(formData.vendorId));
-    const vendorName = selectedVendor?.label || selectedVendor?.name || "";
-    return (
+  const renderSupplierInvoiceDetails = () => (
     <Card>
       <CardHeader className="p-3 pb-2">
         <CardTitle className="text-sm">Supplier Invoice Details</CardTitle>
       </CardHeader>
       <CardContent className="p-3 pt-0 space-y-4">
-        {vendorName && (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground min-w-[60px] w-[100px]">Vendor</span>
-            <span className="font-medium text-foreground">{vendorName}</span>
-          </div>
-        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <FormInput
             label="Supplier Invoice No (Optional)"
@@ -1304,7 +1094,6 @@ export default function PurchaseOrderForm() {
       </CardContent>
     </Card>
   );
-  };
 
   const renderDatesAndNotes = () => (
     <Card>
@@ -1355,9 +1144,9 @@ export default function PurchaseOrderForm() {
   );
 
   return (
-    <div className="flex flex-col h-full p-2 md:p-3 gap-3 w-full">
+    <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
             {mode === "add"
@@ -1385,7 +1174,7 @@ export default function PurchaseOrderForm() {
             disabled={isSaving}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Close
+            Back
           </Button>
           {mode === "view" && (
             <Button
@@ -1434,7 +1223,7 @@ export default function PurchaseOrderForm() {
 
       {/* Form */}
       {isLoading ? (
-        <Card className="flex-shrink-0">
+        <Card>
           <CardContent className="p-8 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -1445,32 +1234,32 @@ export default function PurchaseOrderForm() {
           </CardContent>
         </Card>
       ) : (
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Conditionally show tabs only for new orders */}
           {showTabs && mode === "add" ? (
             <Tabs 
               value={formData.orderType} 
               onValueChange={handleOrderTypeChange}
-              className="w-full flex-1 flex flex-col min-h-0"
+              className="w-full"
             >
-              <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="Single">Single Purchase</TabsTrigger>
                 <TabsTrigger value="Bulk">Bulk Purchase</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="Single" className="flex-1 min-h-0 mt-4">
+              <TabsContent value="Single" className="space-y-4 mt-4">
                 {/* Single Purchase Form */}
                 {renderPurchaseForm()}
               </TabsContent>
               
-              <TabsContent value="Bulk" className="flex-1 min-h-0 mt-4">
+              <TabsContent value="Bulk" className="space-y-4 mt-4">
                 {/* Basic Purchase Order Info with Bulk Lens Selection */}
                 {renderBasicPurchaseForm()}
               </TabsContent>
             </Tabs>
           ) : (
             /* For view/edit modes, show form based on current order type */
-            <div className="flex-1 min-h-0">
+            <div className="space-y-4">
               {(currentOrderType || formData.orderType) === "Bulk" ? renderBasicPurchaseForm() : renderPurchaseForm()}
             </div>
           )}

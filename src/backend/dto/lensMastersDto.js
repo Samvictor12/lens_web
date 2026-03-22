@@ -396,3 +396,155 @@ export const validateQueryParams = (query) => {
     data: validated
   };
 };
+
+/**
+ * Validate Lens Offer Create
+ */
+export const validateCreateLensOffer = (data) => {
+  const errors = [];
+
+  if (!data.offerName || data.offerName.trim() === '') {
+    errors.push({ field: 'offerName', message: 'Offer name is required' });
+  } else if (!isValidLength(data.offerName, 1, 200)) {
+    errors.push({ field: 'offerName', message: 'Offer name must be between 1 and 200 characters' });
+  }
+
+  if (data.description && !isValidLength(data.description, 0, 500)) {
+    errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (!data.offerType || !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT'].includes(data.offerType)) {
+    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, or EXCHANGE_PRODUCT' });
+  }
+
+  // Validate offer type specific fields
+  if (data.offerType === 'VALUE') {
+    if (!data.discountValue || !isValidNumber(data.discountValue) || data.discountValue <= 0) {
+      errors.push({ field: 'discountValue', message: 'Discount value is required and must be greater than 0 for VALUE type' });
+    }
+  } else if (data.offerType === 'PERCENTAGE') {
+    if (!data.discountPercentage || !isValidNumber(data.discountPercentage) || 
+        data.discountPercentage <= 0 || data.discountPercentage > 100) {
+      errors.push({ field: 'discountPercentage', message: 'Discount percentage must be between 0 and 100 for PERCENTAGE type' });
+    }
+  } else if (data.offerType === 'EXCHANGE_PRODUCT') {
+    if (!data.offerPrice || !isValidNumber(data.offerPrice) || data.offerPrice <= 0) {
+      errors.push({ field: 'offerPrice', message: 'Offer price is required and must be greater than 0 for EXCHANGE_PRODUCT type' });
+    }
+  }
+
+  // Validate optional lens_id
+  if (data.lens_id && !isValidNumber(data.lens_id)) {
+    errors.push({ field: 'lens_id', message: 'Lens ID must be a valid number' });
+  }
+
+  // Validate optional coating_id
+  if (data.coating_id && !isValidNumber(data.coating_id)) {
+    errors.push({ field: 'coating_id', message: 'Coating ID must be a valid number' });
+  }
+
+  // Validate date range
+  if (!data.startDate) {
+    errors.push({ field: 'startDate', message: 'Start date is required' });
+  }
+
+  if (!data.endDate) {
+    errors.push({ field: 'endDate', message: 'End date is required' });
+  }
+
+  if (data.startDate && data.endDate) {
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    
+    if (isNaN(startDate.getTime())) {
+      errors.push({ field: 'startDate', message: 'Start date is invalid' });
+    }
+    
+    if (isNaN(endDate.getTime())) {
+      errors.push({ field: 'endDate', message: 'End date is invalid' });
+    }
+    
+    if (startDate >= endDate) {
+      errors.push({ field: 'endDate', message: 'End date must be after start date' });
+    }
+  }
+
+  if (!data.createdBy || !isValidNumber(data.createdBy)) {
+    errors.push({ field: 'createdBy', message: 'Created by user ID is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: errors.length === 0 ? data : null
+  };
+};
+
+/**
+ * Validate Lens Offer Update
+ */
+export const validateUpdateLensOffer = (data) => {
+  const errors = [];
+
+  if (data.offerName && !isValidLength(data.offerName, 1, 200)) {
+    errors.push({ field: 'offerName', message: 'Offer name must be between 1 and 200 characters' });
+  }
+
+  if (data.description && !isValidLength(data.description, 0, 500)) {
+    errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (data.offerType && !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT'].includes(data.offerType)) {
+    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, or EXCHANGE_PRODUCT' });
+  }
+
+  // Validate offer type specific fields if provided
+  if (data.discountValue !== undefined && (!isValidNumber(data.discountValue) || data.discountValue < 0)) {
+    errors.push({ field: 'discountValue', message: 'Discount value must be a non-negative number' });
+  }
+
+  if (data.discountPercentage !== undefined && 
+      (!isValidNumber(data.discountPercentage) || data.discountPercentage < 0 || data.discountPercentage > 100)) {
+    errors.push({ field: 'discountPercentage', message: 'Discount percentage must be between 0 and 100' });
+  }
+
+  if (data.offerPrice !== undefined && (!isValidNumber(data.offerPrice) || data.offerPrice < 0)) {
+    errors.push({ field: 'offerPrice', message: 'Offer price must be a non-negative number' });
+  }
+
+  // Validate optional lens_id
+  if (data.lens_id !== undefined && data.lens_id !== null && !isValidNumber(data.lens_id)) {
+    errors.push({ field: 'lens_id', message: 'Lens ID must be a valid number' });
+  }
+
+  // Validate optional coating_id
+  if (data.coating_id !== undefined && data.coating_id !== null && !isValidNumber(data.coating_id)) {
+    errors.push({ field: 'coating_id', message: 'Coating ID must be a valid number' });
+  }
+
+  // Validate dates if provided
+  if (data.startDate) {
+    const startDate = new Date(data.startDate);
+    if (isNaN(startDate.getTime())) {
+      errors.push({ field: 'startDate', message: 'Start date is invalid' });
+    }
+  }
+
+  if (data.endDate) {
+    const endDate = new Date(data.endDate);
+    if (isNaN(endDate.getTime())) {
+      errors.push({ field: 'endDate', message: 'End date is invalid' });
+    }
+  }
+
+  if (!data.updatedBy || !isValidNumber(data.updatedBy)) {
+    errors.push({ field: 'updatedBy', message: 'Updated by user ID is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: errors.length === 0 ? data : null
+  };
+};
+

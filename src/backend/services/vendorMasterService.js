@@ -245,6 +245,40 @@ export class VendorMasterService {
   }
 
   /**
+   * Get vendor location (city and state) by ID
+   * @param {number} id - Vendor master ID
+   * @returns {Promise<Object>} Vendor city and state
+   */
+  async getVendorLocation(id) {
+    try {
+      const vendor = await prisma.vendor.findUnique({
+        where: { id },
+        select: { id: true, city: true, state: true },
+      });
+
+      if (!vendor) {
+        throw new APIError(
+          "Vendor master not found",
+          404,
+          "VENDOR_MASTER_NOT_FOUND"
+        );
+      }
+
+      return vendor;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error("Error fetching vendor location:", error);
+      throw new APIError(
+        "Failed to fetch vendor location",
+        500,
+        "FETCH_VENDOR_LOCATION_ERROR"
+      );
+    }
+  }
+
+  /**
    * Update vendor master
    * @param {number} id - Vendor master ID
    * @param {Object} updateData - Data to update

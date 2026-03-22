@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { getActiveOffers } from "@/services/lensOffers";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
 import { FormSelect } from "@/components/ui/form-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -69,6 +72,47 @@ export default function SaleOrderForm() {
     const [materials, setMaterials] = useState([]);
     const [tintings, setTintings] = useState([]);
     const [users, setUsers] = useState([]);
+    const [activeOffers, setActiveOffers] = useState([]);
+
+    // Compute effective price breakdown: base breakdown + offer discount applied reactively
+    const effectiveBreakdown = useMemo(() => {
+        if (!priceBreakdown) return null;
+        const selectedOffer = formData.offer_id
+            ? activeOffers.find((o) => o.id === formData.offer_id) || null
+            : null;
+        if (!selectedOffer) {
+            return { ...priceBreakdown, offerDiscount: 0, offerName: null, offerType: null };
+        }
+        const subtotalAfterFreeItems =
+            priceBreakdown.subtotal -
+            priceBreakdown.freeLensDeduction -
+            priceBreakdown.freeFittingDeduction;
+        if (selectedOffer.offerType === "PERCENTAGE") {
+            const offerDiscount = (subtotalAfterFreeItems * (selectedOffer.discountPercentage || 0)) / 100;
+            return {
+                ...priceBreakdown,
+                // PERCENTAGE offer replaces the category-based discount
+                discountPercentage: 0,
+                discountAmount: 0,
+                offerDiscount,
+                offerName: selectedOffer.offerName,
+                offerType: "PERCENTAGE",
+                offerPercentage: selectedOffer.discountPercentage,
+                finalTotal: subtotalAfterFreeItems - offerDiscount,
+            };
+        } else if (selectedOffer.offerType === "VALUE") {
+            const offerDiscount = selectedOffer.discountValue || 0;
+            return {
+                ...priceBreakdown,
+                offerDiscount,
+                offerName: selectedOffer.offerName,
+                offerType: "VALUE",
+                // VALUE offer is deducted on top of the regular category discount
+                finalTotal: priceBreakdown.finalTotal - offerDiscount,
+            };
+        }
+        return { ...priceBreakdown, offerDiscount: 0, offerName: null, offerType: null };
+    }, [priceBreakdown, formData.offer_id, activeOffers]);
 
     // Fetch master data for dropdowns
     useEffect(() => {
@@ -103,6 +147,8 @@ export default function SaleOrderForm() {
                 getUsersDropdown(),
             ]);
 
+            const offersData = await getActiveOffers().catch(() => []);
+            setActiveOffers(offersData || []);
 
             if (customersRes.success) setCustomers(customersRes.data || []);
             if (lensProductsRes.success) setLensProducts(lensProductsRes.data || []);
@@ -140,6 +186,23 @@ export default function SaleOrderForm() {
                     setOriginalData(order);
                     document.title = `${order.orderNo} - View Sale Order`
                     console.log("Field Order", order);
+
+                    // Ensure the applied offer (if any) is visible even if it has expired
+                    if (order.offer_id && order.offer) {
+                        setActiveOffers((prev) => {
+                            const alreadyPresent = prev.some((o) => o.id === order.offer_id);
+                            if (alreadyPresent) return prev;
+                            // Map backend offer shape to frontend shape
+                            return [...prev, {
+                                id: order.offer.id,
+                                offerName: order.offer.offerName,
+                                offerType: order.offer.offerType,
+                                discountValue: order.offer.discountValue,
+                                discountPercentage: order.offer.discountPercentage,
+                                endDate: order.offer.endDate || new Date().toISOString(),
+                            }];
+                        });
+                    }
                     
                     // Reconstruct price breakdown from saved data
                     if (order.lensPrice || order.fittingPrice || order.tintingPrice) {
@@ -238,7 +301,7 @@ export default function SaleOrderForm() {
             newErrors.lens_id = "Lens name is required";
         }
         // Dia is optional - removed required validation
-        if (!formData.fitting_id && !formData.freeFitting) {
+        if (!formData.fitting_id && !formData.freeFitting && !formData.onlyLens) {
             newErrors.fitting_id = "Fitting type is required (or check Free Fitting)";
         }
         if (!formData.material_id) {
@@ -440,6 +503,42 @@ export default function SaleOrderForm() {
     };
 
     const handleSelectChange = (name, value) => {
+        // When lens or coating changes, reset price breakdown and offer so user must recalculate
+        if (name === "lens_id" || name === "coating_id") {
+            setPriceBreakdown(null);
+            setFormData((prev) => ({
+                ...prev,
+                [name]: value,
+                offer_id: null,
+                lensPrice: 0,
+                rightEyeExtra: 0,
+                leftEyeExtra: 0,
+                fittingPrice: 0,
+                tintingPrice: 0,
+                discount: 0,
+            }));
+            if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+            return;
+        }
+        // When Only Lens toggled on, clear fitting and reset breakdown
+        if (name === "onlyLens") {
+            if (value === true) {
+                setPriceBreakdown(null);
+                setFormData((prev) => ({
+                    ...prev,
+                    onlyLens: true,
+                    fitting_id: null,
+                    fittingPrice: 0,
+                    freeFitting: false,
+                    offer_id: null,
+                }));
+                setErrors((prev) => ({ ...prev, fitting_id: "" }));
+            } else {
+                setPriceBreakdown(null);
+                setFormData((prev) => ({ ...prev, onlyLens: false, offer_id: null }));
+            }
+            return;
+        }
         setFormData((prev) => ({ ...prev, [name]: value }));
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -675,9 +774,30 @@ export default function SaleOrderForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
-        // Wait for price calculation to complete before validating and saving
-        await handleCalculatePrice();
+
+        // Require price to be calculated before submitting
+        if (!priceBreakdown) {
+            toast({
+                title: "Calculate Price First",
+                description: "Please click 'Calculate Price' before saving the order.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Offer confirmation dialogs
+        if (formData.offer_id) {
+            const appliedOffer = activeOffers.find((o) => o.id === formData.offer_id);
+            const confirmApply = window.confirm(
+                `Offer "${appliedOffer?.offerName}" will be applied to this order.\nDo you want to continue?`
+            );
+            if (!confirmApply) return;
+        } else if (activeOffers.length > 0) {
+            const skipOffer = window.confirm(
+                "An offer is available but has not been applied to this order.\nDo you want to continue without applying an offer?"
+            );
+            if (!skipOffer) return;
+        }
         
         if (!validateForm()) {
             console.log("Form Data on errors:", errors);
@@ -692,8 +812,17 @@ export default function SaleOrderForm() {
         try {
             setIsSaving(true);
 
+            // Build the payload: if a PERCENTAGE offer is applied, zero out the category discount
+            const selectedOffer = formData.offer_id
+                ? activeOffers.find((o) => o.id === formData.offer_id)
+                : null;
+            const submitData = {
+                ...formData,
+                discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
+            };
+
             if (mode === "add") {
-                const response = await createSaleOrder(formData);
+                const response = await createSaleOrder(submitData);
                 if (response.success) {
                     toast({
                         title: "Success",
@@ -703,7 +832,7 @@ export default function SaleOrderForm() {
                     handleCancel();
                 }
             } else if (mode === "edit" || isEditing) {
-                const response = await updateSaleOrder(parseInt(id), formData);
+                const response = await updateSaleOrder(parseInt(id), submitData);
                 if (response.success) {
                     toast({
                         title: "Success",
@@ -831,6 +960,12 @@ export default function SaleOrderForm() {
     };
 
     const statusActionButton = mode === "view" ? getStatusActionButton() : null;
+
+    // Eye spec gating: both Type and Category must be selected before entering eye data
+    const eyeSpecReady = !!(formData.Type_id && formData.category_id);
+    // Add field is only relevant for Bifocal / Progressive lenses
+    const selectedCategoryName = (categories.find((c) => c.id === formData.category_id)?.name || "").toLowerCase();
+    const showAddField = selectedCategoryName.includes("bifocal") || selectedCategoryName.includes("progressive");
 
     if (isLoading) {
         return (
@@ -1061,7 +1196,7 @@ export default function SaleOrderForm() {
                             value={formData.remark}
                             onChange={handleChange}
                             disabled={!isEditing}
-                            rows={3}
+                            rows={1}
                             placeholder="Enter any additional remarks"
                         />
                         <FormInput
@@ -1080,30 +1215,118 @@ export default function SaleOrderForm() {
                             disabled={!isEditing}
                             placeholder="Optional item reference"
                         />
-                        <div className="flex mt-6 ">
-
-                            <Checkbox
-                                label="Free Lens"
-                                id="freeLens"
-                                name="freeLens"
-                                checked={formData.freeLens}
-                                onCheckedChange={(checked) =>
-                                    handleSelectChange("freeLens", checked)
-                                }
-                                disabled={!isEditing}
-                            />
-                            <Checkbox
-                                label="Free Fitting"
-                                id="freeFitting"
-                                name="freeFitting"
-                                checked={formData.freeFitting}
-                                onCheckedChange={(checked) =>
-                                    handleSelectChange("freeFitting", checked)
-                                }
-                                disabled={!isEditing}
-                            />
-
+                        <div className={`mt-4 grid divide-x divide-border border rounded-md overflow-hidden ${formData.onlyLens ? "grid-cols-2" : "grid-cols-3"}`}>
+                            {[
+                                { id: "onlyLens", label: "Only Lens", checked: formData.onlyLens, disabled: !isEditing, onChange: (c) => handleSelectChange("onlyLens", c) },
+                                { id: "freeLens", label: "Free Lens", checked: formData.freeLens, disabled: !isEditing, onChange: (c) => handleSelectChange("freeLens", c) },
+                                !formData.onlyLens && { id: "freeFitting", label: "Free Fitting", checked: formData.freeFitting, disabled: !isEditing, onChange: (c) => handleSelectChange("freeFitting", c) },
+                            ].filter(Boolean).map(({ id, label, checked, disabled, onChange }) => (
+                                <label
+                                    key={id}
+                                    htmlFor={id}
+                                    className={[
+                                        "flex flex-row items-center justify-center gap-1.5 py-2 px-1 text-xs font-medium select-none transition-colors",
+                                        checked ? "bg-primary/10 text-primary" : "bg-background text-muted-foreground",
+                                        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50",
+                                    ].join(" ")}
+                                >
+                                    <Checkbox
+                                        id={id}
+                                        checked={checked}
+                                        onCheckedChange={onChange}
+                                        disabled={disabled}
+                                        className="pointer-events-none"
+                                    />
+                                    {label}
+                                </label>
+                            ))}
                         </div>
+
+                        {/* Available Offers */}
+                        {activeOffers.length > 0 && (
+                            <div className="mt-3 border-t pt-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <Tag className="h-3.5 w-3.5 text-primary" />
+                                        <span className="text-xs font-semibold">Available Offers</span>
+                                        {!priceBreakdown && (
+                                            <span className="text-[10px] text-muted-foreground italic">(calculate price first)</span>
+                                        )}
+                                        {priceBreakdown && priceBreakdown.finalTotal === 0 && (
+                                            <span className="text-[10px] text-amber-600 italic">(not applicable — total is ₹0)</span>
+                                        )}
+                                    </div>
+                                    {formData.offer_id && (
+                                        <Button
+                                            type="button"
+                                            size="xs"
+                                            variant="ghost"
+                                            className="h-5 px-1.5 text-[11px] text-destructive hover:text-destructive"
+                                            onClick={() => handleSelectChange("offer_id", null)}
+                                            disabled={!isEditing}
+                                        >
+                                            <X className="h-3 w-3 mr-0.5" /> Clear
+                                        </Button>
+                                    )}
+                                </div>
+                                <RadioGroup
+                                    value={formData.offer_id ? String(formData.offer_id) : ""}
+                                    onValueChange={(val) => {
+                                        if (!isEditing || !priceBreakdown) return;
+                                        if (priceBreakdown.finalTotal === 0) {
+                                            toast({ title: "Offer not applicable", description: "Cannot apply an offer when the order total is ₹0.", variant: "destructive" });
+                                            return;
+                                        }
+                                        handleSelectChange("offer_id", parseInt(val));
+                                    }}
+                                    className="gap-1.5"
+                                >
+                                    {activeOffers.map((offer) => (
+                                        <label
+                                            key={offer.id}
+                                            htmlFor={`offer-${offer.id}`}
+                                            className={[
+                                                "flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors",
+                                                isEditing && priceBreakdown && priceBreakdown.finalTotal > 0 ? "cursor-pointer" : "cursor-default opacity-60 pointer-events-none",
+                                                formData.offer_id === offer.id
+                                                    ? "border-primary bg-primary/5"
+                                                    : "border-border hover:bg-muted/50",
+                                            ].join(" ")}
+                                        >
+                                            <RadioGroupItem
+                                                id={`offer-${offer.id}`}
+                                                value={String(offer.id)}
+                                                className="mt-0.5 shrink-0"
+                                                disabled={!isEditing || !priceBreakdown || priceBreakdown.finalTotal === 0}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="font-medium">{offer.offerName}</span>
+                                                    <Badge
+                                                        variant={
+                                                            offer.offerType === "VALUE" ? "secondary" :
+                                                            offer.offerType === "PERCENTAGE" ? "outline" : "default"
+                                                        }
+                                                        className="text-[10px] px-1 py-0 leading-4 h-4"
+                                                    >
+                                                        {offer.offerType === "VALUE" ? "Value" :
+                                                         offer.offerType === "PERCENTAGE" ? "Percent" : "Exchange"}
+                                                    </Badge>
+                                                </div>
+                                                <div className="text-muted-foreground mt-0.5">
+                                                    {offer.offerType === "VALUE" && `₹${offer.discountValue} off`}
+                                                    {offer.offerType === "PERCENTAGE" && `${offer.discountPercentage}% off`}
+                                                    {offer.offerType === "EXCHANGE_PRODUCT" && "Exchange product"}
+                                                    {" · Ends "}
+                                                    {new Date(offer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </RadioGroup>
+                            </div>
+                        )}
+
                         {errors.eyeSelection && (
                             <Alert variant="destructive" className="mt-2">
                                 <AlertDescription>{errors.eyeSelection}</AlertDescription>
@@ -1167,30 +1390,20 @@ export default function SaleOrderForm() {
                             {/* Row 2 */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-                                <FormSelect
-                                    singleLine={true} label="Dia"
-                                    name="dia_id"
-                                    options={dias}
-                                    value={formData.dia_id}
-                                    onChange={(value) => handleSelectChange("dia_id", value)}
-                                    placeholder="Select dia"
-                                    isSearchable={false}
-                                    disabled={!isEditing}
-                                    required
-                                    error={errors.dia_id}
-                                />
-                                <FormSelect
-                                    singleLine={true} label="Fitting Type"
-                                    name="fitting_id"
-                                    options={fittings}
-                                    value={formData.fitting_id}
-                                    onChange={(value) => handleSelectChange("fitting_id", value)}
-                                    placeholder="Select fitting"
-                                    isSearchable={false}
-                                    disabled={!isEditing}
-                                    required
-                                    error={errors.fitting_id}
-                                />
+                                {!formData.onlyLens && (
+                                    <FormSelect
+                                        singleLine={true} label="Fitting Type"
+                                        name="fitting_id"
+                                        options={fittings}
+                                        value={formData.fitting_id}
+                                        onChange={(value) => handleSelectChange("fitting_id", value)}
+                                        placeholder="Select fitting"
+                                        isSearchable={false}
+                                        disabled={!isEditing}
+                                        required={!formData.freeFitting && !formData.onlyLens}
+                                        error={errors.fitting_id}
+                                    />
+                                )}
                                 <FormSelect
                                     singleLine={true} label="Material"
                                     name="material_id"
@@ -1235,11 +1448,16 @@ export default function SaleOrderForm() {
                     </Card>
 
                     <Card>
-                        <CardHeader >
-                            <CardTitle className="text-base">Eye Specifications</CardTitle>
+                        <CardHeader>
+                            <CardTitle className="text-base w-full">Eye Specifications</CardTitle>
+                            {isEditing && !eyeSpecReady && (
+                                <p className="text-xs text-amber-600 font-normal flex justify-start text-center mt-0.5 w-full">
+                                    Select Type and Category first to enter eye specifications
+                                </p>
+                            )}
                         </CardHeader>
                         <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className={`grid grid-cols-1 md:grid-cols-2 gap-2 ${!eyeSpecReady ? "opacity-40 pointer-events-none select-none" : ""}`}>
                                 {/* Right Eye Section */}
                                 <div className="space-y-3 p-4 border rounded-lg">
                                     <Checkbox
@@ -1255,7 +1473,7 @@ export default function SaleOrderForm() {
                                         onCheckedChange={(checked) =>
                                             handleSelectChange("rightEye", checked)
                                         }
-                                        disabled={!isEditing}
+                                        disabled={!isEditing || !eyeSpecReady}
                                     />
 
                                     <div className="grid grid-cols-2 gap-3">
@@ -1266,7 +1484,7 @@ export default function SaleOrderForm() {
                                             name="rightSpherical"
                                             value={formData.rightSpherical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
+                                            disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
                                             error={errors.rightSpherical}
                                         />
                                         <FormInput
@@ -1276,34 +1494,38 @@ export default function SaleOrderForm() {
                                             name="rightCylindrical"
                                             value={formData.rightCylindrical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
+                                            disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
                                             error={errors.rightCylindrical}
                                         />
-                                        {formData.rightCylindrical && formData.rightCylindrical != 0 && < FormInput
-                                            singleLine={true} label="Axis"
-                                            type="number"
-                                            name="rightAxis"
-                                            value={formData.rightAxis}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
-                                            error={errors.rightAxis}
-                                        />}
-                                        <FormInput
-                                            singleLine={true} label="Add"
-                                            type="number"
-                                            step="0.25"
-                                            name="rightAdd"
-                                            value={formData.rightAdd}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
-                                            error={errors.rightAdd}
-                                        />
+                                        {formData.rightCylindrical && formData.rightCylindrical != 0 && (
+                                            <FormInput
+                                                singleLine={true} label="Axis"
+                                                type="number"
+                                                name="rightAxis"
+                                                value={formData.rightAxis}
+                                                onChange={handleChange}
+                                                disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                                error={errors.rightAxis}
+                                            />
+                                        )}
+                                        {showAddField && (
+                                            <FormInput
+                                                singleLine={true} label="Add"
+                                                type="number"
+                                                step="0.25"
+                                                name="rightAdd"
+                                                value={formData.rightAdd}
+                                                onChange={handleChange}
+                                                disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                                error={errors.rightAdd}
+                                            />
+                                        )}
                                         <FormInput
                                             singleLine={true} label="Dia"
                                             name="rightDia"
                                             value={formData.rightDia}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !formData.rightEye}
+                                            disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
                                         />
                                         {/* Base and bled fields removed */}
                                     </div>
@@ -1324,7 +1546,7 @@ export default function SaleOrderForm() {
                                         onCheckedChange={(checked) =>
                                             handleSelectChange("leftEye", checked)
                                         }
-                                        disabled={!isEditing}
+                                        disabled={!isEditing || !eyeSpecReady}
                                     />
 
                                     <div className="grid grid-cols-2 gap-3">
@@ -1335,7 +1557,7 @@ export default function SaleOrderForm() {
                                             name="leftSpherical"
                                             value={formData.leftSpherical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
+                                            disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
                                             error={errors.leftSpherical}
                                         />
                                         <FormInput
@@ -1345,34 +1567,38 @@ export default function SaleOrderForm() {
                                             name="leftCylindrical"
                                             value={formData.leftCylindrical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
+                                            disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
                                             error={errors.leftCylindrical}
                                         />
-                                        {formData.leftCylindrical && formData.leftCylindrical != 0 && <FormInput
-                                            singleLine={true} label="Axis"
-                                            type="number"
-                                            name="leftAxis"
-                                            value={formData.leftAxis}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
-                                            error={errors.leftAxis}
-                                        />}
-                                        <FormInput
-                                            singleLine={true} label="Add"
-                                            type="number"
-                                            step="0.25"
-                                            name="leftAdd"
-                                            value={formData.leftAdd}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
-                                            error={errors.leftAdd}
-                                        />
+                                        {formData.leftCylindrical && formData.leftCylindrical != 0 && (
+                                            <FormInput
+                                                singleLine={true} label="Axis"
+                                                type="number"
+                                                name="leftAxis"
+                                                value={formData.leftAxis}
+                                                onChange={handleChange}
+                                                disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                                error={errors.leftAxis}
+                                            />
+                                        )}
+                                        {showAddField && (
+                                            <FormInput
+                                                singleLine={true} label="Add"
+                                                type="number"
+                                                step="0.25"
+                                                name="leftAdd"
+                                                value={formData.leftAdd}
+                                                onChange={handleChange}
+                                                disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                                error={errors.leftAdd}
+                                            />
+                                        )}
                                         <FormInput
                                             singleLine={true} label="Dia"
                                             name="leftDia"
                                             value={formData.leftDia}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !formData.leftEye}
+                                            disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
                                         />
                                         {/* Base and bled fields removed */}
                                     </div>
@@ -1548,52 +1774,65 @@ export default function SaleOrderForm() {
                                 <div className="flex flex-col gap-2 w-full">
                                     <Card className="bg-gray-50">
                                         <CardContent className="flex flex-col p-2 gap-3">
-                                            {priceBreakdown ? (
+                                            {effectiveBreakdown ? (
                                                 <>
                                                     {/* Base Lens Price - No breakdown */}
                                                     <div className="flex justify-between text-sm font-medium">
                                                         <span>Base Lens Price:</span>
-                                                        <span>₹{priceBreakdown.baseLensPrice.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        <span>₹{effectiveBreakdown.baseLensPrice.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                     </div>
 
-                                                    {priceBreakdown.additionalPriceTotal > 0 && (
+                                                    {effectiveBreakdown.additionalPriceTotal > 0 && (
                                                         <div className="flex justify-between text-sm">
                                                             <span>Additional Price:</span>
-                                                            <span>₹{priceBreakdown.additionalPriceTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                            <span>₹{effectiveBreakdown.additionalPriceTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     )}
 
                                                     <Separator />
                                                     <div className="flex justify-between text-sm font-medium">
                                                         <span>Subtotal:</span>
-                                                        <span>₹{priceBreakdown.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        <span>₹{effectiveBreakdown.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                     </div>
 
-                                                    {priceBreakdown.freeLensDeduction > 0 && (
+                                                    {effectiveBreakdown.freeLensDeduction > 0 && (
                                                         <div className="flex justify-between text-sm text-red-600">
                                                             <span>Free Lens (Coating)</span>
-                                                            <span>-₹{priceBreakdown.freeLensDeduction.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                            <span>-₹{effectiveBreakdown.freeLensDeduction.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     )}
 
-                                                    {priceBreakdown.freeFittingDeduction > 0 && (
+                                                    {effectiveBreakdown.freeFittingDeduction > 0 && (
                                                         <div className="flex justify-between text-sm text-red-600">
                                                             <span>Free Fitting</span>
-                                                            <span>-₹{priceBreakdown.freeFittingDeduction.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                            <span>-₹{effectiveBreakdown.freeFittingDeduction.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     )}
 
-                                                    {priceBreakdown.discountPercentage > 0 && (
+                                                    {/* Regular category discount — hidden when a PERCENTAGE offer is applied */}
+                                                    {effectiveBreakdown.discountPercentage > 0 && !effectiveBreakdown.offerType && (
                                                         <div className="flex justify-between text-sm text-red-600">
-                                                            <span>Discount ({priceBreakdown.discountPercentage}%)</span>
-                                                            <span>-₹{priceBreakdown.discountAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                            <span>Discount ({effectiveBreakdown.discountPercentage}%)</span>
+                                                            <span>-₹{effectiveBreakdown.discountAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Offer discount row */}
+                                                    {effectiveBreakdown.offerDiscount > 0 && (
+                                                        <div className="flex justify-between text-sm text-green-700 font-medium">
+                                                            <span>
+                                                                {effectiveBreakdown.offerType === "PERCENTAGE"
+                                                                    ? `Offer: ${effectiveBreakdown.offerPercentage}% (${effectiveBreakdown.offerName})`
+                                                                    : `Offer: ${effectiveBreakdown.offerName}`}
+                                                            </span>
+                                                            <span>-₹{effectiveBreakdown.offerDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     )}
 
                                                     <Separator />
                                                     <div className="flex justify-between font-semibold text-base">
                                                         <span>Total Amount:</span>
-                                                        <span className="text-green-600">₹{priceBreakdown.finalTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        <span className="text-green-600">₹{effectiveBreakdown.finalTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                     </div>
                                                 </>
                                             ) : (

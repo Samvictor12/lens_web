@@ -199,6 +199,30 @@ export const getLensCoatingsDropdown = async (req, res, next) => {
 };
 
 /**
+ * Get lens coatings for a specific lens product (via LensPriceMaster)
+ * @route GET /api/v1/lens-coatings/by-lens-product?lens_id=
+ */
+export const getLensCoatingsByLensProduct = async (req, res, next) => {
+  try {
+    const lensId = req.query.lens_id ? parseInt(req.query.lens_id) : null;
+    if (!lensId || isNaN(lensId)) {
+      return res.status(400).json({
+        success: false,
+        message: "lens_id query parameter is required and must be a number",
+      });
+    }
+    const coatings = await lensCoatingService.getCoatingsByLensProduct(lensId);
+    res.status(200).json({
+      success: true,
+      message: "Coatings for lens product retrieved successfully",
+      data: coatings,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Get lens coating statistics
  * @route GET /api/v1/lens-coatings/statistics
  */

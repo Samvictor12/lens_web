@@ -74,8 +74,13 @@ export default function PurchaseOrders() {
     setDeleteDialogOpen(true);
   };
 
+  // Handle receive purchase order click
+  const handleReceive = (po) => {
+    window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
+  };
+
   // Get table columns with delete handler
-  const columns = usePurchaseOrderColumns(navigate, handleDeleteClick);
+  const columns = usePurchaseOrderColumns(navigate, handleDeleteClick, handleReceive);
 
   // Fetch purchase orders from API
   const fetchPurchaseOrders = async () => {
@@ -176,7 +181,7 @@ export default function PurchaseOrders() {
   // Calculate dashboard statistics
   const calculateDashboardStats = () => {
     const totalOrders = purchaseOrders.length;
-    const pendingOrders = purchaseOrders.filter(po => po.status === 'PENDING').length;
+    const pendingOrders = purchaseOrders.filter(po => po.status === 'DRAFT' || po.status === 'PARTIALLY_RECEIVED').length;
     const completedOrders = purchaseOrders.filter(po => po.status === 'COMPLETED').length;
     const totalValue = purchaseOrders.reduce((sum, po) => sum + parseFloat(po.totalValue || 0), 0);
     const avgOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
@@ -286,7 +291,7 @@ export default function PurchaseOrders() {
             <div className="space-y-3">
               {dashboardStats.recentActivity.map((po) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                     onClick={() => navigate(`/masters/purchase-orders/view/${po.id}`)}>
+                     onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}>
                   <div className="flex-1">
                     <div className="font-medium">{po.poNumber}</div>
                     <div className="text-sm text-muted-foreground">
@@ -296,10 +301,11 @@ export default function PurchaseOrders() {
                   <div className="text-right">
                     <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                       po.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                      po.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      po.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' :
+                      po.status === 'PARTIALLY_RECEIVED' ? 'bg-blue-100 text-blue-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {po.status}
+                      {po.status === 'DRAFT' ? 'Pending' : po.status === 'PARTIALLY_RECEIVED' ? 'Partially Received' : po.status === 'RECEIVED' ? 'Received' : po.status === 'INVOICE_RECEIVED' ? 'Invoice Received' : po.status === 'CLOSED' ? 'Closed' : po.status === 'CANCELLED' ? 'Cancelled' : po.status}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {new Date(po.createdAt).toLocaleDateString()}
@@ -328,7 +334,7 @@ export default function PurchaseOrders() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          <Button
+          {/* <Button
             variant="outline"
             size="xs"
             className="gap-1.5 h-8"
@@ -345,11 +351,11 @@ export default function PurchaseOrders() {
           >
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Upload</span>
-          </Button>
+          </Button> */}
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => navigate("/masters/purchase-orders/add")}
+            onClick={() => window.open("/masters/purchase-orders/add", "_blank")}
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Add Purchase Order</span>
@@ -360,7 +366,7 @@ export default function PurchaseOrders() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="dashboard">Inventory Dashboard</TabsTrigger>
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="list">Purchase Orders List</TabsTrigger>
         </TabsList>
         
@@ -430,8 +436,9 @@ export default function PurchaseOrders() {
                 renderCard={(po) => (
                   <PurchaseOrderCard
                     purchaseOrder={po}
-                    onView={(id) => navigate(`/masters/purchase-orders/view/${id}`)}
+                    onView={(id) => window.open(`/masters/purchase-orders/view/${id}`, "_blank")}
                     onDelete={handleDeleteClick}
+                    onReceive={handleReceive}
                   />
                 )}
                 isLoading={isLoading}

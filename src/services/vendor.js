@@ -195,6 +195,21 @@ export async function getVendorDropdown() {
 }
 
 /**
+ * Get vendor city and state (for auto-filling place of supply)
+ * @param {number} id - Vendor ID
+ * @returns {Promise<Object>} Vendor city and state
+ */
+export async function getVendorLocation(id) {
+  const response = await apiClient("get", `/vendor-master/${id}/location`);
+  const data = response.data;
+  return {
+    success: response.success,
+    city: data?.city || "",
+    state: data?.state || "",
+  };
+}
+
+/**
  * Check if vendor email exists
  * @param {string} email - Email to check
  * @param {number} excludeId - Vendor ID to exclude from check (for updates)

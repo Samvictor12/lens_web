@@ -28,7 +28,10 @@ class PurchaseOrderController {
   async createPurchaseOrder(req, res, next) {
     try {
       // Validate request body
-      const validation = validateCreatePurchaseOrder(req.body);
+      const validation = validateCreatePurchaseOrder({
+        ...req.body,
+        createdBy: req.user?.id,
+      });
 
       if (!validation.isValid) {
         return res.status(400).json({
@@ -99,7 +102,10 @@ class PurchaseOrderController {
       const { id } = req.params;
 
       // Validate request body
-      const validation = validateUpdatePurchaseOrder(req.body);
+      const validation = validateUpdatePurchaseOrder({
+        ...req.body,
+        updatedBy: req.user?.id,
+      });
 
       if (!validation.isValid) {
         return res.status(400).json({
@@ -111,7 +117,7 @@ class PurchaseOrderController {
 
       const purchaseOrder = await purchaseOrderService.updatePurchaseOrder(
         parseInt(id),
-        req.body
+        validation.data
       );
 
       res.status(200).json({
@@ -214,6 +220,61 @@ class PurchaseOrderController {
         success: true,
         message: "Order types fetched successfully",
         data: orderTypes,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Receive a purchase order — create a receipt record
+   * POST /api/purchase-orders/:id/receive
+   */
+  async receivePurchaseOrder(req, res, next) {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const { receivedDate, receivedItems, notes } = req.body;
+
+      if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "receivedItems array is required and must not be empty",
+        });
+      }
+
+      const result = await purchaseOrderService.receivePurchaseOrder(
+        parseInt(id),
+        { receivedDate, receivedItems, notes, createdBy: userId }
+      );
+
+      res.status(201).json({
+        success: true,
+        message: "Purchase order received successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get all receipts for a purchase order
+   * GET /api/purchase-orders/:id/receipts
+   */
+  async getPOReceipts(req, res, next) {
+    try {
+      const { id } = req.params;
+      const result = await purchaseOrderService.getPOReceipts(parseInt(id));
+
+      res.status(200).json({
+        success: true,
+        message: "Receipts fetched successfully",
+        data: result,
       });
     } catch (error) {
       next(error);

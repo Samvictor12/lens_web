@@ -81,6 +81,26 @@ router.get('/dropdown', authenticateToken, lensCoatingController.getLensCoatings
 
 /**
  * @swagger
+ * /api/v1/lens-coatings/by-lens-product:
+ *   get:
+ *     summary: Get coatings available for a specific lens product
+ *     tags: [Lens Coatings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: lens_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+       200:
+         description: Coatings retrieved successfully
+ */
+router.get('/by-lens-product', authenticateToken, lensCoatingController.getLensCoatingsByLensProduct);
+
+/**
+ * @swagger
  * /api/v1/lens-coatings/statistics:
  *   get:
  *     summary: Get lens coating statistics

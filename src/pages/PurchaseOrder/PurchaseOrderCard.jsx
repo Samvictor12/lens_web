@@ -1,17 +1,15 @@
-import { Package, Calendar, Trash2, Building } from "lucide-react";
+import { Package, Calendar, Trash2, Building, PackageCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getStatusColor } from "./PurchaseOrder.constants";
+import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
+
+const canReceive = (status) => ["DRAFT", "PARTIALLY_RECEIVED"].includes(status);
 
 /**
  * PurchaseOrderCard component displays purchase order information in card format
- * @param {Object} purchaseOrder - Purchase order data object
- * @param {Function} onView - Callback function when view button is clicked
- * @param {Function} onEdit - Callback function when edit button is clicked
- * @param {Function} onDelete - Callback function when delete button is clicked
  */
-export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDelete }) {
+export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDelete, onReceive }) {
   const statusColor = getStatusColor(purchaseOrder.status);
 
   return (
@@ -34,29 +32,32 @@ export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDel
                 {purchaseOrder.vendor.name}
               </p>
             ) : (
-              <p className="text-xs text-transparent mt-0.5 h-4">
-                &nbsp;
-              </p>
+              <p className="text-xs text-transparent mt-0.5 h-4">&nbsp;</p>
             )}
           </div>
-          <Badge
-            variant="outline"
-            className={`${statusColor} text-xs px-1.5 py-0 h-5`}
-          >
-            {purchaseOrder.status}
-          </Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge variant="outline" className={`${statusColor} text-xs px-1.5 py-0 h-5`}>
+              {getStatusLabel(purchaseOrder.status)}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+              {purchaseOrder.orderType || "Single"}
+            </Badge>
+          </div>
         </div>
 
         <div className="space-y-1.5 min-h-[44px]">
           <div className="flex items-center gap-1.5 text-xs h-4">
             <Package className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-            <span>Qty: {purchaseOrder.quantity || 0}</span>
-            {purchaseOrder.lensProduct?.lens_name && (
-              <span className="text-muted-foreground truncate">
-                • {purchaseOrder.lensProduct.lens_name}
-              </span>
+            <span>Ordered: {purchaseOrder.quantity || 0}</span>
+            {purchaseOrder.receivedQty > 0 && (
+              <span className="text-green-600">• Received: {purchaseOrder.receivedQty}</span>
             )}
           </div>
+          {purchaseOrder.lensProduct?.lens_name && (
+            <div className="text-xs text-muted-foreground truncate">
+              {purchaseOrder.lensProduct.lens_name}
+            </div>
+          )}
           {purchaseOrder.orderDate ? (
             <div className="flex items-center gap-1.5 text-xs h-4">
               <Calendar className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -77,25 +78,27 @@ export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDel
 
         <div className="pt-2 border-t space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              Unit Price:
-            </span>
-            <span className="font-semibold text-xs">
-              ₹{(purchaseOrder.unitPrice || 0).toLocaleString("en-IN")}
-            </span>
+            <span className="text-xs text-muted-foreground">Unit Price:</span>
+            <span className="font-semibold text-xs">₹{(purchaseOrder.unitPrice || 0).toLocaleString("en-IN")}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              Total Value:
-            </span>
-            <span className="font-semibold text-xs text-primary">
-              ₹{(purchaseOrder.totalValue || 0).toLocaleString("en-IN")}
-            </span>
+            <span className="text-xs text-muted-foreground">Total Value:</span>
+            <span className="font-semibold text-xs text-primary">₹{(purchaseOrder.totalValue || 0).toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>
 
       <div className="flex gap-1.5 pt-2 mt-auto">
+        {canReceive(purchaseOrder.status) && (
+          <Button
+            variant="outline"
+            size="xs"
+            className="flex-1 h-7 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 gap-1"
+            onClick={() => onReceive && onReceive(purchaseOrder)}
+          >
+            <PackageCheck className="h-3 w-3" /> Receive
+          </Button>
+        )}
         <Button
           variant="outline"
           size="xs"
