@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getActiveOffers } from "@/services/lensOffers";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { PrintPreviewModal } from "@/components/LensPrint/PrintPreviewModal";
 import {
     createSaleOrder,
     getSaleOrderById,
@@ -21,6 +22,7 @@ import {
     updateSaleOrderStatus,
     getCustomersDropdown,
     getLensProductsDropdown,
+    getLensProductsFiltered,
     getLensCategoriesDropdown,
     getLensTypesDropdown,
     getLensDiaDropdown,
@@ -60,6 +62,11 @@ export default function SaleOrderForm() {
     const [isCalculating, setIsCalculating] = useState(false);
     const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null });
     const [priceBreakdown, setPriceBreakdown] = useState(null);
+    
+    // Print modal states
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
+    const [printActionMode, setPrintActionMode] = useState(null); // "create-and-print" or "print-existing"
 
     // Master data states
     const [customers, setCustomers] = useState([]);
@@ -119,6 +126,29 @@ export default function SaleOrderForm() {
         fetchMasterData();
 
     }, []);
+
+    // Fetch filtered lens products when Type and Category are selected
+    useEffect(() => {
+        if (formData.Type_id && formData.category_id) {
+            loadFilteredLensProducts();
+        } else {
+            setLensProducts([]);
+        }
+    }, [formData.Type_id, formData.category_id]);
+
+    const loadFilteredLensProducts = async () => {
+        try {
+            const response = await getLensProductsFiltered(formData.Type_id, formData.category_id);
+            if (response.success) {
+                setLensProducts(response.data || []);
+            } else {
+                setLensProducts([]);
+            }
+        } catch (error) {
+            console.error("Error loading filtered lens products:", error);
+            setLensProducts([]);
+        }
+    };
 
 
     const fetchMasterData = async () => {
@@ -503,6 +533,25 @@ export default function SaleOrderForm() {
     };
 
     const handleSelectChange = (name, value) => {
+        // When Type or Category changes, clear lens_id and related price fields
+        if (name === "Type_id" || name === "category_id") {
+            setPriceBreakdown(null);
+            setFormData((prev) => ({
+                ...prev,
+                [name]: value,
+                lens_id: null,
+                offer_id: null,
+                lensPrice: 0,
+                rightEyeExtra: 0,
+                leftEyeExtra: 0,
+                fittingPrice: 0,
+                tintingPrice: 0,
+                discount: 0,
+            }));
+            if (errors.lens_id) setErrors((prev) => ({ ...prev, lens_id: "" }));
+            if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+            return;
+        }
         // When lens or coating changes, reset price breakdown and offer so user must recalculate
         if (name === "lens_id" || name === "coating_id") {
             setPriceBreakdown(null);
@@ -959,6 +1008,164 @@ export default function SaleOrderForm() {
         setFormData((prev) => ({ ...prev, additionalPrice: updatedPrices }));
     };
 
+    // Create and Print Handler
+    const handleCreateAndPrint = async (e) => {
+        e?.preventDefault();
+
+        // Requires price calculation
+        if (!priceBreakdown) {
+            toast({
+                title: "Calculate Price First",
+                description: "Please click 'Calculate Price' before proceeding.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Validate form before saving
+        if (!validateForm()) {
+            toast({
+                title: "Validation Error",
+                description: "Please fill in all required fields correctly",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Check if both eyes are selected and have specs
+        if (!formData.rightEye && !formData.leftEye) {
+            toast({
+                title: "Specification Error",
+                description: "Please select and enter specifications for at least one eye",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            setIsSaving(true);
+
+            // Build the payload
+            const selectedOffer = formData.offer_id
+                ? activeOffers.find((o) => o.id === formData.offer_id)
+                : null;
+            const submitData = {
+                ...formData,
+                discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
+            };
+
+            let savedOrder = null;
+
+            if (mode === "add") {
+                const response = await createSaleOrder(submitData);
+                if (response.success) {
+                    savedOrder = response.data;
+                    toast({
+                        title: "Success",
+                        description: "Sale order created successfully!",
+                        success: true,
+                    });
+                } else {
+                    throw new Error(response.message || "Failed to create order");
+                }
+            } else if (mode === "edit" || isEditing) {
+                const response = await updateSaleOrder(parseInt(id), submitData);
+                if (response.success) {
+                    savedOrder = response.data;
+                    toast({
+                        title: "Success",
+                        description: "Sale order updated successfully!",
+                        success: true,
+                    });
+                    setOriginalData(submitData);
+                    setIsEditing(false);
+                } else {
+                    throw new Error(response.message || "Failed to update order");
+                }
+            } else if (mode === "view") {
+                // For view mode, use the existing form data
+                savedOrder = formData;
+            }
+
+            if (savedOrder) {
+                // Open print preview modal with the saved data
+                setFormData(savedOrder);
+                setPrintActionMode("create-and-print");
+                setIsPrintModalOpen(true);
+            }
+        } catch (error) {
+            console.error("Error in Create and Print:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to save and print",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Print Existing Order Handler
+    const handlePrintOrder = async () => {
+        if (mode === "view" && formData.id) {
+            // Check if lens specs are available
+            if (!formData.rightEye && !formData.leftEye) {
+                toast({
+                    title: "No Specifications",
+                    description: "No lens specifications available to print",
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            setPrintActionMode("print-existing");
+            setIsPrintModalOpen(true);
+        }
+    };
+
+    // Close Print Modal Handler
+    const closePrintModal = () => {
+        setIsPrintModalOpen(false);
+        setPrintActionMode(null);
+        setIsPrinting(false);
+    };
+
+    // Confirm Print and Close Modal
+    const handlePrintConfirm = async () => {
+        setIsPrinting(true);
+        try {
+            // Simulate print completion delay
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            if (printActionMode === "create-and-print") {
+                // Close modal and navigate back to orders list
+                closePrintModal();
+                toast({
+                    title: "Success",
+                    description: "Order created and printed successfully!",
+                    success: true,
+                });
+                handleCancel();
+            } else if (printActionMode === "print-existing") {
+                // Just close the modal
+                closePrintModal();
+                toast({
+                    title: "Success",
+                    description: "Print completed successfully!",
+                    success: true,
+                });
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "An error occurred during printing",
+                variant: "destructive",
+            });
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
     const statusActionButton = mode === "view" ? getStatusActionButton() : null;
 
     // Eye spec gating: both Type and Category must be selected before entering eye data
@@ -1034,6 +1241,19 @@ export default function SaleOrderForm() {
                         <Button
                             size="xs"
                             className="h-8 gap-1.5"
+                            variant="secondary"
+                            onClick={handlePrintOrder}
+                            disabled={isSaving}
+                        >
+                            <Printer className="h-3.5 w-3.5" />
+                            Print
+                        </Button>
+                    )}
+
+                    {mode === "view" && (
+                        <Button
+                            size="xs"
+                            className="h-8 gap-1.5"
                             variant={isEditing ? "outline" : "default"}
                             onClick={toggleEdit}
                         >
@@ -1079,8 +1299,7 @@ export default function SaleOrderForm() {
                                 size="xs"
                                 className="h-8 gap-1.5"
                                 onClick={handleSubmit}
-                                // disabled={isSaving}
-                                disabled={true}
+                                disabled={isSaving}
                             >
                                 {isSaving ? (
                                     <>
@@ -1095,21 +1314,20 @@ export default function SaleOrderForm() {
                                 )}
                             </Button>
                             <Button
-                                type="submit"
+                                type="button"
                                 size="xs"
-                                className="h-8 gap-1.5"
-                                onClick={handleSubmit}
-                                // disabled={isSaving}
-                                disabled={true}
+                                className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700"
+                                onClick={handleCreateAndPrint}
+                                disabled={isSaving}
                             >
                                 {isSaving ? (
                                     <>
                                         <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        Saving...
+                                        Processing...
                                     </>
                                 ) : (
                                     <>
-                                        <Save className="h-3.5 w-3.5" />
+                                        <Printer className="h-3.5 w-3.5" />
                                         Create & Print
                                     </>
                                 )}
@@ -1142,13 +1360,13 @@ export default function SaleOrderForm() {
                             disabled={mode !== "add" && !isEditing}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.outstanding_credit}` : ""}
+                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.credit_limit-customerCreditLimit.outstanding_credit}` : ""}
                         />
 
                         <FormInput
                             singleLine={true} label="Order Date"
                             type="date"
-                            name="orderDate"
+                            name="orderDate"    
                             value={new Date(formData.orderDate).toISOString().split("T")[0]}
                             onChange={handleChange}
                             disabled={!isEditing}
@@ -1378,7 +1596,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("lens_id", value)}
                                     placeholder="Select lens"
                                     isSearchable={true}
-                                    disabled={!isEditing}
+                                    disabled={!isEditing || !formData.Type_id || !formData.category_id}
                                     required
                                     error={errors.lens_id}
                                 />
@@ -1875,6 +2093,17 @@ export default function SaleOrderForm() {
 
             </div>
 
+            {/* Print Preview Modal */}
+            <PrintPreviewModal
+                isOpen={isPrintModalOpen}
+                onClose={closePrintModal}
+                onConfirm={handlePrintConfirm}
+                saleOrder={formData}
+                coatings={coatings}
+                isPrinting={isPrinting}
+            />
+
         </div >
     );
 }
+

@@ -90,7 +90,7 @@ export const getLensOfferById = async (req, res, next) => {
       });
     }
 
-    const offer = await lensOffersService.getLensOfferById(validation.data);
+    const offer = await lensOffersService.getLensOfferById(validation.id);
     res.status(200).json({
       success: true,
       message: "Lens offer retrieved successfully",

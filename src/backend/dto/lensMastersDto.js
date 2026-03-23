@@ -499,18 +499,18 @@ export const validateUpdateLensOffer = (data) => {
   }
 
   // Validate offer type specific fields if provided
-  if (data.discountValue !== undefined && (!isValidNumber(data.discountValue) || data.discountValue < 0)) {
-    errors.push({ field: 'discountValue', message: 'Discount value must be a non-negative number' });
-  }
+  // if (data.discountValue !== undefined && (!isValidNumber(data.discountValue) || data.discountValue < 0)) {
+  //   errors.push({ field: 'discountValue', message: 'Discount value must be a non-negative number' });
+  // }
 
-  if (data.discountPercentage !== undefined && 
-      (!isValidNumber(data.discountPercentage) || data.discountPercentage < 0 || data.discountPercentage > 100)) {
-    errors.push({ field: 'discountPercentage', message: 'Discount percentage must be between 0 and 100' });
-  }
+  // if (data.discountPercentage !== undefined && 
+  //     (!isValidNumber(data.discountPercentage) || data.discountPercentage < 0 || data.discountPercentage > 100)) {
+  //   errors.push({ field: 'discountPercentage', message: 'Discount percentage must be between 0 and 100' });
+  // }
 
-  if (data.offerPrice !== undefined && (!isValidNumber(data.offerPrice) || data.offerPrice < 0)) {
-    errors.push({ field: 'offerPrice', message: 'Offer price must be a non-negative number' });
-  }
+  // if (data.offerPrice !== undefined && (!isValidNumber(data.offerPrice) || data.offerPrice < 0)) {
+  //   errors.push({ field: 'offerPrice', message: 'Offer price must be a non-negative number' });
+  // }
 
   // Validate optional lens_id
   if (data.lens_id !== undefined && data.lens_id !== null && !isValidNumber(data.lens_id)) {

@@ -8,6 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+pgadmin_data
+postgres_data
 dist
 dist-ssr
 *.local

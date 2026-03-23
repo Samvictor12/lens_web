@@ -47,7 +47,7 @@ services:
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
       
       # App Settings
-      APP_TIMEZONE: ${APP_TIMEZONE}
+      TZ: ${APP_TIMEZONE}
       SWAGGER_URL: ${SWAGGER_URL}
       
       # CORS Configuration
