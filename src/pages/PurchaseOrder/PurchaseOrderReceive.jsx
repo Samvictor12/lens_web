@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { ArrowLeft, Save, Package, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, Save, Package, CheckCircle2, Clock, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
+import { FormTextarea } from "@/components/ui/form-textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPurchaseOrderById, getPOReceipts, receivePurchaseOrder } from "@/services/purchaseOrder";
+import { getPurchaseOrderById, getPOReceipts, receivePurchaseOrder, updatePOReceipt, getPOReceiptLogs } from "@/services/purchaseOrder";
+import { FormSelect } from "@/components/ui/form-select";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -46,12 +48,15 @@ const buildRows = (lensBulkSelection, cumulativeMap, unitPrice) => {
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PurchaseOrderReceive() {
-  const { id } = useParams();
+  const { id, receiptId } = useParams();
+  const isEditMode = Boolean(receiptId);
   const { toast } = useToast();
   const { user } = useAuth();
 
   const [po, setPo] = useState(null);
+  const [poVendor, setPoVendor] = useState(null);
   const [receiptsData, setReceiptsData] = useState(null);
+  const [openReceipts, setOpenReceipts] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -63,8 +68,23 @@ export default function PurchaseOrderReceive() {
   const [taxAmount, setTaxAmount] = useState("");
   const [taxPercentage, setTaxPercentage] = useState("");
 
+  // Supplier invoice + delivery state
+  const [actualDeliveryDate, setActualDeliveryDate] = useState("");
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
+  const [purchaseType, setPurchaseType] = useState("");
+  const [placeOfSupply, setPlaceOfSupply] = useState("");
+  const [itemDescription, setItemDescription] = useState("");
+
+  // Purchase type options (can be moved to constants if needed)
+  const purchaseTypeOptions = [
+    { value: "Local", label: "Local" },
+    { value: "Interstate", label: "Interstate" },
+  ];
+
   // Rows: one per SPH/CYL combination (bulk) or single row (single PO)
   const [rows, setRows] = useState([]);
+
+  const [receiptLogs, setReceiptLogs] = useState([]);
 
   // ── Load PO + receipts ────────────────────────────────────────────────
   useEffect(() => {
@@ -81,14 +101,44 @@ export default function PurchaseOrderReceive() {
         const poData = poRes.data;
         const rcpData = rcpRes.success ? rcpRes.data : { receipts: [], totalReceivedQty: 0, orderedQty: poData.quantity };
         setPo(poData);
+        setPlaceOfSupply(`${poData.vendor?.city || ""} - ${poData.vendor?.state || ""}`);
+        setPoVendor(poData.vendor);
         setReceiptsData(rcpData);
         // Pre-fill pricing from PO
         if (poData.unitPrice) setUnitPrice(poData.unitPrice);
         if (poData.taxAmount && parseFloat(poData.taxAmount) > 0) setTaxAmount(poData.taxAmount);
+        if (poData.supplierInvoiceNo) setSupplierInvoiceNo(poData.supplierInvoiceNo);
+        if (poData.purchaseType) setPurchaseType(poData.purchaseType);
+        if (poData.placeOfSupply) setPlaceOfSupply(poData.placeOfSupply);
+        if (poData.itemDescription) setItemDescription(poData.itemDescription);
 
         // Build cumulative received qty per key from past receipts
+        // In edit mode, exclude the receipt being edited so rows show correct remaining
+        const editReceiptId = receiptId ? parseInt(receiptId) : null;
+        const editReceipt = editReceiptId
+          ? (rcpData.receipts || []).find((r) => r.id === editReceiptId)
+          : null;
+
+        // Pre-fill receipt-level fields when editing
+        if (isEditMode && editReceipt) {
+          if (editReceipt.receivedDate)
+            setReceivedDate(editReceipt.receivedDate.split("T")[0]);
+          if (editReceipt.actualDeliveryDate)
+            setActualDeliveryDate(editReceipt.actualDeliveryDate.split("T")[0]);
+          if (editReceipt.notes) setNotes(editReceipt.notes);
+          if (editReceipt.unitPrice) setUnitPrice(String(editReceipt.unitPrice));
+          if (editReceipt.taxAmount && parseFloat(editReceipt.taxAmount) > 0)
+            setTaxAmount(String(editReceipt.taxAmount));
+          if (editReceipt.supplierInvoiceNo) setSupplierInvoiceNo(editReceipt.supplierInvoiceNo);
+          if (editReceipt.purchaseType) setPurchaseType(editReceipt.purchaseType);
+          if (editReceipt.placeOfSupply) setPlaceOfSupply(editReceipt.placeOfSupply);
+          if (editReceipt.itemDescription) setItemDescription(editReceipt.itemDescription);
+        }
+
         const cumulativeMap = {};
         (rcpData.receipts || []).forEach((receipt) => {
+          // Exclude the receipt being edited so remaining qty is recalculated correctly
+          if (isEditMode && receipt.id === editReceiptId) return;
           (receipt.receivedItems || []).forEach((item) => {
             if (item.key) {
               cumulativeMap[item.key] = (cumulativeMap[item.key] || 0) + (parseFloat(item.receivedQty) || 0);
@@ -96,7 +146,7 @@ export default function PurchaseOrderReceive() {
           });
         });
 
-        if (poData.orderType === "Bulk" && poData.lensBulkSelection) {
+        if (poData.lensBulkSelection) {
           // API returns array format; convert to selections-map expected by buildRows
           let bulkSelectionForRows = poData.lensBulkSelection;
           if (Array.isArray(poData.lensBulkSelection)) {
@@ -107,10 +157,25 @@ export default function PurchaseOrderReceive() {
             });
             bulkSelectionForRows = { selections };
           }
-          setRows(buildRows(bulkSelectionForRows, cumulativeMap, poData.unitPrice));
+          const builtRows = buildRows(bulkSelectionForRows, cumulativeMap, poData.unitPrice);
+          // In edit mode, pre-fill receivedQty from the existing receipt's items
+          if (isEditMode && editReceipt?.receivedItems) {
+            const editItemMap = {};
+            editReceipt.receivedItems.forEach((item) => {
+              if (item.key) editItemMap[item.key] = item.receivedQty;
+            });
+            builtRows.forEach((row) => {
+              if (editItemMap[row.key] !== undefined)
+                row.receivedQty = String(editItemMap[row.key]);
+            });
+          }
+          setRows(builtRows);
         } else {
           // Single PO — one row
-          const alreadyReceived = rcpData.totalReceivedQty || 0;
+          const alreadyReceived = isEditMode
+            ? (rcpData.totalReceivedQty || 0) - (editReceipt?.totalReceivedQty || 0)
+            : rcpData.totalReceivedQty || 0;
+          const preFillQty = isEditMode && editReceipt ? String(editReceipt.totalReceivedQty) : "";
           setRows([{
             key: "single",
             spherical: poData.rightSpherical || poData.leftSpherical || "-",
@@ -119,7 +184,7 @@ export default function PurchaseOrderReceive() {
             alreadyReceived,
             remaining: Math.max(0, (poData.quantity || 1) - alreadyReceived),
             unitPrice: poData.unitPrice || 0,
-            receivedQty: "",
+            receivedQty: preFillQty,
           }]);
         }
       } catch (err) {
@@ -155,7 +220,12 @@ export default function PurchaseOrderReceive() {
     if (totalThisQty <= 0) {
       toast({ title: "Validation", description: "Enter at least one received quantity.", variant: "destructive" });
       return false;
-    }    const up = parseFloat(unitPrice) || 0;
+    }
+    if (!actualDeliveryDate) {
+      toast({ title: "Validation", description: "Actual Delivery Date is required.", variant: "destructive" });
+      return false;
+    }
+    const up = parseFloat(unitPrice) || 0;
     if (up > 0 && taxValue <= 0) {
       toast({ title: "Validation", description: "GST / Tax is required when unit price is entered.", variant: "destructive" });
       return false;
@@ -199,18 +269,30 @@ export default function PurchaseOrderReceive() {
 
     try {
       setIsSaving(true);
-      const res = await receivePurchaseOrder(parseInt(id), {
+      const payload = {
         receivedDate,
+        actualDeliveryDate,
         receivedItems,
         notes,
         unitPrice: up,
         taxAmount: computedTaxAmount,
         subtotal,
         totalValue,
-      });
+        supplierInvoiceNo,
+        purchaseType,
+        placeOfSupply,
+        itemDescription,
+      };
+
+      const res = isEditMode
+        ? await updatePOReceipt(parseInt(id), parseInt(receiptId), payload)
+        : await receivePurchaseOrder(parseInt(id), payload);
 
       if (res.success) {
-        toast({ title: "Success", description: `Receipt ${res.data.receipt.receiptNumber} created. PO status: ${res.data.poStatus}` });
+        const desc = isEditMode
+          ? `Receipt updated. PO status: ${res.data.poStatus}`
+          : `Receipt ${res.data.receipt.receiptNumber} created. PO status: ${res.data.poStatus}`;
+        toast({ title: "Success", description: desc });
         window.close();
       } else {
         throw new Error(res.message || "Failed to save receipt");
@@ -221,6 +303,21 @@ export default function PurchaseOrderReceive() {
       setIsSaving(false);
     }
   };
+
+  // Load receipt logs for this PO
+  useEffect(() => {
+    async function fetchLogs() {
+      if (!id) return;
+      try {
+        const res = await getPOReceiptLogs(id);
+        if (res.success) setReceiptLogs(res.data);
+        else setReceiptLogs([]);
+      } catch (e) {
+        setReceiptLogs([]);
+      }
+    }
+    fetchLogs();
+  }, [id]);
 
   // ─── Render ───────────────────────────────────────────────────────────
 
@@ -237,20 +334,26 @@ export default function PurchaseOrderReceive() {
 
   if (!po) return null;
 
-  const isLocked = ["RECEIVED", "INVOICE_RECEIVED", "CLOSED", "CANCELLED"].includes(po.status);
   const statusColor = getStatusColor(po.status);
   const alreadyReceived = receiptsData?.totalReceivedQty || 0;
   const orderedQty = po.quantity || 0;
   const pendingQty = Math.max(0, orderedQty - alreadyReceived);
+
+  // In edit mode, unlock RECEIVED status so fields can be edited
+  // Locked when fully received or in terminal status (RECEIVED is still editable/receivable if pendingQty > 0)
+  const isLocked = ["INVOICE_RECEIVED", "CLOSED", "CANCELLED"].includes(po.status)
+    || (!isEditMode && pendingQty <= 0);
 
   return (
     <div className="flex flex-col h-full p-2 md:p-3 gap-3 w-full">
       {/* Header */}
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold">Receive Purchase Order</h1>
+          <h1 className="text-lg sm:text-xl font-bold">
+            {isEditMode ? "Edit Receipt" : "Receive Purchase Order"}
+          </h1>
           <p className="text-xs text-muted-foreground">
-            Record goods received against {po.poNumber}
+            {isEditMode ? `Editing receipt for ${po.poNumber}` : `Record goods received against ${po.poNumber}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -266,7 +369,7 @@ export default function PurchaseOrderReceive() {
             {isSaving ? (
               <><span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Saving...</>
             ) : (
-              <><Save className="h-3.5 w-3.5" /> Save Receipt</>
+              <><Save className="h-3.5 w-3.5" /> {isEditMode ? "Update Receipt" : "Save Receipt"}</>
             )}
           </Button>
         </div>
@@ -274,7 +377,7 @@ export default function PurchaseOrderReceive() {
 
       <div className="flex flex-col md:flex-row gap-3 flex-1 min-h-0">
         {/* ── Left: PO Summary + Receipt meta ── */}
-        <div className="md:w-[30%] flex flex-col gap-3 md:h-full md:overflow-y-auto md:overflow-x-hidden">
+        <div className="md:w-[35%] flex flex-col gap-3 md:h-full md:overflow-y-auto md:overflow-x-hidden">
           {/* PO Info */}
           <Card>
             <CardHeader className="p-3 pb-2">
@@ -293,7 +396,7 @@ export default function PurchaseOrderReceive() {
               )}
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Vendor</span>
-                <span className="font-medium">{po.vendor?.name || "-"}</span>
+                <span className="font-medium">{poVendor?.name || "-"}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Order Type</span>
@@ -338,6 +441,16 @@ export default function PurchaseOrderReceive() {
                 type="date"
                 value={receivedDate}
                 onChange={(e) => setReceivedDate(e.target.value)}
+                required
+                singleLine
+              />
+              <FormInput
+                label="Actual Delivery Date"
+                name="actualDeliveryDate"
+                type="date"
+                value={actualDeliveryDate}
+                onChange={(e) => setActualDeliveryDate(e.target.value)}
+                disabled={isLocked}
                 required
                 singleLine
               />
@@ -459,41 +572,58 @@ export default function PurchaseOrderReceive() {
             </CardContent>
           </Card>
 
-          {/* Supplier Invoice Details */}
-          {(po.supplierInvoiceNo || po.purchaseType || po.placeOfSupply || po.itemDescription) && (
-            <Card>
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-sm">Supplier Invoice Details</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 space-y-1.5 text-xs">
-                {po.supplierInvoiceNo && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Invoice No</span>
-                    <span className="font-medium">{po.supplierInvoiceNo}</span>
-                  </div>
-                )}
-                {po.purchaseType && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Purchase Type</span>
-                    <span>{po.purchaseType}</span>
-                  </div>
-                )}
-                {po.placeOfSupply && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Place of Supply</span>
-                    <span>{po.placeOfSupply}</span>
-                  </div>
-                )}
-                {po.itemDescription && (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-muted-foreground">Item Description</span>
-                    <span className="text-foreground">{po.itemDescription}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
+          {/* Supplier Invoice Details — editable on receive, styled like PurchaseOrderForm */}
+          <Card>
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="text-sm">Supplier Invoice Details</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-4">
+              {/* Vendor Name (read-only) */}
+              {po?.vendor?.name && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground min-w-[60px] w-[100px]">Vendor</span>
+                  <span className="font-medium text-blue-700">{poVendor?.name}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormInput
+                  label="Supplier Invoice No (Optional)"
+                  name="supplierInvoiceNo"
+                  value={supplierInvoiceNo}
+                  onChange={(e) => setSupplierInvoiceNo(e.target.value)}
+                  disabled={isLocked}
+                  placeholder="e.g., BL080984-25/26"
+                />
+                <FormSelect
+                  label="Purchase Type (Optional)"
+                  name="purchaseType"
+                  options={purchaseTypeOptions}
+                  value={purchaseType}
+                  onChange={(val) => setPurchaseType(val)}
+                  placeholder="Select purchase type"
+                  isSearchable={false}
+                  isClearable={true}
+                  disabled={isLocked}
+                />
+              </div>
+              <FormInput
+                label="Place of Supply (Optional)"
+                name="placeOfSupply"
+                value={placeOfSupply}
+                onChange={(e) => setPlaceOfSupply(e.target.value)}
+                disabled={isLocked}
+                placeholder={poVendor?.city || poVendor?.state ? `e.g., ${poVendor.city || ""}${poVendor.city && poVendor.state ? ", " : ""}${poVendor.state || ""}` : "e.g., Maharashtra"}
+              />
+              <FormInput
+                label="Item Description (Optional)"
+                name="itemDescription"
+                value={itemDescription}
+                onChange={(e) => setItemDescription(e.target.value)}
+                disabled={isLocked}
+                placeholder="Item or service description"
+              />
+            </CardContent>
+          </Card>
           {/* Alert if already fully received */}
           {isLocked && (
             <Card className="border-destructive/30 bg-destructive/5">
@@ -508,7 +638,7 @@ export default function PurchaseOrderReceive() {
         </div>
 
         {/* ── Right: Receive Grid + Receipt History ── */}
-        <div className="md:w-[70%] flex flex-col gap-3 md:h-full md:overflow-auto pb-3">
+        <div className="md:w-[65%] flex flex-col gap-3 md:h-full md:overflow-auto pb-3">
           {/* Receive Quantities Grid */}
           <Card>
             <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
@@ -596,52 +726,101 @@ export default function PurchaseOrderReceive() {
           </Card>
 
           {/* Receipt History */}
-          {receiptsData?.receipts?.length > 0 && (
+          {receiptLogs.length > 0 && (
             <Card>
               <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-sm">Receipt History ({receiptsData.receipts.length})</CardTitle>
+                <CardTitle className="text-sm">Receipt History ({receiptLogs.length})</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Receipt #</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Date</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Qty Received</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Value (₹)</th>
-                        <th className="px-3 py-2 text-center font-medium text-muted-foreground">Status</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Notes</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">By</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {receiptsData.receipts.map((receipt) => (
-                        <tr key={receipt.id} className="border-b hover:bg-muted/30">
-                          <td className="px-3 py-2 font-medium text-primary">{receipt.receiptNumber}</td>
-                          <td className="px-3 py-2">{new Date(receipt.receivedDate).toLocaleDateString("en-IN")}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{receipt.totalReceivedQty}</td>
-                          <td className="px-3 py-2 text-right">
-                            ₹{(receipt.totalValue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-3 py-2 text-center">
+                <div className="divide-y">
+                  {receiptLogs.map((log) => {
+                    const isOpen = openReceipts.has(log.id);
+                    const items = Array.isArray(log.receivedItems) ? log.receivedItems : [];
+                    const isBulk = items.length > 0 && items[0].spherical != null;
+                    return (
+                      <div key={log.id}>
+                        {/* Accordion Header */}
+                        <button
+                          type="button"
+                          onClick={() => setOpenReceipts(prev => {
+                            const next = new Set(prev);
+                            isOpen ? next.delete(log.id) : next.add(log.id);
+                            return next;
+                          })}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-xs hover:bg-muted/40 transition-colors text-left"
+                        >
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${
+                              isOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                          <span className="font-semibold text-primary min-w-[70px]">{log.receiptNumber}</span>
+                          <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleDateString("en-IN")}</span>
+                          <span className="ml-auto flex items-center gap-3">
+                            <span className="font-semibold">{log.totalReceivedQty} pcs</span>
                             <Badge
                               variant="outline"
-                              className={`text-[10px] h-4 px-1 ${
-                                receipt.status === "COMPLETE"
+                              className={`text-[10px] h-4 px-1.5 ${
+                                log.status === "COMPLETE"
                                   ? "bg-green-50 text-green-700 border-green-200"
                                   : "bg-blue-50 text-blue-700 border-blue-200"
                               }`}
                             >
-                              {receipt.status}
+                              {log.status || "LOG"}
                             </Badge>
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground">{receipt.notes || "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{receipt.createdByUser?.name || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            <span className="text-muted-foreground hidden sm:inline">{log.createdByUser?.name || "—"}</span>
+                          </span>
+                        </button>
+
+                        {/* Accordion Body */}
+                        {isOpen && (
+                          <div className="bg-muted/20 border-t px-3 pb-3 pt-2 space-y-2">
+                            {/* Lens Combinations Table */}
+                            {items.length > 0 && (
+                              <div className="rounded-md border overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-muted/60 border-b">
+                                      {isBulk ? (
+                                        <>
+                                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">SPH</th>
+                                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">CYL</th>
+                                        </>
+                                      ) : (
+                                        <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Lens</th>
+                                      )}
+                                      <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Ordered</th>
+                                      <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Received</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {items.map((item, idx) => (
+                                      <tr key={idx} className="border-b last:border-0 hover:bg-muted/30">
+                                        {isBulk ? (
+                                          <>
+                                            <td className="px-2 py-1.5 font-medium">
+                                              {Number(item.spherical) > 0 ? `+${item.spherical}` : item.spherical}
+                                            </td>
+                                            <td className="px-2 py-1.5">
+                                              {Number(item.cylindrical) > 0 ? `+${item.cylindrical}` : item.cylindrical}
+                                            </td>
+                                          </>
+                                        ) : (
+                                          <td className="px-2 py-1.5 text-muted-foreground">Single Lens</td>
+                                        )}
+                                        <td className="px-2 py-1.5 text-right text-muted-foreground">{item.orderedQty ?? "—"}</td>
+                                        <td className="px-2 py-1.5 text-right font-semibold text-green-700">{item.receivedQty}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

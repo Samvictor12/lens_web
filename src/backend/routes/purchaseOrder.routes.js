@@ -98,6 +98,26 @@ router.get(
 );
 
 /**
+ * @route   GET /api/purchase-orders/:id/receipt-logs
+ * @desc    Get all receipt logs for a purchase order
+ * @access  Private
+ */
+router.get(
+  "/:id/receipt-logs",
+  purchaseOrderController.getPOReceiptLogs.bind(purchaseOrderController)
+);
+
+/**
+ * @route   PUT /api/purchase-orders/:id/receipts/:receiptId
+ * @desc    Update an existing receipt
+ * @access  Private
+ */
+router.put(
+  "/:id/receipts/:receiptId",
+  purchaseOrderController.updateReceipt.bind(purchaseOrderController)
+);
+
+/**
  * @route   PUT /api/purchase-orders/:id
  * @desc    Update purchase order
  * @access  Private

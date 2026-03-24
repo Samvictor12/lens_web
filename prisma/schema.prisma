@@ -111,6 +111,9 @@ model User {
   inventoryAlertResolver     InventoryAlert[]     @relation("inventoryAlertResolver")
   lensOffersCreatedBy        LensOffers[]         @relation("lensOffersCreatedBy")
   lensOffersUpdatedBy        LensOffers[]         @relation("lensOffersUpdatedBy")
+
+    receiptLogsCreated   PurchaseReceiptLog[] @relation("receiptLogCreatedBy")
+    receiptLogsUpdated   PurchaseReceiptLog[] @relation("receiptLogUpdatedBy")
 }
 
 model Role {
@@ -559,7 +562,6 @@ model Payment {
 
 enum POStatus {
   DRAFT
-  PARTIALLY_RECEIVED
   RECEIVED
   INVOICE_RECEIVED
   CLOSED
@@ -664,6 +666,7 @@ model PurchaseOrder {
   inventoryItems       InventoryItem[]
   inventoryTransactions InventoryTransaction[] @relation("inventoryPOTransactions")
   receipts             PurchaseOrderReceipt[]
+    receiptLogs         PurchaseReceiptLog[]
 }
 
 model PurchaseOrderReceipt {
@@ -679,10 +682,23 @@ model PurchaseOrderReceipt {
   // Bulk PO:   same structure, keyed by sph/cyl combination
   receivedItems    Json
 
-  totalReceivedQty Float         @default(0)
-  totalValue       Float         @default(0)
-  notes            String?
-  status           String        @default("PARTIAL") // PARTIAL | COMPLETE
+  totalReceivedQty   Float     @default(0)
+  totalValue         Float     @default(0)
+
+  // Actual delivery & pricing (captured at time of receiving)
+  actualDeliveryDate DateTime?
+  unitPrice          Float     @default(0)
+  subtotal           Float     @default(0)
+  taxAmount          Float     @default(0)
+
+  // Supplier Invoice Details (from actual received invoice)
+  supplierInvoiceNo  String?
+  purchaseType       String?
+  placeOfSupply      String?
+  itemDescription    String?
+
+  notes              String?
+  status             String    @default("PARTIAL") // PARTIAL | COMPLETE
 
   // Audit
   activeStatus     Boolean       @default(true)
@@ -694,8 +710,31 @@ model PurchaseOrderReceipt {
 
   createdByUser    User          @relation("receiptCreatedBy", fields: [createdBy], references: [id])
   updatedByUser    User?         @relation("receiptUpdatedBy", fields: [updatedBy], references: [id])
+  logs             PurchaseReceiptLog[]
 }
 
+model PurchaseReceiptLog {
+  id                Int      @id @default(autoincrement())
+  receiptNumber     String
+  purchaseOrderId   Int
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseReceiptId Int
+  purchaseReceipt   PurchaseOrderReceipt @relation(fields: [purchaseReceiptId], references: [id])
+  receivedItems     Json
+  totalReceivedQty  Float
+  createdBy         Int
+  createdByUser     User      @relation("receiptLogCreatedBy", fields: [createdBy], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  updatedBy         Int?
+  updatedByUser     User?     @relation("receiptLogUpdatedBy", fields: [updatedBy], references: [id])
+  status            String?   // CREATE, UPDATE, etc (optional)
+  notes             String?   // Optional remarks
+  activeStatus      Boolean   @default(true)
+  deleteStatus      Boolean   @default(false)
+
+  @@index([purchaseReceiptId])
+}
 enum DispatchStatus {
   PENDING
   IN_TRANSIT

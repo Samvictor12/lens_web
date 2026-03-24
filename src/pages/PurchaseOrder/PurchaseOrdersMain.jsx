@@ -10,6 +10,7 @@ import {
   Clock,
   AlertTriangle,
 } from "lucide-react";
+import { Refresh } from "@/components/ui/Refresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,7 @@ import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { getPurchaseOrders, deletePurchaseOrder } from "@/services/purchaseOrder";
+import { getPurchaseOrders, deletePurchaseOrder, getPOReceipts } from "@/services/purchaseOrder";
 import { purchaseOrderFilters } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
@@ -79,8 +80,27 @@ export default function PurchaseOrders() {
     window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
   };
 
+  // Handle edit receipt click — open receive page in edit mode with latest receipt
+  const handleEditReceive = async (po) => {
+    try {
+      const res = await getPOReceipts(po.id);
+      if (res.success && res.data.receipts?.length > 0) {
+        // Sort by createdAt desc to get the latest receipt
+        const sorted = [...res.data.receipts].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        window.open(`/masters/purchase-orders/receive/${po.id}/edit/${sorted[0].id}`, "_blank");
+      } else {
+        // Fallback: open normal receive page
+        window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
+      }
+    } catch {
+      window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
+    }
+  };
+
   // Get table columns with delete handler
-  const columns = usePurchaseOrderColumns(navigate, handleDeleteClick, handleReceive);
+  const columns = usePurchaseOrderColumns(navigate, handleDeleteClick, handleReceive, handleEditReceive);
 
   // Fetch purchase orders from API
   const fetchPurchaseOrders = async () => {
@@ -126,6 +146,13 @@ export default function PurchaseOrders() {
     calculateDashboardStats();
   }, [purchaseOrders]);
 
+  const handleRefresh = () => {
+    fetchPurchaseOrders();
+    toast({
+      title: "Refreshed",
+      description: "Purchase order list has been refreshed.",
+    });
+  };
   // Handle delete purchase order
   const handleDeleteConfirm = async () => {
     if (!poToDelete) return;
@@ -181,7 +208,7 @@ export default function PurchaseOrders() {
   // Calculate dashboard statistics
   const calculateDashboardStats = () => {
     const totalOrders = purchaseOrders.length;
-    const pendingOrders = purchaseOrders.filter(po => po.status === 'DRAFT' || po.status === 'PARTIALLY_RECEIVED').length;
+    const pendingOrders = purchaseOrders.filter(po => po.status === 'DRAFT' || (po.status === 'RECEIVED' && (po.quantity || 0) > (po.receivedQty || 0))).length;
     const completedOrders = purchaseOrders.filter(po => po.status === 'COMPLETED').length;
     const totalValue = purchaseOrders.reduce((sum, po) => sum + parseFloat(po.totalValue || 0), 0);
     const avgOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
@@ -302,10 +329,10 @@ export default function PurchaseOrders() {
                     <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                       po.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
                       po.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' :
-                      po.status === 'PARTIALLY_RECEIVED' ? 'bg-blue-100 text-blue-800' :
+
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {po.status === 'DRAFT' ? 'Pending' : po.status === 'PARTIALLY_RECEIVED' ? 'Partially Received' : po.status === 'RECEIVED' ? 'Received' : po.status === 'INVOICE_RECEIVED' ? 'Invoice Received' : po.status === 'CLOSED' ? 'Closed' : po.status === 'CANCELLED' ? 'Cancelled' : po.status}
+                      {po.status === 'DRAFT' ? 'Pending' : po.status === 'RECEIVED' ? 'Received' : po.status === 'INVOICE_RECEIVED' ? 'Invoice Received' : po.status === 'CLOSED' ? 'Closed' : po.status === 'CANCELLED' ? 'Cancelled' : po.status}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {new Date(po.createdAt).toLocaleDateString()}
@@ -389,7 +416,8 @@ export default function PurchaseOrders() {
                 />
               </div>
               <div className="flex items-center gap-1.5">
-                <ViewToggle view={view} onViewChange={handleViewChange} />
+                {/* <ViewToggle view={view} onViewChange={handleViewChange} /> */}
+                <Refresh onClick={handleRefresh} />
                 <PurchaseOrderFilter
                   filters={filters}
                   tempFilters={tempFilters}
@@ -429,7 +457,7 @@ export default function PurchaseOrders() {
           )}
 
           {/* Card View */}
-          {view === "card" && (
+          {/* {view === "card" && (
             <div className="flex-1 min-h-0">
               <CardGrid
                 items={displayPurchaseOrders}
@@ -454,7 +482,7 @@ export default function PurchaseOrders() {
                 }}
               />
             </div>
-          )}
+          )} */}
         </TabsContent>
       </Tabs>
 

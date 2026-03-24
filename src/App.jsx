@@ -134,7 +134,8 @@ const AppRoutes = () => (
       <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
       <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
-      <Route path="/masters/purchase-orders/receive/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} /> 
+      <Route path="/masters/purchase-orders/receive/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
+      <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />

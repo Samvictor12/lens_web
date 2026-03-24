@@ -21,7 +21,23 @@ class PurchaseOrderController {
       next(error);
     }
   }
-
+  /**
+   * Get all receipt logs for a purchase order
+   * GET /api/purchase-orders/:id/receipt-logs
+   */
+  async getPOReceiptLogs(req, res, next) {
+    try {
+      const { id } = req.params;
+      const logs = await purchaseOrderService.getPOReceiptLogs(parseInt(id));
+      res.status(200).json({
+        success: true,
+        message: "Receipt logs fetched successfully",
+        data: logs,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
   /**
    * Create a new purchase order
    */
@@ -42,7 +58,7 @@ class PurchaseOrderController {
       }
 
       const purchaseOrder = await purchaseOrderService.createPurchaseOrder(
-        validation.data
+        validation.data,
       );
 
       res.status(201).json({
@@ -81,7 +97,7 @@ class PurchaseOrderController {
     try {
       const { id } = req.params;
       const purchaseOrder = await purchaseOrderService.getPurchaseOrderById(
-        parseInt(id)
+        parseInt(id),
       );
 
       res.status(200).json({
@@ -117,7 +133,7 @@ class PurchaseOrderController {
 
       const purchaseOrder = await purchaseOrderService.updatePurchaseOrder(
         parseInt(id),
-        validation.data
+        validation.data,
       );
 
       res.status(200).json({
@@ -147,7 +163,7 @@ class PurchaseOrderController {
 
       await purchaseOrderService.deletePurchaseOrder(
         parseInt(id),
-        parseInt(updatedBy)
+        parseInt(updatedBy),
       );
 
       res.status(200).json({
@@ -190,7 +206,8 @@ class PurchaseOrderController {
         });
       }
 
-      const result = await purchaseOrderService.processBulkLensSelection(lensBulkSelection);
+      const result =
+        await purchaseOrderService.processBulkLensSelection(lensBulkSelection);
 
       res.status(200).json({
         success: true,
@@ -212,8 +229,8 @@ class PurchaseOrderController {
   async getOrderTypesDropdown(req, res, next) {
     try {
       const orderTypes = [
-        { value: 'Single', label: 'Single Purchase' },
-        { value: 'Bulk', label: 'Bulk Purchase' }
+        { value: "Single", label: "Single Purchase" },
+        { value: "Bulk", label: "Bulk Purchase" },
       ];
 
       res.status(200).json({
@@ -235,12 +252,31 @@ class PurchaseOrderController {
       const { id } = req.params;
       const userId = req.user?.id;
       if (!userId) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       }
 
-      const { receivedDate, receivedItems, notes } = req.body;
+      const {
+        receivedDate,
+        actualDeliveryDate,
+        receivedItems,
+        notes,
+        unitPrice,
+        taxAmount,
+        subtotal,
+        totalValue,
+        supplierInvoiceNo,
+        purchaseType,
+        placeOfSupply,
+        itemDescription,
+      } = req.body;
 
-      if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
+      if (
+        !receivedItems ||
+        !Array.isArray(receivedItems) ||
+        receivedItems.length === 0
+      ) {
         return res.status(400).json({
           success: false,
           message: "receivedItems array is required and must not be empty",
@@ -249,7 +285,21 @@ class PurchaseOrderController {
 
       const result = await purchaseOrderService.receivePurchaseOrder(
         parseInt(id),
-        { receivedDate, receivedItems, notes, createdBy: userId }
+        {
+          receivedDate,
+          actualDeliveryDate,
+          receivedItems,
+          notes,
+          unitPrice,
+          taxAmount,
+          subtotal,
+          totalValue,
+          supplierInvoiceNo,
+          purchaseType,
+          placeOfSupply,
+          itemDescription,
+          createdBy: userId,
+        },
       );
 
       res.status(201).json({
@@ -274,6 +324,76 @@ class PurchaseOrderController {
       res.status(200).json({
         success: true,
         message: "Receipts fetched successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Update an existing receipt
+   * PUT /api/purchase-orders/:id/receipts/:receiptId
+   */
+  async updateReceipt(req, res, next) {
+    try {
+      const { id, receiptId } = req.params;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+      }
+
+      const {
+        receivedDate,
+        actualDeliveryDate,
+        receivedItems,
+        notes,
+        unitPrice,
+        taxAmount,
+        subtotal,
+        totalValue,
+        supplierInvoiceNo,
+        purchaseType,
+        placeOfSupply,
+        itemDescription,
+      } = req.body;
+
+      if (
+        !receivedItems ||
+        !Array.isArray(receivedItems) ||
+        receivedItems.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "receivedItems array is required and must not be empty",
+        });
+      }
+
+      const result = await purchaseOrderService.updateReceipt(
+        parseInt(id),
+        parseInt(receiptId),
+        {
+          receivedDate,
+          actualDeliveryDate,
+          receivedItems,
+          notes,
+          unitPrice,
+          taxAmount,
+          subtotal,
+          totalValue,
+          supplierInvoiceNo,
+          purchaseType,
+          placeOfSupply,
+          itemDescription,
+          updatedBy: userId,
+        },
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Receipt updated successfully",
         data: result,
       });
     } catch (error) {

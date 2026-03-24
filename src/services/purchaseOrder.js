@@ -106,3 +106,21 @@ export const getPOReceipts = async (id) => {
   const response = await apiClient("get", `${PURCHASE_ORDER_BASE_URL}/${id}/receipts`);
   return response;
 };
+
+/**
+ * Get all receipt logs for a purchase order
+ */
+export const getPOReceiptLogs = async (poId) => {
+  return apiClient("get", `/purchase-orders/${poId}/receipt-logs`);
+};
+
+/**
+ * Update an existing receipt
+ * @param {number} poId - Purchase Order ID
+ * @param {number} receiptId - Receipt ID
+ * @param {Object} data - Receipt data to update
+ */
+export const updatePOReceipt = async (poId, receiptId, data) => {
+  const response = await apiClient("put", `${PURCHASE_ORDER_BASE_URL}/${poId}/receipts/${receiptId}`, { data });
+  return response;
+};

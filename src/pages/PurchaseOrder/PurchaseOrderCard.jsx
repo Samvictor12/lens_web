@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
-const canReceive = (status) => ["DRAFT", "PARTIALLY_RECEIVED"].includes(status);
+const canReceive = (po) => ["DRAFT", "RECEIVED"].includes(po.status) && (po.quantity || 0) > (po.receivedQty || 0);
 
 /**
  * PurchaseOrderCard component displays purchase order information in card format
@@ -89,7 +89,7 @@ export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDel
       </div>
 
       <div className="flex gap-1.5 pt-2 mt-auto">
-        {canReceive(purchaseOrder.status) && (
+        {canReceive(purchaseOrder) && (
           <Button
             variant="outline"
             size="xs"

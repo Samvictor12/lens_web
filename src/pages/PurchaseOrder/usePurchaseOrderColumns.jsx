@@ -1,19 +1,29 @@
-import { Building, Trash2, PackageCheck } from "lucide-react";
+import { Building, Trash2, PackageCheck, PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
-// Statuses that allow receiving
-const canReceive = (status) => ["DRAFT", "PARTIALLY_RECEIVED"].includes(status);
+// Allow receiving when PO is DRAFT or RECEIVED (and still has pending qty — checked via po.quantity vs po.receivedQty)
+const canReceive = (po) =>
+  ["DRAFT"].includes(po.status) &&
+  (po.quantity || 0) > (po.receivedQty || 0);
+// Allow editing the latest receipt when PO is RECEIVED
+const canEditReceipt = (status) => status === "RECEIVED";
 
 /**
  * Custom hook that returns the table columns configuration for the purchase order list
  * @param {Function} navigate - React Router navigate function
  * @param {Function} onDelete - Delete handler function
  * @param {Function} onReceive - Receive PO handler function
+ * @param {Function} onEditReceive - Edit receipt handler function
  * @returns {Array} Array of column definitions
  */
-export const usePurchaseOrderColumns = (navigate, onDelete, onReceive) => {
+export const usePurchaseOrderColumns = (
+  navigate,
+  onDelete,
+  onReceive,
+  onEditReceive,
+) => {
   return [
     {
       accessorKey: "poNumber",
@@ -31,7 +41,9 @@ export const usePurchaseOrderColumns = (navigate, onDelete, onReceive) => {
           className="flex items-center gap-1.5 hover:underline cursor-pointer"
         >
           <div>
-            <div className="font-medium text-xs text-primary">{po.poNumber}</div>
+            <div className="font-medium text-xs text-primary">
+              {po.poNumber}
+            </div>
             {po.reference_id && (
               <div className="text-xs text-muted-foreground">
                 Ref: {po.reference_id}
@@ -102,10 +114,7 @@ export const usePurchaseOrderColumns = (navigate, onDelete, onReceive) => {
       cell: (po) => {
         const statusColor = getStatusColor(po.status);
         return (
-          <Badge
-            variant="outline"
-            className={`${statusColor} text-xs`}
-          >
+          <Badge variant="outline" className={`${statusColor} text-xs`}>
             {getStatusLabel(po.status)}
           </Badge>
         );
@@ -124,22 +133,42 @@ export const usePurchaseOrderColumns = (navigate, onDelete, onReceive) => {
       ),
     },
     {
-      accessorKey: "actions",
-      header: "Actions",
+      accessorKey: "activities",
+      header: "Activities",
       sortable: false,
       cell: (po) => (
         <div className="flex gap-1">
-          {canReceive(po.status) && (
+          {canReceive(po) && (
             <Button
               variant="outline"
               size="xs"
-              className="h-7 px-2 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 gap-1"
+              className="h-7 px-2 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 hover:text-blue-700 gap-1"
               onClick={() => onReceive && onReceive(po)}
             >
               <PackageCheck className="h-3.5 w-3.5" />
               Receive
             </Button>
           )}
+          {po.status === "RECEIVED" && (
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-7 px-2 text-xs text-amber-700 border-amber-200 hover:bg-amber-50 hover:text-amber-700 gap-1"
+              onClick={() => onEditReceive && onEditReceive(po)}
+            >
+              <PencilLine className="h-3.5 w-3.5" />
+              Edit Receive
+            </Button>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      sortable: false,
+      cell: (po) => (
+        <div className="flex gap-1">
           <Button
             variant="ghost"
             size="xs"

@@ -4,7 +4,7 @@ export const defaultPurchaseOrder = {
   reference_id: "",
   vendorId: null,
   saleOrderId: null,
-  orderType: "Single",
+  orderType: "Bulk",
   lensBulkSelection: null,
   lens_id: null,
   category_id: null,
@@ -55,7 +55,7 @@ export const defaultPurchaseOrder = {
 // Purchase order status options
 export const statusOptions = [
   { value: "DRAFT", label: "Draft (Pending)" },
-  { value: "PARTIALLY_RECEIVED", label: "Partially Received" },
+
   { value: "RECEIVED", label: "Received" },
   { value: "INVOICE_RECEIVED", label: "Invoice Received" },
   { value: "CLOSED", label: "Closed" },
@@ -84,7 +84,7 @@ export const activeStatusOptions = [
 export const getStatusLabel = (status) => {
   switch (status) {
     case "DRAFT": return "Pending";
-    case "PARTIALLY_RECEIVED": return "Partially Received";
+
     case "RECEIVED": return "Received";
     case "INVOICE_RECEIVED": return "Invoice Received";
     case "CLOSED": return "Closed";

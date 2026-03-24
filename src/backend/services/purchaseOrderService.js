@@ -747,16 +747,11 @@ class PurchaseOrderService {
       // Determine receipt status
       const receiptStatus = newCumulativeReceived >= po.quantity ? "COMPLETE" : "PARTIAL";
 
-      // Determine new PO status
-      let newPOStatus;
-      if (receiptStatus === "COMPLETE") {
-        newPOStatus = "RECEIVED";
-      } else {
-        newPOStatus = "PARTIALLY_RECEIVED";
-      }
+      // Any receipt sets PO to RECEIVED (partial or full)
+      const newPOStatus = "RECEIVED";
 
-      // Run in a transaction
-      const [receipt] = await prisma.$transaction([
+      // Run in a transaction: create receipt, update PO, create log
+      const [receipt, log] = await prisma.$transaction([
         prisma.purchaseOrderReceipt.create({
           data: {
             receiptNumber,
@@ -765,6 +760,14 @@ class PurchaseOrderService {
             receivedItems: receiptData.receivedItems,
             totalReceivedQty,
             totalValue,
+            actualDeliveryDate: receiptData.actualDeliveryDate ? new Date(receiptData.actualDeliveryDate) : null,
+            unitPrice: parseFloat(receiptData.unitPrice) || 0,
+            subtotal: parseFloat(receiptData.subtotal) || 0,
+            taxAmount: parseFloat(receiptData.taxAmount) || 0,
+            supplierInvoiceNo: receiptData.supplierInvoiceNo || null,
+            purchaseType: receiptData.purchaseType || null,
+            placeOfSupply: receiptData.placeOfSupply || null,
+            itemDescription: receiptData.itemDescription || null,
             notes: receiptData.notes || null,
             status: receiptStatus,
             createdBy: receiptData.createdBy,
@@ -775,15 +778,29 @@ class PurchaseOrderService {
           data: {
             receivedQty: newCumulativeReceived,
             status: newPOStatus,
-            // Persist pricing details entered on the receive page
-            ...(receiptData.unitPrice !== undefined && { unitPrice: parseFloat(receiptData.unitPrice) || 0 }),
-            ...(receiptData.subtotal !== undefined && { subtotal: parseFloat(receiptData.subtotal) || 0 }),
-            ...(receiptData.taxAmount !== undefined && { taxAmount: parseFloat(receiptData.taxAmount) || 0 }),
-            ...(receiptData.totalValue !== undefined && { totalValue: parseFloat(receiptData.totalValue) || 0 }),
+            ...(receiptData.actualDeliveryDate && { actualDeliveryDate: new Date(receiptData.actualDeliveryDate) }),
             updatedBy: receiptData.createdBy,
           },
         }),
+        prisma.purchaseReceiptLog.create({
+          data: {
+            receiptNumber,
+            purchaseOrderId: poId,
+            purchaseReceiptId: undefined, // Will set after receipt is created
+            receivedItems: receiptData.receivedItems,
+            totalReceivedQty,
+            createdBy: receiptData.createdBy,
+            createdAt: new Date(),
+            status: receiptStatus,
+          },
+        }),
       ]);
+
+      // Patch log with receipt id (since we need the created receipt's id)
+      await prisma.purchaseReceiptLog.update({
+        where: { id: log.id },
+        data: { purchaseReceiptId: receipt.id },
+      });
 
       return {
         receipt,
@@ -795,6 +812,101 @@ class PurchaseOrderService {
       if (error instanceof APIError) throw error;
       console.error("Error receiving purchase order:", error);
       throw new APIError("Failed to receive purchase order", 500, "RECEIVE_PO_ERROR");
+    }
+  }
+
+  /**
+   * Update an existing receipt
+   * @param {number} poId
+   * @param {number} receiptId
+   * @param {Object} receiptData
+   */
+  async updateReceipt(poId, receiptId, receiptData) {
+    try {
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id: poId, deleteStatus: false },
+        include: { receipts: { where: { deleteStatus: false } } },
+      });
+      if (!po) throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
+
+      const existing = po.receipts.find((r) => r.id === receiptId);
+      if (!existing) throw new APIError("Receipt not found", 404, "RECEIPT_NOT_FOUND");
+
+      // New totals from updated items
+      const newTotalQty = receiptData.receivedItems.reduce(
+        (sum, item) => sum + (parseFloat(item.receivedQty) || 0), 0
+      );
+      const newTotalValue = parseFloat(receiptData.totalValue) ||
+        receiptData.receivedItems.reduce(
+          (sum, item) => sum + ((parseFloat(item.receivedQty) || 0) * (parseFloat(item.unitPrice) || 0)), 0
+        );
+
+      // Recalculate cumulative: subtract old receipt qty, add new
+      const otherReceiptsQty = po.receipts
+        .filter((r) => r.id !== receiptId)
+        .reduce((sum, r) => sum + (r.totalReceivedQty || 0), 0);
+      const newCumulativeReceived = otherReceiptsQty + newTotalQty;
+
+      // Determine new PO status
+      const receiptStatus = newCumulativeReceived >= po.quantity ? "COMPLETE" : "PARTIAL";
+      // Any receipt (even partial) keeps PO as RECEIVED; only revert to DRAFT if all qty removed
+      const newPOStatus = newCumulativeReceived <= 0 ? "DRAFT" : "RECEIVED";
+
+      // Run in a transaction: update receipt, update PO, create log
+      const [updatedReceipt, , log] = await prisma.$transaction([
+        prisma.purchaseOrderReceipt.update({
+          where: { id: receiptId },
+          data: {
+            receivedDate: receiptData.receivedDate ? new Date(receiptData.receivedDate) : existing.receivedDate,
+            receivedItems: receiptData.receivedItems,
+            totalReceivedQty: newTotalQty,
+            totalValue: newTotalValue,
+            actualDeliveryDate: receiptData.actualDeliveryDate ? new Date(receiptData.actualDeliveryDate) : existing.actualDeliveryDate,
+            unitPrice: parseFloat(receiptData.unitPrice) || 0,
+            subtotal: parseFloat(receiptData.subtotal) || 0,
+            taxAmount: parseFloat(receiptData.taxAmount) || 0,
+            supplierInvoiceNo: receiptData.supplierInvoiceNo || null,
+            purchaseType: receiptData.purchaseType || null,
+            placeOfSupply: receiptData.placeOfSupply || null,
+            itemDescription: receiptData.itemDescription || null,
+            notes: receiptData.notes || null,
+            status: receiptStatus,
+            updatedBy: receiptData.updatedBy,
+          },
+        }),
+        prisma.purchaseOrder.update({
+          where: { id: poId },
+          data: {
+            receivedQty: newCumulativeReceived,
+            status: newPOStatus,
+            ...(receiptData.actualDeliveryDate && { actualDeliveryDate: new Date(receiptData.actualDeliveryDate) }),
+            updatedBy: receiptData.updatedBy,
+          },
+        }),
+        prisma.purchaseReceiptLog.create({
+          data: {
+            receiptNumber: existing.receiptNumber,
+            purchaseOrderId: poId,
+            purchaseReceiptId: receiptId,
+            receivedItems: receiptData.receivedItems,
+            totalReceivedQty: newTotalQty,
+            createdBy: receiptData.updatedBy,
+            createdAt: new Date(),
+            status: receiptStatus,
+          },
+        }),
+      ]);
+
+      return {
+        receipt: updatedReceipt,
+        poStatus: newPOStatus,
+        cumulativeReceivedQty: newCumulativeReceived,
+        orderedQty: po.quantity,
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error updating receipt:", error);
+      throw new APIError("Failed to update receipt", 500, "UPDATE_RECEIPT_ERROR");
     }
   }
 
@@ -830,6 +942,53 @@ class PurchaseOrderService {
       if (error instanceof APIError) throw error;
       console.error("Error fetching PO receipts:", error);
       throw new APIError("Failed to fetch receipts", 500, "FETCH_RECEIPTS_ERROR");
+    }
+  }
+  /**
+   * Get all receipt logs for a purchase order (all logs for all receipts of a PO)
+   * @param {number} poId
+   * @returns {Promise<Array>} Array of logs, newest first
+   */
+  async getPOReceiptLogs(poId) {
+    try {
+      // Optional: validate PO exists
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id: poId, deleteStatus: false },
+      });
+  
+      if (!po) {
+        throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
+      }
+  
+      const logs = await prisma.purchaseReceiptLog.findMany({
+        where: {
+          purchaseOrderId: poId,
+          deleteStatus: false,
+        },
+        include: {
+          createdByUser: {
+            select: { id: true, name: true, usercode: true },
+          },
+          updatedByUser: {
+            select: { id: true, name: true, usercode: true },
+          },
+          purchaseReceipt: {
+            select: { id: true, receiptNumber: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+  
+      return logs;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+  
+      console.error("Error fetching receipt logs:", error);
+      throw new APIError(
+        "Failed to fetch receipt logs",
+        500,
+        "FETCH_RECEIPT_LOGS_ERROR"
+      );
     }
   }
 }
