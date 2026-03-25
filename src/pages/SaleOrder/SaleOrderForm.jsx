@@ -62,7 +62,9 @@ export default function SaleOrderForm() {
     const [isCalculating, setIsCalculating] = useState(false);
     const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null });
     const [priceBreakdown, setPriceBreakdown] = useState(null);
-    
+    // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
+    const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
+
     // Print modal states
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
@@ -117,15 +119,80 @@ export default function SaleOrderForm() {
                 // VALUE offer is deducted on top of the regular category discount
                 finalTotal: priceBreakdown.finalTotal - offerDiscount,
             };
+        } else if (selectedOffer.offerType === "EXCHANGE_COATING_PRICE") {
+            // If exchange price not yet fetched, show base breakdown with offer label
+            if (exchangeCoatingPrice === null) {
+                return { ...priceBreakdown, offerDiscount: 0, offerName: selectedOffer.offerName, offerType: "EXCHANGE_COATING_PRICE" };
+            }
+            const eyesCount = (formData.rightEye ? 1 : 0) + (formData.leftEye ? 1 : 0);
+            const newLensPrice = eyesCount === 1 ? exchangeCoatingPrice / 2 : exchangeCoatingPrice;
+            const newBaseLensPrice =
+                newLensPrice +
+                priceBreakdown.extraCharges.total +
+                priceBreakdown.fittingPrice +
+                priceBreakdown.tintingPrice;
+            const newSubtotal = newBaseLensPrice + priceBreakdown.additionalPriceTotal;
+            const newFreeLensDeduction = formData.freeLens ? newLensPrice : 0;
+            const newSubtotalAfterFree =
+                newSubtotal - newFreeLensDeduction - priceBreakdown.freeFittingDeduction;
+            // Apply customer discount only if withDiscount is enabled
+            const discountPct = selectedOffer.withDiscount ? priceBreakdown.discountPercentage : 0;
+            const discountAmt = (newSubtotalAfterFree * discountPct) / 100;
+            return {
+                ...priceBreakdown,
+                lensPrice: newLensPrice,
+                coatingPrice: exchangeCoatingPrice,
+                baseLensPrice: newBaseLensPrice,
+                subtotal: newSubtotal,
+                freeLensDeduction: newFreeLensDeduction,
+                discountPercentage: discountPct,
+                discountAmount: discountAmt,
+                offerDiscount: 0,
+                offerName: selectedOffer.offerName,
+                offerType: "EXCHANGE_COATING_PRICE",
+                exchangeCoatingName: selectedOffer.exchangeCoating?.name,
+                finalTotal: newSubtotalAfterFree - discountAmt,
+            };
         }
         return { ...priceBreakdown, offerDiscount: 0, offerName: null, offerType: null };
-    }, [priceBreakdown, formData.offer_id, activeOffers]);
+    }, [priceBreakdown, formData.offer_id, activeOffers, exchangeCoatingPrice, formData.rightEye, formData.leftEye, formData.freeLens]);
 
     // Fetch master data for dropdowns
     useEffect(() => {
         fetchMasterData();
 
     }, []);
+
+    // When an EXCHANGE_COATING_PRICE offer is selected, fetch the exchange coating's price
+    useEffect(() => {
+        const selectedOffer = formData.offer_id
+            ? activeOffers.find((o) => o.id === formData.offer_id)
+            : null;
+
+        if (
+            selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" &&
+            formData.lens_id &&
+            selectedOffer.exchange_coating_id &&
+            priceBreakdown
+        ) {
+            getLensPriceId(formData.lens_id, selectedOffer.exchange_coating_id)
+                .then((res) => {
+                    if (res.success && res.data) {
+                        setExchangeCoatingPrice(res.data.price || 0);
+                    } else {
+                        setExchangeCoatingPrice(null);
+                        toast({
+                            title: "Exchange Coating Price Not Found",
+                            description: `No price is configured for lens + exchange coating "${selectedOffer.exchangeCoating?.name || ''}". Please check the price master.`,
+                            variant: "destructive",
+                        });
+                    }
+                })
+                .catch(() => setExchangeCoatingPrice(null));
+        } else {
+            setExchangeCoatingPrice(null);
+        }
+    }, [formData.offer_id, activeOffers, formData.lens_id, priceBreakdown]);
 
     // Fetch filtered lens products when Type and Category are selected
     useEffect(() => {
@@ -217,7 +284,7 @@ export default function SaleOrderForm() {
                     document.title = `${order.orderNo} - View Sale Order`
                     console.log("Field Order", order);
 
-                    // Ensure the applied offer (if any) is visible even if it has expired
+                    // Ensure the applied offer (if any) is visible even if it has expired/been deleted
                     if (order.offer_id && order.offer) {
                         setActiveOffers((prev) => {
                             const alreadyPresent = prev.some((o) => o.id === order.offer_id);
@@ -229,11 +296,14 @@ export default function SaleOrderForm() {
                                 offerType: order.offer.offerType,
                                 discountValue: order.offer.discountValue,
                                 discountPercentage: order.offer.discountPercentage,
+                                exchange_coating_id: order.offer.exchange_coating_id ?? null,
+                                withDiscount: order.offer.withDiscount ?? false,
+                                exchangeCoating: order.offer.exchangeCoating ?? null,
                                 endDate: order.offer.endDate || new Date().toISOString(),
                             }];
                         });
                     }
-                    
+
                     // Reconstruct price breakdown from saved data
                     if (order.lensPrice || order.fittingPrice || order.tintingPrice) {
                         const reconstructedBreakdown = {
@@ -259,17 +329,17 @@ export default function SaleOrderForm() {
                             discountAmount: 0,
                             finalTotal: 0
                         };
-                        
+
                         // Calculate subtotal
                         reconstructedBreakdown.subtotal = reconstructedBreakdown.baseLensPrice + reconstructedBreakdown.additionalPriceTotal;
-                        
+
                         // Calculate discount
                         const subtotalAfterFreeItems = reconstructedBreakdown.subtotal - reconstructedBreakdown.freeLensDeduction - reconstructedBreakdown.freeFittingDeduction;
                         reconstructedBreakdown.discountAmount = (subtotalAfterFreeItems * reconstructedBreakdown.discountPercentage) / 100;
-                        
+
                         // Calculate final total
                         reconstructedBreakdown.finalTotal = subtotalAfterFreeItems - reconstructedBreakdown.discountAmount;
-                        
+
                         setPriceBreakdown(reconstructedBreakdown);
                     }
                 } else {
@@ -366,7 +436,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.rightSpherical);
                 if (isNaN(val)) {
                     newErrors.rightSpherical = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
                 //     newErrors.rightSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
                 // }
@@ -376,7 +446,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.rightCylindrical);
                 if (isNaN(val)) {
                     newErrors.rightCylindrical = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
                 //     newErrors.rightCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
                 // }
@@ -386,7 +456,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.rightAxis);
                 if (isNaN(val)) {
                     newErrors.rightAxis = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
                 //     newErrors.rightAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
                 // }
@@ -396,7 +466,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.rightAdd);
                 if (isNaN(val)) {
                     newErrors.rightAdd = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
                 //     newErrors.rightAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
                 // }
@@ -420,7 +490,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.leftSpherical);
                 if (isNaN(val)) {
                     newErrors.leftSpherical = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
                 //     newErrors.leftSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
                 // }
@@ -430,7 +500,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.leftCylindrical);
                 if (isNaN(val)) {
                     newErrors.leftCylindrical = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
                 //     newErrors.leftCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
                 // }
@@ -440,7 +510,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.leftAxis);
                 if (isNaN(val)) {
                     newErrors.leftAxis = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
                 //     newErrors.leftAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
                 // }
@@ -450,7 +520,7 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.leftAdd);
                 if (isNaN(val)) {
                     newErrors.leftAdd = "Must be a valid number";
-                } 
+                }
                 // else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
                 //     newErrors.leftAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
                 // }
@@ -616,7 +686,7 @@ export default function SaleOrderForm() {
                 leftEyeExtra: 0,        // Left eye extra charges
                 fittingPrice: 0,        // Full fitting price
                 tintingPrice: 0,        // Full tinting price
-                
+
                 // Right section - breakdown for display
                 baseLensPrice: 0,       // Total: Coating + Extra + Fitting + Tinting
                 coatingPrice: 0,        // Full coating price (for both eyes)
@@ -706,10 +776,10 @@ export default function SaleOrderForm() {
                 }
             }
 
-            breakdown.extraCharges.total = 
-                breakdown.extraCharges.rightSphere + 
-                breakdown.extraCharges.leftSphere + 
-                breakdown.extraCharges.rightCylinder + 
+            breakdown.extraCharges.total =
+                breakdown.extraCharges.rightSphere +
+                breakdown.extraCharges.leftSphere +
+                breakdown.extraCharges.rightCylinder +
                 breakdown.extraCharges.leftCylinder;
 
             // LEFT SECTION: Split extra charges by eye
@@ -741,15 +811,15 @@ export default function SaleOrderForm() {
             }
 
             // RIGHT SECTION: Base Lens Price = Coating + Extra + Fitting + Tinting
-            breakdown.baseLensPrice = 
-                breakdown.lensPrice + 
-                breakdown.extraCharges.total + 
-                breakdown.fittingPrice + 
+            breakdown.baseLensPrice =
+                breakdown.lensPrice +
+                breakdown.extraCharges.total +
+                breakdown.fittingPrice +
                 breakdown.tintingPrice;
 
             // RIGHT SECTION: Additional Price Total
             breakdown.additionalPriceTotal = formData.additionalPrice?.reduce(
-                (acc, curr) => acc + (parseFloat(curr.value) || 0), 
+                (acc, curr) => acc + (parseFloat(curr.value) || 0),
                 0
             ) || 0;
 
@@ -847,7 +917,7 @@ export default function SaleOrderForm() {
             );
             if (!skipOffer) return;
         }
-        
+
         if (!validateForm()) {
             console.log("Form Data on errors:", errors);
             toast({
@@ -861,14 +931,22 @@ export default function SaleOrderForm() {
         try {
             setIsSaving(true);
 
-            // Build the payload: if a PERCENTAGE offer is applied, zero out the category discount
+            // Build the payload: if a PERCENTAGE offer is applied, zero out the category discount;
+            // if EXCHANGE_COATING_PRICE, use the effective (exchange) lensPrice and discount
             const selectedOffer = formData.offer_id
                 ? activeOffers.find((o) => o.id === formData.offer_id)
                 : null;
-            const submitData = {
+            let submitData = {
                 ...formData,
                 discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
             };
+            if (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" && effectiveBreakdown) {
+                submitData = {
+                    ...submitData,
+                    lensPrice: effectiveBreakdown.lensPrice,
+                    discount: effectiveBreakdown.discountPercentage,
+                };
+            }
 
             if (mode === "add") {
                 const response = await createSaleOrder(submitData);
@@ -1292,7 +1370,7 @@ export default function SaleOrderForm() {
                             )}
                         </Button>
                     )}
-                    {(mode === "add" || isEditing) && (
+                    {(mode === "add") && (
                         <>
                             <Button
                                 type="submit"
@@ -1346,7 +1424,8 @@ export default function SaleOrderForm() {
                     <CardContent className="space-y-3">
 
                         <FormSelect
-                            singleLine={true} label="Customer"
+                            singleLine={true}
+                            label="Customer"
                             name="customerId"
                             options={customers}
                             value={formData.customerId}
@@ -1357,19 +1436,19 @@ export default function SaleOrderForm() {
                             placeholder="Select customer"
                             isSearchable={true}
 
-                            disabled={mode !== "add" && !isEditing}
+                            disabled={mode !== "add"}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.credit_limit-customerCreditLimit.outstanding_credit}` : ""}
+                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.credit_limit - customerCreditLimit.outstanding_credit}` : ""}
                         />
 
                         <FormInput
                             singleLine={true} label="Order Date"
                             type="date"
-                            name="orderDate"    
+                            name="orderDate"
                             value={new Date(formData.orderDate).toISOString().split("T")[0]}
                             onChange={handleChange}
-                            disabled={!isEditing}
+                            disabled={mode !== "add" && formData.status !== "DRAFT"}
                             required
                             error={errors.orderDate}
                         />
@@ -1394,7 +1473,7 @@ export default function SaleOrderForm() {
                             onChange={(value) => handleSelectChange("status", value)}
                             placeholder="Select status"
                             isSearchable={false}
-                            disabled={!(mode === "view" && isEditing)}
+                            disabled={true} // Status is managed via action buttons, not directly editable
                             required
                             error={errors.status}
                         />
@@ -1435,9 +1514,9 @@ export default function SaleOrderForm() {
                         />
                         <div className={`mt-4 grid divide-x divide-border border rounded-md overflow-hidden ${formData.onlyLens ? "grid-cols-2" : "grid-cols-3"}`}>
                             {[
-                                { id: "onlyLens", label: "Only Lens", checked: formData.onlyLens, disabled: !isEditing, onChange: (c) => handleSelectChange("onlyLens", c) },
-                                { id: "freeLens", label: "Free Lens", checked: formData.freeLens, disabled: !isEditing, onChange: (c) => handleSelectChange("freeLens", c) },
-                                !formData.onlyLens && { id: "freeFitting", label: "Free Fitting", checked: formData.freeFitting, disabled: !isEditing, onChange: (c) => handleSelectChange("freeFitting", c) },
+                                { id: "onlyLens", label: "Only Lens", checked: formData.onlyLens, disabled: !(isEditing && formData.status === "DRAFT"), onChange: (c) => handleSelectChange("onlyLens", c) },
+                                { id: "freeLens", label: "Free Lens", checked: formData.freeLens, disabled: !(isEditing && formData.status === "DRAFT"), onChange: (c) => handleSelectChange("freeLens", c) },
+                                !formData.onlyLens && { id: "freeFitting", label: "Free Fitting", checked: formData.freeFitting, disabled: !(isEditing && formData.status === "DRAFT"), onChange: (c) => handleSelectChange("freeFitting", c) },
                             ].filter(Boolean).map(({ id, label, checked, disabled, onChange }) => (
                                 <label
                                     key={id}
@@ -1460,90 +1539,143 @@ export default function SaleOrderForm() {
                             ))}
                         </div>
 
-                        {/* Available Offers */}
-                        {activeOffers.length > 0 && (
-                            <div className="mt-3 border-t pt-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-1.5">
-                                        <Tag className="h-3.5 w-3.5 text-primary" />
-                                        <span className="text-xs font-semibold">Available Offers</span>
-                                        {!priceBreakdown && (
-                                            <span className="text-[10px] text-muted-foreground italic">(calculate price first)</span>
-                                        )}
-                                        {priceBreakdown && priceBreakdown.finalTotal === 0 && (
-                                            <span className="text-[10px] text-amber-600 italic">(not applicable — total is ₹0)</span>
-                                        )}
-                                    </div>
-                                    {formData.offer_id && (
-                                        <Button
-                                            type="button"
-                                            size="xs"
-                                            variant="ghost"
-                                            className="h-5 px-1.5 text-[11px] text-destructive hover:text-destructive"
-                                            onClick={() => handleSelectChange("offer_id", null)}
-                                            disabled={!isEditing}
-                                        >
-                                            <X className="h-3 w-3 mr-0.5" /> Clear
-                                        </Button>
-                                    )}
-                                </div>
-                                <RadioGroup
-                                    value={formData.offer_id ? String(formData.offer_id) : ""}
-                                    onValueChange={(val) => {
-                                        if (!isEditing || !priceBreakdown) return;
-                                        if (priceBreakdown.finalTotal === 0) {
-                                            toast({ title: "Offer not applicable", description: "Cannot apply an offer when the order total is ₹0.", variant: "destructive" });
-                                            return;
-                                        }
-                                        handleSelectChange("offer_id", parseInt(val));
-                                    }}
-                                    className="gap-1.5"
-                                >
-                                    {activeOffers.map((offer) => (
-                                        <label
-                                            key={offer.id}
-                                            htmlFor={`offer-${offer.id}`}
-                                            className={[
-                                                "flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors",
-                                                isEditing && priceBreakdown && priceBreakdown.finalTotal > 0 ? "cursor-pointer" : "cursor-default opacity-60 pointer-events-none",
-                                                formData.offer_id === offer.id
-                                                    ? "border-primary bg-primary/5"
-                                                    : "border-border hover:bg-muted/50",
-                                            ].join(" ")}
-                                        >
-                                            <RadioGroupItem
-                                                id={`offer-${offer.id}`}
-                                                value={String(offer.id)}
-                                                className="mt-0.5 shrink-0"
-                                                disabled={!isEditing || !priceBreakdown || priceBreakdown.finalTotal === 0}
-                                            />
+                        {/* Available Offers / Selected Offer */}
+                        {(() => {
+                            const isPostDraft = formData.status && formData.status !== "DRAFT";
+
+                            if (isPostDraft) {
+                                // Non-draft orders: show only the selected offer as a read-only record
+                                if (!formData.offer_id) return null;
+                                const selectedOffer = activeOffers.find((o) => o.id === formData.offer_id);
+                                if (!selectedOffer) return null;
+                                return (
+                                    <div className="mt-3 border-t pt-3">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                            <Tag className="h-3.5 w-3.5 text-primary" />
+                                            <span className="text-xs font-semibold">Selected Offer</span>
+                                        </div>
+                                        <div className="flex items-start gap-2 rounded-md border border-primary bg-primary/5 px-2 py-1.5 text-xs">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <span className="font-medium">{offer.offerName}</span>
+                                                    <span className="font-medium">{selectedOffer.offerName}</span>
                                                     <Badge
                                                         variant={
-                                                            offer.offerType === "VALUE" ? "secondary" :
-                                                            offer.offerType === "PERCENTAGE" ? "outline" : "default"
+                                                            selectedOffer.offerType === "VALUE" ? "secondary" :
+                                                                selectedOffer.offerType === "PERCENTAGE" ? "outline" : "default"
                                                         }
                                                         className="text-[10px] px-1 py-0 leading-4 h-4"
                                                     >
-                                                        {offer.offerType === "VALUE" ? "Value" :
-                                                         offer.offerType === "PERCENTAGE" ? "Percent" : "Exchange"}
+                                                        {selectedOffer.offerType === "VALUE" ? "Value" :
+                                                            selectedOffer.offerType === "PERCENTAGE" ? "Percent" :
+                                                                selectedOffer.offerType === "EXCHANGE_COATING_PRICE" ? "Coating" : "Exchange"}
                                                     </Badge>
                                                 </div>
                                                 <div className="text-muted-foreground mt-0.5">
-                                                    {offer.offerType === "VALUE" && `₹${offer.discountValue} off`}
-                                                    {offer.offerType === "PERCENTAGE" && `${offer.discountPercentage}% off`}
-                                                    {offer.offerType === "EXCHANGE_PRODUCT" && "Exchange product"}
+                                                    {selectedOffer.offerType === "VALUE" && `₹${selectedOffer.discountValue} off`}
+                                                    {selectedOffer.offerType === "PERCENTAGE" && `${selectedOffer.discountPercentage}% off`}
+                                                    {selectedOffer.offerType === "EXCHANGE_PRODUCT" && "Exchange product"}
+                                                    {selectedOffer.offerType === "EXCHANGE_COATING_PRICE" && (
+                                                        `Exchange coating price${selectedOffer.withDiscount ? " + discount" : ""}`
+                                                    )}
                                                     {" · Ends "}
-                                                    {new Date(offer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                                    {new Date(selectedOffer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                                                 </div>
                                             </div>
-                                        </label>
-                                    ))}
-                                </RadioGroup>
-                            </div>
-                        )}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // Draft / new order: show all active offers with selection UI
+                            if (activeOffers.length === 0) return null;
+                            return (
+                                <div className="mt-3 border-t pt-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <Tag className="h-3.5 w-3.5 text-primary" />
+                                            <span className="text-xs font-semibold">Available Offers</span>
+                                            {!priceBreakdown && (
+                                                <span className="text-[10px] text-muted-foreground italic">(calculate price first)</span>
+                                            )}
+                                            {priceBreakdown && priceBreakdown.finalTotal === 0 && (
+                                                <span className="text-[10px] text-amber-600 italic">(not applicable — total is ₹0)</span>
+                                            )}
+                                        </div>
+                                        {formData.offer_id && (
+                                            <Button
+                                                type="button"
+                                                size="xs"
+                                                variant="ghost"
+                                                className="h-5 px-1.5 text-[11px] text-destructive hover:text-destructive"
+                                                onClick={() => handleSelectChange("offer_id", null)}
+                                                disabled={!isEditing}
+                                            >
+                                                <X className="h-3 w-3 mr-0.5" /> Clear
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <RadioGroup
+                                        value={formData.offer_id ? String(formData.offer_id) : ""}
+                                        onValueChange={(val) => {
+                                            if (!isEditing || !priceBreakdown) return;
+                                            if (priceBreakdown.finalTotal === 0) {
+                                                toast({ title: "Offer not applicable", description: "Cannot apply an offer when the order total is ₹0.", variant: "destructive" });
+                                                return;
+                                            }
+                                            handleSelectChange("offer_id", parseInt(val));
+                                        }}
+                                        className="gap-1.5"
+                                    >
+                                        {activeOffers.map((offer) => (
+                                            <label
+                                                key={offer.id}
+                                                htmlFor={`offer-${offer.id}`}
+                                                className={[
+                                                    "flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors",
+                                                    isEditing && priceBreakdown && priceBreakdown.finalTotal > 0 ? "cursor-pointer" : "cursor-default opacity-60 pointer-events-none",
+                                                    formData.offer_id === offer.id
+                                                        ? "border-primary bg-primary/5"
+                                                        : "border-border hover:bg-muted/50",
+                                                ].join(" ")}
+                                            >
+                                                <RadioGroupItem
+                                                    id={`offer-${offer.id}`}
+                                                    value={String(offer.id)}
+                                                    className="mt-0.5 shrink-0"
+                                                    disabled={!isEditing || !priceBreakdown || priceBreakdown.finalTotal === 0}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-medium">{offer.offerName}</span>
+                                                        <Badge
+                                                            variant={
+                                                                offer.offerType === "VALUE" ? "secondary" :
+                                                                    offer.offerType === "PERCENTAGE" ? "outline" : "default"
+                                                            }
+                                                            className="text-[10px] px-1 py-0 leading-4 h-4"
+                                                        >
+                                                            {offer.offerType === "VALUE" ? "Value" :
+                                                                offer.offerType === "PERCENTAGE" ? "Percent" :
+                                                                    offer.offerType === "EXCHANGE_COATING_PRICE" ? "Coating" : "Exchange"}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-muted-foreground mt-0.5">
+                                                        {offer.offerType === "VALUE" && `₹${offer.discountValue} off`}
+                                                        {offer.offerType === "PERCENTAGE" && `${offer.discountPercentage}% off`}
+                                                        {offer.offerType === "EXCHANGE_PRODUCT" && "Exchange product"}
+                                                        {offer.offerType === "EXCHANGE_COATING_PRICE" && (
+                                                            `Exchange coating${offer.withDiscount ? " + discount" : ""}`
+                                                        )}
+                                                        {" · Ends "}
+                                                        {new Date(offer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </RadioGroup>
+                                </div>
+                            );
+                        })()}
 
                         {errors.eyeSelection && (
                             <Alert variant="destructive" className="mt-2">
@@ -1572,7 +1704,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("Type_id", value)}
                                     placeholder="Select type"
                                     isSearchable={false}
-                                    disabled={!isEditing}
+                                    disabled={mode !== "add"}
                                     required
                                     error={errors.Type_id}
                                 />
@@ -1584,7 +1716,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("category_id", value)}
                                     placeholder="Select "
                                     isSearchable={false}
-                                    disabled={!isEditing}
+                                    disabled={mode !== "add"}
                                     required
                                     error={errors.category_id}
                                 />
@@ -1596,7 +1728,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("lens_id", value)}
                                     placeholder="Select lens"
                                     isSearchable={true}
-                                    disabled={!isEditing || !formData.Type_id || !formData.category_id}
+                                    disabled={mode !== "add"}
                                     required
                                     error={errors.lens_id}
                                 />
@@ -1617,7 +1749,7 @@ export default function SaleOrderForm() {
                                         onChange={(value) => handleSelectChange("fitting_id", value)}
                                         placeholder="Select fitting"
                                         isSearchable={false}
-                                        disabled={!isEditing}
+                                        disabled={mode !== "add"}
                                         required={!formData.freeFitting && !formData.onlyLens}
                                         error={errors.fitting_id}
                                     />
@@ -1630,7 +1762,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("material_id", value)}
                                     placeholder="Material"
                                     isSearchable={false}
-                                    disabled={!isEditing}
+                                    disabled={mode !== "add"}
                                     required
                                     error={errors.material_id}
                                 />
@@ -1642,7 +1774,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("tinting_id", value)}
                                     placeholder="Select tinting"
                                     isSearchable={false}
-                                    disabled={!isEditing}
+                                    disabled={mode !== "add"}
                                     required
                                     error={errors.tinting_id}
                                 />
@@ -1655,7 +1787,7 @@ export default function SaleOrderForm() {
                                         onChange={(value) => handleSelectChange("coating_id", value)}
                                         placeholder="Select coating"
                                         isSearchable={true}
-                                        disabled={!isEditing}
+                                        disabled={mode !== "add"}
                                         required
                                         error={errors.coating_id}
                                     />
@@ -1691,7 +1823,7 @@ export default function SaleOrderForm() {
                                         onCheckedChange={(checked) =>
                                             handleSelectChange("rightEye", checked)
                                         }
-                                        disabled={!isEditing || !eyeSpecReady}
+                                        disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady)}
                                     />
 
                                     <div className="grid grid-cols-2 gap-3">
@@ -1702,7 +1834,8 @@ export default function SaleOrderForm() {
                                             name="rightSpherical"
                                             value={formData.rightSpherical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                            disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
+
                                             error={errors.rightSpherical}
                                         />
                                         <FormInput
@@ -1712,7 +1845,7 @@ export default function SaleOrderForm() {
                                             name="rightCylindrical"
                                             value={formData.rightCylindrical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                            disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                             error={errors.rightCylindrical}
                                         />
                                         {formData.rightCylindrical && formData.rightCylindrical != 0 && (
@@ -1722,7 +1855,7 @@ export default function SaleOrderForm() {
                                                 name="rightAxis"
                                                 value={formData.rightAxis}
                                                 onChange={handleChange}
-                                                disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                                disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                                 error={errors.rightAxis}
                                             />
                                         )}
@@ -1734,7 +1867,7 @@ export default function SaleOrderForm() {
                                                 name="rightAdd"
                                                 value={formData.rightAdd}
                                                 onChange={handleChange}
-                                                disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                                disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                                 error={errors.rightAdd}
                                             />
                                         )}
@@ -1743,7 +1876,7 @@ export default function SaleOrderForm() {
                                             name="rightDia"
                                             value={formData.rightDia}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !eyeSpecReady || !formData.rightEye}
+                                            disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                         />
                                         {/* Base and bled fields removed */}
                                     </div>
@@ -1764,7 +1897,7 @@ export default function SaleOrderForm() {
                                         onCheckedChange={(checked) =>
                                             handleSelectChange("leftEye", checked)
                                         }
-                                        disabled={!isEditing || !eyeSpecReady}
+                                        disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady)}
                                     />
 
                                     <div className="grid grid-cols-2 gap-3">
@@ -1775,7 +1908,7 @@ export default function SaleOrderForm() {
                                             name="leftSpherical"
                                             value={formData.leftSpherical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                            disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                             error={errors.leftSpherical}
                                         />
                                         <FormInput
@@ -1785,7 +1918,7 @@ export default function SaleOrderForm() {
                                             name="leftCylindrical"
                                             value={formData.leftCylindrical}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                            disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                             error={errors.leftCylindrical}
                                         />
                                         {formData.leftCylindrical && formData.leftCylindrical != 0 && (
@@ -1795,7 +1928,7 @@ export default function SaleOrderForm() {
                                                 name="leftAxis"
                                                 value={formData.leftAxis}
                                                 onChange={handleChange}
-                                                disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                                disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                                 error={errors.leftAxis}
                                             />
                                         )}
@@ -1807,7 +1940,7 @@ export default function SaleOrderForm() {
                                                 name="leftAdd"
                                                 value={formData.leftAdd}
                                                 onChange={handleChange}
-                                                disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                                disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                                 error={errors.leftAdd}
                                             />
                                         )}
@@ -1816,7 +1949,7 @@ export default function SaleOrderForm() {
                                             name="leftDia"
                                             value={formData.leftDia}
                                             onChange={handleChange}
-                                            disabled={!isEditing || !eyeSpecReady || !formData.leftEye}
+                                            disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                         />
                                         {/* Base and bled fields removed */}
                                     </div>
@@ -1829,7 +1962,7 @@ export default function SaleOrderForm() {
                     <Card>
                         <CardHeader className="items-center justify-between"    >
                             <CardTitle className="text-base">Pricing Information</CardTitle>
-                            {isEditing && <Button
+                            {isEditing && formData.status === "DRAFT" && <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
@@ -1926,17 +2059,20 @@ export default function SaleOrderForm() {
                                                         type="text"
                                                         name="name"
                                                         value={priceObj.name}
+                                                        disabled={!(isEditing && formData.status === "DRAFT")}
                                                         onChange={(e) => handleAdditionalPriceChange(index, "name", e.target.value)}
                                                         placeholder="Additional Price"
+
                                                     />
                                                     <FormInput
                                                         singleLine={true}
                                                         type="number"
                                                         name="value"
                                                         value={priceObj.value}
+                                                        disabled={!(isEditing && formData.status === "DRAFT")}
                                                         onChange={(e) => handleAdditionalPriceChange(index, "value", e.target.value)}
                                                     />
-                                                    <Button
+                                                    {isEditing && formData.status === "DRAFT" && <Button
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
@@ -1953,7 +2089,7 @@ export default function SaleOrderForm() {
                                                         }}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                    </Button>}
                                                 </div>
 
                                             ) :
@@ -1969,7 +2105,7 @@ export default function SaleOrderForm() {
                                     ) : (
                                         <div>No additional prices added.</div>
                                     )}
-                                    {isEditing && <Button
+                                    {isEditing && formData.status === "DRAFT" && <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"

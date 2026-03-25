@@ -287,12 +287,13 @@ model LensCoatingMaster {
   // Relationships Fields
   Usercreated      User              @relation("coatingUserCreate", fields: [createdBy], references: [id])
   Userupdated      User?             @relation("coatingUserUpdate", fields: [updatedBy], references: [id])
-  lensPriceMasters LensPriceMaster[]
-  saleOrders       SaleOrder[]
-  purchaseOrders   PurchaseOrder[]
-  inventoryItems   InventoryItem[]
-  inventoryStock   InventoryStock[]
-  lensOffers       LensOffers[]  // Offers specific to this coating
+  lensPriceMasters      LensPriceMaster[]
+  saleOrders            SaleOrder[]
+  purchaseOrders        PurchaseOrder[]
+  inventoryItems        InventoryItem[]
+  inventoryStock        InventoryStock[]
+  lensOffers            LensOffers[]  @relation("lensOfferCoating")  // Offers specific to this coating
+  exchangeCoatingOffers LensOffers[]  @relation("lensOfferExchangeCoating")  // Offers that exchange TO this coating
 }
 
 model LensFittingMaster {
@@ -456,9 +457,10 @@ model LensPriceMaster {
 
 // Offer Types for Lens Promotions
 enum OfferType {
-  VALUE              // Fixed amount discount (e.g., ₹100 off)
-  PERCENTAGE         // Percentage discount (e.g., 20% off)
-  EXCHANGE_PRODUCT   // Replace original pricing with special offer price
+  VALUE                  // Fixed amount discount (e.g., ₹100 off)
+  PERCENTAGE             // Percentage discount (e.g., 20% off)
+  EXCHANGE_PRODUCT       // Replace original pricing with special offer price
+  EXCHANGE_COATING_PRICE // Use a different coating's price instead of the selected coating's price
 }
 
 model LensOffers {
@@ -471,6 +473,8 @@ model LensOffers {
   discountValue       Float?              // Fixed amount discount (for VALUE type)
   discountPercentage  Float?              // Percentage discount (for PERCENTAGE type)
   offerPrice          Float?              // Replacement price (for EXCHANGE_PRODUCT type)
+  exchange_coating_id Int?                // Exchange coating whose price replaces selected coating (for EXCHANGE_COATING_PRICE type)
+  withDiscount        Boolean             @default(false) // Whether to apply customer discount (for EXCHANGE_COATING_PRICE type)
   
   // Filters - if null, applies to all
   lens_id             Int?                // Specific lens product (null = all lenses)
@@ -492,7 +496,8 @@ model LensOffers {
   
   // Relationships
   lensProduct         LensProductMaster?  @relation(fields: [lens_id], references: [id])
-  coating             LensCoatingMaster?  @relation(fields: [coating_id], references: [id])
+  coating             LensCoatingMaster?  @relation("lensOfferCoating", fields: [coating_id], references: [id])
+  exchangeCoating     LensCoatingMaster?  @relation("lensOfferExchangeCoating", fields: [exchange_coating_id], references: [id])
   createdByUser       User                @relation("lensOffersCreatedBy", fields: [createdBy], references: [id])
   updatedByUser       User?               @relation("lensOffersUpdatedBy", fields: [updatedBy], references: [id])
   
@@ -851,6 +856,7 @@ model SaleOrder {
   actualDate        DateTime?
   actualTime        String?
   dispatchNotes     String?
+  deliverySignature String?           // Base64 PNG — customer signature captured on delivery
 
   // Billing information
   lensPrice       Float           @default(0)

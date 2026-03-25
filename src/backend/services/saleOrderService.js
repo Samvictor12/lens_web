@@ -558,7 +558,12 @@ export class SaleOrderService {
               offerType: true,
               discountValue: true,
               discountPercentage: true,
-              endDate: true
+              exchange_coating_id: true,
+              withDiscount: true,
+              endDate: true,
+              exchangeCoating: {
+                select: { id: true, name: true }
+              }
             }
           }
         }

@@ -287,6 +287,7 @@ export const validateCreateSaleOrder = (data) => {
       fitting_id: data.fitting_id ? parseInt(data.fitting_id) : null,
       coating_id: data.coating_id ? parseInt(data.coating_id) : null,
       tinting_id: data.tinting_id ? parseInt(data.tinting_id) : null,
+      material_id: data.material_id ? parseInt(data.material_id) : null,
       rightEye: data.rightEye || false,
       leftEye: data.leftEye || false,
   rightSpherical: data.rightSpherical?.trim() || null,
