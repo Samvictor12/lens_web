@@ -124,3 +124,26 @@ export const updatePOReceipt = async (poId, receiptId, data) => {
   const response = await apiClient("put", `${PURCHASE_ORDER_BASE_URL}/${poId}/receipts/${receiptId}`, { data });
   return response;
 };
+
+/**
+ * Get inventory inward status for a receipt (how much has been moved to stock per row)
+ * @param {number} poId - Purchase Order ID
+ * @param {number} receiptId - Receipt ID
+ */
+export const getReceiptInwardStatus = async (poId, receiptId) => {
+  const response = await apiClient("get", `${PURCHASE_ORDER_BASE_URL}/${poId}/receipts/${receiptId}/inward-status`);
+  return response;
+};
+
+/**
+ * Inward received items from a PO receipt into inventory stock.
+ * @param {number} poId - Purchase Order ID
+ * @param {number} receiptId - Receipt ID
+ * @param {Array}  inwardRows - [{ key, spherical, cylindrical, splits: [{ location_id, tray_id, qty }] }]
+ */
+export const inwardReceiptToInventory = async (poId, receiptId, inwardRows) => {
+  const response = await apiClient("post", `${PURCHASE_ORDER_BASE_URL}/${poId}/receipts/${receiptId}/inward-to-inventory`, {
+    data: { inwardRows },
+  });
+  return response;
+};

@@ -118,6 +118,26 @@ router.put(
 );
 
 /**
+ * @route   GET /api/purchase-orders/:id/receipts/:receiptId/inward-status
+ * @desc    Get inward status for a receipt (inventory items created from it)
+ * @access  Private
+ */
+router.get(
+  "/:id/receipts/:receiptId/inward-status",
+  purchaseOrderController.getReceiptInwardStatus.bind(purchaseOrderController)
+);
+
+/**
+ * @route   POST /api/purchase-orders/:id/receipts/:receiptId/inward-to-inventory
+ * @desc    Move received items from a PO receipt into inventory stock
+ * @access  Private
+ */
+router.post(
+  "/:id/receipts/:receiptId/inward-to-inventory",
+  purchaseOrderController.inwardReceiptToInventory.bind(purchaseOrderController)
+);
+
+/**
  * @route   PUT /api/purchase-orders/:id
  * @desc    Update purchase order
  * @access  Private

@@ -80,6 +80,31 @@ export default function PurchaseOrders() {
     window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
   };
 
+  const handleInward = async (po) => {
+    try {
+      const res = await getPOReceipts(po.id);
+      if (res.success && res.data.receipts?.length > 0) {
+        const sorted = [...res.data.receipts].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        window.open(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`, "_blank");
+        return;
+      }
+
+      toast({
+        title: "No receipt found",
+        description: "Create or update a receipt before pushing items to inventory.",
+        variant: "destructive",
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to load receipt details for inventory inward.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Handle edit receipt click — open receive page in edit mode with latest receipt
   const handleEditReceive = async (po) => {
     try {
@@ -100,7 +125,13 @@ export default function PurchaseOrders() {
   };
 
   // Get table columns with delete handler
-  const columns = usePurchaseOrderColumns(navigate, handleDeleteClick, handleReceive, handleEditReceive);
+  const columns = usePurchaseOrderColumns(
+    navigate,
+    handleDeleteClick,
+    handleReceive,
+    handleEditReceive,
+    handleInward,
+  );
 
   // Fetch purchase orders from API
   const fetchPurchaseOrders = async () => {
@@ -466,7 +497,7 @@ export default function PurchaseOrders() {
                     purchaseOrder={po}
                     onView={(id) => window.open(`/masters/purchase-orders/view/${id}`, "_blank")}
                     onDelete={handleDeleteClick}
-                    onReceive={handleReceive}
+                    onReceive={(id) => window.open(`/masters/purchase-orders/receive/${id}`, "_blank")}
                   />
                 )}
                 isLoading={isLoading}

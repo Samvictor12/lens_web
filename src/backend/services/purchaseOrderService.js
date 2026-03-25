@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
+import InventoryService from "./inventory.service.js";
 
 class PurchaseOrderService {
   /**
@@ -988,6 +989,231 @@ class PurchaseOrderService {
         "Failed to fetch receipt logs",
         500,
         "FETCH_RECEIPT_LOGS_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Get inward status for a specific receipt.
+   * Returns the receipt's receivedItems alongside already-inwarded quantities per row.
+   * @param {number} poId
+   * @param {number} receiptId
+   */
+  async getReceiptInwardStatus(poId, receiptId) {
+    try {
+      const receipt = await prisma.purchaseOrderReceipt.findFirst({
+        where: { id: receiptId, purchaseOrderId: poId, deleteStatus: false },
+        include: {
+          purchaseOrder: {
+            select: {
+              id: true, poNumber: true, orderType: true,
+              lens_id: true, category_id: true, Type_id: true,
+              coating_id: true, dia_id: true, fitting_id: true, tinting_id: true,
+              vendorId: true, rightEye: true, leftEye: true,
+              rightSpherical: true, rightCylindrical: true,
+              leftSpherical: true, leftCylindrical: true,
+              lensType: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      if (!receipt) {
+        throw new APIError("Receipt not found", 404, "RECEIPT_NOT_FOUND");
+      }
+
+      // Fetch existing inventory items created from this receipt
+      const existingItems = await prisma.inventoryItem.findMany({
+        where: { purchaseReceiptId: receiptId, deleteStatus: false },
+        select: {
+          id: true,
+          quantity: true,
+          rightSpherical: true,
+          rightCylindrical: true,
+          location: { select: { id: true, name: true } },
+          tray: { select: { id: true, name: true } },
+        },
+      });
+
+      // Build a map: "sph_cyl" -> totalInwardedQty
+      const inwardedByRow = {};
+      for (const item of existingItems) {
+        const key = `${item.rightSpherical ?? "0"}_${item.rightCylindrical ?? "0"}`;
+        inwardedByRow[key] = (inwardedByRow[key] || 0) + item.quantity;
+      }
+
+      return { receipt, inwardedByRow, existingItems };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error fetching receipt inward status:", error);
+      throw new APIError(
+        "Failed to fetch receipt inward status",
+        500,
+        "FETCH_RECEIPT_INWARD_STATUS_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Move received items from a PO receipt into Inventory (INWARD_PO).
+   * Each inward row can have multiple splits (different location/tray per qty).
+   *
+   * @param {number} poId
+   * @param {number} receiptId
+   * @param {Array}  inwardRows  - [{ key, spherical, cylindrical, splits: [{ location_id, tray_id, qty }] }]
+   * @param {number} createdBy
+   */
+  async inwardReceiptToInventory(poId, receiptId, inwardRows, createdBy) {
+    const inventoryService = new InventoryService();
+
+    try {
+      // 1. Load PO with lensType
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id: poId, deleteStatus: false },
+        include: { lensType: { select: { id: true, name: true } } },
+      });
+      if (!po) throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
+      if (po.status === "CANCELLED") throw new APIError("Cannot inward items from a cancelled PO", 400, "PO_CANCELLED");
+
+      // 2. Load receipt
+      const receipt = await prisma.purchaseOrderReceipt.findFirst({
+        where: { id: receiptId, purchaseOrderId: poId, deleteStatus: false },
+      });
+      if (!receipt) throw new APIError("Receipt not found", 404, "RECEIPT_NOT_FOUND");
+
+      if (!inwardRows || inwardRows.length === 0) {
+        throw new APIError("No inward rows provided", 400, "NO_INWARD_ROWS");
+      }
+
+      // 3. Build a quick-lookup map over receivedItems in this receipt
+      const receivedItems = Array.isArray(receipt.receivedItems) ? receipt.receivedItems : [];
+      const receivedMap = {};
+      for (const ri of receivedItems) {
+        const k = ri.key || `sph_${ri.spherical}_cyl_${ri.cylindrical}`;
+        receivedMap[k] = ri;
+      }
+
+      // 4. Get already-inwarded quantities per row from existing inventory items
+      const existingItems = await prisma.inventoryItem.findMany({
+        where: { purchaseReceiptId: receiptId, deleteStatus: false },
+        select: { quantity: true, rightSpherical: true, rightCylindrical: true },
+      });
+      const alreadyInwardedByKey = {};
+      for (const item of existingItems) {
+        const k = `sph_${item.rightSpherical ?? "0"}_cyl_${item.rightCylindrical ?? "0"}`;
+        alreadyInwardedByKey[k] = (alreadyInwardedByKey[k] || 0) + item.quantity;
+      }
+
+      // 5. Validate each inward row and collect all splits to process
+      let totalNewQty = 0;
+      const splitsToCreate = [];
+
+      for (const row of inwardRows) {
+        const { key, spherical, cylindrical, splits } = row;
+        if (!splits || splits.length === 0) continue;
+
+        const rowSplitQty = splits.reduce((s, sp) => s + (parseFloat(sp.qty) || 0), 0);
+        if (rowSplitQty <= 0) continue;
+
+        // Find the corresponding received item
+        const receivedItem = receivedMap[key];
+        const rowReceivedQty = receivedItem ? (parseFloat(receivedItem.receivedQty) || 0) : 0;
+
+        if (rowReceivedQty <= 0) {
+          throw new APIError(
+            `Row ${spherical}/${cylindrical} has no received qty`,
+            400,
+            "INVALID_ROW"
+          );
+        }
+
+        const alreadyInwarded = alreadyInwardedByKey[key] || 0;
+        const pendingQty = rowReceivedQty - alreadyInwarded;
+
+        if (rowSplitQty > pendingQty + 0.001) { // small tolerance for float precision
+          throw new APIError(
+            `Row SPH ${spherical} / CYL ${cylindrical}: inward qty (${rowSplitQty}) exceeds pending qty (${pendingQty.toFixed(2)})`,
+            400,
+            "OVER_INWARD"
+          );
+        }
+
+        for (const split of splits) {
+          const qty = parseFloat(split.qty) || 0;
+          if (qty <= 0) continue;
+          if (!split.location_id) throw new APIError("Location is required for each split", 400, "LOCATION_REQUIRED");
+
+          splitsToCreate.push({
+            spherical: spherical ?? "0",
+            cylindrical: cylindrical ?? "0",
+            qty,
+            location_id: parseInt(split.location_id),
+            tray_id: split.tray_id ? parseInt(split.tray_id) : null,
+          });
+          totalNewQty += qty;
+        }
+      }
+
+      if (splitsToCreate.length === 0 || totalNewQty <= 0) {
+        throw new APIError("No valid inward quantities provided", 400, "NO_VALID_QTY");
+      }
+
+      // 6. Create one InventoryItem per split
+      const isBulk = po.orderType === "Bulk";
+      const createdItemIds = [];
+
+      for (const split of splitsToCreate) {
+        const itemData = {
+          lens_id: po.lens_id,
+          category_id: po.category_id || null,
+          Type_id: po.Type_id || null,
+          coating_id: po.coating_id || null,
+          dia_id: po.dia_id || null,
+          fitting_id: po.fitting_id || null,
+          tinting_id: po.tinting_id || null,
+          location_id: split.location_id,
+          tray_id: split.tray_id,
+          quantity: split.qty,
+          costPrice: receipt.unitPrice || 0,
+          batchNo: receipt.receiptNumber,
+          purchaseOrderId: poId,
+          purchaseReceiptId: receiptId,
+          vendorId: po.vendorId,
+          rightEye: po.rightEye,
+          leftEye: po.leftEye,
+          // For bulk PO: sph/cyl comes from the row; for single PO: from PO itself
+          rightSpherical: isBulk ? split.spherical : (po.rightSpherical ?? null),
+          rightCylindrical: isBulk ? split.cylindrical : (po.rightCylindrical ?? null),
+          leftSpherical: isBulk ? split.spherical : (po.leftSpherical ?? null),
+          leftCylindrical: isBulk ? split.cylindrical : (po.leftCylindrical ?? null),
+          status: "AVAILABLE",
+          createdBy,
+        };
+
+        const result = await inventoryService.createInventoryItem(itemData);
+        createdItemIds.push(result.inventoryItem.id);
+      }
+
+      // 7. Update receipt.inwardedQty
+      const newInwardedQty = receipt.inwardedQty + totalNewQty;
+      await prisma.purchaseOrderReceipt.update({
+        where: { id: receiptId },
+        data: { inwardedQty: newInwardedQty, updatedBy: createdBy },
+      });
+
+      return {
+        createdCount: createdItemIds.length,
+        totalInwardedQty: totalNewQty,
+        newReceiptInwardedQty: newInwardedQty,
+        inventoryItemIds: createdItemIds,
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error inwarding receipt to inventory:", error);
+      throw new APIError(
+        error.message || "Failed to inward receipt to inventory",
+        500,
+        "INWARD_RECEIPT_ERROR"
       );
     }
   }

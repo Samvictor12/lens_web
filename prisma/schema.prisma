@@ -700,6 +700,9 @@ model PurchaseOrderReceipt {
   notes              String?
   status             String    @default("PARTIAL") // PARTIAL | COMPLETE
 
+  // Inward tracking — how much of this receipt has been moved to inventory stock
+  inwardedQty        Float     @default(0)
+
   // Audit
   activeStatus     Boolean       @default(true)
   deleteStatus     Boolean       @default(false)
@@ -711,6 +714,7 @@ model PurchaseOrderReceipt {
   createdByUser    User          @relation("receiptCreatedBy", fields: [createdBy], references: [id])
   updatedByUser    User?         @relation("receiptUpdatedBy", fields: [updatedBy], references: [id])
   logs             PurchaseReceiptLog[]
+  inventoryItems   InventoryItem[]
 }
 
 model PurchaseReceiptLog {
@@ -1005,6 +1009,8 @@ model InventoryItem {
   // Source Information
   purchaseOrderId       Int?                     // If from PO
   purchaseOrder         PurchaseOrder?           @relation(fields: [purchaseOrderId], references: [id])
+  purchaseReceiptId     Int?                     // Specific receipt that generated this inventory item
+  purchaseReceipt       PurchaseOrderReceipt?    @relation(fields: [purchaseReceiptId], references: [id])
   vendorId              Int?                     // Source vendor
   vendor                Vendor?                  @relation(fields: [vendorId], references: [id])
   

@@ -198,6 +198,136 @@ export class InventoryService {
   }
 
   /**
+   * Get purchase order receipts that still have pending inward quantity.
+   * This powers the inventory-side inward queue.
+   */
+  async getInventoryInwardQueue(queryParams) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        search = '',
+      } = queryParams;
+
+      const receipts = await prisma.purchaseOrderReceipt.findMany({
+        where: {
+          deleteStatus: false,
+          purchaseOrder: {
+            deleteStatus: false,
+          },
+        },
+        include: {
+          purchaseOrder: {
+            select: {
+              id: true,
+              poNumber: true,
+              orderType: true,
+              vendor: {
+                select: {
+                  id: true,
+                  name: true,
+                  code: true,
+                },
+              },
+              lensProduct: {
+                select: {
+                  id: true,
+                  lens_name: true,
+                  product_code: true,
+                },
+              },
+              lensType: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          createdByUser: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      const normalizedSearch = search.trim().toLowerCase();
+      const queueItems = receipts
+        .map((receipt) => {
+          const totalReceivedQty = parseFloat(receipt.totalReceivedQty || 0);
+          const inwardedQty = parseFloat(receipt.inwardedQty || 0);
+          const pendingQty = Math.max(0, totalReceivedQty - inwardedQty);
+
+          return {
+            id: receipt.id,
+            receiptId: receipt.id,
+            receiptNumber: receipt.receiptNumber,
+            purchaseOrderId: receipt.purchaseOrderId,
+            poNumber: receipt.purchaseOrder?.poNumber || '-',
+            orderType: receipt.purchaseOrder?.orderType || 'Single',
+            vendor: receipt.purchaseOrder?.vendor || null,
+            lensProduct: receipt.purchaseOrder?.lensProduct || null,
+            lensType: receipt.purchaseOrder?.lensType || null,
+            receivedDate: receipt.receivedDate,
+            actualDeliveryDate: receipt.actualDeliveryDate,
+            createdAt: receipt.createdAt,
+            supplierInvoiceNo: receipt.supplierInvoiceNo,
+            totalReceivedQty,
+            inwardedQty,
+            pendingQty,
+            status: receipt.status,
+            createdByUser: receipt.createdByUser || null,
+          };
+        })
+        .filter((item) => item.pendingQty > 0)
+        .filter((item) => {
+          if (!normalizedSearch) return true;
+
+          return [
+            item.receiptNumber,
+            item.poNumber,
+            item.vendor?.name,
+            item.vendor?.code,
+            item.lensProduct?.lens_name,
+            item.lensProduct?.product_code,
+            item.supplierInvoiceNo,
+          ]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(normalizedSearch));
+        });
+
+      const total = queueItems.length;
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const skip = (page - 1) * limit;
+      const paginatedItems = queueItems.slice(skip, skip + limit);
+
+      return {
+        queueItems: paginatedItems,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: total,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching inventory inward queue:', error);
+      throw new APIError(
+        error.message || 'Failed to fetch inventory inward queue',
+        500,
+        'FETCH_INVENTORY_INWARD_QUEUE_ERROR'
+      );
+    }
+  }
+
+  /**
    * Get inventory item by ID
    * @param {number} id - Inventory item ID
    * @returns {Promise<Object>} Inventory item details
@@ -702,7 +832,7 @@ export class InventoryService {
    */
   async getInventoryDropdowns() {
     try {
-      const [lensProducts, categories, lensTypes, coatings, locations, trays, vendors] = await Promise.all([
+      const [lensProducts, categories, lensTypes, coatings, locations, trays, vendors, inventoryItems, purchaseOrders, saleOrders] = await Promise.all([
         prisma.lensProductMaster.findMany({
           where: { deleteStatus: false, activeStatus: true },
           select: { id: true, lens_name: true, product_code: true },
@@ -730,13 +860,63 @@ export class InventoryService {
         }),
         prisma.trayMaster.findMany({
           where: { deleteStatus: false, activeStatus: true },
-          select: { id: true, name: true, tray_code: true },
+          select: { id: true, name: true, tray_code: true, location_id: true },
           orderBy: { name: 'asc' }
         }),
         prisma.vendor.findMany({
           where: { delete_status: false, active_status: true },
           select: { id: true, name: true, code: true },
           orderBy: { name: 'asc' }
+        }),
+        prisma.inventoryItem.findMany({
+          where: { deleteStatus: false },
+          select: {
+            id: true,
+            quantity: true,
+            costPrice: true,
+            location_id: true,
+            lensProduct: {
+              select: {
+                id: true,
+                lens_name: true,
+              },
+            },
+            location: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.purchaseOrder.findMany({
+          where: { deleteStatus: false },
+          select: {
+            id: true,
+            poNumber: true,
+            vendor: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.saleOrder.findMany({
+          where: { deleteStatus: false },
+          select: {
+            id: true,
+            orderNo: true,
+            customer: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
         })
       ]);
 
@@ -747,7 +927,30 @@ export class InventoryService {
         coatings,
         locations,
         trays,
-        vendors
+        vendors,
+        inventoryItems: inventoryItems.map((item) => ({
+          ...item,
+          lensProduct: item.lensProduct
+            ? {
+                ...item.lensProduct,
+                name: item.lensProduct.lens_name,
+              }
+            : null,
+        })),
+        purchaseOrders: purchaseOrders.map((po) => ({
+          ...po,
+          orderNumber: po.poNumber,
+        })),
+        saleOrders: saleOrders.map((saleOrder) => ({
+          ...saleOrder,
+          orderNumber: saleOrder.orderNo,
+          customer: saleOrder.customer
+            ? {
+                ...saleOrder.customer,
+                name: saleOrder.customer.name,
+              }
+            : null,
+        })),
       };
     } catch (error) {
       console.error("Error fetching inventory dropdowns:", error);

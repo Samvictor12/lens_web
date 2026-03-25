@@ -1,4 +1,4 @@
-import { Building, Trash2, PackageCheck, PencilLine } from "lucide-react";
+import { Building, Trash2, PackageCheck, PencilLine, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
@@ -23,6 +23,7 @@ export const usePurchaseOrderColumns = (
   onDelete,
   onReceive,
   onEditReceive,
+  onInward,
 ) => {
   return [
     {
@@ -30,15 +31,10 @@ export const usePurchaseOrderColumns = (
       header: "PO Number",
       sortable: true,
       cell: (po) => (
-        <a
-          href={`/masters/purchase-orders/view/${po.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            e.preventDefault();
-            window.open(`/masters/purchase-orders/view/${po.id}`, "_blank");
-          }}
-          className="flex items-center gap-1.5 hover:underline cursor-pointer"
+        <button
+          type="button"
+          onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}
+          className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>
             <div className="font-medium text-xs text-primary">
@@ -50,7 +46,7 @@ export const usePurchaseOrderColumns = (
               </div>
             )}
           </div>
-        </a>
+        </button>
       ),
     },
     {
@@ -147,6 +143,17 @@ export const usePurchaseOrderColumns = (
             >
               <PackageCheck className="h-3.5 w-3.5" />
               Receive
+            </Button>
+          )}
+          {po.status === "RECEIVED" && (
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-7 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 gap-1"
+              onClick={() => onInward && onInward(po)}
+            >
+              <Warehouse className="h-3.5 w-3.5" />
+              Inward
             </Button>
           )}
           {po.status === "RECEIVED" && (

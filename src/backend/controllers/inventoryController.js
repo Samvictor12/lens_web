@@ -80,6 +80,34 @@ export class InventoryController {
   }
 
   /**
+   * Get pending PO receipt inward queue for inventory users
+   * @route GET /api/inventory/inward-queue
+   */
+  async getInventoryInwardQueue(req, res, next) {
+    try {
+      const validation = validateQueryParams(req.query);
+
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid query parameters',
+          errors: validation.errors,
+        });
+      }
+
+      const result = await this.inventoryService.getInventoryInwardQueue(validation.data);
+
+      res.json({
+        success: true,
+        data: result.queueItems,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get inventory item by ID
    * @route GET /api/inventory/items/:id
    */

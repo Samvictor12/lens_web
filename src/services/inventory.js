@@ -1,267 +1,98 @@
-import axios from 'axios';
+import { apiClient } from "./apiClient";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-/**
- * Inventory Items API
- */
+const INVENTORY_BASE_URL = "/inventory";
 
 export const getInventoryItems = async (params = {}) => {
-  try {
-    const response = await api.get('/inventory/items', { params });
-    return {
-      success: true,
-      data: response.data.data,
-      pagination: response.data.pagination,
-    };
-  } catch (error) {
-    console.error('Error fetching inventory items:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch inventory items',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/items`, {
+    params,
+  });
+  return response;
+};
+
+export const getInventoryInwardQueue = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/inward-queue`, {
+    params,
+  });
+  return response;
 };
 
 export const getInventoryItemById = async (id) => {
-  try {
-    const response = await api.get(`/inventory/items/${id}`);
-    return {
-      success: true,
-      data: response.data.data,
-    };
-  } catch (error) {
-    console.error('Error fetching inventory item:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch inventory item',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/items/${id}`);
+  return response;
 };
 
 export const createInventoryItem = async (itemData) => {
-  try {
-    const response = await api.post('/inventory/items', itemData);
-    return {
-      success: true,
-      data: response.data.data,
-      message: response.data.message,
-    };
-  } catch (error) {
-    console.error('Error creating inventory item:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to create inventory item',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/items`, {
+    data: itemData,
+  });
+  return response;
 };
 
 export const updateInventoryItem = async (id, itemData) => {
-  try {
-    const response = await api.put(`/inventory/items/${id}`, itemData);
-    return {
-      success: true,
-      data: response.data.data,
-      message: response.data.message,
-    };
-  } catch (error) {
-    console.error('Error updating inventory item:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to update inventory item',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("put", `${INVENTORY_BASE_URL}/items/${id}`, {
+    data: itemData,
+  });
+  return response;
 };
 
-/**
- * Delete an inventory item
- */
 export const deleteInventoryItem = async (id) => {
-  try {
-    const response = await api.delete(`/inventory/items/${id}`);
-    return {
-      success: true,
-      message: response.data.message,
-    };
-  } catch (error) {
-    console.error('Error deleting inventory item:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to delete inventory item',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("delete", `${INVENTORY_BASE_URL}/items/${id}`);
+  return response;
 };
-
-/**
- * Inventory Transactions API
- */
 
 export const getInventoryTransactions = async (params = {}) => {
-  try {
-    const response = await api.get('/inventory/transactions', { params });
-    return {
-      success: true,
-      data: response.data.data,
-      pagination: response.data.pagination,
-    };
-  } catch (error) {
-    console.error('Error fetching inventory transactions:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch inventory transactions',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/transactions`, {
+    params,
+  });
+  return response;
 };
 
 export const createInventoryTransaction = async (transactionData) => {
-  try {
-    const response = await api.post('/inventory/transactions', transactionData);
-    return {
-      success: true,
-      data: response.data.data,
-      message: response.data.message,
-    };
-  } catch (error) {
-    console.error('Error creating inventory transaction:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to create inventory transaction',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/transactions`, {
+    data: transactionData,
+  });
+  return response;
 };
-
-/**
- * Inventory Stock API
- */
 
 export const getInventoryStock = async (params = {}) => {
-  try {
-    const response = await api.get('/inventory/stock', { params });
-    return {
-      success: true,
-      data: response.data.data,
-      total: response.data.total || 0,
-      page: response.data.page || 1,
-      totalPages: response.data.totalPages || 1,
-    };
-  } catch (error) {
-    console.error('Error fetching inventory stock:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch inventory stock',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/stock`, {
+    params,
+  });
+  return {
+    ...response,
+    total: response.pagination?.total || 0,
+    page: response.pagination?.currentPage || 1,
+    totalPages: response.pagination?.totalPages || 1,
+  };
 };
 
-/**
- * Update inventory stock levels
- */
 export const updateInventoryStock = async (stockData) => {
-  try {
-    const response = await api.put('/inventory/stock', stockData);
-    return {
-      success: true,
-      data: response.data.data,
-      message: response.data.message,
-    };
-  } catch (error) {
-    console.error('Error updating inventory stock:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to update inventory stock',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("put", `${INVENTORY_BASE_URL}/stock`, {
+    data: stockData,
+  });
+  return response;
 };
-
-/**
- * Inventory Reservations API
- */
 
 export const reserveInventoryForSale = async (reservationData) => {
-  try {
-    const response = await api.post('/inventory/reserve', reservationData);
-    return {
-      success: true,
-      data: response.data.data,
-      message: response.data.message,
-    };
-  } catch (error) {
-    console.error('Error reserving inventory:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to reserve inventory',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/reserve`, {
+    data: reservationData,
+  });
+  return response;
 };
-
-/**
- * Inventory Dropdowns API
- */
 
 export const getInventoryDropdowns = async () => {
-  try {
-    const response = await api.get('/inventory/dropdowns');
-    return {
-      success: true,
-      data: response.data.data,
-    };
-  } catch (error) {
-    console.error('Error fetching inventory dropdowns:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch dropdown data',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dropdowns`);
+  return response;
 };
-
-/**
- * Inventory Dashboard API
- */
 
 export const getInventoryDashboard = async () => {
-  try {
-    const response = await api.get('/inventory/dashboard');
-    return {
-      success: true,
-      data: response.data.data,
-    };
-  } catch (error) {
-    console.error('Error fetching inventory dashboard:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch dashboard data',
-      errors: error.response?.data?.errors || [],
-    };
-  }
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dashboard`);
+  return response;
 };
 
-// Create inventoryService object for compatibility
 export const inventoryService = {
   getInventoryItems,
+  getInventoryInwardQueue,
   getInventoryItemById,
   createInventoryItem,
   updateInventoryItem,

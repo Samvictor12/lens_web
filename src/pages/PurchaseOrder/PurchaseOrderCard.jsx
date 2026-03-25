@@ -1,4 +1,4 @@
-import { Package, Calendar, Trash2, Building, PackageCheck } from "lucide-react";
+import { Package, Calendar, Trash2, Building, PackageCheck, Warehouse } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ const canReceive = (po) => ["DRAFT", "RECEIVED"].includes(po.status) && (po.quan
 /**
  * PurchaseOrderCard component displays purchase order information in card format
  */
-export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDelete, onReceive }) {
+export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDelete, onReceive, onInward }) {
   const statusColor = getStatusColor(purchaseOrder.status);
 
   return (
@@ -97,6 +97,16 @@ export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDel
             onClick={() => onReceive && onReceive(purchaseOrder)}
           >
             <PackageCheck className="h-3 w-3" /> Receive
+          </Button>
+        )}
+        {purchaseOrder.status === "RECEIVED" && (
+          <Button
+            variant="outline"
+            size="xs"
+            className="flex-1 h-7 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 gap-1"
+            onClick={() => onInward && onInward(purchaseOrder)}
+          >
+            <Warehouse className="h-3 w-3" /> Inward
           </Button>
         )}
         <Button
