@@ -85,6 +85,8 @@ export default function LensOffersForm() {
             offerPrice: offer.offerPrice ?? "",
             lens_id: offer.lens_id ?? null,
             coating_id: offer.coating_id ?? null,
+            exchange_coating_id: offer.exchange_coating_id ?? null,
+            withDiscount: offer.withDiscount ?? false,
             startDate: offer.startDate || "",
             endDate: offer.endDate || "",
             activeStatus: offer.activeStatus !== undefined ? offer.activeStatus : true,
@@ -129,6 +131,10 @@ export default function LensOffersForm() {
       }
     } else if (formData.offerType === "EXCHANGE_PRODUCT") {
       // No price field — product price comes from the selected lens+coating
+    } else if (formData.offerType === "EXCHANGE_COATING_PRICE") {
+      if (!formData.exchange_coating_id) {
+        newErrors.exchange_coating_id = "Exchange coating is required";
+      }
     }
 
     if (!formData.startDate) {
@@ -172,6 +178,8 @@ export default function LensOffersForm() {
       discountValue: "",
       discountPercentage: "",
       offerPrice: "",
+      exchange_coating_id: null,
+      withDiscount: false,
     }));
     setErrors((prev) => ({
       ...prev,
@@ -179,6 +187,7 @@ export default function LensOffersForm() {
       discountValue: "",
       discountPercentage: "",
       offerPrice: "",
+      exchange_coating_id: "",
     }));
   };
 
@@ -239,6 +248,7 @@ export default function LensOffersForm() {
   const showDiscountValue = formData.offerType === "VALUE";
   const showDiscountPercentage = formData.offerType === "PERCENTAGE";
   const showAppliesTo = formData.offerType === "EXCHANGE_PRODUCT";
+  const showExchangeCoating = formData.offerType === "EXCHANGE_COATING_PRICE";
 
   return (
     <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4">
@@ -448,6 +458,74 @@ export default function LensOffersForm() {
                     When that combination is chosen in a Sale Order, its price will be used as the offer price.
                   </AlertDescription>
                 </Alert>
+              )}
+
+              {/* EXCHANGE_COATING_PRICE: select exchange coating + withDiscount toggle */}
+              {showExchangeCoating && (
+                <>
+                  <FormSelect
+                    label="Exchange Coating"
+                    name="exchange_coating_id"
+                    options={coatingOptions}
+                    value={formData.exchange_coating_id}
+                    onChange={(value) => handleSelectChange("exchange_coating_id", value)}
+                    placeholder={dropdownsLoading ? "Loading..." : "Select exchange coating"}
+                    isSearchable={true}
+                    isClearable={false}
+                    disabled={isReadOnly || dropdownsLoading}
+                    required
+                    error={errors.exchange_coating_id}
+                    helperText={
+                      !errors.exchange_coating_id &&
+                      "The coating whose price will be used instead of the selected coating in the sale order"
+                    }
+                  />
+
+                  <div className="flex items-start gap-3 p-3 rounded-md border bg-muted/30">
+                    <input
+                      type="checkbox"
+                      id="withDiscount"
+                      checked={formData.withDiscount}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, withDiscount: e.target.checked }))
+                      }
+                      disabled={isReadOnly}
+                      className="mt-0.5 h-4 w-4 cursor-pointer"
+                    />
+                    <div>
+                      <label
+                        htmlFor="withDiscount"
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        With Discount
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        If enabled, the customer's configured discount rate will be applied on top of the
+                        exchange coating price. If disabled, no discount is applied.
+                      </p>
+                    </div>
+                  </div>
+
+                  {!isReadOnly && (
+                    <Alert className="bg-primary/5 border-primary/20">
+                      <AlertDescription className="text-xs">
+                        When this offer is applied in a Sale Order, the price of the selected{" "}
+                        <strong>exchange coating</strong> for the same lens will be used as the lens
+                        price&mdash;regardless of which coating the customer picked.
+                        {formData.withDiscount
+                          ? " The customer's discount rate will also be applied."
+                          : " No customer discount will be applied."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {isReadOnly && formData.exchange_coating_id && (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-medium">With Discount: </span>
+                      {formData.withDiscount ? "Yes" : "No"}
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

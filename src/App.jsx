@@ -21,7 +21,7 @@ import PurchaseOrders from "./pages/PurchaseOrder/PurchaseOrdersMain";
 import PurchaseOrderForm from "./pages/PurchaseOrder/PurchaseOrderForm";
 import PurchaseOrderReceive from "./pages/PurchaseOrder/PurchaseOrderReceive";
 import POInwardToInventory from "./pages/PurchaseOrder/POInwardToInventory";
-import Dispatch from "./pages/Dispatch";
+import Dispatch from "./pages/Dispatch/DispatchMain";
 import Billing from "./pages/Billing";
 import Payments from "./pages/Payments";
 import Expenses from "./pages/Expenses";

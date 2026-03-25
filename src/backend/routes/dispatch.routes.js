@@ -1,33 +1,16 @@
 import { Router } from 'express';
-import { DispatchController } from '../controllers/dispatchController';
-import { requireRole } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth.js';
+import * as dispatchController from '../controllers/dispatchController.js';
 
 const router = Router();
-const controller = new DispatchController();
 
-// List all dispatches
-router.get('/',
-  requireRole(['Inventory', 'Admin', 'Sales']),
-  controller.list.bind(controller)
-);
+// GET /api/v1/dispatch/orders — all roles that can access dispatch
+router.get('/orders', authenticateToken, dispatchController.getOrders);
 
-// Create new dispatch
-router.post('/',
-  requireRole(['Inventory', 'Admin']),
-  controller.create.bind(controller)
-);
+// PATCH /api/v1/dispatch/bulk-pickup — Delivery Person, Admin, Inventory
+router.patch('/bulk-pickup', authenticateToken, dispatchController.bulkPickup);
 
-// Get a specific dispatch
-router.get('/:id',
-  requireRole(['Inventory', 'Admin', 'Sales']),
-  controller.get.bind(controller)
-);
-
-// Update dispatch status
-router.patch('/:id/status',
-  requireRole(['Inventory', 'Admin']),
-  controller.updateStatus.bind(controller)
-);
+// PATCH /api/v1/dispatch/bulk-deliver — Delivery Person, Admin
+router.patch('/bulk-deliver', authenticateToken, dispatchController.bulkDeliver);
 
 export default router;
-

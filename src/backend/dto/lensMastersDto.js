@@ -413,8 +413,8 @@ export const validateCreateLensOffer = (data) => {
     errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
   }
 
-  if (!data.offerType || !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT'].includes(data.offerType)) {
-    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, or EXCHANGE_PRODUCT' });
+  if (!data.offerType || !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT', 'EXCHANGE_COATING_PRICE'].includes(data.offerType)) {
+    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, EXCHANGE_PRODUCT, or EXCHANGE_COATING_PRICE' });
   }
 
   // Validate offer type specific fields
@@ -431,6 +431,10 @@ export const validateCreateLensOffer = (data) => {
     if (!data.offerPrice || !isValidNumber(data.offerPrice) || data.offerPrice <= 0) {
       errors.push({ field: 'offerPrice', message: 'Offer price is required and must be greater than 0 for EXCHANGE_PRODUCT type' });
     }
+  } else if (data.offerType === 'EXCHANGE_COATING_PRICE') {
+    if (!data.exchange_coating_id || !isValidNumber(data.exchange_coating_id)) {
+      errors.push({ field: 'exchange_coating_id', message: 'Exchange coating is required for EXCHANGE_COATING_PRICE type' });
+    }
   }
 
   // Validate optional lens_id
@@ -443,7 +447,10 @@ export const validateCreateLensOffer = (data) => {
     errors.push({ field: 'coating_id', message: 'Coating ID must be a valid number' });
   }
 
-  // Validate date range
+  // Validate optional exchange_coating_id
+  if (data.exchange_coating_id && !isValidNumber(data.exchange_coating_id)) {
+    errors.push({ field: 'exchange_coating_id', message: 'Exchange coating ID must be a valid number' });
+  }
   if (!data.startDate) {
     errors.push({ field: 'startDate', message: 'Start date is required' });
   }
@@ -494,8 +501,8 @@ export const validateUpdateLensOffer = (data) => {
     errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
   }
 
-  if (data.offerType && !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT'].includes(data.offerType)) {
-    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, or EXCHANGE_PRODUCT' });
+  if (data.offerType && !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT', 'EXCHANGE_COATING_PRICE'].includes(data.offerType)) {
+    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, EXCHANGE_PRODUCT, or EXCHANGE_COATING_PRICE' });
   }
 
   // Validate offer type specific fields if provided
@@ -520,6 +527,11 @@ export const validateUpdateLensOffer = (data) => {
   // Validate optional coating_id
   if (data.coating_id !== undefined && data.coating_id !== null && !isValidNumber(data.coating_id)) {
     errors.push({ field: 'coating_id', message: 'Coating ID must be a valid number' });
+  }
+
+  // Validate optional exchange_coating_id
+  if (data.exchange_coating_id !== undefined && data.exchange_coating_id !== null && !isValidNumber(data.exchange_coating_id)) {
+    errors.push({ field: 'exchange_coating_id', message: 'Exchange coating ID must be a valid number' });
   }
 
   // Validate dates if provided

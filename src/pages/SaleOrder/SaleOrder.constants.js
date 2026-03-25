@@ -21,6 +21,7 @@ export const defaultSaleOrder = {
   fitting_id: null,
   coating_id: null,
   tinting_id: null,
+  material_id: null,
   
   // Eye Selection
   rightEye: false,

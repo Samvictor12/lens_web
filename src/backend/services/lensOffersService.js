@@ -27,6 +27,8 @@ export class LensOffersService {
                     offerPrice: offerData.offerPrice,
                     lens_id: offerData.lens_id || null,
                     coating_id: offerData.coating_id || null,
+                    exchange_coating_id: offerData.exchange_coating_id || null,
+                    withDiscount: offerData.withDiscount ?? false,
                     startDate: new Date(offerData.startDate),
                     endDate: new Date(offerData.endDate),
                     activeStatus: offerData.activeStatus ?? true,
@@ -39,6 +41,9 @@ export class LensOffersService {
                         select: { id: true, lens_name: true, product_code: true }
                     },
                     coating: {
+                        select: { id: true, name: true, short_name: true }
+                    },
+                    exchangeCoating: {
                         select: { id: true, name: true, short_name: true }
                     },
                     createdByUser: { select: { id: true, name: true, email: true } }
@@ -116,6 +121,9 @@ export class LensOffersService {
                     coating: {
                         select: { id: true, name: true, short_name: true }
                     },
+                    exchangeCoating: {
+                        select: { id: true, name: true, short_name: true }
+                    },
                     createdByUser: { select: { id: true, name: true } },
                     updatedByUser: { select: { id: true, name: true } },
                     _count: { select: { saleOrders: true } }
@@ -151,6 +159,9 @@ export class LensOffersService {
                         }
                     },
                     coating: {
+                        select: { id: true, name: true, short_name: true }
+                    },
+                    exchangeCoating: {
                         select: { id: true, name: true, short_name: true }
                     },
                     createdByUser: { select: { id: true, name: true, email: true } },
@@ -209,6 +220,8 @@ export class LensOffersService {
                     offerPrice: updateData.offerPrice,
                     lens_id: updateData.lens_id !== undefined ? updateData.lens_id : undefined,
                     coating_id: updateData.coating_id !== undefined ? updateData.coating_id : undefined,
+                    exchange_coating_id: updateData.exchange_coating_id !== undefined ? updateData.exchange_coating_id : undefined,
+                    withDiscount: updateData.withDiscount !== undefined ? updateData.withDiscount : undefined,
                     startDate: updateData.startDate ? new Date(updateData.startDate) : undefined,
                     endDate: updateData.endDate ? new Date(updateData.endDate) : undefined,
                     activeStatus: updateData.activeStatus,
@@ -219,6 +232,9 @@ export class LensOffersService {
                         select: { id: true, lens_name: true, product_code: true }
                     },
                     coating: {
+                        select: { id: true, name: true, short_name: true }
+                    },
+                    exchangeCoating: {
                         select: { id: true, name: true, short_name: true }
                     },
                     createdByUser: { select: { id: true, name: true } },
@@ -280,6 +296,9 @@ export class LensOffersService {
                         select: { id: true, lens_name: true, product_code: true }
                     },
                     coating: {
+                        select: { id: true, name: true, short_name: true }
+                    },
+                    exchangeCoating: {
                         select: { id: true, name: true, short_name: true }
                     }
                 },
@@ -440,7 +459,7 @@ export class LensOffersService {
      * Validate offer type specific fields
      */
     validateOfferTypeFields(data) {
-        const { offerType, discountValue, discountPercentage, offerPrice } = data;
+        const { offerType, discountValue, discountPercentage, offerPrice, exchange_coating_id } = data;
 
         if (offerType === 'VALUE') {
             if (!discountValue || discountValue <= 0) {
@@ -453,6 +472,10 @@ export class LensOffersService {
         } else if (offerType === 'EXCHANGE_PRODUCT') {
             if (!offerPrice || offerPrice <= 0) {
                 throw new APIError('Offer price is required and must be greater than 0 for EXCHANGE_PRODUCT type', 400, 'INVALID_OFFER_PRICE');
+            }
+        } else if (offerType === 'EXCHANGE_COATING_PRICE') {
+            if (!exchange_coating_id) {
+                throw new APIError('Exchange coating is required for EXCHANGE_COATING_PRICE type', 400, 'INVALID_EXCHANGE_COATING');
             }
         }
     }
