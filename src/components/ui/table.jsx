@@ -137,6 +137,7 @@ const Table = React.forwardRef(
       setSorting,
       pagination = true,
       emptyMessage = "No data available",
+      getRowClassName,
       className,
       ...props
     },
@@ -254,7 +255,7 @@ const Table = React.forwardRef(
                   </TableRow>
                 ) : (
                   data.map((row, rowIndex) => (
-                    <TableRow key={row.id || rowIndex}>
+                    <TableRow key={row.id || rowIndex} className={getRowClassName ? getRowClassName(row) : undefined}>
                       {columns.map((column, colIndex) => (
                         <TableCell
                           key={column.accessorKey || colIndex}

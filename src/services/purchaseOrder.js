@@ -1,4 +1,5 @@
 import { apiClient } from "./apiClient";
+import api from "./api";
 
 const PURCHASE_ORDER_BASE_URL = "/purchase-orders";
 
@@ -53,6 +54,14 @@ export const getPurchaseOrders = async (
   }
 
   const response = await apiClient("get", PURCHASE_ORDER_BASE_URL, { params });
+  return response;
+};
+
+/**
+ * Get purchase order dashboard stats
+ */
+export const getPurchaseOrderDashboard = async () => {
+  const response = await apiClient("get", `${PURCHASE_ORDER_BASE_URL}/dashboard`);
   return response;
 };
 
@@ -146,4 +155,27 @@ export const inwardReceiptToInventory = async (poId, receiptId, inwardRows) => {
     data: { inwardRows },
   });
   return response;
+};
+
+/**
+ * Download a Purchase Order as an Excel file.
+ * Triggers a browser file download.
+ */
+export const downloadPurchaseOrderExcel = async (poId, poNumber, orderDate) => {
+  const response = await api.get(`${PURCHASE_ORDER_BASE_URL}/${poId}/export`, {
+    responseType: "blob",
+  });
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  const dateStr = orderDate
+    ? new Date(orderDate)
+        .toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })
+        .replace(/\//g, "-")
+    : "export";
+  link.setAttribute("download", `${poNumber}_${dateStr}.xlsx`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 };

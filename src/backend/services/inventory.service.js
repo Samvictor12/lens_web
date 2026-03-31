@@ -163,8 +163,8 @@ export class InventoryService {
             dia: { select: { id: true, name: true } },
             fitting: { select: { id: true, name: true } },
             tinting: { select: { id: true, name: true } },
-            location: { select: { id: true, name: true, location_code: true } },
-            tray: { select: { id: true, name: true, tray_code: true } },
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true } },
             vendor: { select: { id: true, name: true, code: true } },
             purchaseOrder: { select: { id: true, poNumber: true } },
             saleOrder: { select: { id: true, orderNo: true } },
@@ -855,12 +855,12 @@ export class InventoryService {
         }),
         prisma.locationMaster.findMany({
           where: { deleteStatus: false, activeStatus: true },
-          select: { id: true, name: true, location_code: true },
+          select: { id: true, name: true },
           orderBy: { name: 'asc' }
         }),
         prisma.trayMaster.findMany({
           where: { deleteStatus: false, activeStatus: true },
-          select: { id: true, name: true, tray_code: true, location_id: true },
+          select: { id: true, name: true, location_id: true },
           orderBy: { name: 'asc' }
         }),
         prisma.vendor.findMany({

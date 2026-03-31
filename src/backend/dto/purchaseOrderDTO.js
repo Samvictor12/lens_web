@@ -424,9 +424,73 @@ export const validateUpdatePurchaseOrder = (data) => {
     }
   }
 
+  let parsedBulkSelection;
+  if (data.lensBulkSelection !== undefined && data.lensBulkSelection !== null) {
+    try {
+      parsedBulkSelection = typeof data.lensBulkSelection === 'string'
+        ? JSON.parse(data.lensBulkSelection)
+        : data.lensBulkSelection;
+    } catch (parseError) {
+      parsedBulkSelection = undefined;
+    }
+  }
+
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
+    data: errors.length === 0 ? {
+      ...(data.poNumber !== undefined ? { poNumber: data.poNumber?.trim() || null } : {}),
+      ...(data.reference_id !== undefined ? { reference_id: data.reference_id?.trim() || null } : {}),
+      ...(data.vendorId !== undefined ? { vendorId: parseInt(data.vendorId) } : {}),
+      ...(data.saleOrderId !== undefined ? { saleOrderId: data.saleOrderId ? parseInt(data.saleOrderId) : null } : {}),
+      ...(data.lens_id !== undefined ? { lens_id: data.lens_id ? parseInt(data.lens_id) : null } : {}),
+      ...(data.category_id !== undefined ? { category_id: data.category_id ? parseInt(data.category_id) : null } : {}),
+      ...(data.Type_id !== undefined ? { Type_id: data.Type_id ? parseInt(data.Type_id) : null } : {}),
+      ...(data.dia_id !== undefined ? { dia_id: data.dia_id ? parseInt(data.dia_id) : null } : {}),
+      ...(data.fitting_id !== undefined ? { fitting_id: data.fitting_id ? parseInt(data.fitting_id) : null } : {}),
+      ...(data.coating_id !== undefined ? { coating_id: data.coating_id ? parseInt(data.coating_id) : null } : {}),
+      ...(data.tinting_id !== undefined ? { tinting_id: data.tinting_id ? parseInt(data.tinting_id) : null } : {}),
+      ...(data.rightEye !== undefined ? { rightEye: Boolean(data.rightEye) } : {}),
+      ...(data.leftEye !== undefined ? { leftEye: Boolean(data.leftEye) } : {}),
+      ...(data.rightSpherical !== undefined ? { rightSpherical: data.rightSpherical?.trim() || null } : {}),
+      ...(data.rightCylindrical !== undefined ? { rightCylindrical: data.rightCylindrical?.trim() || null } : {}),
+      ...(data.rightAxis !== undefined ? { rightAxis: data.rightAxis?.trim() || null } : {}),
+      ...(data.rightAdd !== undefined ? { rightAdd: data.rightAdd?.trim() || null } : {}),
+      ...(data.rightDia !== undefined ? { rightDia: data.rightDia?.trim() || null } : {}),
+      ...(data.rightBase !== undefined ? { rightBase: data.rightBase?.trim() || null } : {}),
+      ...(data.rightBaseSize !== undefined ? { rightBaseSize: data.rightBaseSize?.trim() || null } : {}),
+      ...(data.rightBled !== undefined ? { rightBled: data.rightBled?.trim() || null } : {}),
+      ...(data.leftSpherical !== undefined ? { leftSpherical: data.leftSpherical?.trim() || null } : {}),
+      ...(data.leftCylindrical !== undefined ? { leftCylindrical: data.leftCylindrical?.trim() || null } : {}),
+      ...(data.leftAxis !== undefined ? { leftAxis: data.leftAxis?.trim() || null } : {}),
+      ...(data.leftAdd !== undefined ? { leftAdd: data.leftAdd?.trim() || null } : {}),
+      ...(data.leftDia !== undefined ? { leftDia: data.leftDia?.trim() || null } : {}),
+      ...(data.leftBase !== undefined ? { leftBase: data.leftBase?.trim() || null } : {}),
+      ...(data.leftBaseSize !== undefined ? { leftBaseSize: data.leftBaseSize?.trim() || null } : {}),
+      ...(data.leftBled !== undefined ? { leftBled: data.leftBled?.trim() || null } : {}),
+      ...(data.quantity !== undefined ? { quantity: parseFloat(data.quantity) } : {}),
+      ...(data.unitPrice !== undefined ? { unitPrice: parseFloat(data.unitPrice) } : {}),
+      ...(data.subtotal !== undefined ? { subtotal: parseFloat(data.subtotal) } : {}),
+      ...(data.discountPercentage !== undefined ? { discountPercentage: parseFloat(data.discountPercentage) || 0 } : {}),
+      ...(data.taxAmount !== undefined ? { taxAmount: parseFloat(data.taxAmount) || 0 } : {}),
+      ...(data.roundOff !== undefined ? { roundOff: parseFloat(data.roundOff) || 0 } : {}),
+      ...(data.totalValue !== undefined ? { totalValue: parseFloat(data.totalValue) } : {}),
+      ...(data.supplierInvoiceNo !== undefined ? { supplierInvoiceNo: data.supplierInvoiceNo?.trim() || null } : {}),
+      ...(data.purchaseType !== undefined ? { purchaseType: data.purchaseType?.trim() || null } : {}),
+      ...(data.placeOfSupply !== undefined ? { placeOfSupply: data.placeOfSupply?.trim() || null } : {}),
+      ...(data.itemDescription !== undefined ? { itemDescription: data.itemDescription?.trim() || null } : {}),
+      ...(data.taxAccount !== undefined ? { taxAccount: data.taxAccount?.trim() || null } : {}),
+      ...(data.orderDate !== undefined ? { orderDate: data.orderDate ? new Date(data.orderDate) : null } : {}),
+      ...(data.expectedDeliveryDate !== undefined ? { expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate) : null } : {}),
+      ...(data.actualDeliveryDate !== undefined ? { actualDeliveryDate: data.actualDeliveryDate ? new Date(data.actualDeliveryDate) : null } : {}),
+      ...(data.orderType !== undefined ? { orderType: data.orderType || 'Single' } : {}),
+      ...(data.lensBulkSelection !== undefined ? { lensBulkSelection: parsedBulkSelection ?? null } : {}),
+      ...(data.status !== undefined ? { status: data.status || 'DRAFT' } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+      ...(data.narration !== undefined ? { narration: data.narration?.trim() || null } : {}),
+      ...(data.activeStatus !== undefined ? { activeStatus: Boolean(data.activeStatus) } : {}),
+      updatedBy: parseInt(data.updatedBy),
+    } : null
   };
 };
 

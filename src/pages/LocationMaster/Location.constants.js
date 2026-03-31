@@ -2,12 +2,11 @@
 export const locationFilters = {
   // Backend query params
   activeStatus: "all", // all/true/false - maps to activeStatus filter
-  // Note: name, location_code, description are handled via search params
+  // Note: name and description are handled via search params
 };
 
 export const defaultLocation = {
   name: "",
-  locationCode: "",
   description: "",
   activeStatus: true,
 };

@@ -6,6 +6,22 @@ import { APIError } from '../middleware/errorHandler.js';
  * Handles all database operations for Location Master management
  */
 export class LocationMasterService {
+  async validateLocationName(name, excludeId = null) {
+    const trimmedName = name?.trim();
+    if (!trimmedName) return;
+
+    const duplicateLocation = await prisma.locationMaster.findFirst({
+      where: {
+        name: { equals: trimmedName, mode: 'insensitive' },
+        deleteStatus: false,
+        ...(excludeId ? { id: { not: excludeId } } : {})
+      }
+    });
+
+    if (duplicateLocation) {
+      throw new APIError('Location name already exists', 409, 'DUPLICATE_NAME');
+    }
+  }
   
   /**
    * Create a new location
@@ -14,19 +30,11 @@ export class LocationMasterService {
    */
   async createLocation(locationData) {
     try {
-      // Check if location_code already exists
-      const existingLocation = await prisma.locationMaster.findUnique({
-        where: { location_code: locationData.location_code }
-      });
-
-      if (existingLocation) {
-        throw new APIError('Location code already exists', 409, 'DUPLICATE_CODE');
-      }
+      await this.validateLocationName(locationData.name);
 
       const location = await prisma.locationMaster.create({
         data: {
-          name: locationData.name,
-          location_code: locationData.location_code,
+          name: locationData.name.trim(),
           description: locationData.description,
           activeStatus: locationData.activeStatus ?? true,
           deleteStatus: false,
@@ -62,7 +70,6 @@ export class LocationMasterService {
       if (search) {
         where.OR = [
           { name: { contains: search, mode: 'insensitive' } },
-          { location_code: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } }
         ];
       }
@@ -168,23 +175,15 @@ export class LocationMasterService {
         throw new APIError('Cannot update deleted location', 400, 'LOCATION_DELETED');
       }
 
-      // Check for duplicate location_code if being updated
-      if (updateData.location_code && updateData.location_code !== existingLocation.location_code) {
-        const duplicateCode = await prisma.locationMaster.findFirst({
-          where: {
-            location_code: updateData.location_code,
-            id: { not: id }
-          }
-        });
-
-        if (duplicateCode) {
-          throw new APIError('Location code already exists', 409, 'DUPLICATE_CODE');
-        }
+      if (
+        updateData.name !== undefined &&
+        updateData.name.trim().toLowerCase() !== existingLocation.name.trim().toLowerCase()
+      ) {
+        await this.validateLocationName(updateData.name, id);
       }
 
       const data = {};
-      if (updateData.name !== undefined) data.name = updateData.name;
-      if (updateData.location_code !== undefined) data.location_code = updateData.location_code;
+      if (updateData.name !== undefined) data.name = updateData.name.trim();
       if (updateData.description !== undefined) data.description = updateData.description;
       if (updateData.activeStatus !== undefined) data.activeStatus = updateData.activeStatus;
       if (updateData.updatedBy !== undefined) data.updatedBy = updateData.updatedBy;
@@ -272,7 +271,6 @@ export class LocationMasterService {
         select: {
           id: true,
           name: true,
-          location_code: true,
           description: true
         },
         orderBy: { name: 'asc' }
@@ -280,10 +278,9 @@ export class LocationMasterService {
 
       return locations.map(loc => ({
         id: loc.id,
-        label: `${loc.name} (${loc.location_code})`,
+        label: loc.name,
         value: loc.id,
         name: loc.name,
-        location_code: loc.location_code,
         description: loc.description
       }));
     } catch (error) {

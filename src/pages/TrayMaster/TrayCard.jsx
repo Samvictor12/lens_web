@@ -13,9 +13,6 @@ export default function TrayCard({ tray, onView, onEdit, onDelete }) {
         <div className="flex items-start justify-between">
           <div className="min-h-[60px] flex-1">
             <h3 className="font-semibold text-sm">{tray.name}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {tray.trayCode}
-            </p>
             {tray.description ? (
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                 {tray.description}

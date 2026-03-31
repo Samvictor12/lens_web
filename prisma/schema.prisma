@@ -894,7 +894,6 @@ model SaleOrder {
 model LocationMaster {
   id            Int          @id @default(autoincrement())
   name          String
-  location_code String       @unique
   description   String?
   activeStatus  Boolean      @default(true)
   deleteStatus  Boolean      @default(false)
@@ -917,7 +916,6 @@ model LocationMaster {
 model TrayMaster {
   id            Int             @id @default(autoincrement())
   name          String
-  tray_code     String          @unique
   description   String?
   capacity      Int?
   location_id   Int?

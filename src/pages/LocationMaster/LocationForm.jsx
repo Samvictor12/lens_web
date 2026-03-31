@@ -36,7 +36,6 @@ export default function LocationForm() {
             const location = response.data;
             const locationData = {
               name: location.name || "",
-              locationCode: location.locationCode || "",
               description: location.description || "",
               activeStatus:
                 location.activeStatus !== undefined
@@ -75,10 +74,6 @@ export default function LocationForm() {
 
     if (!formData.name.trim()) {
       newErrors.name = "Location name is required";
-    }
-
-    if (!formData.locationCode.trim()) {
-      newErrors.locationCode = "Location code is required";
     }
 
     setErrors(newErrors);
@@ -270,16 +265,6 @@ export default function LocationForm() {
                   disabled={mode === "view" && !isEditing}
                 />
 
-                <FormInput
-                  label="Location Code"
-                  name="locationCode"
-                  value={formData.locationCode}
-                  onChange={handleChange}
-                  error={errors.locationCode}
-                  placeholder="Enter location code (e.g., LOC-001)"
-                  required
-                  disabled={mode === "view" && !isEditing}
-                />
               </div>
 
               <FormTextarea

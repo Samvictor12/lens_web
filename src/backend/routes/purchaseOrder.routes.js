@@ -68,6 +68,16 @@ router.get(
 );
 
 /**
+ * @route   GET /api/purchase-orders/dashboard
+ * @desc    Get purchase order dashboard statistics
+ * @access  Private
+ */
+router.get(
+  "/dashboard",
+  purchaseOrderController.getPurchaseOrderDashboard.bind(purchaseOrderController)
+);
+
+/**
  * @route   GET /api/purchase-orders/:id
  * @desc    Get purchase order by ID
  * @access  Private
@@ -135,6 +145,16 @@ router.get(
 router.post(
   "/:id/receipts/:receiptId/inward-to-inventory",
   purchaseOrderController.inwardReceiptToInventory.bind(purchaseOrderController)
+);
+
+/**
+ * @route   GET /api/purchase-orders/:id/export
+ * @desc    Export purchase order as Excel file
+ * @access  Private
+ */
+router.get(
+  "/:id/export",
+  purchaseOrderController.exportPurchaseOrder.bind(purchaseOrderController)
 );
 
 /**

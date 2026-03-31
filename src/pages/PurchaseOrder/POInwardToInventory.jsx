@@ -1,16 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Warehouse, CheckCircle2, AlertTriangle, Save } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Warehouse, CheckCircle2, AlertTriangle, Save, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FormSelect } from "@/components/ui/form-select";
-import { FormInput } from "@/components/ui/form-input";
 import { useToast } from "@/hooks/use-toast";
 import { getPurchaseOrderById } from "@/services/purchaseOrder";
 import { getReceiptInwardStatus, inwardReceiptToInventory } from "@/services/purchaseOrder";
 import { getInventoryDropdowns } from "@/services/inventory";
+import { getTraysByLocation } from "@/services/tray";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -18,6 +18,23 @@ const fmtSph = (v) => {
   if (v == null || v === "") return "—";
   const n = parseFloat(v);
   return n > 0 ? `+${v}` : `${v}`;
+};
+
+/** Parse "sph_-2_cyl_0.25" → { spherical, cylindrical, add, eye }
+ *  or   "sph_0_add_1.25_L"  → { spherical, cylindrical:"0", add:"1.25", eye:"L" } */
+const parseKey = (key) => {
+  const parts = key.split("_");
+  const sphIdx = parts.findIndex((p) => p === "sph");
+  const cylIdx = parts.findIndex((p) => p === "cyl");
+  const addIdx = parts.findIndex((p) => p === "add");
+  const lastPart = parts[parts.length - 1];
+  const eye = (lastPart === "L" || lastPart === "R") ? lastPart : null;
+  return {
+    spherical: sphIdx !== -1 ? parts[sphIdx + 1] : "0",
+    cylindrical: cylIdx !== -1 ? parts[cylIdx + 1] : "0",
+    add: addIdx !== -1 ? parts[addIdx + 1] : null,
+    eye,
+  };
 };
 
 const emptyRow = () => ({ location_id: "", tray_id: "", qty: "" });
@@ -36,10 +53,21 @@ export default function POInwardToInventory() {
   const [inwardedByRow, setInwardedByRow] = useState({});
 
   const [locations, setLocations] = useState([]);
-  const [allTrays, setAllTrays] = useState([]);
+  const [trayOptionsByLocation, setTrayOptionsByLocation] = useState({});
+  const [loadingTrayLocations, setLoadingTrayLocations] = useState({});
 
   // rowSplits: { [rowKey]: [{ location_id, tray_id, qty }] }
   const [rowSplits, setRowSplits] = useState({});
+  const [highlightedKey, setHighlightedKey] = useState(null);
+  const [showSubmitWarnings, setShowSubmitWarnings] = useState(false);
+  const rowRefs = useRef({});
+
+  const scrollToRow = (key) => {
+    setHighlightedKey(key);
+    const el = rowRefs.current[key];
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setTimeout(() => setHighlightedKey(null), 1200);
+  };
 
   const closeRoute = useMemo(() => {
     if (location.pathname.startsWith("/inventory/inward/")) {
@@ -68,7 +96,6 @@ export default function POInwardToInventory() {
 
       if (dropdownRes.success) {
         setLocations(dropdownRes.data?.locations || []);
-        setAllTrays(dropdownRes.data?.trays || []);
       }
 
       // Build initial rowSplits from receivedItems
@@ -85,6 +112,9 @@ export default function POInwardToInventory() {
         }
       }
       setRowSplits(initial);
+      setTrayOptionsByLocation({});
+      setLoadingTrayLocations({});
+      setShowSubmitWarnings(false);
     } catch (err) {
       toast({ title: "Error", description: err.message || "Failed to load data", variant: "destructive" });
     } finally {
@@ -97,19 +127,31 @@ export default function POInwardToInventory() {
   // ── Derived computations ─────────────────────────────────────────────────
 
   const receivedItems = Array.isArray(receipt?.receivedItems) ? receipt.receivedItems : [];
-  const isBulk = receivedItems.length > 0 && receivedItems[0]?.spherical != null;
 
   const rowsWithPending = receivedItems.map((ri) => {
     const k = ri.key || `sph_${ri.spherical}_cyl_${ri.cylindrical}`;
+    const parsed = parseKey(k);
     const alreadyInwarded = inwardedByRow[`${ri.spherical ?? "0"}_${ri.cylindrical ?? "0"}`] || 0;
     const pending = Math.max(0, (parseFloat(ri.receivedQty) || 0) - alreadyInwarded);
     const splitsForRow = rowSplits[k] || [];
     const splitTotal = splitsForRow.reduce((s, sp) => s + (parseFloat(sp.qty) || 0), 0);
-    return { ...ri, key: k, alreadyInwarded, pending, splitTotal };
+    return {
+      ...ri,
+      key: k,
+      alreadyInwarded,
+      pending,
+      splitTotal,
+      spherical: ri.spherical ?? parsed.spherical,
+      cylindrical: ri.cylindrical ?? parsed.cylindrical,
+      add: ri.add ?? parsed.add,
+      eye: ri.eye ?? parsed.eye,
+    };
   });
 
   const pendingRows = rowsWithPending.filter((r) => r.pending > 0);
-  const fullyDoneRows = rowsWithPending.filter((r) => r.pending === 0);
+
+  const isProgressive = rowsWithPending.some((r) => r.add !== null && r.add !== undefined);
+  const hasEyeData = rowsWithPending.some((r) => r.eye);
 
   const totalPending = pendingRows.reduce((s, r) => s + r.pending, 0);
   const totalThisBatch = pendingRows.reduce((s, r) => s + r.splitTotal, 0);
@@ -127,6 +169,13 @@ export default function POInwardToInventory() {
     });
   };
 
+  const resetSplit = (key, idx) => {
+    setRowSplits((prev) => ({
+      ...prev,
+      [key]: (prev[key] || []).map((sp, i) => (i === idx ? emptyRow() : sp)),
+    }));
+  };
+
   const updateSplit = (key, idx, field, value) => {
     setRowSplits((prev) => ({
       ...prev,
@@ -136,9 +185,41 @@ export default function POInwardToInventory() {
     }));
   };
 
+  const loadTraysForLocation = useCallback(async (locationId) => {
+    if (!locationId || trayOptionsByLocation[locationId]) return;
+
+    try {
+      setLoadingTrayLocations((prev) => ({ ...prev, [locationId]: true }));
+      const response = await getTraysByLocation(locationId);
+      if (response.success) {
+        setTrayOptionsByLocation((prev) => ({
+          ...prev,
+          [locationId]: response.data || [],
+        }));
+      }
+    } catch (error) {
+      toast({
+        title: "Tray load failed",
+        description: error.message || "Failed to load trays for the selected location.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingTrayLocations((prev) => ({ ...prev, [locationId]: false }));
+    }
+  }, [toast, trayOptionsByLocation]);
+
+  const handleLocationChange = async (key, idx, value) => {
+    const locationId = value ? String(value) : "";
+    updateSplit(key, idx, "location_id", locationId);
+
+    if (locationId) {
+      await loadTraysForLocation(parseInt(locationId));
+    }
+  };
+
   const traysForLocation = (locationId) => {
-    if (!locationId) return allTrays;
-    return allTrays.filter((t) => !t.location_id || t.location_id === parseInt(locationId));
+    if (!locationId) return [];
+    return trayOptionsByLocation[parseInt(locationId)] || [];
   };
 
   const locationOptions = locations.map((loc) => ({
@@ -163,7 +244,7 @@ export default function POInwardToInventory() {
       if (splitTotal > row.pending + 0.001) {
         toast({
           title: "Quantity exceeds pending",
-          description: `SPH ${fmtSph(row.spherical)} / CYL ${fmtSph(row.cylindrical)}: split total (${splitTotal}) exceeds pending (${row.pending})`,
+          description: `SPH ${fmtSph(row.spherical)} / ${isProgressive ? "ADD" : "CYL"} ${fmtSph(isProgressive ? row.add : row.cylindrical)}${row.eye ? ` (${row.eye})` : ""}: split total (${splitTotal}) exceeds pending (${row.pending})`,  
           variant: "destructive",
         });
         return false;
@@ -171,7 +252,18 @@ export default function POInwardToInventory() {
 
       for (const sp of activeSplits) {
         if (!sp.location_id) {
+          scrollToRow(row.key);
           toast({ title: "Location required", description: "Select a location for each split.", variant: "destructive" });
+          return false;
+        }
+
+        if (!sp.tray_id) {
+          scrollToRow(row.key);
+          toast({
+            title: "Tray required",
+            description: "Select a tray after choosing the location for each split.",
+            variant: "destructive",
+          });
           return false;
         }
       }
@@ -188,6 +280,7 @@ export default function POInwardToInventory() {
   // ── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
+    setShowSubmitWarnings(true);
     if (!validate()) return;
 
     const inwardRows = [];
@@ -220,6 +313,7 @@ export default function POInwardToInventory() {
           title: "Inventory updated",
           description: `${res.data.createdCount} item(s) created · ${res.data.totalInwardedQty} units pushed to stock`,
         });
+        setShowSubmitWarnings(false);
         // Reload to reflect updated inward status
         await load();
       } else {
@@ -251,12 +345,12 @@ export default function POInwardToInventory() {
   const totalInwarded = receipt.inwardedQty || 0;
 
   return (
-    <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4">
+    <div className="flex flex-col h-full p-2 md:p-3 gap-3 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-2">
-            <Warehouse className="h-5 w-5 text-primary" />
+          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+            <Warehouse className="h-4 w-4 text-primary" />
             Inventory Inward
           </h1>
           <p className="text-xs text-muted-foreground">
@@ -288,17 +382,17 @@ export default function POInwardToInventory() {
         </div>
       </div>
 
-      <Alert className="bg-primary/5 border-primary/20">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription className="text-xs">
-          Use the same master-form flow here: choose <span className="font-medium">Location</span>, optionally choose <span className="font-medium">Tray</span>, then enter <span className="font-medium">Qty</span>.
-          Each split creates a separate inventory item, and total entered quantity for a row cannot exceed the pending quantity.
-        </AlertDescription>
-      </Alert>
+        {/* <Alert className="bg-primary/5 border-primary/20 flex-shrink-0">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Choose <span className="font-medium">Location</span>, then select the matching <span className="font-medium">Tray</span>, then enter <span className="font-medium">Qty</span>.
+            Each split creates a separate inventory item. Total per row cannot exceed pending qty.
+          </AlertDescription>
+        </Alert> */}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-3 items-start">
-        {/* ── Left: Receipt Summary ── */}
-        <div className="flex flex-col gap-3 xl:sticky xl:top-3">
+      <div className="flex flex-col md:flex-row gap-3 flex-1 min-h-0 md:overflow-hidden">
+        {/* ── Left: Receipt Summary + Lens Items ── */}
+        <div className="md:w-[280px] flex-shrink-0 flex flex-col gap-3 md:h-full md:overflow-y-auto md:overflow-x-hidden">
           {/* Receipt Info */}
           <Card>
             <CardHeader className="p-3 pb-2">
@@ -323,6 +417,12 @@ export default function POInwardToInventory() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Lens</span>
                   <span className="text-right font-medium">{po.lensProduct.lens_name}</span>
+                </div>
+              )}
+              {po.category?.name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Lens Category</span>
+                  <span className="text-right">{po.category.name}</span>
                 </div>
               )}
               {receipt.supplierInvoiceNo && (
@@ -358,10 +458,61 @@ export default function POInwardToInventory() {
             </CardContent>
           </Card>
 
+          {/* SPH/CYL Items list — click to scroll */}
+          {rowsWithPending.length > 0 && (
+            <Card>
+              <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Lens Items ({rowsWithPending.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y max-h-72 overflow-y-auto">
+                  {rowsWithPending.map((row) => {
+                    const isPending = row.pending > 0;
+                    const isActive = highlightedKey === row.key;
+                    return (
+                      <button
+                        key={row.key}
+                        type="button"
+                        onClick={() => isPending ? scrollToRow(row.key) : undefined}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors ${isPending ? "hover:bg-muted/50 cursor-pointer" : "cursor-default"} ${isActive ? "bg-primary/10" : ""}`}
+                      >
+                        <span className={`font-mono text-[11px] ${!isPending ? "text-muted-foreground" : ""}`}>
+                          {fmtSph(row.spherical)}
+                          <span className="font-normal text-muted-foreground ml-1">
+                            / {fmtSph(isProgressive ? row.add : row.cylindrical)}
+                          </span>
+                          {hasEyeData && row.eye && (
+                            <span className="ml-1 font-semibold text-primary">{row.eye}</span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {row.alreadyInwarded > 0 && (
+                            <span className="text-green-700 font-semibold text-[10px]">{row.alreadyInwarded}✓</span>
+                          )}
+                          {isPending ? (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-orange-50 text-orange-600 border-orange-200">
+                              {row.pending} pending
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-50 text-green-700 border-green-200">
+                              Done ✓
+                            </Badge>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* This batch summary */}
           {totalThisBatch > 0 && (
             <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="p-3 text-xs space-y-1">
+              <CardContent className="p-1 text-xs space-y-1">
                 <p className="font-semibold text-primary">This Inward Batch</p>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Units to push</span>
@@ -376,37 +527,10 @@ export default function POInwardToInventory() {
               </CardContent>
             </Card>
           )}
-
-          {/* Already inwarded rows (done) */}
-          {fullyDoneRows.length > 0 && (
-            <Card>
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-sm text-green-700 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Fully Inwarded Rows
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <table className="w-full text-xs">
-                  <tbody>
-                    {fullyDoneRows.map((row, idx) => (
-                      <tr key={idx} className="border-b last:border-0 px-3 py-2">
-                        <td className="px-3 py-2 font-medium">{fmtSph(row.spherical)}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{fmtSph(row.cylindrical)}</td>
-                        <td className="px-3 py-2 text-right text-green-700 font-semibold">{row.alreadyInwarded} pcs</td>
-                        <td className="px-3 py-2">
-                          <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-50 text-green-700 border-green-200">Done</Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* ── Right: Inward Grid ── */}
-        <div className="flex flex-col gap-3 min-w-0">
+        <div className="flex flex-col gap-3 flex-1 min-w-0 md:h-full md:overflow-y-auto md:overflow-x-hidden pb-3">
           {totalPending === 0 ? (
             <Card className="border-green-300 bg-green-50">
               <CardContent className="p-6 flex flex-col items-center justify-center gap-2 text-green-700">
@@ -422,124 +546,147 @@ export default function POInwardToInventory() {
                 const splits = rowSplits[row.key] || [emptyRow()];
                 const splitTotal = splits.reduce((s, sp) => s + (parseFloat(sp.qty) || 0), 0);
                 const isOver = splitTotal > row.pending + 0.001;
-                const remaining = Math.max(0, row.pending - splitTotal);
 
                 return (
-                  <Card key={row.key} className={isOver ? "border-destructive/50" : ""}>
-                    <CardHeader className="p-3 pb-2 flex flex-row items-start gap-2">
-                      <div className="flex-1 flex items-center gap-2 text-sm flex-wrap">
-                        {isBulk ? (
-                          <>
+                  <div
+                    key={row.key}
+                    ref={(el) => { if (el) rowRefs.current[row.key] = el; }}
+                  >
+                    <Card className={`transition-all ${isOver ? "border-destructive/50" : ""} ${highlightedKey === row.key ? "ring-2 ring-primary ring-offset-1" : ""}`}>
+                      <CardHeader className="p-3 pb-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 text-sm flex-wrap">
                             <span className="font-semibold">SPH {fmtSph(row.spherical)}</span>
-                            <span className="text-muted-foreground">/ CYL {fmtSph(row.cylindrical)}</span>
-                          </>
-                        ) : (
-                          <span className="font-semibold">Single Lens</span>
-                        )}
-                        {row.alreadyInwarded > 0 && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-50 text-green-700 border-green-200">
-                            {row.alreadyInwarded} already inwarded
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-right shrink-0">
-                        <span className="text-muted-foreground">Pending: </span>
-                        <span className={`font-semibold ${isOver ? "text-destructive" : "text-orange-600"}`}>{row.pending}</span>
-                        {splitTotal > 0 && (
-                          <span className="text-muted-foreground ml-2">
-                            · Entered: <span className={`font-semibold ${isOver ? "text-destructive" : "text-primary"}`}>{splitTotal}</span>
-                            {!isOver && <span className="ml-1">(rem: {remaining})</span>}
-                          </span>
-                        )}
-                        {isOver && <span className="text-destructive ml-2 font-semibold"> ⚠ Exceeds pending</span>}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0 space-y-2">
-                      {/* Split rows */}
-                      {splits.map((split, splitIdx) => {
-                        const availableTrays = traysForLocation(split.location_id);
-                        const trayOptions = availableTrays.map((tray) => ({
-                          value: tray.id,
-                          label: tray.name,
-                        }));
-
-                        return (
-                          <div key={splitIdx} className="rounded-md border bg-muted/10 p-3">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-xs font-medium text-muted-foreground">Split {splitIdx + 1}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="xs"
-                                className="h-7 px-2 text-destructive hover:text-destructive"
-                                onClick={() => removeSplit(row.key, splitIdx)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px] gap-3 items-start">
-                            {/* Location */}
-                            <div className="min-w-0">
-                              <FormSelect
-                                label="Location"
-                                required
-                                name={`location_${row.key}_${splitIdx}`}
-                                value={split.location_id || null}
-                                onChange={(value) => updateSplit(row.key, splitIdx, "location_id", value ? String(value) : "")}
-                                options={locationOptions}
-                                placeholder="Select location"
-                                isSearchable={true}
-                                isClearable={false}
-                              />
-                            </div>
-                            {/* Tray */}
-                            <div className="min-w-0">
-                              <FormSelect
-                                label="Tray"
-                                name={`tray_${row.key}_${splitIdx}`}
-                                value={split.tray_id || null}
-                                onChange={(value) => updateSplit(row.key, splitIdx, "tray_id", value ? String(value) : "")}
-                                options={trayOptions}
-                                placeholder="No tray"
-                                isClearable
-                                disabled={!split.location_id && trayOptions.length === 0}
-                                helperText={!split.location_id ? "Select location first" : undefined}
-                              />
-                            </div>
-                            {/* Qty */}
-                            <div>
-                              <FormInput
-                                label="Qty"
-                                required
-                                name={`qty_${row.key}_${splitIdx}`}
-                                type="number"
-                                min="0.5"
-                                step="0.5"
-                                max={row.pending}
-                                value={split.qty}
-                                onChange={(e) => updateSplit(row.key, splitIdx, "qty", e.target.value)}
-                                placeholder="0"
-                                className="text-center"
-                                helperText={`Max ${row.pending}`}
-                              />
-                            </div>
-                            </div>
+                            <span className="text-muted-foreground">
+                              / {isProgressive ? "ADD" : "CYL"} {fmtSph(isProgressive ? row.add : row.cylindrical)}
+                            </span>
+                            {hasEyeData && row.eye && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-blue-50 text-blue-700 border-blue-200">
+                                {row.eye === "R" ? "Right Eye" : "Left Eye"}
+                              </Badge>
+                            )}
+                            {row.alreadyInwarded > 0 && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-50 text-green-700 border-green-200">
+                                {row.alreadyInwarded} inwarded
+                              </Badge>
+                            )}
                           </div>
-                        );
-                      })}
-
-                      {/* Add split button */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        className="h-7 text-xs gap-1 text-primary hover:bg-primary/5 mt-1"
-                        onClick={() => addSplit(row.key)}
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Split
-                      </Button>
-                    </CardContent>
-                  </Card>
+                          <div className="text-xs shrink-0 flex items-center gap-1.5">
+                            <span className="text-muted-foreground">Pending:</span>
+                            <span className={`font-semibold ${isOver ? "text-destructive" : "text-orange-600"}`}>{row.pending}</span>
+                            {splitTotal > 0 && (
+                              <>
+                                <span className="text-muted-foreground">· Entered:</span>
+                                <span className={`font-semibold ${isOver ? "text-destructive" : "text-primary"}`}>{splitTotal}</span>
+                              </>
+                            )}
+                            {isOver && <span className="text-destructive font-semibold">⚠ Exceeds</span>}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <table className="w-full text-xs">
+                          {/* <thead>
+                            <tr className="border-y bg-muted/40">
+                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground w-8">#</th>
+                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">Location *</th>
+                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">Tray *</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-32">Qty (max {row.pending})</th>
+                              <th className="px-2 py-1.5 w-16"></th>
+                            </tr>
+                          </thead> */}
+                          <tbody>
+                            {splits.map((split, splitIdx) => {
+                              const availableTrays = traysForLocation(split.location_id);
+                              const trayOptions = availableTrays.map((tray) => ({ value: tray.id, label: tray.name }));
+                              const showTrayWarning = showSubmitWarnings && Boolean(split.location_id) && !split.tray_id;
+                              const isTrayLoading = Boolean(split.location_id) && loadingTrayLocations[parseInt(split.location_id)];
+                              return (
+                                <tr
+                                  key={splitIdx}
+                                  className={`border-b last:border-0 hover:bg-muted/20 ${showTrayWarning ? "bg-amber-50/70" : ""}`}
+                                >
+                                  <td className="px-3 py-1.5 text-muted-foreground font-medium">{splitIdx + 1}</td>
+                                  <td className="px-2 py-1.5">
+                                    <FormSelect
+                                      name={`location_${row.key}_${splitIdx}`}
+                                      value={split.location_id || null}
+                                      onChange={(value) => handleLocationChange(row.key, splitIdx, value)}
+                                      options={locationOptions}
+                                      placeholder="Select location"
+                                      isSearchable={true}
+                                      isClearable={false}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    <FormSelect
+                                      name={`tray_${row.key}_${splitIdx}`}
+                                      value={split.tray_id || null}
+                                      onChange={(value) => updateSplit(row.key, splitIdx, "tray_id", value ? String(value) : "")}
+                                      options={trayOptions}
+                                      placeholder={split.location_id ? (isTrayLoading ? "Loading trays..." : "Select tray") : "Select location first"}
+                                      isClearable={false}
+                                      disabled={!split.location_id || isTrayLoading}
+                                    />
+                                    {/* {showTrayWarning && (
+                                      <p className="mt-1 text-[10px] font-medium text-amber-700">
+                                        Tray selection is required for this row.
+                                      </p>
+                                    )} */}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    <input
+                                      type="number"
+                                      min="0.5"
+                                      step="0.5"
+                                      value={split.qty}
+                                      onChange={(e) => updateSplit(row.key, splitIdx, "qty", e.target.value)}
+                                      placeholder="0"
+                                      className="w-full text-center border rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary border-input"
+                                    />
+                                  </td>
+                                  <td className="px-1 py-1.5 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="xs"
+                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                                        onClick={() => resetSplit(row.key, splitIdx)}
+                                        title="Reset row"
+                                      >
+                                        <RotateCcw className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="xs"
+                                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                        onClick={() => removeSplit(row.key, splitIdx)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        <div className="px-3 py-2 border-t">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            className="h-7 text-xs gap-1 text-primary hover:bg-primary/5"
+                            onClick={() => addSplit(row.key)}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Split
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 );
               })}
             </>

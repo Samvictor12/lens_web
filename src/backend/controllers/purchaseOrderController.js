@@ -76,14 +76,29 @@ class PurchaseOrderController {
    */
   async getPurchaseOrders(req, res, next) {
     try {
-      console.log("req,res", req.body);
-
       const result = await purchaseOrderService.getPurchaseOrders(req.query);
 
       res.status(200).json({
         success: true,
         message: "Purchase orders fetched successfully",
         ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get purchase order dashboard statistics
+   */
+  async getPurchaseOrderDashboard(req, res, next) {
+    try {
+      const result = await purchaseOrderService.getPurchaseOrderDashboard();
+
+      res.status(200).json({
+        success: true,
+        message: "Purchase order dashboard fetched successfully",
+        data: result,
       });
     } catch (error) {
       next(error);
@@ -457,6 +472,19 @@ class PurchaseOrderController {
       });
     } catch (error) {
       next(error);
+    }
+  }
+
+  /**
+   * Export a purchase order as an Excel file
+   * GET /api/purchase-orders/:id/export
+   */
+  async exportPurchaseOrder(req, res, next) {
+    try {
+      const { id } = req.params;
+      await purchaseOrderService.exportPurchaseOrderToExcel(parseInt(id), res);
+    } catch (error) {
+      if (!res.headersSent) next(error);
     }
   }
 }

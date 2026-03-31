@@ -54,7 +54,7 @@ const buildRows = (lensBulkSelection, cumulativeMap, unitPrice) => {
       const itemUnitPrice =
         typeof val === "object" && val?.unitPrice ? parseFloat(val.unitPrice) : parseFloat(unitPrice) || 0;
       const alreadyReceived = cumulativeMap[key] || 0;
-      const remaining = Math.max(0, orderedQty - alreadyReceived);
+      const remaining = orderedQty - alreadyReceived;
       const { spherical, cylindrical, add, eye } = parseKey(key);
       return { key, spherical, cylindrical, add, eye, orderedQty, alreadyReceived, remaining, unitPrice: itemUnitPrice, receivedQty: "" };
     });
@@ -206,7 +206,7 @@ export default function PurchaseOrderReceive() {
             cylindrical: poData.rightCylindrical || poData.leftCylindrical || "-",
             orderedQty: poData.quantity || 1,
             alreadyReceived,
-            remaining: Math.max(0, (poData.quantity || 1) - alreadyReceived),
+            remaining: (poData.quantity || 1) - alreadyReceived,
             unitPrice: poData.unitPrice || 0,
             receivedQty: preFillQty,
           }]);
@@ -257,14 +257,6 @@ export default function PurchaseOrderReceive() {
       const qty = parseFloat(row.receivedQty) || 0;
       if (qty < 0) {
         toast({ title: "Validation", description: "Received qty cannot be negative.", variant: "destructive" });
-        return false;
-      }
-      if (qty > row.remaining && row.remaining >= 0) {
-        toast({
-          title: "Validation",
-          description: `SPH ${row.spherical} / CYL ${row.cylindrical}: received qty (${qty}) exceeds remaining (${row.remaining}).`,
-          variant: "destructive",
-        });
         return false;
       }
     }
@@ -322,15 +314,13 @@ export default function PurchaseOrderReceive() {
           ? `Receipt updated. PO status: ${res.data.poStatus}`
           : `Receipt ${res.data.receipt.receiptNumber} created. PO status: ${res.data.poStatus}`;
         toast({ title: "Success", description: desc });
-        const nextReceiptId = isEditMode ? parseInt(receiptId) : res.data.receipt?.id;
-
-        if (nextReceiptId) {
-          navigate(`/masters/purchase-orders/receive/${id}/edit/${nextReceiptId}`, {
-            replace: true,
-          });
-        } else {
-          navigate("/masters/purchase-orders", { replace: true });
-        }
+        setTimeout(() => {
+          if (window.opener) {
+            window.close();
+          } else {
+            navigate("/masters/purchase-orders", { replace: true });
+          }
+        }, 800);
       } else {
         throw new Error(res.message || "Failed to save receipt");
       }
@@ -733,7 +723,7 @@ export default function PurchaseOrderReceive() {
                           </>
                         )}
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">PO Qty</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Received</th>
+                        {/* <th className="px-3 py-2 text-right font-medium text-muted-foreground">Received</th> */}
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">Remaining</th>
                         <th className="px-3 py-2 text-center font-medium text-primary min-w-[110px]">Receiving Qty ↓</th>
                       </tr>
@@ -747,9 +737,9 @@ export default function PurchaseOrderReceive() {
                       return rows.map((row, idx) => {
                       const qty = parseFloat(row.receivedQty) || 0;
 
-                      const overReceive = qty > row.remaining && row.remaining >= 0;
+                      const hasMismatch = qty > 0 && (row.alreadyReceived + qty) !== row.orderedQty;
                       return (
-                        <tr key={row.key} className={`border-b hover:bg-muted/30 ${overReceive ? "bg-destructive/5" : ""}`}>
+                        <tr key={row.key} className={`border-b hover:bg-muted/30 ${hasMismatch ? "bg-red-50" : ""}`}>
                           {po.orderType === "Bulk" && (
                             <>
                               <td className="px-3 py-2 font-medium">{row.spherical}</td>
@@ -758,25 +748,30 @@ export default function PurchaseOrderReceive() {
                             </>
                           )}
                           <td className="px-3 py-2 text-right">{row.orderedQty}</td>
-                          <td className="px-3 py-2 text-right text-green-600">{row.alreadyReceived}</td>
-                          <td className={`px-3 py-2 text-right font-medium ${row.remaining === 0 ? "text-muted-foreground line-through" : "text-orange-600"}`}>
+                          {/* <td className="px-3 py-2 text-right text-green-600">{row.alreadyReceived}</td> */}
+                          <td className={`px-3 py-2 text-right font-medium ${
+                            row.remaining < 0 ? "text-red-600" : row.remaining === 0 ? "text-muted-foreground line-through" : "text-orange-600"
+                          }`}>
                             {row.remaining}
                           </td>
                           <td className="px-3 py-2 text-center">
                             <input
                               type="number"
                               min="0"
-                              max={row.remaining >= 0 ? row.remaining : undefined}
                               step="1"
                               value={row.receivedQty}
                               onChange={(e) => handleRowChange(idx, "receivedQty", e.target.value)}
                               placeholder="0"
                               className={`w-20 text-center border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
-                                overReceive ? "border-destructive focus:ring-destructive" : "border-input"
+                                hasMismatch ? "border-red-400 focus:ring-red-400" : "border-input"
                               }`}
-                              disabled={row.remaining === 0 || isLocked}
+                              disabled={isLocked}
                             />
-                            {overReceive && <p className="text-destructive text-[10px] mt-0.5">Exceeds remaining</p>}
+                            {hasMismatch && (
+                              <p className="text-red-500 text-[10px] mt-0.5">
+                                {row.alreadyReceived + qty > row.orderedQty ? "Over received" : "Partial receipt"}
+                              </p>
+                            )}
                           </td>
                         </tr>
                       );
@@ -802,7 +797,7 @@ export default function PurchaseOrderReceive() {
                       <tr className="bg-muted/50 font-semibold border-t">
                         {po.orderType === "Bulk" && <td colSpan={2 + (hasEyeData ? 1 : 0)} />}
                         <td className="px-3 py-2 text-right">{orderedQty}</td>
-                        <td className="px-3 py-2 text-right text-green-600">{alreadyReceived}</td>
+                        {/* <td className="px-3 py-2 text-right text-green-600">{alreadyReceived}</td> */}
                         <td className="px-3 py-2 text-right text-orange-600">{pendingQty}</td>
                         <td className="px-3 py-2 text-center text-primary">{totalThisQty}</td>
                       </tr>

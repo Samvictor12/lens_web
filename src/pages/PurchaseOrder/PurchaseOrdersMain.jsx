@@ -20,11 +20,18 @@ import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { getPurchaseOrders, deletePurchaseOrder, getPOReceipts } from "@/services/purchaseOrder";
+import {
+  getPurchaseOrders,
+  deletePurchaseOrder,
+  getPOReceipts,
+  getPurchaseOrderDashboard,
+  downloadPurchaseOrderExcel,
+} from "@/services/purchaseOrder";
 import { purchaseOrderFilters } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
 import PurchaseOrderCard from "./PurchaseOrderCard";
+import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
 export default function PurchaseOrders() {
   const navigate = useNavigate();
@@ -68,6 +75,8 @@ export default function PurchaseOrders() {
   
   // Active tab state
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Handle delete purchase order click
   const handleDeleteClick = (po) => {
@@ -124,6 +133,25 @@ export default function PurchaseOrders() {
     }
   };
 
+  // Handle PO Excel download
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  const handleDownload = async (po) => {
+    if (downloadingId) return;
+    setDownloadingId(po.id);
+    try {
+      await downloadPurchaseOrderExcel(po.id, po.poNumber, po.orderDate);
+    } catch {
+      toast({
+        title: "Download failed",
+        description: "Could not export the PO to Excel.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   // Get table columns with delete handler
   const columns = usePurchaseOrderColumns(
     navigate,
@@ -131,6 +159,8 @@ export default function PurchaseOrders() {
     handleReceive,
     handleEditReceive,
     handleInward,
+    handleDownload,
+    downloadingId,
   );
 
   // Fetch purchase orders from API
@@ -169,19 +199,42 @@ export default function PurchaseOrders() {
 
   // Fetch purchase orders on mount and when dependencies change
   useEffect(() => {
+    if (activeTab !== "list") return;
     fetchPurchaseOrders();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [activeTab, pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
-  // Calculate dashboard stats when purchase orders change
   useEffect(() => {
-    calculateDashboardStats();
-  }, [purchaseOrders]);
+    if (activeTab !== "dashboard") return;
+
+    const fetchDashboardStats = async () => {
+      try {
+        setDashboardLoading(true);
+        const response = await getPurchaseOrderDashboard();
+        if (response.success) {
+          setDashboardStats(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching purchase order dashboard:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch purchase order dashboard",
+          variant: "destructive",
+        });
+      } finally {
+        setDashboardLoading(false);
+      }
+    };
+
+    fetchDashboardStats();
+  }, [activeTab, toast, refreshKey]);
 
   const handleRefresh = () => {
-    fetchPurchaseOrders();
+    setRefreshKey((prev) => prev + 1);
     toast({
       title: "Refreshed",
-      description: "Purchase order list has been refreshed.",
+      description: activeTab === "dashboard"
+        ? "Purchase order dashboard has been refreshed."
+        : "Purchase order list has been refreshed.",
     });
   };
   // Handle delete purchase order
@@ -236,29 +289,6 @@ export default function PurchaseOrders() {
     setShowFilterDialog(false);
   };
 
-  // Calculate dashboard statistics
-  const calculateDashboardStats = () => {
-    const totalOrders = purchaseOrders.length;
-    const pendingOrders = purchaseOrders.filter(po => po.status === 'DRAFT' || (po.status === 'RECEIVED' && (po.quantity || 0) > (po.receivedQty || 0))).length;
-    const completedOrders = purchaseOrders.filter(po => po.status === 'COMPLETED').length;
-    const totalValue = purchaseOrders.reduce((sum, po) => sum + parseFloat(po.totalValue || 0), 0);
-    const avgOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
-    
-    // Get recent activity (last 5 orders)
-    const recentActivity = [...purchaseOrders]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
-    
-    setDashboardStats({
-      totalOrders,
-      pendingOrders,
-      completedOrders,
-      totalValue,
-      avgOrderValue,
-      recentActivity
-    });
-  };
-
   const handleClearFilters = () => {
     const clearedFilters = purchaseOrderFilters;
     setTempFilters(clearedFilters);
@@ -291,9 +321,9 @@ export default function PurchaseOrders() {
 
   // Dashboard component
   const renderDashboard = () => (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col gap-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 flex-shrink-0">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
@@ -340,13 +370,15 @@ export default function PurchaseOrders() {
       </div>
       
       {/* Recent Activity */}
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
           <CardTitle>Recent Purchase Orders</CardTitle>
         </CardHeader>
-        <CardContent>
-          {dashboardStats.recentActivity.length > 0 ? (
-            <div className="space-y-3">
+        <CardContent className="flex-1 min-h-0">
+          {dashboardLoading ? (
+            <p className="text-muted-foreground text-center py-4">Loading dashboard...</p>
+          ) : dashboardStats.recentActivity.length > 0 ? (
+            <div className="h-full overflow-y-auto pr-1 space-y-3">
               {dashboardStats.recentActivity.map((po) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
                      onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}>
@@ -357,13 +389,8 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      po.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                      po.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-800' :
-
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {po.status === 'DRAFT' ? 'Pending' : po.status === 'RECEIVED' ? 'Received' : po.status === 'INVOICE_RECEIVED' ? 'Invoice Received' : po.status === 'CLOSED' ? 'Closed' : po.status === 'CANCELLED' ? 'Cancelled' : po.status}
+                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(po.status)}`}>
+                      {getStatusLabel(po.status)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {new Date(po.createdAt).toLocaleDateString()}
@@ -381,7 +408,7 @@ export default function PurchaseOrders() {
   );
 
   return (
-    <div className="flex flex-col h-full p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
@@ -422,17 +449,17 @@ export default function PurchaseOrders() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="list">Purchase Orders List</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="dashboard" className="flex-1 mt-0">
+        <TabsContent value="dashboard" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           {renderDashboard()}
         </TabsContent>
         
-        <TabsContent value="list" className="flex-1 flex flex-col mt-0">
+        <TabsContent value="list" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
 
           {/* Search and Filters */}
           <Card className="p-1 sm:p-1 flex-shrink-0 mb-4">
@@ -483,6 +510,11 @@ export default function PurchaseOrders() {
                 sorting={sorting}
                 pagination={true}
                 emptyMessage="No purchase orders found"
+                getRowClassName={(po) =>
+                  po.receivedQty > 0 && po.receivedQty !== po.quantity
+                    ? "!bg-red-50 hover:!bg-red-100"
+                    : ""
+                }
               />
             </div>
           )}
