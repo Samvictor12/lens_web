@@ -24,10 +24,6 @@ import {
   Warehouse,
   MapPin,
   Box,
-  PackagePlus,
-  ArrowUpDown,
-  BarChart2,
-  ClipboardList,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
@@ -66,35 +62,9 @@ const navItems = [
   },
   {
     title: "Inventory",
+    url: "/inventory/items",
     icon: Package,
     // allowedRoles: ["admin", "inventory"],
-    subItems: [
-      {
-        title: "Inventory Items",
-        url: "/inventory/items",
-        icon: Package,
-      },
-      {
-        title: "Inward Entry",
-        url: "/inventory/inward",
-        icon: PackagePlus,
-      },
-      {
-        title: "Transactions",
-        url: "/inventory/transactions",
-        icon: ArrowUpDown,
-      },
-      {
-        title: "Stock Summary",
-        url: "/inventory/stock",
-        icon: ClipboardList,
-      },
-      {
-        title: "Reports",
-        url: "/inventory/reports",
-        icon: BarChart2,
-      },
-    ],
   },
   {
     title: "Purchase Orders",

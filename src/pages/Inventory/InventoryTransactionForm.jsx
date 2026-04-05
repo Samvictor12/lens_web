@@ -1,31 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, Package, Save, X } from 'lucide-react';
-import {
-  defaultTransaction,
-  transactionTypeOptions,
-} from './Inventory.constants';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FormInput } from '@/components/ui/form-input';
+import { FormSelect } from '@/components/ui/form-select';
+import { FormTextarea } from '@/components/ui/form-textarea';
+import { defaultTransaction, transactionTypeOptions } from './Inventory.constants';
 
-const InventoryTransactionForm = ({ 
-  initialData = null, 
-  dropdownData = {}, 
-  onSubmit, 
-  onCancel 
-}) => {
+const formatItemLabel = (item) => {
+  const productName = item.lensProduct?.name || item.lensProduct?.lens_name || `Item #${item.id}`;
+  const locationName = item.location?.name || '-';
+  return `${productName} | Qty: ${item.quantity} | ${locationName}`;
+};
+
+export default function InventoryTransactionForm({
+  initialData = null,
+  dropdownData = {},
+  onSubmit,
+}) {
   const [formData, setFormData] = useState(defaultTransaction);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
   const [availableItems, setAvailableItems] = useState([]);
 
   useEffect(() => {
@@ -34,37 +28,21 @@ const InventoryTransactionForm = ({
         ...defaultTransaction,
         ...initialData,
       });
-    } else {
-      setFormData(defaultTransaction);
+      return;
     }
+
+    setFormData(defaultTransaction);
   }, [initialData]);
 
   useEffect(() => {
-    // Load available inventory items
     if (dropdownData.inventoryItems) {
       setAvailableItems(dropdownData.inventoryItems);
     }
   }, [dropdownData]);
 
-  // Handle input changes
-  const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: null }));
-    }
-
-    // Auto-populate related fields based on transaction type
-    if (field === 'type') {
-      handleTransactionTypeChange(value);
-    }
-  };
-
-  // Handle transaction type specific logic
   const handleTransactionTypeChange = (type) => {
     const updates = {};
-    
+
     switch (type) {
       case 'INWARD_PO':
       case 'INWARD_DIRECT':
@@ -78,40 +56,83 @@ const InventoryTransactionForm = ({
       case 'TRANSFER':
         updates.quantity = formData.quantity || 0;
         break;
-      case 'ADJUSTMENT':
-        // Keep current quantity for adjustment
-        break;
       default:
         break;
     }
 
-    setFormData(prev => ({ ...prev, ...updates }));
+    setFormData((prev) => ({ ...prev, ...updates }));
   };
 
-  // Get filtered items based on transaction type
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: null }));
+    }
+
+    if (field === 'type') {
+      handleTransactionTypeChange(value);
+    }
+  };
+
+  const isInwardTransaction = ['INWARD_PO', 'INWARD_DIRECT'].includes(formData.type);
+  const isOutwardTransaction = ['OUTWARD_SALE', 'OUTWARD_RETURN', 'DAMAGE'].includes(formData.type);
+  const isTransferTransaction = formData.type === 'TRANSFER';
+
   const getFilteredItems = () => {
     if (!availableItems) return [];
-    
+
     switch (formData.type) {
       case 'OUTWARD_SALE':
       case 'OUTWARD_RETURN':
       case 'DAMAGE':
-        // Only show items with available quantity
-        return availableItems.filter(item => item.quantity > 0);
+        return availableItems.filter((item) => item.quantity > 0);
       case 'TRANSFER':
-        // Show items from selected source location
         if (formData.fromLocationId) {
-          return availableItems.filter(item => 
-            item.location_id === formData.fromLocationId && item.quantity > 0
+          return availableItems.filter(
+            (item) => item.location_id === formData.fromLocationId && item.quantity > 0
           );
         }
-        return availableItems.filter(item => item.quantity > 0);
+        return availableItems.filter((item) => item.quantity > 0);
       default:
         return availableItems;
     }
   };
 
-  // Validate form
+  const filteredItems = useMemo(() => getFilteredItems(), [availableItems, formData.type, formData.fromLocationId]);
+
+  const inventoryItemOptions = filteredItems.map((item) => ({
+    value: item.id,
+    label: formatItemLabel(item),
+  }));
+
+  const locationOptions = (dropdownData.locations || []).map((location) => ({
+    value: location.id,
+    label: location.name,
+  }));
+
+  const trayOptions = (dropdownData.trays || []).map((tray) => ({
+    value: tray.id,
+    label: tray.name,
+  }));
+
+  const purchaseOrderOptions = (dropdownData.purchaseOrders || []).map((po) => ({
+    value: po.id,
+    label: `${po.orderNumber} - ${po.vendor?.name || '-'}`,
+  }));
+
+  const saleOrderOptions = (dropdownData.saleOrders || []).map((saleOrder) => ({
+    value: saleOrder.id,
+    label: `${saleOrder.orderNumber} - ${saleOrder.customer?.name || '-'}`,
+  }));
+
+  const vendorOptions = (dropdownData.vendors || []).map((vendor) => ({
+    value: vendor.id,
+    label: vendor.name,
+  }));
+
+  const selectedItem = availableItems.find((item) => item.id === formData.inventoryItemId);
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -127,7 +148,6 @@ const InventoryTransactionForm = ({
       newErrors.quantity = 'Quantity is required and cannot be zero';
     }
 
-    // Type-specific validations
     if (formData.type === 'TRANSFER') {
       if (!formData.fromLocationId) {
         newErrors.fromLocationId = 'Source location is required for transfer';
@@ -148,11 +168,10 @@ const InventoryTransactionForm = ({
       newErrors.saleOrderId = 'Sale Order is required for sale outward';
     }
 
-    // Check available quantity for outward transactions
     if (['OUTWARD_SALE', 'OUTWARD_RETURN', 'DAMAGE'].includes(formData.type)) {
-      const selectedItem = availableItems.find(item => item.id === formData.inventoryItemId);
-      if (selectedItem && Math.abs(formData.quantity) > selectedItem.quantity) {
-        newErrors.quantity = `Available quantity is ${selectedItem.quantity}`;
+      const item = availableItems.find((availableItem) => availableItem.id === formData.inventoryItemId);
+      if (item && Math.abs(formData.quantity) > item.quantity) {
+        newErrors.quantity = `Available quantity is ${item.quantity}`;
       }
     }
 
@@ -160,156 +179,103 @@ const InventoryTransactionForm = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
-    setLoading(true);
-    try {
-      await onSubmit(formData);
-    } catch (error) {
-      console.error('Form submission error:', error);
-    } finally {
-      setLoading(false);
-    }
+    await onSubmit(formData);
   };
 
-  // Get selected item details
-  const selectedItem = availableItems.find(item => item.id === formData.inventoryItemId);
-
-  // Determine if transaction is inward or outward
-  const isInwardTransaction = ['INWARD_PO', 'INWARD_DIRECT'].includes(formData.type);
-  const isOutwardTransaction = ['OUTWARD_SALE', 'OUTWARD_RETURN', 'DAMAGE'].includes(formData.type);
-  const isTransferTransaction = formData.type === 'TRANSFER';
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Transaction Type */}
+    <form id="inventory-transaction-form" onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Package className="h-5 w-5" />
-            <span>Transaction Details</span>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            Transaction Details
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Transaction Type */}
-            <div>
-              <Label htmlFor="type">
-                Transaction Type <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value) => handleChange('type', value)}
-              >
-                <SelectTrigger className={errors.type ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select transaction type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {transactionTypeOptions.map(type => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.type && (
-                <p className="text-sm text-red-500 mt-1">{errors.type}</p>
-              )}
-            </div>
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormSelect
+              label="Transaction Type"
+              name="type"
+              options={transactionTypeOptions.map((type) => ({ value: type.value, label: type.label }))}
+              value={formData.type}
+              onChange={(value) => handleChange('type', value)}
+              placeholder="Select transaction type"
+              isSearchable={false}
+              isClearable={false}
+              required
+              error={errors.type}
+            />
 
-            {/* Quantity */}
-            <div>
-              <Label htmlFor="quantity">
-                Quantity <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="0.1"
-                value={Math.abs(formData.quantity) || ''}
-                onChange={(e) => {
-                  const value = parseFloat(e.target.value) || 0;
-                  const adjustedValue = isOutwardTransaction ? -Math.abs(value) : Math.abs(value);
-                  handleChange('quantity', adjustedValue);
-                }}
-                className={errors.quantity ? 'border-red-500' : ''}
-                placeholder="Enter quantity"
-              />
-              {errors.quantity && (
-                <p className="text-sm text-red-500 mt-1">{errors.quantity}</p>
-              )}
-              {selectedItem && isOutwardTransaction && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Available: {selectedItem.quantity}
-                </p>
-              )}
-            </div>
+            <FormInput
+              label="Quantity"
+              name="quantity"
+              type="number"
+              step="0.1"
+              value={Math.abs(formData.quantity) || ''}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value) || 0;
+                const adjustedValue = isOutwardTransaction ? -Math.abs(value) : Math.abs(value);
+                handleChange('quantity', adjustedValue);
+              }}
+              required
+              error={errors.quantity}
+              helperText={selectedItem && isOutwardTransaction ? `Available: ${selectedItem.quantity}` : undefined}
+            />
           </div>
+
+          <Alert className="bg-primary/5 border-primary/20">
+            <AlertDescription className="text-xs">
+              Choose the transaction type first. The form will automatically adjust required references, location fields, and quantity direction based on the selected inventory movement.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
 
-      {/* Inventory Item Selection */}
       {!isInwardTransaction && (
         <Card>
-          <CardHeader>
-            <CardTitle>Item Selection</CardTitle>
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-sm">Item Selection</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="inventoryItemId">
-                Inventory Item <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.inventoryItemId?.toString()}
-                onValueChange={(value) => handleChange('inventoryItemId', parseInt(value))}
-              >
-                <SelectTrigger className={errors.inventoryItemId ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select inventory item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getFilteredItems().map(item => (
-                    <SelectItem key={item.id} value={item.id.toString()}>
-                      <div className="flex items-center justify-between w-full">
-                        <span>{item.lensProduct?.name || `Item #${item.id}`}</span>
-                        <span className="text-xs text-gray-500 ml-2">
-                          Qty: {item.quantity} | {item.location?.name}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.inventoryItemId && (
-                <p className="text-sm text-red-500 mt-1">{errors.inventoryItemId}</p>
-              )}
-            </div>
+          <CardContent className="p-3 pt-0 space-y-4">
+            <FormSelect
+              label="Inventory Item"
+              name="inventoryItemId"
+              options={inventoryItemOptions}
+              value={formData.inventoryItemId}
+              onChange={(value) => handleChange('inventoryItemId', value ? parseInt(value) : null)}
+              placeholder="Select inventory item"
+              isSearchable={true}
+              isClearable={false}
+              required
+              error={errors.inventoryItemId}
+            />
 
-            {/* Selected Item Details */}
             {selectedItem && (
-              <div className="bg-gray-50 p-3 rounded-md">
-                <h4 className="font-medium text-gray-900 mb-2">Selected Item Details</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-md border bg-muted/20 p-3">
+                <h4 className="text-sm font-medium mb-2">Selected Item Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-gray-500">Product:</span>
-                    <span className="ml-2">{selectedItem.lensProduct?.name || '-'}</span>
+                    <span className="text-muted-foreground">Product:</span>
+                    <span className="ml-2">{selectedItem.lensProduct?.name || selectedItem.lensProduct?.lens_name || '-'}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Location:</span>
+                    <span className="text-muted-foreground">Location:</span>
                     <span className="ml-2">{selectedItem.location?.name || '-'}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Available:</span>
+                    <span className="text-muted-foreground">Available:</span>
                     <span className="ml-2">{selectedItem.quantity}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Cost:</span>
-                    <span className="ml-2">₹{selectedItem.costPrice}</span>
+                    <span className="text-muted-foreground">Cost:</span>
+                    <span className="ml-2">₹{selectedItem.costPrice || 0}</span>
                   </div>
                 </div>
               </div>
@@ -318,274 +284,149 @@ const InventoryTransactionForm = ({
         </Card>
       )}
 
-      {/* Location Details */}
       {(isTransferTransaction || isInwardTransaction) && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <ArrowRight className="h-5 w-5" />
-              <span>Location Details</span>
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ArrowRight className="h-4 w-4 text-primary" />
+              Location Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* From Location (for transfers) */}
+          <CardContent className="p-3 pt-0 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {isTransferTransaction && (
-                <div>
-                  <Label htmlFor="fromLocationId">
-                    From Location <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.fromLocationId?.toString()}
-                    onValueChange={(value) => handleChange('fromLocationId', parseInt(value))}
-                  >
-                    <SelectTrigger className={errors.fromLocationId ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select source location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dropdownData.locations?.map(location => (
-                        <SelectItem key={location.id} value={location.id.toString()}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.fromLocationId && (
-                    <p className="text-sm text-red-500 mt-1">{errors.fromLocationId}</p>
-                  )}
-                </div>
+                <FormSelect
+                  label="From Location"
+                  name="fromLocationId"
+                  options={locationOptions}
+                  value={formData.fromLocationId}
+                  onChange={(value) => handleChange('fromLocationId', value ? parseInt(value) : null)}
+                  placeholder="Select source location"
+                  required
+                  error={errors.fromLocationId}
+                />
               )}
 
-              {/* To Location */}
-              <div>
-                <Label htmlFor="toLocationId">
-                  {isTransferTransaction ? 'To Location' : 'Location'} 
-                  {(isTransferTransaction || isInwardTransaction) && <span className="text-red-500">*</span>}
-                </Label>
-                <Select
-                  value={formData.toLocationId?.toString()}
-                  onValueChange={(value) => handleChange('toLocationId', parseInt(value))}
-                >
-                  <SelectTrigger className={errors.toLocationId ? 'border-red-500' : ''}>
-                    <SelectValue placeholder={isTransferTransaction ? "Select destination" : "Select location"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dropdownData.locations?.map(location => (
-                      <SelectItem key={location.id} value={location.id.toString()}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.toLocationId && (
-                  <p className="text-sm text-red-500 mt-1">{errors.toLocationId}</p>
-                )}
-              </div>
+              <FormSelect
+                label={isTransferTransaction ? 'To Location' : 'Location'}
+                name="toLocationId"
+                options={locationOptions}
+                value={formData.toLocationId}
+                onChange={(value) => handleChange('toLocationId', value ? parseInt(value) : null)}
+                placeholder={isTransferTransaction ? 'Select destination location' : 'Select location'}
+                required={isTransferTransaction || isInwardTransaction}
+                error={errors.toLocationId}
+              />
 
-              {/* From Tray (for transfers) */}
               {isTransferTransaction && (
-                <div>
-                  <Label htmlFor="fromTrayId">From Tray</Label>
-                  <Select
-                    value={formData.fromTrayId?.toString()}
-                    onValueChange={(value) => handleChange('fromTrayId', parseInt(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select source tray" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dropdownData.trays?.map(tray => (
-                        <SelectItem key={tray.id} value={tray.id.toString()}>
-                          {tray.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FormSelect
+                  label="From Tray"
+                  name="fromTrayId"
+                  options={trayOptions}
+                  value={formData.fromTrayId}
+                  onChange={(value) => handleChange('fromTrayId', value ? parseInt(value) : null)}
+                  placeholder="Select source tray"
+                  isClearable
+                />
               )}
 
-              {/* To Tray */}
-              <div>
-                <Label htmlFor="toTrayId">
-                  {isTransferTransaction ? 'To Tray' : 'Tray'}
-                </Label>
-                <Select
-                  value={formData.toTrayId?.toString()}
-                  onValueChange={(value) => handleChange('toTrayId', parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={isTransferTransaction ? "Select destination tray" : "Select tray"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dropdownData.trays?.map(tray => (
-                      <SelectItem key={tray.id} value={tray.id.toString()}>
-                        {tray.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormSelect
+                label={isTransferTransaction ? 'To Tray' : 'Tray'}
+                name="toTrayId"
+                options={trayOptions}
+                value={formData.toTrayId}
+                onChange={(value) => handleChange('toTrayId', value ? parseInt(value) : null)}
+                placeholder={isTransferTransaction ? 'Select destination tray' : 'Select tray'}
+                isClearable
+              />
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Reference Details */}
       <Card>
-        <CardHeader>
-          <CardTitle>Reference Details</CardTitle>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Reference Details</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Purchase Order (for PO inward) */}
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {formData.type === 'INWARD_PO' && (
-              <div>
-                <Label htmlFor="purchaseOrderId">
-                  Purchase Order <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.purchaseOrderId?.toString()}
-                  onValueChange={(value) => handleChange('purchaseOrderId', parseInt(value))}
-                >
-                  <SelectTrigger className={errors.purchaseOrderId ? 'border-red-500' : ''}>
-                    <SelectValue placeholder="Select purchase order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dropdownData.purchaseOrders?.map(po => (
-                      <SelectItem key={po.id} value={po.id.toString()}>
-                        {po.orderNumber} - {po.vendor?.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.purchaseOrderId && (
-                  <p className="text-sm text-red-500 mt-1">{errors.purchaseOrderId}</p>
-                )}
-              </div>
+              <FormSelect
+                label="Purchase Order"
+                name="purchaseOrderId"
+                options={purchaseOrderOptions}
+                value={formData.purchaseOrderId}
+                onChange={(value) => handleChange('purchaseOrderId', value ? parseInt(value) : null)}
+                placeholder="Select purchase order"
+                required
+                error={errors.purchaseOrderId}
+              />
             )}
 
-            {/* Sale Order (for sale outward) */}
             {formData.type === 'OUTWARD_SALE' && (
-              <div>
-                <Label htmlFor="saleOrderId">
-                  Sale Order <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.saleOrderId?.toString()}
-                  onValueChange={(value) => handleChange('saleOrderId', parseInt(value))}
-                >
-                  <SelectTrigger className={errors.saleOrderId ? 'border-red-500' : ''}>
-                    <SelectValue placeholder="Select sale order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dropdownData.saleOrders?.map(so => (
-                      <SelectItem key={so.id} value={so.id.toString()}>
-                        {so.orderNumber} - {so.customer?.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.saleOrderId && (
-                  <p className="text-sm text-red-500 mt-1">{errors.saleOrderId}</p>
-                )}
-              </div>
+              <FormSelect
+                label="Sale Order"
+                name="saleOrderId"
+                options={saleOrderOptions}
+                value={formData.saleOrderId}
+                onChange={(value) => handleChange('saleOrderId', value ? parseInt(value) : null)}
+                placeholder="Select sale order"
+                required
+                error={errors.saleOrderId}
+              />
             )}
 
-            {/* Vendor (for inward transactions) */}
             {['INWARD_DIRECT', 'INWARD_PO'].includes(formData.type) && (
-              <div>
-                <Label htmlFor="vendorId">Vendor</Label>
-                <Select
-                  value={formData.vendorId?.toString()}
-                  onValueChange={(value) => handleChange('vendorId', parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dropdownData.vendors?.map(vendor => (
-                      <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                        {vendor.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormSelect
+                label="Vendor"
+                name="vendorId"
+                options={vendorOptions}
+                value={formData.vendorId}
+                onChange={(value) => handleChange('vendorId', value ? parseInt(value) : null)}
+                placeholder="Select vendor"
+                isClearable
+              />
             )}
 
-            {/* Unit Price */}
-            <div>
-              <Label htmlFor="unitPrice">Unit Price</Label>
-              <Input
-                id="unitPrice"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.unitPrice || ''}
-                onChange={(e) => handleChange('unitPrice', parseFloat(e.target.value) || null)}
-                placeholder="Enter unit price"
-              />
-            </div>
+            <FormInput
+              label="Unit Price"
+              name="unitPrice"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.unitPrice || ''}
+              onChange={(e) => handleChange('unitPrice', parseFloat(e.target.value) || null)}
+              placeholder="Enter unit price"
+              prefix="₹"
+            />
 
-            {/* Batch Number */}
-            <div>
-              <Label htmlFor="batchNo">Batch Number</Label>
-              <Input
-                id="batchNo"
-                value={formData.batchNo}
-                onChange={(e) => handleChange('batchNo', e.target.value)}
-                placeholder="Enter batch number"
-              />
-            </div>
-          </div>
+            <FormInput
+              label="Batch Number"
+              name="batchNo"
+              value={formData.batchNo}
+              onChange={(e) => handleChange('batchNo', e.target.value)}
+              placeholder="Enter batch number"
+            />
 
-          {/* Reason */}
-          <div>
-            <Label htmlFor="reason">Reason</Label>
-            <Input
-              id="reason"
+            <FormInput
+              label="Reason"
+              name="reason"
               value={formData.reason}
               onChange={(e) => handleChange('reason', e.target.value)}
               placeholder="Enter transaction reason"
             />
           </div>
 
-          {/* Notes */}
-          <div>
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Enter any additional notes..."
-              rows={3}
-            />
-          </div>
+          <FormTextarea
+            label="Notes"
+            name="notes"
+            value={formData.notes}
+            onChange={(e) => handleChange('notes', e.target.value)}
+            placeholder="Enter any additional notes..."
+            rows={3}
+          />
         </CardContent>
       </Card>
-
-      {/* Form Actions */}
-      <div className="flex items-center justify-end space-x-4 pt-6 border-t">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          <X className="h-4 w-4 mr-2" />
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className="flex items-center space-x-2"
-        >
-          <Save className="h-4 w-4" />
-          <span>{loading ? 'Creating...' : 'Create Transaction'}</span>
-        </Button>
-      </div>
     </form>
   );
-};
-
-export default InventoryTransactionForm;
+}

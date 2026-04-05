@@ -13,9 +13,6 @@ export default function LocationCard({ location, onView, onEdit, onDelete }) {
         <div className="flex items-start justify-between">
           <div className="min-h-[60px]">
             <h3 className="font-semibold text-sm">{location.name}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {location.locationCode}
-            </p>
             {location.description ? (
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                 {location.description}

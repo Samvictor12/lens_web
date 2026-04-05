@@ -49,7 +49,6 @@ export default function TrayForm() {
             const tray = response.data;
             const trayData = {
               name: tray.name || "",
-              trayCode: tray.trayCode || "",
               description: tray.description || "",
               capacity: tray.capacity || 0,
               locationId: tray.locationId || null,
@@ -90,12 +89,14 @@ export default function TrayForm() {
       newErrors.name = "Tray name is required";
     }
 
-    if (!formData.trayCode.trim()) {
-      newErrors.trayCode = "Tray code is required";
-    }
-
     if (formData.capacity < 0) {
       newErrors.capacity = "Capacity cannot be negative";
+    }
+    if (!formData.capacity && formData.capacity !== 0) {
+      newErrors.capacity = "Capacity is required";
+    }
+    if (!formData.locationId && formData.locationId !== null) {
+      newErrors.locationId = "Location is required";
     }
 
     setErrors(newErrors);
@@ -290,21 +291,11 @@ export default function TrayForm() {
                 />
 
                 <FormInput
-                  label="Tray Code"
-                  name="trayCode"
-                  value={formData.trayCode}
-                  onChange={handleChange}
-                  error={errors.trayCode}
-                  placeholder="Enter tray code (e.g., TRAY-001)"
-                  required
-                  disabled={mode === "view" && !isEditing}
-                />
-
-                <FormInput
                   label="Capacity"
                   name="capacity"
                   type="number"
                   min="0"
+                  required
                   value={formData.capacity}
                   onChange={handleChange}
                   error={errors.capacity}
@@ -315,6 +306,7 @@ export default function TrayForm() {
                 <FormSelect
                   label="Location"
                   name="locationId"
+                  required
                   options={locations}
                   value={formData.locationId}
                   onChange={(value) => {

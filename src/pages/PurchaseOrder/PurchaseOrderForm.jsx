@@ -193,29 +193,45 @@ export default function PurchaseOrderForm() {
               const selections = {};
               let minSph = Infinity, maxSph = -Infinity;
               let minCyl = Infinity, maxCyl = -Infinity;
+              let minAdd = Infinity, maxAdd = -Infinity;
+              let hasAdd = false;
 
               po.lensBulkSelection.forEach(item => {
-                const key = `sph_${item.spherical}_cyl_${item.cylindrical}`;
-                selections[key] = {
-                  quantity: item.quantity,
-                  unitPrice: item.unitPrice
-                };
+                // Progressive items have an `add` field; Single/Bifocal use `cylindrical`
+                const colPart = (item.add != null) ? `add_${item.add}` : `cyl_${item.cylindrical}`;
+                const eyePart = item.eye ? `_${item.eye}` : '';
+                const key = `sph_${item.spherical}_${colPart}${eyePart}`;
+
+                if (item.eye) {
+                  // Per-eye entry (Bifocal / Progressive)
+                  if (!selections[key]) selections[key] = {};
+                  selections[key][item.eye] = item.quantity;
+                } else {
+                  selections[key] = { quantity: item.quantity, unitPrice: item.unitPrice };
+                }
+
                 minSph = Math.min(minSph, item.spherical);
                 maxSph = Math.max(maxSph, item.spherical);
-                minCyl = Math.min(minCyl, item.cylindrical);
-                maxCyl = Math.max(maxCyl, item.cylindrical);
+                if (item.add != null) {
+                  hasAdd = true;
+                  minAdd = Math.min(minAdd, item.add);
+                  maxAdd = Math.max(maxAdd, item.add);
+                } else {
+                  minCyl = Math.min(minCyl, item.cylindrical);
+                  maxCyl = Math.max(maxCyl, item.cylindrical);
+                }
               });
 
               convertedBulkSelection = {
-                eyeSelection: "Single",
+                eyeSelection: "Both",
                 additionWise: false,
                 ranges: {
                   sphFrom: isFinite(minSph) ? minSph : 0,
                   sphTo: isFinite(maxSph) ? maxSph : 2,
-                  cylFrom: isFinite(minCyl) ? minCyl : 0,
-                  cylTo: isFinite(maxCyl) ? maxCyl : 2,
-                  addFrom: "",
-                  addTo: "",
+                  cylFrom: hasAdd ? "" : (isFinite(minCyl) ? minCyl : 0),
+                  cylTo: hasAdd ? "" : (isFinite(maxCyl) ? maxCyl : 2),
+                  addFrom: hasAdd ? (isFinite(minAdd) ? minAdd : 0) : "",
+                  addTo: hasAdd ? (isFinite(maxAdd) ? maxAdd : 2) : "",
                 },
                 selections: selections
               };
@@ -556,16 +572,27 @@ export default function PurchaseOrderForm() {
             const keyParts = key.split('_');
             const sphIndex = keyParts.findIndex(part => part === 'sph');
             const cylIndex = keyParts.findIndex(part => part === 'cyl');
+            const addIndex = keyParts.findIndex(part => part === 'add');
+
+            // Detect L/R eye suffix (Bifocal / Progressive per-eye grids)
+            const lastPart = keyParts[keyParts.length - 1];
+            const eye = (lastPart === 'L' || lastPart === 'R') ? lastPart : null;
 
             const spherical = sphIndex !== -1 ? keyParts[sphIndex + 1] : '0';
             const cylindrical = cylIndex !== -1 ? keyParts[cylIndex + 1] : '0';
+            const add = addIndex !== -1 ? keyParts[addIndex + 1] : null;
 
-            return {
+            const item = {
               spherical: parseFloat(spherical),
               cylindrical: parseFloat(cylindrical),
               quantity: getQty(data),
               unitPrice: parseFloat(data?.unitPrice || formData.unitPrice) || 0
             };
+            // Store add value for Progressive lenses
+            if (add !== null) item.add = parseFloat(add);
+            // Store eye side for per-eye grids (Bifocal / Progressive)
+            if (eye) item.eye = eye;
+            return item;
           });
 
         if (bulkArray.length === 0) {

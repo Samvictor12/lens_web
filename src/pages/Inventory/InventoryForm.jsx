@@ -1,18 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
@@ -21,24 +11,24 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Eye, Save, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Eye, Package } from 'lucide-react';
+import { FormInput } from '@/components/ui/form-input';
+import { FormSelect } from '@/components/ui/form-select';
+import { FormTextarea } from '@/components/ui/form-textarea';
 import {
   defaultInventoryItem,
   inventoryStatusOptions,
   qualityGradeOptions,
-  eyeSpecFields,
   inventoryValidationRules,
 } from './Inventory.constants';
 
 const InventoryForm = ({ 
   initialData = null, 
   dropdownData = {}, 
-  onSubmit, 
-  onCancel 
+  onSubmit,
 }) => {
   const [formData, setFormData] = useState(defaultInventoryItem);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -65,7 +55,7 @@ const InventoryForm = ({
 
   // Handle checkbox changes
   const handleCheckboxChange = (field, checked) => {
-    setFormData(prev => ({ ...prev, [field]: checked }));
+    setFormData(prev => ({ ...prev, [field]: Boolean(checked) }));
   };
 
   // Handle date changes
@@ -113,9 +103,7 @@ const InventoryForm = ({
       return;
     }
 
-    setLoading(true);
     try {
-      // Prepare data for submission
       const submitData = {
         ...formData,
         expiryDate: formData.expiryDate ? formData.expiryDate.toISOString() : null,
@@ -125,260 +113,267 @@ const InventoryForm = ({
       await onSubmit(submitData);
     } catch (error) {
       console.error('Form submission error:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
+  const lensOptions = useMemo(
+    () => (dropdownData.lensProducts || []).map((lens) => ({ value: lens.id, label: lens.name })),
+    [dropdownData.lensProducts]
+  );
+
+  const categoryOptions = useMemo(
+    () => (dropdownData.categories || []).map((category) => ({ value: category.id, label: category.name })),
+    [dropdownData.categories]
+  );
+
+  const typeOptions = useMemo(
+    () => (dropdownData.types || []).map((type) => ({ value: type.id, label: type.name })),
+    [dropdownData.types]
+  );
+
+  const coatingOptions = useMemo(
+    () => (dropdownData.coatings || []).map((coating) => ({ value: coating.id, label: coating.name })),
+    [dropdownData.coatings]
+  );
+
+  const locationOptions = useMemo(
+    () => (dropdownData.locations || []).map((location) => ({ value: location.id, label: location.name })),
+    [dropdownData.locations]
+  );
+
+  const trayOptions = useMemo(
+    () => (dropdownData.trays || []).map((tray) => ({ value: tray.id, label: tray.name })),
+    [dropdownData.trays]
+  );
+
+  const vendorOptions = useMemo(
+    () => (dropdownData.vendors || []).map((vendor) => ({ value: vendor.id, label: vendor.name })),
+    [dropdownData.vendors]
+  );
+
+  const statusOptions = useMemo(
+    () => inventoryStatusOptions.map((status) => ({ value: status.value, label: status.label })),
+    []
+  );
+
+  const qualityOptions = useMemo(
+    () => qualityGradeOptions.map((grade) => ({ value: grade.value, label: grade.label })),
+    []
+  );
+
+  const renderDateField = (field, label, error) => (
+    <div className="space-y-1.5">
+      <p className="text-xs">{label}</p>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              'h-8 w-full justify-start text-left text-sm font-normal',
+              !formData[field] && 'text-muted-foreground',
+              error && 'border-destructive'
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {formData[field] ? format(formData[field], 'PPP') : <span>Pick a date</span>}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={formData[field]}
+            onSelect={(date) => handleDateChange(field, date)}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+
+  const renderEyeSpecFields = (prefix, title) => (
+    <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-3">
+      <h4 className="text-sm font-medium">{title}</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <FormInput
+          label="Spherical"
+          name={`${prefix}Spherical`}
+          value={formData[`${prefix}Spherical`]}
+          onChange={(e) => handleChange(`${prefix}Spherical`, e.target.value)}
+          placeholder="e.g., -2.50"
+        />
+        <FormInput
+          label="Cylindrical"
+          name={`${prefix}Cylindrical`}
+          value={formData[`${prefix}Cylindrical`]}
+          onChange={(e) => handleChange(`${prefix}Cylindrical`, e.target.value)}
+          placeholder="e.g., -1.00"
+        />
+        <FormInput
+          label="Axis"
+          name={`${prefix}Axis`}
+          value={formData[`${prefix}Axis`]}
+          onChange={(e) => handleChange(`${prefix}Axis`, e.target.value)}
+          placeholder="e.g., 90"
+        />
+        <FormInput
+          label="Add"
+          name={`${prefix}Add`}
+          value={formData[`${prefix}Add`]}
+          onChange={(e) => handleChange(`${prefix}Add`, e.target.value)}
+          placeholder="e.g., +2.00"
+        />
+      </div>
+    </div>
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Basic Information */}
+    <form id="inventory-item-form" onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Eye className="h-5 w-5" />
-            <span>Basic Information</span>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            Item Basics
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Lens Product */}
-            <div>
-              <Label htmlFor="lens_id">
-                Lens Product <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.lens_id?.toString()}
-                onValueChange={(value) => handleChange('lens_id', parseInt(value))}
-              >
-                <SelectTrigger className={errors.lens_id ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select lens product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.lensProducts?.map(lens => (
-                    <SelectItem key={lens.id} value={lens.id.toString()}>
-                      {lens.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.lens_id && (
-                <p className="text-sm text-red-500 mt-1">{errors.lens_id}</p>
-              )}
-            </div>
+        <CardContent className="p-3 pt-0 space-y-4">
+          <Alert className="bg-primary/5 border-primary/20">
+            <AlertDescription className="text-xs">
+              Use the shared dropdowns and compact card layout to capture the lens configuration first, then complete stock, pricing, and eye-specific details below.
+            </AlertDescription>
+          </Alert>
 
-            {/* Category */}
-            <div>
-              <Label htmlFor="category_id">Category</Label>
-              <Select
-                value={formData.category_id?.toString()}
-                onValueChange={(value) => handleChange('category_id', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.categories?.map(category => (
-                    <SelectItem key={category.id} value={category.id.toString()}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Type */}
-            <div>
-              <Label htmlFor="Type_id">Type</Label>
-              <Select
-                value={formData.Type_id?.toString()}
-                onValueChange={(value) => handleChange('Type_id', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.types?.map(type => (
-                    <SelectItem key={type.id} value={type.id.toString()}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Coating */}
-            <div>
-              <Label htmlFor="coating_id">Coating</Label>
-              <Select
-                value={formData.coating_id?.toString()}
-                onValueChange={(value) => handleChange('coating_id', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select coating" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.coatings?.map(coating => (
-                    <SelectItem key={coating.id} value={coating.id.toString()}>
-                      {coating.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormSelect
+              label="Lens Product"
+              name="lens_id"
+              options={lensOptions}
+              value={formData.lens_id}
+              onChange={(value) => handleChange('lens_id', value ? parseInt(value) : null)}
+              placeholder="Select lens product"
+              required
+              error={errors.lens_id}
+            />
+            <FormSelect
+              label="Category"
+              name="category_id"
+              options={categoryOptions}
+              value={formData.category_id}
+              onChange={(value) => handleChange('category_id', value ? parseInt(value) : null)}
+              placeholder="Select category"
+              isClearable
+            />
+            <FormSelect
+              label="Type"
+              name="Type_id"
+              options={typeOptions}
+              value={formData.Type_id}
+              onChange={(value) => handleChange('Type_id', value ? parseInt(value) : null)}
+              placeholder="Select type"
+              isClearable
+            />
+            <FormSelect
+              label="Coating"
+              name="coating_id"
+              options={coatingOptions}
+              value={formData.coating_id}
+              onChange={(value) => handleChange('coating_id', value ? parseInt(value) : null)}
+              placeholder="Select coating"
+              isClearable
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Location and Inventory Details */}
       <Card>
-        <CardHeader>
-          <CardTitle>Location & Inventory Details</CardTitle>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Stock & Pricing</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Location */}
-            <div>
-              <Label htmlFor="location_id">Location</Label>
-              <Select
-                value={formData.location_id?.toString()}
-                onValueChange={(value) => handleChange('location_id', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.locations?.map(location => (
-                    <SelectItem key={location.id} value={location.id.toString()}>
-                      {location.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Tray */}
-            <div>
-              <Label htmlFor="tray_id">Tray</Label>
-              <Select
-                value={formData.tray_id?.toString()}
-                onValueChange={(value) => handleChange('tray_id', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tray" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.trays?.map(tray => (
-                    <SelectItem key={tray.id} value={tray.id.toString()}>
-                      {tray.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Quantity */}
-            <div>
-              <Label htmlFor="quantity">
-                Quantity <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="0.1"
-                min="0"
-                value={formData.quantity}
-                onChange={(e) => handleChange('quantity', parseFloat(e.target.value) || 0)}
-                className={errors.quantity ? 'border-red-500' : ''}
-              />
-              {errors.quantity && (
-                <p className="text-sm text-red-500 mt-1">{errors.quantity}</p>
-              )}
-            </div>
-
-            {/* Status */}
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => handleChange('status', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {inventoryStatusOptions.map(status => (
-                    <SelectItem key={status.value} value={status.value}>
-                      {status.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormSelect
+              label="Location"
+              name="location_id"
+              options={locationOptions}
+              value={formData.location_id}
+              onChange={(value) => handleChange('location_id', value ? parseInt(value) : null)}
+              placeholder="Select location"
+              isClearable
+            />
+            <FormSelect
+              label="Tray"
+              name="tray_id"
+              options={trayOptions}
+              value={formData.tray_id}
+              onChange={(value) => handleChange('tray_id', value ? parseInt(value) : null)}
+              placeholder="Select tray"
+              isClearable
+            />
+            <FormInput
+              label="Quantity"
+              name="quantity"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.quantity}
+              onChange={(e) => handleChange('quantity', parseFloat(e.target.value) || 0)}
+              required
+              error={errors.quantity}
+            />
+            <FormSelect
+              label="Status"
+              name="status"
+              options={statusOptions}
+              value={formData.status}
+              onChange={(value) => handleChange('status', value)}
+              placeholder="Select status"
+              isSearchable={false}
+              isClearable={false}
+            />
+            <FormInput
+              label="Cost Price"
+              name="costPrice"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.costPrice}
+              onChange={(e) => handleChange('costPrice', parseFloat(e.target.value) || 0)}
+              required
+              error={errors.costPrice}
+              prefix="INR"
+            />
+            <FormInput
+              label="Selling Price"
+              name="sellingPrice"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.sellingPrice ?? ''}
+              onChange={(e) => handleChange('sellingPrice', e.target.value === '' ? null : parseFloat(e.target.value) || 0)}
+              error={errors.sellingPrice}
+              prefix="INR"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Pricing Information */}
       <Card>
-        <CardHeader>
-          <CardTitle>Pricing Information</CardTitle>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Eye className="h-4 w-4 text-primary" />
+            Eye Configuration
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Cost Price */}
-            <div>
-              <Label htmlFor="costPrice">
-                Cost Price <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="costPrice"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.costPrice}
-                onChange={(e) => handleChange('costPrice', parseFloat(e.target.value) || 0)}
-                className={errors.costPrice ? 'border-red-500' : ''}
-              />
-              {errors.costPrice && (
-                <p className="text-sm text-red-500 mt-1">{errors.costPrice}</p>
-              )}
-            </div>
-
-            {/* Selling Price */}
-            <div>
-              <Label htmlFor="sellingPrice">Selling Price</Label>
-              <Input
-                id="sellingPrice"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.sellingPrice || ''}
-                onChange={(e) => handleChange('sellingPrice', parseFloat(e.target.value) || null)}
-                className={errors.sellingPrice ? 'border-red-500' : ''}
-              />
-              {errors.sellingPrice && (
-                <p className="text-sm text-red-500 mt-1">{errors.sellingPrice}</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Eye Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Eye Selection</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-6">
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border/60 bg-muted/10 p-3">
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="rightEye"
                 checked={formData.rightEye}
                 onCheckedChange={(checked) => handleCheckboxChange('rightEye', checked)}
               />
-              <Label htmlFor="rightEye">Right Eye</Label>
+              <label htmlFor="rightEye" className="text-sm">Right Eye</label>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -387,288 +382,82 @@ const InventoryForm = ({
                 checked={formData.leftEye}
                 onCheckedChange={(checked) => handleCheckboxChange('leftEye', checked)}
               />
-              <Label htmlFor="leftEye">Left Eye</Label>
+              <label htmlFor="leftEye" className="text-sm">Left Eye</label>
             </div>
           </div>
           
           {errors.eyeSelection && (
-            <p className="text-sm text-red-500">{errors.eyeSelection}</p>
+            <p className="text-xs text-destructive">{errors.eyeSelection}</p>
+          )}
+          {(formData.rightEye || formData.leftEye) && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              {formData.rightEye && renderEyeSpecFields('right', 'Right Eye')}
+              {formData.leftEye && renderEyeSpecFields('left', 'Left Eye')}
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Eye Specifications */}
-      {(formData.rightEye || formData.leftEye) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Eye Specifications</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Right Eye Specs */}
-              {formData.rightEye && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Right Eye</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="rightSpherical">Spherical</Label>
-                      <Input
-                        id="rightSpherical"
-                        value={formData.rightSpherical}
-                        onChange={(e) => handleChange('rightSpherical', e.target.value)}
-                        placeholder="e.g., -2.50"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="rightCylindrical">Cylindrical</Label>
-                      <Input
-                        id="rightCylindrical"
-                        value={formData.rightCylindrical}
-                        onChange={(e) => handleChange('rightCylindrical', e.target.value)}
-                        placeholder="e.g., -1.00"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="rightAxis">Axis</Label>
-                      <Input
-                        id="rightAxis"
-                        value={formData.rightAxis}
-                        onChange={(e) => handleChange('rightAxis', e.target.value)}
-                        placeholder="e.g., 90"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="rightAdd">Add</Label>
-                      <Input
-                        id="rightAdd"
-                        value={formData.rightAdd}
-                        onChange={(e) => handleChange('rightAdd', e.target.value)}
-                        placeholder="e.g., +2.00"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Left Eye Specs */}
-              {formData.leftEye && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900">Left Eye</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="leftSpherical">Spherical</Label>
-                      <Input
-                        id="leftSpherical"
-                        value={formData.leftSpherical}
-                        onChange={(e) => handleChange('leftSpherical', e.target.value)}
-                        placeholder="e.g., -2.50"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="leftCylindrical">Cylindrical</Label>
-                      <Input
-                        id="leftCylindrical"
-                        value={formData.leftCylindrical}
-                        onChange={(e) => handleChange('leftCylindrical', e.target.value)}
-                        placeholder="e.g., -1.00"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="leftAxis">Axis</Label>
-                      <Input
-                        id="leftAxis"
-                        value={formData.leftAxis}
-                        onChange={(e) => handleChange('leftAxis', e.target.value)}
-                        placeholder="e.g., 90"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="leftAdd">Add</Label>
-                      <Input
-                        id="leftAdd"
-                        value={formData.leftAdd}
-                        onChange={(e) => handleChange('leftAdd', e.target.value)}
-                        placeholder="e.g., +2.00"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Additional Details */}
       <Card>
-        <CardHeader>
-          <CardTitle>Additional Details</CardTitle>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Batch & Lifecycle</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Batch Number */}
-            <div>
-              <Label htmlFor="batchNo">Batch Number</Label>
-              <Input
-                id="batchNo"
-                value={formData.batchNo}
-                onChange={(e) => handleChange('batchNo', e.target.value)}
-                placeholder="Enter batch number"
-              />
-            </div>
-
-            {/* Serial Number */}
-            <div>
-              <Label htmlFor="serialNo">Serial Number</Label>
-              <Input
-                id="serialNo"
-                value={formData.serialNo}
-                onChange={(e) => handleChange('serialNo', e.target.value)}
-                placeholder="Enter serial number"
-              />
-            </div>
-
-            {/* Quality Grade */}
-            <div>
-              <Label htmlFor="qualityGrade">Quality Grade</Label>
-              <Select
-                value={formData.qualityGrade}
-                onValueChange={(value) => handleChange('qualityGrade', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select quality grade" />
-                </SelectTrigger>
-                <SelectContent>
-                  {qualityGradeOptions.map(grade => (
-                    <SelectItem key={grade.value} value={grade.value}>
-                      {grade.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Vendor */}
-            <div>
-              <Label htmlFor="vendorId">Vendor</Label>
-              <Select
-                value={formData.vendorId?.toString()}
-                onValueChange={(value) => handleChange('vendorId', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dropdownData.vendors?.map(vendor => (
-                    <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                      {vendor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Manufacture Date */}
-            <div>
-              <Label>Manufacture Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.manufactureDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.manufactureDate ? (
-                      format(formData.manufactureDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.manufactureDate}
-                    onSelect={(date) => handleDateChange('manufactureDate', date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Expiry Date */}
-            <div>
-              <Label>Expiry Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.expiryDate && "text-muted-foreground",
-                      errors.expiryDate && "border-red-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.expiryDate ? (
-                      format(formData.expiryDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.expiryDate}
-                    onSelect={(date) => handleDateChange('expiryDate', date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {errors.expiryDate && (
-                <p className="text-sm text-red-500 mt-1">{errors.expiryDate}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Enter any additional notes..."
-              rows={3}
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormInput
+              label="Batch Number"
+              name="batchNo"
+              value={formData.batchNo}
+              onChange={(e) => handleChange('batchNo', e.target.value)}
+              placeholder="Enter batch number"
             />
+            <FormInput
+              label="Serial Number"
+              name="serialNo"
+              value={formData.serialNo}
+              onChange={(e) => handleChange('serialNo', e.target.value)}
+              placeholder="Enter serial number"
+            />
+            <FormSelect
+              label="Quality Grade"
+              name="qualityGrade"
+              options={qualityOptions}
+              value={formData.qualityGrade}
+              onChange={(value) => handleChange('qualityGrade', value)}
+              placeholder="Select quality grade"
+              isSearchable={false}
+              isClearable={false}
+            />
+            <FormSelect
+              label="Vendor"
+              name="vendorId"
+              options={vendorOptions}
+              value={formData.vendorId}
+              onChange={(value) => handleChange('vendorId', value ? parseInt(value) : null)}
+              placeholder="Select vendor"
+              isClearable
+            />
+            {renderDateField('manufactureDate', 'Manufacture Date')}
+            {renderDateField('expiryDate', 'Expiry Date', errors.expiryDate)}
           </div>
         </CardContent>
       </Card>
 
-      {/* Form Actions */}
-      <div className="flex items-center justify-end space-x-4 pt-6 border-t">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          <X className="h-4 w-4 mr-2" />
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className="flex items-center space-x-2"
-        >
-          <Save className="h-4 w-4" />
-          <span>{loading ? 'Saving...' : (initialData ? 'Update Item' : 'Save Item')}</span>
-        </Button>
-      </div>
+      <Card>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Notes</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0">
+          <FormTextarea
+            label="Additional Notes"
+            name="notes"
+            value={formData.notes}
+            onChange={(e) => handleChange('notes', e.target.value)}
+            placeholder="Enter any additional notes..."
+            rows={4}
+          />
+        </CardContent>
+      </Card>
     </form>
   );
 };

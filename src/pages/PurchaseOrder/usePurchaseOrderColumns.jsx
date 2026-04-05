@@ -1,4 +1,4 @@
-import { Building, Trash2, PackageCheck, PencilLine } from "lucide-react";
+import { Building, Trash2, PackageCheck, PencilLine, Warehouse, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
@@ -23,6 +23,9 @@ export const usePurchaseOrderColumns = (
   onDelete,
   onReceive,
   onEditReceive,
+  onInward,
+  onDownload,
+  downloadingId,
 ) => {
   return [
     {
@@ -30,27 +33,25 @@ export const usePurchaseOrderColumns = (
       header: "PO Number",
       sortable: true,
       cell: (po) => (
-        <a
-          href={`/masters/purchase-orders/view/${po.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            e.preventDefault();
-            window.open(`/masters/purchase-orders/view/${po.id}`, "_blank");
-          }}
-          className="flex items-center gap-1.5 hover:underline cursor-pointer"
+        <button
+          type="button"
+          onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}
+          className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>
-            <div className="font-medium text-xs text-primary">
-              {po.poNumber}
-            </div>
-            {po.reference_id && (
-              <div className="text-xs text-muted-foreground">
-                Ref: {po.reference_id}
-              </div>
-            )}
+            <div className="font-medium text-xs text-primary">{po.poNumber}</div>
           </div>
-        </a>
+        </button>
+      ),
+    },
+    {
+      accessorKey: "reference_id",
+      header: "Reference No",
+      sortable: true,
+      cell: (po) => (
+        <span className="text-xs">
+          {po.reference_id || "-"}
+        </span>
       ),
     },
     {
@@ -72,6 +73,26 @@ export const usePurchaseOrderColumns = (
         <Badge variant="outline" className="text-[10px] h-4 px-1">
           {po.orderType || "Single"}
         </Badge>
+      ),
+    },
+    {
+      accessorKey: "lensProduct",
+      header: "Lens Name",
+      sortable: false,
+      cell: (po) => (
+        <span className="text-xs">
+          {po.lensProduct?.lens_name || "-"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "category",
+      header: "Lens Category",
+      sortable: false,
+      cell: (po) => (
+        <span className="text-xs">
+          {po.category?.name || "-"}
+        </span>
       ),
     },
     {
@@ -153,6 +174,17 @@ export const usePurchaseOrderColumns = (
             <Button
               variant="outline"
               size="xs"
+              className="h-7 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 gap-1"
+              onClick={() => onInward && onInward(po)}
+            >
+              <Warehouse className="h-3.5 w-3.5" />
+              Inward
+            </Button>
+          )}
+          {po.status === "RECEIVED" && (
+            <Button
+              variant="outline"
+              size="xs"
               className="h-7 px-2 text-xs text-amber-700 border-amber-200 hover:bg-amber-50 hover:text-amber-700 gap-1"
               onClick={() => onEditReceive && onEditReceive(po)}
             >
@@ -167,18 +199,35 @@ export const usePurchaseOrderColumns = (
       accessorKey: "actions",
       header: "Actions",
       sortable: false,
-      cell: (po) => (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => onDelete && onDelete(po)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
+      cell: (po) => {
+        const isDownloading = downloadingId === po.id;
+        return (
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              onClick={() => onDownload && onDownload(po)}
+              disabled={isDownloading}
+              title="Download PO as Excel"
+            >
+              {isDownloading ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onDelete && onDelete(po)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 };

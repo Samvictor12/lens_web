@@ -176,6 +176,10 @@ router.get('/items', (req, res, next) => {
   inventoryController.getInventoryItems(req, res, next);
 });
 
+router.get('/inward-queue', (req, res, next) => {
+  inventoryController.getInventoryInwardQueue(req, res, next);
+});
+
 /**
  * @swagger
  * /api/inventory/items/{id}:

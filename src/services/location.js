@@ -7,7 +7,6 @@ import { apiClient } from "./apiClient";
 const mapToBackend = (frontendData) => {
   return {
     name: frontendData.name,
-    location_code: frontendData.locationCode || frontendData.location_code,
     description: frontendData.description || null,
     activeStatus:
       frontendData.activeStatus !== undefined
@@ -20,8 +19,6 @@ const mapFromBackend = (backendData) => {
   return {
     id: backendData.id,
     name: backendData.name,
-    locationCode: backendData.location_code,
-    location_code: backendData.location_code,
     description: backendData.description || "",
     activeStatus:
       backendData.activeStatus !== undefined ? backendData.activeStatus : true,

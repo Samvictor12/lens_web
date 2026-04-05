@@ -76,14 +76,29 @@ class PurchaseOrderController {
    */
   async getPurchaseOrders(req, res, next) {
     try {
-      console.log("req,res", req.body);
-
       const result = await purchaseOrderService.getPurchaseOrders(req.query);
 
       res.status(200).json({
         success: true,
         message: "Purchase orders fetched successfully",
         ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get purchase order dashboard statistics
+   */
+  async getPurchaseOrderDashboard(req, res, next) {
+    try {
+      const result = await purchaseOrderService.getPurchaseOrderDashboard();
+
+      res.status(200).json({
+        success: true,
+        message: "Purchase order dashboard fetched successfully",
+        data: result,
       });
     } catch (error) {
       next(error);
@@ -398,6 +413,78 @@ class PurchaseOrderController {
       });
     } catch (error) {
       next(error);
+    }
+  }
+
+  /**
+   * Get inward status for a receipt (how much has been moved to inventory per row)
+   * GET /api/purchase-orders/:id/receipts/:receiptId/inward-status
+   */
+  async getReceiptInwardStatus(req, res, next) {
+    try {
+      const { id, receiptId } = req.params;
+      const result = await purchaseOrderService.getReceiptInwardStatus(
+        parseInt(id),
+        parseInt(receiptId)
+      );
+      res.status(200).json({
+        success: true,
+        message: "Inward status fetched successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Inward received items from a PO receipt to inventory stock
+   * POST /api/purchase-orders/:id/receipts/:receiptId/inward-to-inventory
+   */
+  async inwardReceiptToInventory(req, res, next) {
+    try {
+      const { id, receiptId } = req.params;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const { inwardRows } = req.body;
+
+      if (!inwardRows || !Array.isArray(inwardRows) || inwardRows.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "inwardRows array is required and must not be empty",
+        });
+      }
+
+      const result = await purchaseOrderService.inwardReceiptToInventory(
+        parseInt(id),
+        parseInt(receiptId),
+        inwardRows,
+        userId
+      );
+
+      res.status(201).json({
+        success: true,
+        message: `${result.createdCount} inventory item(s) created successfully`,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Export a purchase order as an Excel file
+   * GET /api/purchase-orders/:id/export
+   */
+  async exportPurchaseOrder(req, res, next) {
+    try {
+      const { id } = req.params;
+      await purchaseOrderService.exportPurchaseOrderToExcel(parseInt(id), res);
+    } catch (error) {
+      if (!res.headersSent) next(error);
     }
   }
 }

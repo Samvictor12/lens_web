@@ -6,6 +6,22 @@ import { APIError } from '../middleware/errorHandler.js';
  * Handles all database operations for Tray Master management
  */
 export class TrayMasterService {
+  async validateTrayName(name, excludeId = null) {
+    const trimmedName = name?.trim();
+    if (!trimmedName) return;
+
+    const duplicateTray = await prisma.trayMaster.findFirst({
+      where: {
+        name: { equals: trimmedName, mode: 'insensitive' },
+        deleteStatus: false,
+        ...(excludeId ? { id: { not: excludeId } } : {})
+      }
+    });
+
+    if (duplicateTray) {
+      throw new APIError('Tray name already exists', 409, 'DUPLICATE_NAME');
+    }
+  }
   
   /**
    * Create a new tray
@@ -14,14 +30,7 @@ export class TrayMasterService {
    */
   async createTray(trayData) {
     try {
-      // Check if tray_code already exists
-      const existingTray = await prisma.trayMaster.findUnique({
-        where: { tray_code: trayData.tray_code }
-      });
-
-      if (existingTray) {
-        throw new APIError('Tray code already exists', 409, 'DUPLICATE_CODE');
-      }
+      await this.validateTrayName(trayData.name);
 
       // Verify location exists if provided
       if (trayData.location_id) {
@@ -36,8 +45,7 @@ export class TrayMasterService {
 
       const tray = await prisma.trayMaster.create({
         data: {
-          name: trayData.name,
-          tray_code: trayData.tray_code,
+          name: trayData.name.trim(),
           description: trayData.description,
           capacity: trayData.capacity,
           location_id: trayData.location_id,
@@ -48,7 +56,7 @@ export class TrayMasterService {
         },
         include: {
           location: {
-            select: { id: true, name: true, location_code: true }
+            select: { id: true, name: true }
           },
           createdByUser: {
             select: { id: true, name: true, email: true }
@@ -78,7 +86,6 @@ export class TrayMasterService {
       if (search) {
         where.OR = [
           { name: { contains: search, mode: 'insensitive' } },
-          { tray_code: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } }
         ];
       }
@@ -104,7 +111,7 @@ export class TrayMasterService {
         orderBy: { [sortBy]: sortOrder },
         include: {
           location: {
-            select: { id: true, name: true, location_code: true }
+            select: { id: true, name: true }
           },
           createdByUser: {
             select: { id: true, name: true }
@@ -141,7 +148,7 @@ export class TrayMasterService {
         where: { id },
         include: {
           location: {
-            select: { id: true, name: true, location_code: true, description: true }
+            select: { id: true, name: true, description: true }
           },
           createdByUser: {
             select: { id: true, name: true, email: true }
@@ -188,18 +195,11 @@ export class TrayMasterService {
         throw new APIError('Cannot update deleted tray', 400, 'TRAY_DELETED');
       }
 
-      // Check for duplicate tray_code if being updated
-      if (updateData.tray_code && updateData.tray_code !== existingTray.tray_code) {
-        const duplicateCode = await prisma.trayMaster.findFirst({
-          where: {
-            tray_code: updateData.tray_code,
-            id: { not: id }
-          }
-        });
-
-        if (duplicateCode) {
-          throw new APIError('Tray code already exists', 409, 'DUPLICATE_CODE');
-        }
+      if (
+        updateData.name !== undefined &&
+        updateData.name.trim().toLowerCase() !== existingTray.name.trim().toLowerCase()
+      ) {
+        await this.validateTrayName(updateData.name, id);
       }
 
       // Verify location exists if being updated
@@ -214,8 +214,7 @@ export class TrayMasterService {
       }
 
       const data = {};
-      if (updateData.name !== undefined) data.name = updateData.name;
-      if (updateData.tray_code !== undefined) data.tray_code = updateData.tray_code;
+      if (updateData.name !== undefined) data.name = updateData.name.trim();
       if (updateData.description !== undefined) data.description = updateData.description;
       if (updateData.capacity !== undefined) data.capacity = updateData.capacity;
       if (updateData.location_id !== undefined) data.location_id = updateData.location_id;
@@ -227,7 +226,7 @@ export class TrayMasterService {
         data,
         include: {
           location: {
-            select: { id: true, name: true, location_code: true }
+            select: { id: true, name: true }
           },
           createdByUser: {
             select: { id: true, name: true }
@@ -305,27 +304,75 @@ export class TrayMasterService {
         select: {
           id: true,
           name: true,
-          tray_code: true,
           capacity: true,
           location: {
-            select: { id: true, name: true, location_code: true }
+            select: { id: true, name: true }
           }
         },
-        orderBy: { tray_code: 'asc' }
+        orderBy: { name: 'asc' }
       });
 
       return trays.map(tray => ({
         id: tray.id,
-        label: `${tray.name} (${tray.tray_code})`,
+        label: tray.name,
         value: tray.id,
         name: tray.name,
-        tray_code: tray.tray_code,
         capacity: tray.capacity,
         location: tray.location
       }));
     } catch (error) {
       console.error('Error fetching tray dropdown:', error);
       throw new APIError('Failed to fetch tray dropdown', 500, 'FETCH_DROPDOWN_ERROR');
+    }
+  }
+
+  /**
+   * Get all trays for a specific location
+   * @param {number} locationId - Location ID
+   * @returns {Promise<Array>} Trays mapped for frontend consumption
+   */
+  async getTraysByLocation(locationId) {
+    try {
+      const location = await prisma.locationMaster.findFirst({
+        where: {
+          id: locationId,
+          deleteStatus: false,
+          activeStatus: true
+        },
+        select: { id: true }
+      });
+
+      if (!location) {
+        throw new APIError('Location not found', 404, 'LOCATION_NOT_FOUND');
+      }
+
+      const trays = await prisma.trayMaster.findMany({
+        where: {
+          location_id: locationId,
+          activeStatus: true,
+          deleteStatus: false
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          capacity: true,
+          location_id: true,
+          activeStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          location: {
+            select: { id: true, name: true }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+
+      return trays;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error('Error fetching trays by location:', error);
+      throw new APIError('Failed to fetch trays by location', 500, 'FETCH_TRAYS_BY_LOCATION_ERROR');
     }
   }
 }

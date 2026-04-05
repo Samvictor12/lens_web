@@ -221,3 +221,29 @@ export const getTraysDropdown = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get all trays for a specific location
+ * @route GET /api/v1/tray-master/location/:locationId
+ */
+export const getTraysByLocation = async (req, res, next) => {
+  try {
+    const validation = validateIdParam(req.params.locationId);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid location ID parameter",
+        errors: validation.errors,
+      });
+    }
+
+    const trays = await trayService.getTraysByLocation(validation.id);
+    res.status(200).json({
+      success: true,
+      message: "Trays retrieved successfully",
+      data: trays,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

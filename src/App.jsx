@@ -14,18 +14,18 @@ import SaleOrderForm from "./pages/SaleOrder/SaleOrderForm";
 // import SaleOrderForm from "./components/forms/SaleOrderForm";
 import Customers from "./pages/Customer/CustomersMain";
 import CustomerForm from "./pages/Customer/CustomerForm";
-import PriceMappingMain from "./pages/Customer/PriceMappingMain";
-import Inventory from "./pages/Inventory";
 import InventoryMain from "./pages/Inventory/InventoryMain";
+import InventoryItemPage from "./pages/Inventory/InventoryItemPage";
+import InventoryTransactionPage from "./pages/Inventory/InventoryTransactionPage";
 import PurchaseOrders from "./pages/PurchaseOrder/PurchaseOrdersMain";
 import PurchaseOrderForm from "./pages/PurchaseOrder/PurchaseOrderForm";
 import PurchaseOrderReceive from "./pages/PurchaseOrder/PurchaseOrderReceive";
+import POInwardToInventory from "./pages/PurchaseOrder/POInwardToInventory";
 import Dispatch from "./pages/Dispatch/DispatchMain";
 import Billing from "./pages/Billing";
 import Payments from "./pages/Payments";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
-import VendorsOld from "./pages/Vendors";
 import Vendors from "./pages/Vendor/VendorsMain";
 import VendorForm from "./pages/Vendor/VendorForm";
 import BusinessCategories from "./pages/BusinessCategory/BusinessCategories";
@@ -126,6 +126,12 @@ const AppRoutes = () => (
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       
       {/* Inventory Routes */}
+      <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/items/add" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
+      <Route path="/inventory/items/edit/:id" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
+      <Route path="/inventory/items/view/:id" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
+      <Route path="/inventory/transactions/add" element={<ProtectedRoute><InventoryTransactionPage /></ProtectedRoute>} />
+      <Route path="/inventory/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
       <Route path="/inventory/items" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
@@ -136,6 +142,7 @@ const AppRoutes = () => (
       <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
       <Route path="/masters/purchase-orders/receive/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
       <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
+      <Route path="/masters/purchase-orders/receive/:id/inward/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><POInwardToInventory /></div>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />

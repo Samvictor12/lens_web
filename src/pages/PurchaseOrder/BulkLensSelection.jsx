@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
  * BulkLensSelection Component
  * Grid behaviour is driven by categoryName:
  *   Single      → single-eye grid, columns = CYL
- *   Bifocal     → L/R grid,        columns = CYL
- *   Progressive → L/R grid,        columns = ADD  (no CYL)
+ *   Bifocal     → single-eye grid, columns = ADD  (no L/R)
+ *   Progressive → R/L grid,        columns = ADD
  */
 export default function BulkLensSelection({
   value = null,
@@ -21,7 +21,9 @@ export default function BulkLensSelection({
 }) {
   const lowerCat = (categoryName || "").toLowerCase();
   const isProgressive = lowerCat.includes("prog");
-  const eyeMode = lowerCat.includes("single") ? "Single" : "Both";
+  const isBifocal = lowerCat.includes("bifocal") || lowerCat.includes("bi-focal");
+  // Only Progressive uses per-eye (R/L) grid; Single & Bifocal use single-eye grid
+  const eyeMode = isProgressive ? "Both" : "Single";
 
   const defaultRanges = {
     sphFrom: 0,
@@ -73,10 +75,12 @@ export default function BulkLensSelection({
   };
 
   const sphValues = generateRange(ranges.sphFrom, ranges.sphTo);
-  const colValues = isProgressive
+  // Bifocal and Progressive both use ADD column; Single uses CYL
+  const useAdd = isProgressive || isBifocal;
+  const colValues = useAdd
     ? generateRange(ranges.addFrom, ranges.addTo)
     : generateRange(ranges.cylFrom, ranges.cylTo);
-  const colLabel = isProgressive ? "ADD" : "CYL";
+  const colLabel = useAdd ? "ADD" : "CYL";
 
   // Debounced parent notify
   const updateTimerRef = useRef(null);
@@ -103,7 +107,7 @@ export default function BulkLensSelection({
 
   // Cell key helpers
   const makeCellKey = (sph, colVal, eye) => {
-    const colPart = isProgressive ? `add_${colVal}` : `cyl_${colVal}`;
+    const colPart = useAdd ? `add_${colVal}` : `cyl_${colVal}`;
     return `sph_${sph}_${colPart}${eye ? `_${eye}` : ""}`;
   };
 
@@ -204,17 +208,17 @@ export default function BulkLensSelection({
                     )
                   )}
                 </tr>
-                {/* L / R sub-headers for Both mode */}
+                {/* R / L sub-headers for Both mode (Progressive only) */}
                 {isBoth && (
                   <tr>
                     <th className="w-20 bg-gray-100 border-b border-r border-gray-300 p-1 sticky left-0 top-8 z-[25]" />
                     {colValues.map((col, i) => (
-                      <React.Fragment key={`lr-${col}-${i}`}>
-                        <th className="bg-gray-50 border-b border-r border-gray-300 p-1 text-xs font-medium text-center min-w-[35px] sticky top-8 z-[15]">
-                          L
-                        </th>
+                      <React.Fragment key={`rl-${col}-${i}`}>
                         <th className="bg-gray-50 border-b border-r border-gray-300 p-1 text-xs font-medium text-center min-w-[35px] sticky top-8 z-[15]">
                           R
+                        </th>
+                        <th className="bg-gray-50 border-b border-r border-gray-300 p-1 text-xs font-medium text-center min-w-[35px] sticky top-8 z-[15]">
+                          L
                         </th>
                       </React.Fragment>
                     ))}
@@ -230,7 +234,7 @@ export default function BulkLensSelection({
                     {isBoth
                       ? colValues.map((col) => (
                           <React.Fragment key={`${sph}-${col}`}>
-                            {["L", "R"].map((eye) => (
+                            {["R", "L"].map((eye) => (
                               <td
                                 key={eye}
                                 className={`border-r border-b border-gray-300 p-0 text-center cursor-pointer ${
@@ -323,7 +327,7 @@ export default function BulkLensSelection({
                   />
                 </div>
 
-                {!isProgressive ? (
+                {!useAdd ? (
                   <>
                     <div>
                       <Label className="text-xs">From CYL</Label>

@@ -25,7 +25,6 @@ export const useTrayColumns = (navigate, onDelete) => {
         >
           <div>
             <div className="font-medium text-xs text-primary">{tray.name}</div>
-            <div className="text-xs text-muted-foreground">{tray.trayCode}</div>
           </div>
         </a>
       ),
@@ -41,7 +40,6 @@ export const useTrayColumns = (navigate, onDelete) => {
               <MapPin className="h-3 w-3 text-muted-foreground" />
               <div>
                 <div className="text-xs font-medium">{tray.location.name}</div>
-                <div className="text-xs text-muted-foreground">{tray.location.locationCode}</div>
               </div>
             </>
           ) : (

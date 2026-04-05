@@ -25,12 +25,6 @@ export const validateCreateLocation = (data) => {
     errors.push({ field: 'name', message: 'Location name must be between 1 and 200 characters' });
   }
 
-  if (!data.location_code || data.location_code.trim() === '') {
-    errors.push({ field: 'location_code', message: 'Location code is required' });
-  } else if (!isValidLength(data.location_code, 1, 50)) {
-    errors.push({ field: 'location_code', message: 'Location code must be between 1 and 50 characters' });
-  }
-
   if (data.description && !isValidLength(data.description, 0, 500)) {
     errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
   }
@@ -54,10 +48,6 @@ export const validateUpdateLocation = (data) => {
 
   if (data.name && !isValidLength(data.name, 1, 200)) {
     errors.push({ field: 'name', message: 'Location name must be between 1 and 200 characters' });
-  }
-
-  if (data.location_code && !isValidLength(data.location_code, 1, 50)) {
-    errors.push({ field: 'location_code', message: 'Location code must be between 1 and 50 characters' });
   }
 
   if (data.description && !isValidLength(data.description, 0, 500)) {
@@ -85,12 +75,6 @@ export const validateCreateTray = (data) => {
     errors.push({ field: 'name', message: 'Tray name is required' });
   } else if (!isValidLength(data.name, 1, 200)) {
     errors.push({ field: 'name', message: 'Tray name must be between 1 and 200 characters' });
-  }
-
-  if (!data.tray_code || data.tray_code.trim() === '') {
-    errors.push({ field: 'tray_code', message: 'Tray code is required' });
-  } else if (!isValidLength(data.tray_code, 1, 50)) {
-    errors.push({ field: 'tray_code', message: 'Tray code must be between 1 and 50 characters' });
   }
 
   if (data.description && !isValidLength(data.description, 0, 500)) {
@@ -128,10 +112,6 @@ export const validateUpdateTray = (data) => {
 
   if (data.name && !isValidLength(data.name, 1, 200)) {
     errors.push({ field: 'name', message: 'Tray name must be between 1 and 200 characters' });
-  }
-
-  if (data.tray_code && !isValidLength(data.tray_code, 1, 50)) {
-    errors.push({ field: 'tray_code', message: 'Tray code must be between 1 and 50 characters' });
   }
 
   if (data.description && !isValidLength(data.description, 0, 500)) {

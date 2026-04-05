@@ -14,6 +14,10 @@ router.get("/dropdown",
     authenticateToken, 
     trayController.getTraysDropdown);
 
+router.get("/location/:locationId",
+    authenticateToken,
+    trayController.getTraysByLocation);
+
 // CRUD routes
 router.post("/", 
     authenticateToken, 

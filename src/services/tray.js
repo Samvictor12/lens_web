@@ -7,7 +7,6 @@ import { apiClient } from "./apiClient";
 const mapToBackend = (frontendData) => {
   return {
     name: frontendData.name,
-    tray_code: frontendData.trayCode || frontendData.tray_code,
     description: frontendData.description || null,
     capacity: frontendData.capacity !== undefined ? frontendData.capacity : null,
     location_id: frontendData.locationId || frontendData.location_id || null,
@@ -22,8 +21,6 @@ const mapFromBackend = (backendData) => {
   return {
     id: backendData.id,
     name: backendData.name,
-    trayCode: backendData.tray_code,
-    tray_code: backendData.tray_code,
     description: backendData.description || "",
     capacity: backendData.capacity || 0,
     locationId: backendData.location_id,
@@ -31,7 +28,6 @@ const mapFromBackend = (backendData) => {
     location: backendData.location ? {
       id: backendData.location.id,
       name: backendData.location.name,
-      locationCode: backendData.location.location_code,
     } : null,
     activeStatus:
       backendData.activeStatus !== undefined ? backendData.activeStatus : true,
@@ -167,5 +163,17 @@ export async function getTrayDropdown(location_id = null) {
   return {
     success: response.success,
     data: response.data,
+  };
+}
+
+/**
+ * Get all active trays for a specific location
+ */
+export async function getTraysByLocation(locationId) {
+  const response = await apiClient("get", `/v1/tray-master/location/${locationId}`);
+
+  return {
+    success: response.success,
+    data: response.data.map(mapFromBackend),
   };
 }

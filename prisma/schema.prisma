@@ -706,6 +706,9 @@ model PurchaseOrderReceipt {
   notes              String?
   status             String    @default("PARTIAL") // PARTIAL | COMPLETE
 
+  // Inward tracking — how much of this receipt has been moved to inventory stock
+  inwardedQty        Float     @default(0)
+
   // Audit
   activeStatus     Boolean       @default(true)
   deleteStatus     Boolean       @default(false)
@@ -717,6 +720,7 @@ model PurchaseOrderReceipt {
   createdByUser    User          @relation("receiptCreatedBy", fields: [createdBy], references: [id])
   updatedByUser    User?         @relation("receiptUpdatedBy", fields: [updatedBy], references: [id])
   logs             PurchaseReceiptLog[]
+  inventoryItems   InventoryItem[]
 }
 
 model PurchaseReceiptLog {
@@ -895,7 +899,6 @@ model SaleOrder {
 model LocationMaster {
   id            Int          @id @default(autoincrement())
   name          String
-  location_code String       @unique
   description   String?
   activeStatus  Boolean      @default(true)
   deleteStatus  Boolean      @default(false)
@@ -918,7 +921,6 @@ model LocationMaster {
 model TrayMaster {
   id            Int             @id @default(autoincrement())
   name          String
-  tray_code     String          @unique
   description   String?
   capacity      Int?
   location_id   Int?
@@ -1016,6 +1018,8 @@ model InventoryItem {
   // Source Information
   purchaseOrderId       Int?                     // If from PO
   purchaseOrder         PurchaseOrder?           @relation(fields: [purchaseOrderId], references: [id])
+  purchaseReceiptId     Int?                     // Specific receipt that generated this inventory item
+  purchaseReceipt       PurchaseOrderReceipt?    @relation(fields: [purchaseReceiptId], references: [id])
   vendorId              Int?                     // Source vendor
   vendor                Vendor?                  @relation(fields: [vendorId], references: [id])
   

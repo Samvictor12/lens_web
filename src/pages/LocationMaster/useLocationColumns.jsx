@@ -25,7 +25,6 @@ export const useLocationColumns = (navigate, onDelete) => {
         >
           <div>
             <div className="font-medium text-xs text-primary">{location.name}</div>
-            <div className="text-xs text-muted-foreground">{location.locationCode}</div>
           </div>
         </a>
       ),
