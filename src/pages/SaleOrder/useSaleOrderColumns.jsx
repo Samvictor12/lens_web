@@ -71,23 +71,51 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
     },
     {
       accessorKey: "lensPrice",
-      header: "Price",
+      header: "Total Amount",
       align: "right",
       sortable: true,
       cell: (row) => {
-        console.log("lensPrice", row);
-        const price = row.lensPrice || 0;
-        const discount = row.discount || 0;
-        const finalPrice = price - (price * discount) / 100;
+        const lensPrice   = row.lensPrice    || 0;
+        const rightExtra  = row.rightEyeExtra || 0;
+        const leftExtra   = row.leftEyeExtra  || 0;
+        const fitting     = row.fittingPrice  || 0;
+        const tinting     = row.tintingPrice  || 0;
+        const additional  = Array.isArray(row.additionalPrice)
+          ? row.additionalPrice.reduce((sum, p) => sum + (parseFloat(p.value) || 0), 0)
+          : 0;
+
+        const baseLensPrice = lensPrice + rightExtra + leftExtra + fitting + tinting;
+        const subtotal = baseLensPrice + additional;
+
+        const freeLensDeduction   = row.freeLens    ? lensPrice : 0;
+        const freeFittingDeduction = row.freeFitting ? fitting  : 0;
+
+        const subtotalAfterFree = subtotal - freeLensDeduction - freeFittingDeduction;
+        const discountPct = row.discount || 0;
+        const discountAmt = (subtotalAfterFree * discountPct) / 100;
+        let finalTotal = subtotalAfterFree - discountAmt;
+
+        // Apply offer discount on top
+        const offer = row.offer;
+        if (offer) {
+          if (offer.offerType === 'PERCENTAGE') {
+            // PERCENTAGE offer replaces the category discount
+            const offerDiscount = (subtotalAfterFree * (offer.discountPercentage || 0)) / 100;
+            finalTotal = subtotalAfterFree - offerDiscount;
+          } else if (offer.offerType === 'VALUE') {
+            finalTotal = finalTotal - (offer.discountValue || 0);
+          }
+          // EXCHANGE_COATING_PRICE requires fetching the exchange price — skip for list
+        }
 
         return (
           <div className="flex flex-col items-end">
             <span className="font-semibold text-sm">
-              ₹{finalPrice.toLocaleString("en-IN")}
+              ₹{finalTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </span>
-            {discount > 0 && (
+            {discountPct > 0 && (
               <span className="text-xs text-muted-foreground">
-                ({discount}% off)
+                ({discountPct}% off)
               </span>
             )}
           </div>

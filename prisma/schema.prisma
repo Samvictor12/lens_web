@@ -511,6 +511,7 @@ enum SaleOrderStatus {
   IN_PRODUCTION
   READY_FOR_DISPATCH
   DELIVERED
+  CLOSED
 }
 
 model SaleOrderItem {
@@ -579,8 +580,8 @@ model PurchaseOrder {
   reference_id         String?             @unique // From vendor's external application (e.g., PUR1548)
   
   // Vendor & Sale Order
-  vendorId             Int
-  vendor               Vendor              @relation(fields: [vendorId], references: [id])
+  vendorId             Int?
+  vendor               Vendor?             @relation(fields: [vendorId], references: [id])
   saleOrderId          Int?
   saleOrder            SaleOrder?          @relation(fields: [saleOrderId], references: [id])
   
@@ -885,6 +886,10 @@ model SaleOrder {
   assignedPerson  User?           @relation("saleOrderAssignedPerson", fields: [assignedPerson_id], references: [id])
   inventoryItems  InventoryItem[]
   inventoryTransactions InventoryTransaction[] @relation("inventorySaleTransactions")
+  // Parent / child relationship (Close & Create SO)
+  parentId          Int?
+  parent            SaleOrder?  @relation("SaleOrderChildren", fields: [parentId], references: [id])
+  children          SaleOrder[] @relation("SaleOrderChildren")
 }
 
 model LocationMaster {

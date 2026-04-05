@@ -69,6 +69,7 @@ export const orderStatusOptions = [
   { value: "IN_PRODUCTION", label: "In Production" },
   { value: "READY_FOR_DISPATCH", label: "Ready for Dispatch" },
   { value: "DELIVERED", label: "Delivered" },
+  { value: "CLOSED", label: "Closed" },
 ];
 
 export const orderTypeOptions = [
@@ -98,6 +99,7 @@ export const statusColors = {
   IN_PRODUCTION: "bg-yellow-100 text-yellow-800 border-yellow-200",
   READY_FOR_DISPATCH: "bg-purple-100 text-purple-800 border-purple-200",
   DELIVERED: "bg-green-100 text-green-800 border-green-200",
+  CLOSED: "bg-red-100 text-red-800 border-red-200",
 };
 
 // Eye specification validation ranges

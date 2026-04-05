@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X } from "lucide-react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { ArrowLeft, Save, Edit, X, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -36,6 +36,7 @@ import BulkLensSelection from "./BulkLensSelection";
 export default function PurchaseOrderForm() {
   const navigate = useNavigate();
   const { mode, id } = useParams();
+  const location = useLocation();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(mode === "add" || mode === "edit");
   const [errors, setErrors] = useState({});
@@ -97,7 +98,8 @@ export default function PurchaseOrderForm() {
         if (lensTintingResponse.success) setLensTintings(lensTintingResponse.data);
 
         // Set default Type_id for new orders based on initial orderType
-        if (mode === "add" && lensTypeResponse.success) {
+        // Skip when pre-filling from a Sale Order (it carries its own Type_id)
+        if (mode === "add" && lensTypeResponse.success && !location.state?.fromSaleOrder) {
           const initialOrderType = "Bulk"; // default tab
           const targetName = initialOrderType === "Bulk" ? "STOCK" : "RX";
           const match = lensTypeResponse.data.find(
@@ -119,6 +121,43 @@ export default function PurchaseOrderForm() {
 
     fetchDropdownData();
   }, []);
+
+  // Pre-fill form when navigating from "Create & Rise Po" on the Sale Order form
+  useEffect(() => {
+    if (mode === "add" && location.state?.fromSaleOrder) {
+      const so = location.state.fromSaleOrder;
+      const qty = (so.rightEye ? 0.5 : 0) + (so.leftEye ? 0.5 : 0) || 1;
+      setFormData((prev) => ({
+        ...prev,
+        saleOrderId: so.id ?? null,
+        orderType: "Single",
+        lens_id: so.lens_id ?? null,
+        category_id: so.category_id ?? null,
+        Type_id: so.Type_id ?? null,
+        dia_id: so.dia_id ?? null,
+        fitting_id: so.fitting_id ?? null,
+        coating_id: so.coating_id ?? null,
+        tinting_id: so.tinting_id ?? null,
+        rightEye: so.rightEye ?? false,
+        leftEye: so.leftEye ?? false,
+        rightSpherical: so.rightSpherical || "",
+        rightCylindrical: so.rightCylindrical || "",
+        rightAxis: so.rightAxis || "",
+        rightAdd: so.rightAdd || "",
+        rightDia: so.rightDia || "",
+        leftSpherical: so.leftSpherical || "",
+        leftCylindrical: so.leftCylindrical || "",
+        leftAxis: so.leftAxis || "",
+        leftAdd: so.leftAdd || "",
+        leftDia: so.leftDia || "",
+        quantity: qty,
+        itemDescription: so.orderNo || "",
+        notes: so.remark || "",
+      }));
+      setCurrentOrderType("Single");
+      setShowTabs(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate PO Number for new orders
   useEffect(() => {
@@ -236,13 +275,13 @@ export default function PurchaseOrderForm() {
               lensBulkSelection: convertedBulkSelection,
               activeStatus: po.activeStatus !== undefined ? po.activeStatus : true,
             };
-            
+
             // Set current order type from existing data
             setCurrentOrderType(po.orderType || "Single");
-            
+
             // Hide tabs in view/edit mode - show only the form for existing order type
             setShowTabs(false);
-            
+
             setFormData(poData);
             setOriginalData(poData);
           } else {
@@ -372,7 +411,7 @@ export default function PurchaseOrderForm() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     if (type === "checkbox") {
       setFormData((prev) => ({ ...prev, [name]: checked }));
     } else {
@@ -487,7 +526,7 @@ export default function PurchaseOrderForm() {
       }
       delete submitData.taxType;
       delete submitData.taxPercentage;
-      
+
       // For bulk orders, ensure lensBulkSelection is properly formatted
       if (formData.orderType === "Bulk") {
         // Validate bulk selection
@@ -517,10 +556,10 @@ export default function PurchaseOrderForm() {
             const keyParts = key.split('_');
             const sphIndex = keyParts.findIndex(part => part === 'sph');
             const cylIndex = keyParts.findIndex(part => part === 'cyl');
-            
+
             const spherical = sphIndex !== -1 ? keyParts[sphIndex + 1] : '0';
             const cylindrical = cylIndex !== -1 ? keyParts[cylIndex + 1] : '0';
-            
+
             return {
               spherical: parseFloat(spherical),
               cylindrical: parseFloat(cylindrical),
@@ -528,7 +567,7 @@ export default function PurchaseOrderForm() {
               unitPrice: parseFloat(data?.unitPrice || formData.unitPrice) || 0
             };
           });
-        
+
         if (bulkArray.length === 0) {
           toast({
             title: "Error",
@@ -538,7 +577,7 @@ export default function PurchaseOrderForm() {
           setIsSaving(false);
           return;
         }
-        
+
         submitData.lensBulkSelection = bulkArray;
       } else {
         // For single orders, remove bulk selection data
@@ -754,9 +793,8 @@ export default function PurchaseOrderForm() {
           <CardContent className="p-3 pt-0">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Total Qty (from grid)</span>
-              <span className={`text-lg font-bold ${
-                parseFloat(formData.quantity) > 0 ? "text-primary" : "text-destructive"
-              }`}>
+              <span className={`text-lg font-bold ${parseFloat(formData.quantity) > 0 ? "text-primary" : "text-destructive"
+                }`}>
                 {parseFloat(formData.quantity) || 0}
               </span>
             </div>
@@ -858,7 +896,7 @@ export default function PurchaseOrderForm() {
               placeholder="Search and select sale order..."
               isSearchable={true}
               isClearable={true}
-              disabled={isReadOnly}
+              disabled={isReadOnly || !!location.state?.fromSaleOrder}
               error={errors.saleOrderId}
               singleLine
             />
@@ -972,76 +1010,74 @@ export default function PurchaseOrderForm() {
     const coatingsToShow = filteredLensCoatings !== null ? filteredLensCoatings : lensCoatings;
     const lensProductDisabled = isReadOnly || !formData.Type_id || !formData.category_id;
     return (
-    <Card>
-      <CardHeader className="p-3 pb-2">
-        <CardTitle className="text-sm">Lens Details</CardTitle>
-      </CardHeader>
-      <CardContent className="p-3 pt-0 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FormSelect
-            label="Type"
-            name="Type_id"
-            options={lensTypes}
-            value={formData.Type_id}
-            onChange={(value) => {
-              setFormData((prev) => ({ ...prev, Type_id: value }));
-              if (errors.Type_id) {
-                setErrors((prev) => ({ ...prev, Type_id: "" }));
-              }
-            }}
-            placeholder="Select type"
-            isSearchable={true}
-            isClearable={true}
-            disabled={true}
-            required
-            error={errors.Type_id}
-          />
+      <Card>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Lens Details</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormSelect
+              label="Type"
+              name="Type_id"
+              options={lensTypes}
+              value={formData.Type_id}
+              onChange={(value) => {
+                setFormData((prev) => ({ ...prev, Type_id: value }));
+                if (errors.Type_id) {
+                  setErrors((prev) => ({ ...prev, Type_id: "" }));
+                }
+              }}
+              placeholder="Select type"
+              isSearchable={true}
+              isClearable={true}
+              disabled={true}
+              required
+              error={errors.Type_id}
+            />
 
-          <FormSelect
-            label="Category"
-            name="category_id"
-            options={lensCategories}
-            value={formData.category_id}
-            onChange={handleCategoryChange}
-            placeholder="Select category"
-            isSearchable={true}
-            isClearable={true}
-            disabled={isReadOnly}
-            required
-            error={errors.category_id}
-          />
-        </div>
+            <FormSelect
+              label="Category"
+              name="category_id"
+              options={lensCategories}
+              value={formData.category_id}
+              onChange={handleCategoryChange}
+              placeholder="Select category"
+              isSearchable={true}
+              isClearable={true}
+              disabled={mode !== "add"}
+              required
+              error={errors.category_id}
+            />
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FormSelect
-            label="Lens Product"
-            name="lens_id"
-            options={productsToShow}
-            value={formData.lens_id}
-            onChange={handleLensProductChange}
-            placeholder={lensProductDisabled && !isReadOnly ? "Select Category first" : "Select lens product"}
-            isSearchable={true}
-            isClearable={true}
-            disabled={lensProductDisabled}
-            required
-            error={errors.lens_id}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormSelect
+              label="Lens Product"
+              name="lens_id"
+              options={productsToShow}
+              value={formData.lens_id}
+              onChange={handleLensProductChange}
+              placeholder={lensProductDisabled && !isReadOnly ? "Select Category first" : "Select lens product"}
+              isSearchable={true}
+              isClearable={true}
+              disabled={!(!lensProductDisabled && mode === "add")}
+              required
+              error={errors.lens_id}
+            />
+            <FormSelect
+              label="Coating (Optional)"
+              name="coating_id"
+              options={coatingsToShow}
+              value={formData.coating_id}
+              onChange={(value) => setFormData((prev) => ({ ...prev, coating_id: value }))}
+              placeholder={!formData.lens_id && !isReadOnly ? "Select Lens Product first" : "Select coating"}
+              isSearchable={true}
+              isClearable={true}
+              disabled={mode !== "add"}
+            />
 
-          {!isBulk && (
-          <FormSelect
-            label="Dia (Optional)"
-            name="dia_id"
-            options={lensDias}
-            value={formData.dia_id}
-            onChange={(value) => setFormData((prev) => ({ ...prev, dia_id: value }))}
-            placeholder="Select dia"
-            isSearchable={true}
-            isClearable={true}
-            disabled={isReadOnly}
-          />
-          )}
 
-          {/* <FormSelect
+            {/* <FormSelect
             label="Fitting (Optional)"
             name="fitting_id"
             options={lensFittings}
@@ -1052,86 +1088,91 @@ export default function PurchaseOrderForm() {
             isClearable={true}
             disabled={isReadOnly}
           /> */}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FormSelect
-            label="Coating (Optional)"
-            name="coating_id"
-            options={coatingsToShow}
-            value={formData.coating_id}
-            onChange={(value) => setFormData((prev) => ({ ...prev, coating_id: value }))}
-            placeholder={!formData.lens_id && !isReadOnly ? "Select Lens Product first" : "Select coating"}
-            isSearchable={true}
-            isClearable={true}
-            disabled={isReadOnly || !formData.lens_id}
-          />
-
-          {!isBulk && (
-          <FormSelect
-            label="Tinting (Optional)"
-            name="tinting_id"
-            options={lensTintings}
-            value={formData.tinting_id}
-            onChange={(value) => setFormData((prev) => ({ ...prev, tinting_id: value }))}
-            placeholder="Select tinting"
-            isSearchable={true}
-            isClearable={true}
-            disabled={isReadOnly}
-          />
-          )}
-        </div>
-
-        {/* Eye Selection */}
-        {showEyeSelection && (
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Eye Selection</Label>
-          <div className="flex gap-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="rightEye"
-                name="rightEye"
-                checked={formData.rightEye}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, rightEye: checked }))
-                }
-                disabled={isReadOnly}
-              />
-              <label
-                htmlFor="rightEye"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Right Eye
-              </label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="leftEye"
-                name="leftEye"
-                checked={formData.leftEye}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, leftEye: checked }))
-                }
-                disabled={isReadOnly}
-              />
-              <label
-                htmlFor="leftEye"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Left Eye
-              </label>
-            </div>
           </div>
-        </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+
+            {!isBulk && (
+              <FormSelect
+                label="Tinting (Optional)"
+                name="tinting_id"
+                options={lensTintings}
+                value={formData.tinting_id}
+                onChange={(value) => setFormData((prev) => ({ ...prev, tinting_id: value }))}
+                placeholder="Select tinting"
+                isSearchable={true}
+                isClearable={true}
+                disabled={mode !== "add"}
+              />
+            )}
+
+            
+            {/* {!isBulk && (
+              <FormSelect
+                label="Dia (Optional)"
+                name="dia_id"
+                options={lensDias}
+                value={formData.dia_id}
+                onChange={(value) => setFormData((prev) => ({ ...prev, dia_id: value }))}
+                placeholder="Select dia"
+                isSearchable={true}
+                isClearable={true}
+                disabled={isReadOnly}
+              />
+            )} */}
+          </div>
+
+          {/* Eye Selection */}
+          {showEyeSelection && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Eye Selection</Label>
+              <div className="flex gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="rightEye"
+                    name="rightEye"
+                    checked={formData.rightEye}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, rightEye: checked }))
+                    }
+                    disabled={isReadOnly}
+                  />
+                  <label
+                    htmlFor="rightEye"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Right Eye
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="leftEye"
+                    name="leftEye"
+                    checked={formData.leftEye}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, leftEye: checked }))
+                    }
+                    disabled={isReadOnly}
+                  />
+                  <label
+                    htmlFor="leftEye"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Left Eye
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     );
   };
 
   const renderEyeSpecifications = () => {
     if (!formData.rightEye && !formData.leftEye) return null;
-    
+
     return (
       <Card>
         <CardHeader className="p-3 pb-2">
@@ -1211,57 +1252,55 @@ export default function PurchaseOrderForm() {
 
         {/* Tax field with toggle */}
         <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Tax</Label>
-              <div className="flex rounded-md border overflow-hidden text-xs">
-                <button
-                  type="button"
-                  onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, taxType: "Amount" }))}
-                  className={`px-2 py-0.5 transition-colors ${
-                    formData.taxType === "Amount"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background text-muted-foreground hover:bg-muted"
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Tax</Label>
+            <div className="flex rounded-md border overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, taxType: "Amount" }))}
+                className={`px-2 py-0.5 transition-colors ${formData.taxType === "Amount"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
                   } ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
-                >
-                  ₹ Amount
-                </button>
-                <button
-                  type="button"
-                  onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, taxType: "Percent" }))}
-                  className={`px-2 py-0.5 transition-colors ${
-                    formData.taxType === "Percent"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background text-muted-foreground hover:bg-muted"
+              >
+                ₹ Amount
+              </button>
+              <button
+                type="button"
+                onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, taxType: "Percent" }))}
+                className={`px-2 py-0.5 transition-colors ${formData.taxType === "Percent"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
                   } ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
-                >
-                  % Rate
-                </button>
-              </div>
+              >
+                % Rate
+              </button>
             </div>
-            {formData.taxType === "Percent" ? (
-              <FormInput
-                name="taxPercentage"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={formData.taxPercentage}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                suffix="%"
-              />
-            ) : (
-              <FormInput
-                name="taxAmount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.taxAmount}
-                onChange={handleChange}
-                disabled={isReadOnly}
-                prefix="₹"
-              />
-            )}
+          </div>
+          {formData.taxType === "Percent" ? (
+            <FormInput
+              name="taxPercentage"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={formData.taxPercentage}
+              onChange={handleChange}
+              disabled={isReadOnly}
+              suffix="%"
+            />
+          ) : (
+            <FormInput
+              name="taxAmount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.taxAmount}
+              onChange={handleChange}
+              disabled={isReadOnly}
+              prefix="₹"
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1292,61 +1331,61 @@ export default function PurchaseOrderForm() {
     const selectedVendor = vendors.find(v => String(v.value ?? v.id) === String(formData.vendorId));
     const vendorName = selectedVendor?.label || selectedVendor?.name || "";
     return (
-    <Card>
-      <CardHeader className="p-3 pb-2">
-        <CardTitle className="text-sm">Supplier Invoice Details</CardTitle>
-      </CardHeader>
-      <CardContent className="p-3 pt-0 space-y-4">
-        {vendorName && (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground min-w-[60px] w-[100px]">Vendor</span>
-            <span className="font-medium text-foreground">{vendorName}</span>
+      <Card>
+        <CardHeader className="p-3 pb-2">
+          <CardTitle className="text-sm">Supplier Invoice Details</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0 space-y-4">
+          {vendorName && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground min-w-[60px] w-[100px]">Vendor</span>
+              <span className="font-medium text-foreground">{vendorName}</span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FormInput
+              label="Supplier Invoice No (Optional)"
+              name="supplierInvoiceNo"
+              value={formData.supplierInvoiceNo}
+              onChange={handleChange}
+              disabled={isReadOnly}
+              placeholder="e.g., BL080984-25/26"
+            />
+
+            <FormSelect
+              label="Purchase Type (Optional)"
+              name="purchaseType"
+              options={purchaseTypeOptions}
+              value={formData.purchaseType}
+              onChange={(value) => setFormData((prev) => ({ ...prev, purchaseType: value }))}
+              placeholder="Select purchase type"
+              isSearchable={false}
+              isClearable={true}
+              disabled={isReadOnly}
+            />
           </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
           <FormInput
-            label="Supplier Invoice No (Optional)"
-            name="supplierInvoiceNo"
-            value={formData.supplierInvoiceNo}
+            label="Place of Supply (Optional)"
+            name="placeOfSupply"
+            value={formData.placeOfSupply}
             onChange={handleChange}
             disabled={isReadOnly}
-            placeholder="e.g., BL080984-25/26"
+            placeholder="e.g., Maharashtra"
           />
 
-          <FormSelect
-            label="Purchase Type (Optional)"
-            name="purchaseType"
-            options={purchaseTypeOptions}
-            value={formData.purchaseType}
-            onChange={(value) => setFormData((prev) => ({ ...prev, purchaseType: value }))}
-            placeholder="Select purchase type"
-            isSearchable={false}
-            isClearable={true}
+          <FormTextarea
+            label="Item Description (Optional)"
+            name="itemDescription"
+            value={formData.itemDescription}
+            onChange={handleChange}
             disabled={isReadOnly}
+            rows={2}
+            placeholder="Item or service description"
           />
-        </div>
-
-        <FormInput
-          label="Place of Supply (Optional)"
-          name="placeOfSupply"
-          value={formData.placeOfSupply}
-          onChange={handleChange}
-          disabled={isReadOnly}
-          placeholder="e.g., Maharashtra"
-        />
-
-        <FormTextarea
-          label="Item Description (Optional)"
-          name="itemDescription"
-          value={formData.itemDescription}
-          onChange={handleChange}
-          disabled={isReadOnly}
-          rows={2}
-          placeholder="Item or service description"
-        />
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
   };
 
   const renderDatesAndNotes = () => (
@@ -1406,15 +1445,15 @@ export default function PurchaseOrderForm() {
             {mode === "add"
               ? "Add New Purchase Order"
               : mode === "edit"
-              ? "Edit Purchase Order"
-              : "Purchase Order Details"}
+                ? "Edit Purchase Order"
+                : "Purchase Order Details"}
           </h1>
           <p className="text-xs text-muted-foreground">
             {mode === "add"
               ? "Fill in the purchase order information below"
               : mode === "edit"
-              ? "Update purchase order information"
-              : "View purchase order information"}
+                ? "Update purchase order information"
+                : "View purchase order information"}
           </p>
         </div>
 
@@ -1475,6 +1514,19 @@ export default function PurchaseOrderForm() {
         </div>
       </div>
 
+      {/* Sale Order source banner */}
+      {mode === "add" && location.state?.fromSaleOrder && (
+        <div className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+          <Package className="h-4 w-4 shrink-0" />
+          <span>
+            Raising Purchase Order from Sale Order{" "}
+            <strong>{location.state.fromSaleOrder.orderNo}</strong>. Lens &amp; eye
+            specifications have been pre-filled. Please select a vendor and enter the
+            unit price to complete the PO.
+          </span>
+        </div>
+      )}
+
       {/* Form */}
       {isLoading ? (
         <Card className="flex-shrink-0">
@@ -1492,24 +1544,24 @@ export default function PurchaseOrderForm() {
           {/* Conditionally show tabs only for new orders */}
           {showTabs && mode === "add" ? (
             <>
-             {/* <Tabs  */}
-            {/* //   value={formData.orderType} 
+              {/* <Tabs  */}
+              {/* //   value={formData.orderType} 
             //   onValueChange={handleOrderTypeChange}
             //   className="w-full flex-1 flex flex-col min-h-0"
             // > */}
               {/* <TabsList className="grid w-full grid-cols-2 flex-shrink-0"> */}
-                {/* <TabsTrigger value="Single">Single Purchase</TabsTrigger> */}
-                {/* <TabsTrigger value="Bulk">Bulk Purchase</TabsTrigger>
+              {/* <TabsTrigger value="Single">Single Purchase</TabsTrigger> */}
+              {/* <TabsTrigger value="Bulk">Bulk Purchase</TabsTrigger>
               </TabsList> */}
-              
+
               {/* <TabsContent value="Single" className="flex-1 min-h-0 mt-4"> */}
-                {/* Single Purchase Form */}
-                {/* {renderPurchaseForm()} */}
-            {/*   </TabsContent>
+              {/* Single Purchase Form */}
+              {/* {renderPurchaseForm()} */}
+              {/*   </TabsContent>
               
               <TabsContent value="Bulk" className="flex-1 min-h-0 mt-4"> */}
-                {/* Basic Purchase Order Info with Bulk Lens Selection */}
-                {renderBasicPurchaseForm()}
+              {/* Basic Purchase Order Info with Bulk Lens Selection */}
+              {renderBasicPurchaseForm()}
               {/* </TabsContent>
             </Tabs> */}
             </>

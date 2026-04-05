@@ -35,71 +35,71 @@ const isValidDate = (date) => {
  */
 const validateBulkLensItem = (item, index) => {
   const itemErrors = [];
-  
+
   if (!item.lens_id || !isValidInteger(item.lens_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].lens_id`, 
-      message: 'Valid lens ID is required' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].lens_id`,
+      message: 'Valid lens ID is required'
     });
   }
-  
+
   if (!item.quantity || !isValidFloat(item.quantity) || parseFloat(item.quantity) <= 0) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].quantity`, 
-      message: 'Quantity must be greater than 0' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].quantity`,
+      message: 'Quantity must be greater than 0'
     });
   }
-  
+
   if (!item.unitPrice || !isValidFloat(item.unitPrice) || parseFloat(item.unitPrice) < 0) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].unitPrice`, 
-      message: 'Unit price must be 0 or greater' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].unitPrice`,
+      message: 'Unit price must be 0 or greater'
     });
   }
 
   // Optional fields validation
   if (item.category_id && !isValidInteger(item.category_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].category_id`, 
-      message: 'Invalid category ID' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].category_id`,
+      message: 'Invalid category ID'
     });
   }
 
   if (item.coating_id && !isValidInteger(item.coating_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].coating_id`, 
-      message: 'Invalid coating ID' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].coating_id`,
+      message: 'Invalid coating ID'
     });
   }
 
   if (item.Type_id && !isValidInteger(item.Type_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].Type_id`, 
-      message: 'Invalid type ID' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].Type_id`,
+      message: 'Invalid type ID'
     });
   }
 
   if (item.fitting_id && !isValidInteger(item.fitting_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].fitting_id`, 
-      message: 'Invalid fitting ID' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].fitting_id`,
+      message: 'Invalid fitting ID'
     });
   }
 
   if (item.dia_id && !isValidInteger(item.dia_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].dia_id`, 
-      message: 'Invalid dia ID' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].dia_id`,
+      message: 'Invalid dia ID'
     });
   }
 
   if (item.tinting_id && !isValidInteger(item.tinting_id)) {
-    itemErrors.push({ 
-      field: `lensBulkSelection[${index}].tinting_id`, 
-      message: 'Invalid tinting ID' 
+    itemErrors.push({
+      field: `lensBulkSelection[${index}].tinting_id`,
+      message: 'Invalid tinting ID'
     });
   }
-  
+
   return itemErrors;
 };
 
@@ -114,9 +114,7 @@ export const validateCreatePurchaseOrder = (data) => {
     errors.push({ field: 'poNumber', message: 'PO Number is required' });
   }
 
-  if (!data.vendorId) {
-    errors.push({ field: 'vendorId', message: 'Vendor is required' });
-  } else if (!isValidInteger(data.vendorId)) {
+  if (data.vendorId && !isValidInteger(data.vendorId)) {
     errors.push({ field: 'vendorId', message: 'Invalid vendor ID' });
   }
 
@@ -218,10 +216,10 @@ export const validateCreatePurchaseOrder = (data) => {
       errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection is required for bulk orders' });
     } else {
       try {
-        const bulkData = typeof data.lensBulkSelection === 'string' 
-          ? JSON.parse(data.lensBulkSelection) 
+        const bulkData = typeof data.lensBulkSelection === 'string'
+          ? JSON.parse(data.lensBulkSelection)
           : data.lensBulkSelection;
-        
+
         if (!Array.isArray(bulkData) || bulkData.length === 0) {
           errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection must be a non-empty array' });
         } else {
@@ -266,7 +264,7 @@ export const validateCreatePurchaseOrder = (data) => {
     data: errors.length === 0 ? {
       poNumber: data.poNumber?.trim(),
       reference_id: data.reference_id?.trim() || null,
-      vendorId: parseInt(data.vendorId),
+      vendorId: data.vendorId ? parseInt(data.vendorId) : null,
       saleOrderId: data.saleOrderId ? parseInt(data.saleOrderId) : null,
       lens_id: data.lens_id ? parseInt(data.lens_id) : null,
       category_id: data.category_id ? parseInt(data.category_id) : null,
@@ -309,10 +307,10 @@ export const validateCreatePurchaseOrder = (data) => {
       expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate) : null,
       actualDeliveryDate: data.actualDeliveryDate ? new Date(data.actualDeliveryDate) : null,
       orderType: data.orderType || 'Single',
-      lensBulkSelection: data.orderType === 'Bulk' && data.lensBulkSelection 
-        ? (typeof data.lensBulkSelection === 'string' 
-           ? JSON.parse(data.lensBulkSelection) 
-           : data.lensBulkSelection) 
+      lensBulkSelection: data.orderType === 'Bulk' && data.lensBulkSelection
+        ? (typeof data.lensBulkSelection === 'string'
+          ? JSON.parse(data.lensBulkSelection)
+          : data.lensBulkSelection)
         : null,
       status: data.status || 'PENDING',
       notes: data.notes?.trim() || null,
@@ -341,46 +339,78 @@ export const validateUpdatePurchaseOrder = (data) => {
   // Optional field validations (only if provided)
   if (data.vendorId !== undefined && !isValidInteger(data.vendorId)) {
     errors.push({ field: 'vendorId', message: 'Invalid vendor ID' });
+  } else {
+    data.vendorId = parseInt(data.vendorId);
   }
 
   if (data.quantity !== undefined && (!isValidFloat(data.quantity) || parseFloat(data.quantity) <= 0)) {
     errors.push({ field: 'quantity', message: 'Quantity must be greater than 0' });
+  } else {
+    data.quantity = parseFloat(data.quantity);
   }
 
   if (data.unitPrice !== undefined && (!isValidFloat(data.unitPrice) || parseFloat(data.unitPrice) < 0)) {
     errors.push({ field: 'unitPrice', message: 'Unit price must be 0 or greater' });
+  } else {
+    data.unitPrice = parseFloat(data.unitPrice);
   }
 
   if (data.subtotal !== undefined && (!isValidFloat(data.subtotal) || parseFloat(data.subtotal) < 0)) {
     errors.push({ field: 'subtotal', message: 'Subtotal must be 0 or greater' });
+  } else {
+    data.subtotal = parseFloat(data.subtotal);
   }
 
   if (data.totalValue !== undefined && (!isValidFloat(data.totalValue) || parseFloat(data.totalValue) < 0)) {
     errors.push({ field: 'totalValue', message: 'Total value must be 0 or greater' });
+  } else {
+    data.totalValue = parseFloat(data.totalValue);
   }
 
   if (data.discountPercentage !== undefined && !isValidFloat(data.discountPercentage)) {
     errors.push({ field: 'discountPercentage', message: 'Invalid discount percentage' });
+  } else {
+    data.discountPercentage = parseFloat(data.discountPercentage);
   }
 
   if (data.taxAmount !== undefined && !isValidFloat(data.taxAmount)) {
     errors.push({ field: 'taxAmount', message: 'Invalid tax amount' });
   }
+  else if (data.taxAmount !== undefined) {
+    data.taxAmount = parseFloat(data.taxAmount);
+  }
 
   if (data.roundOff !== undefined && !isValidFloat(data.roundOff)) {
     errors.push({ field: 'roundOff', message: 'Invalid round off value' });
+  }
+  else if (data.roundOff !== undefined) {
+    data.roundOff = parseFloat(data.roundOff);
   }
 
   if (data.orderDate !== undefined && !isValidDate(data.orderDate)) {
     errors.push({ field: 'orderDate', message: 'Invalid order date' });
   }
+  else if (data.orderDate !== undefined) {
+    data.orderDate = new Date(data.orderDate);
+  }
 
   if (data.expectedDeliveryDate !== undefined && !isValidDate(data.expectedDeliveryDate)) {
     errors.push({ field: 'expectedDeliveryDate', message: 'Invalid expected delivery date' });
   }
+  else if (data.expectedDeliveryDate !== undefined && data.expectedDeliveryDate !== "") {
+    data.expectedDeliveryDate = new Date(data.expectedDeliveryDate);
+  }else if (data.expectedDeliveryDate === "") {
+    data.expectedDeliveryDate = null;
+  }
 
   if (data.actualDeliveryDate !== undefined && !isValidDate(data.actualDeliveryDate)) {
     errors.push({ field: 'actualDeliveryDate', message: 'Invalid actual delivery date' });
+  }
+  else if (data.actualDeliveryDate !== undefined && data.actualDeliveryDate !== "") {
+    data.actualDeliveryDate = new Date(data.actualDeliveryDate);
+  }
+  else if (data.actualDeliveryDate === "") {
+    data.actualDeliveryDate = null;
   }
 
   // orderType validation
@@ -394,10 +424,10 @@ export const validateUpdatePurchaseOrder = (data) => {
       errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection is required for bulk orders' });
     } else {
       try {
-        const bulkData = typeof data.lensBulkSelection === 'string' 
-          ? JSON.parse(data.lensBulkSelection) 
+        const bulkData = typeof data.lensBulkSelection === 'string'
+          ? JSON.parse(data.lensBulkSelection)
           : data.lensBulkSelection;
-        
+
         if (!Array.isArray(bulkData) || bulkData.length === 0) {
           errors.push({ field: 'lensBulkSelection', message: 'Bulk lens selection must be a non-empty array' });
         } else {
@@ -426,7 +456,8 @@ export const validateUpdatePurchaseOrder = (data) => {
 
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
+    data
   };
 };
 

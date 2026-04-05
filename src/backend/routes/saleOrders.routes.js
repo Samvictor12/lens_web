@@ -983,5 +983,10 @@ router.delete('/:id',
   controller.delete.bind(controller)
 );
 
+router.post('/:id/close-and-create',
+  authenticateToken,
+  controller.closeAndCreate.bind(controller)
+);
+
 export default router;
 

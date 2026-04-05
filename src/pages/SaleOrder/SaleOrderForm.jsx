@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getActiveOffers } from "@/services/lensOffers";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { PrintPreviewModal } from "@/components/LensPrint/PrintPreviewModal";
+import { generatePONumber, createPurchaseOrder } from "@/services/purchaseOrder";
 import {
     createSaleOrder,
     getSaleOrderById,
     updateSaleOrder,
     updateSaleOrderStatus,
+    closeAndCreateSaleOrder,
     getCustomersDropdown,
     getLensProductsDropdown,
     getLensProductsFiltered,
@@ -28,6 +30,7 @@ import {
     getLensDiaDropdown,
     getLensFittingsDropdown,
     getLensCoatingsDropdown,
+    getLensCoatingsByLensProduct,
     getLensMaterialsDropdown,
     getLensTintingsDropdown,
     getUsersDropdown,
@@ -70,6 +73,12 @@ export default function SaleOrderForm() {
     const [isPrinting, setIsPrinting] = useState(false);
     const [printActionMode, setPrintActionMode] = useState(null); // "create-and-print" or "print-existing"
 
+    // Dropdown open states for split buttons
+    const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+    const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
+    const addDropdownRef = useRef(null);
+    const viewDropdownRef = useRef(null);
+
     // Master data states
     const [customers, setCustomers] = useState([]);
     const [lensProducts, setLensProducts] = useState([]);
@@ -82,6 +91,9 @@ export default function SaleOrderForm() {
     const [tintings, setTintings] = useState([]);
     const [users, setUsers] = useState([]);
     const [activeOffers, setActiveOffers] = useState([]);
+    const [isLoadingLensProducts, setIsLoadingLensProducts] = useState(false);
+    const [filteredCoatings, setFilteredCoatings] = useState([]);
+    const [isLoadingCoatings, setIsLoadingCoatings] = useState(false);
 
     // Compute effective price breakdown: base breakdown + offer discount applied reactively
     const effectiveBreakdown = useMemo(() => {
@@ -200,10 +212,17 @@ export default function SaleOrderForm() {
             loadFilteredLensProducts();
         } else {
             setLensProducts([]);
+            setFilteredCoatings([]);
         }
     }, [formData.Type_id, formData.category_id]);
 
+    // Fetch coatings filtered to the selected lens
+    useEffect(() => {
+        loadCoatingsByLens(formData.lens_id);
+    }, [formData.lens_id]);
+
     const loadFilteredLensProducts = async () => {
+        setIsLoadingLensProducts(true);
         try {
             const response = await getLensProductsFiltered(formData.Type_id, formData.category_id);
             if (response.success) {
@@ -214,6 +233,29 @@ export default function SaleOrderForm() {
         } catch (error) {
             console.error("Error loading filtered lens products:", error);
             setLensProducts([]);
+        } finally {
+            setIsLoadingLensProducts(false);
+        }
+    };
+
+    const loadCoatingsByLens = async (lensId) => {
+        if (!lensId) {
+            setFilteredCoatings([]);
+            return;
+        }
+        setIsLoadingCoatings(true);
+        try {
+            const response = await getLensCoatingsByLensProduct(lensId);
+            if (response.success) {
+                setFilteredCoatings(response.data || []);
+            } else {
+                setFilteredCoatings([]);
+            }
+        } catch (error) {
+            console.error("Error loading coatings for lens:", error);
+            setFilteredCoatings([]);
+        } finally {
+            setIsLoadingCoatings(false);
         }
     };
 
@@ -603,13 +645,14 @@ export default function SaleOrderForm() {
     };
 
     const handleSelectChange = (name, value) => {
-        // When Type or Category changes, clear lens_id and related price fields
+        // When Type or Category changes, clear lens_id, coating_id and related price fields
         if (name === "Type_id" || name === "category_id") {
             setPriceBreakdown(null);
             setFormData((prev) => ({
                 ...prev,
                 [name]: value,
                 lens_id: null,
+                coating_id: null,
                 offer_id: null,
                 lensPrice: 0,
                 rightEyeExtra: 0,
@@ -619,15 +662,17 @@ export default function SaleOrderForm() {
                 discount: 0,
             }));
             if (errors.lens_id) setErrors((prev) => ({ ...prev, lens_id: "" }));
+            if (errors.coating_id) setErrors((prev) => ({ ...prev, coating_id: "" }));
             if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
             return;
         }
-        // When lens or coating changes, reset price breakdown and offer so user must recalculate
-        if (name === "lens_id" || name === "coating_id") {
+        // When lens changes, also clear coating_id and reset price breakdown
+        if (name === "lens_id") {
             setPriceBreakdown(null);
             setFormData((prev) => ({
                 ...prev,
-                [name]: value,
+                lens_id: value,
+                coating_id: null,
                 offer_id: null,
                 lensPrice: 0,
                 rightEyeExtra: 0,
@@ -636,7 +681,25 @@ export default function SaleOrderForm() {
                 tintingPrice: 0,
                 discount: 0,
             }));
-            if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+            if (errors.lens_id) setErrors((prev) => ({ ...prev, lens_id: "" }));
+            if (errors.coating_id) setErrors((prev) => ({ ...prev, coating_id: "" }));
+            return;
+        }
+        // When coating changes, reset price breakdown and offer so user must recalculate
+        if (name === "coating_id") {
+            setPriceBreakdown(null);
+            setFormData((prev) => ({
+                ...prev,
+                coating_id: value,
+                offer_id: null,
+                lensPrice: 0,
+                rightEyeExtra: 0,
+                leftEyeExtra: 0,
+                fittingPrice: 0,
+                tintingPrice: 0,
+                discount: 0,
+            }));
+            if (errors.coating_id) setErrors((prev) => ({ ...prev, coating_id: "" }));
             return;
         }
         // When Only Lens toggled on, clear fitting and reset breakdown
@@ -1086,6 +1149,128 @@ export default function SaleOrderForm() {
         setFormData((prev) => ({ ...prev, additionalPrice: updatedPrices }));
     };
 
+    // Create and Raise PO Handler
+    const handleCreateAndRaisePO = async (e) => {
+        e?.preventDefault();
+
+        // Requires price calculation
+        if (!priceBreakdown) {
+            toast({
+                title: "Calculate Price First",
+                description: "Please click 'Calculate Price' before proceeding.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Validate form before saving
+        if (!validateForm()) {
+            toast({
+                title: "Validation Error",
+                description: "Please fill in all required fields correctly",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Check if at least one eye is selected
+        if (!formData.rightEye && !formData.leftEye) {
+            toast({
+                title: "Specification Error",
+                description: "Please select and enter specifications for at least one eye",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            setIsSaving(true);
+
+            // Build the payload (same offer handling as handleSubmit)
+            const selectedOffer = formData.offer_id
+                ? activeOffers.find((o) => o.id === formData.offer_id)
+                : null;
+            let submitData = {
+                ...formData,
+                discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
+            };
+            if (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" && effectiveBreakdown) {
+                submitData = {
+                    ...submitData,
+                    lensPrice: effectiveBreakdown.lensPrice,
+                    discount: effectiveBreakdown.discountPercentage,
+                };
+            }
+
+            const response = await createSaleOrder(submitData);
+            if (!response.success) {
+                throw new Error(response.message || "Failed to create sale order");
+            }
+
+            const so = response.data;
+
+            // Generate a PO number and auto-create a draft PO linked to this SO
+            const poNumberResponse = await generatePONumber();
+            if (!poNumberResponse.success) {
+                throw new Error(poNumberResponse.message || "Failed to generate PO number");
+            }
+
+            const qty = (so.rightEye ? 0.5 : 0) + (so.leftEye ? 0.5 : 0) || 1;
+            const poDraftData = {
+                poNumber: poNumberResponse.data.poNumber,
+                saleOrderId: so.id,
+                orderType: "Single",
+                status: "DRAFT",
+                lens_id: so.lens_id ?? null,
+                category_id: so.category_id ?? null,
+                Type_id: so.Type_id ?? null,
+                fitting_id: so.fitting_id ?? null,
+                coating_id: so.coating_id ?? null,
+                tinting_id: so.tinting_id ?? null,
+                rightEye: so.rightEye ?? false,
+                leftEye: so.leftEye ?? false,
+                rightSpherical: so.rightSpherical || "",
+                rightCylindrical: so.rightCylindrical || "",
+                rightAxis: so.rightAxis || "",
+                rightAdd: so.rightAdd || "",
+                rightDia: so.rightDia || "",
+                leftSpherical: so.leftSpherical || "",
+                leftCylindrical: so.leftCylindrical || "",
+                leftAxis: so.leftAxis || "",
+                leftAdd: so.leftAdd || "",
+                leftDia: so.leftDia || "",
+                quantity: qty,
+                unitPrice: 0,
+                subtotal: 0,
+                totalValue: 0,
+                itemDescription: so.orderNo || "",
+                notes: so.remark || "",
+            };
+
+            const poResponse = await createPurchaseOrder(poDraftData);
+            if (!poResponse.success) {
+                throw new Error(poResponse.message || "Failed to create draft purchase order");
+            }
+
+            toast({
+                title: "Sale Order & Draft PO Created",
+                description: `${so.orderNo} created. Draft PO ${poResponse.data.poNumber} opened for completion.`,
+            });
+
+            // Navigate to the PO edit form so the user can complete remaining fields
+            navigate(`/masters/purchase-orders/edit/${poResponse.data.id}`);
+        } catch (error) {
+            console.error("Error in Create & Raise PO:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to create sale order",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Create and Print Handler
     const handleCreateAndPrint = async (e) => {
         e?.preventDefault();
@@ -1246,6 +1431,49 @@ export default function SaleOrderForm() {
 
     const statusActionButton = mode === "view" ? getStatusActionButton() : null;
 
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (addDropdownRef.current && !addDropdownRef.current.contains(e.target)) {
+                setIsAddDropdownOpen(false);
+            }
+            if (viewDropdownRef.current && !viewDropdownRef.current.contains(e.target)) {
+                setIsViewDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleOutsideClick);
+        return () => document.removeEventListener("mousedown", handleOutsideClick);
+    }, []);
+
+    // Close & Create SO Handler
+    const handleCloseAndCreateSO = async () => {
+        setIsViewDropdownOpen(false);
+        if (!formData.id) return;
+
+        if (!window.confirm(`This will close Sale Order "${formData.orderNo}" and create a new duplicate order. Continue?`)) return;
+
+        try {
+            setIsSaving(true);
+            const response = await closeAndCreateSaleOrder(formData.id);
+            if (response.success) {
+                toast({
+                    title: "Success",
+                    description: `Order ${formData.orderNo} closed. New order ${response.data.newOrder.orderNo} created.`,
+                });
+                navigate(`/sales/orders/view/${response.data.newOrder.id}`);
+            }
+        } catch (error) {
+            console.error("Error in Close & Create SO:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to close and create sale order",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Eye spec gating: both Type and Category must be selected before entering eye data
     const eyeSpecReady = !!(formData.Type_id && formData.category_id);
     // Add field is only relevant for Bifocal / Progressive lenses
@@ -1316,38 +1544,74 @@ export default function SaleOrderForm() {
                     )}
 
                     {mode === "view" && (
-                        <Button
-                            size="xs"
-                            className="h-8 gap-1.5"
-                            variant="secondary"
-                            onClick={handlePrintOrder}
-                            disabled={isSaving}
-                        >
-                            <Printer className="h-3.5 w-3.5" />
-                            Print
-                        </Button>
+                        <div className="relative" ref={viewDropdownRef}>
+                            {/* <Button
+                                size="xs"
+                                className="h-8 gap-1.5"
+                                variant="secondary"
+                                onClick={handlePrintOrder}
+                                disabled={isSaving}
+                            >
+                                <Printer className="h-3.5 w-3.5" />
+                                Print
+                            </Button> */}
+                            <Button
+                                size="xs"
+                                variant="secondary"
+                                className="h-8 px-1 ml-0.5 border-l"
+                                onClick={() => setIsViewDropdownOpen((o) => !o)}
+                                disabled={isSaving}
+                            >
+                                <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
+                            {isViewDropdownOpen && (
+                                <div className="absolute right-0 top-full mt-1 z-50 min-w-[190px] rounded-md border bg-popover shadow-md">
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                                        onClick={() => { setIsViewDropdownOpen(false); handlePrintOrder(); }}
+                                        disabled={isSaving}
+                                    >
+                                        <Printer className="h-3.5 w-3.5" />
+                                        Print
+                                    </button>
+                                    {!isEditing && formData.status !== "CLOSED" && (
+                                        <button
+                                            type="button"
+                                            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-amber-700 disabled:opacity-50"
+                                            onClick={handleCloseAndCreateSO}
+                                            disabled={isSaving}
+                                        >
+                                            <GitBranch className="h-3.5 w-3.5" />
+                                            Close &amp; Create SO
+                                        </button>
+                                    )}
+                                    {mode === "view" && (
+                                        <Button
+                                            size="xs"
+                                            className="h-8 gap-1.5"
+                                            variant={isEditing ? "outline" : "default"}
+                                            onClick={toggleEdit}
+                                        >
+                                            {isEditing ? (
+                                                <>
+                                                    <X className="h-3.5 w-3.5" />
+                                                    Cancel Edit
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                    Edit
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )}
 
-                    {mode === "view" && (
-                        <Button
-                            size="xs"
-                            className="h-8 gap-1.5"
-                            variant={isEditing ? "outline" : "default"}
-                            onClick={toggleEdit}
-                        >
-                            {isEditing ? (
-                                <>
-                                    <X className="h-3.5 w-3.5" />
-                                    Cancel Edit
-                                </>
-                            ) : (
-                                <>
-                                    <Edit className="h-3.5 w-3.5" />
-                                    Edit
-                                </>
-                            )}
-                        </Button>
-                    )}
+
 
                     {(mode !== "view" || isEditing) && (
                         <Button
@@ -1371,46 +1635,40 @@ export default function SaleOrderForm() {
                         </Button>
                     )}
                     {(mode === "add") && (
-                        <>
-                            <Button
-                                type="submit"
-                                size="xs"
-                                className="h-8 gap-1.5"
-                                onClick={handleSubmit}
-                                disabled={isSaving}
-                            >
-                                {isSaving ? (
-                                    <>
-                                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Save className="h-3.5 w-3.5" />
-                                        Create & Rise Po
-                                    </>
-                                )}
-                            </Button>
+                        <div className="relative" ref={addDropdownRef}>
                             <Button
                                 type="button"
                                 size="xs"
-                                className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700"
-                                onClick={handleCreateAndPrint}
+                                variant="outline"
+                                className="h-8 px-2"
+                                onClick={() => setIsAddDropdownOpen((o) => !o)}
                                 disabled={isSaving}
                             >
-                                {isSaving ? (
-                                    <>
-                                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        Processing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Printer className="h-3.5 w-3.5" />
-                                        Create & Print
-                                    </>
-                                )}
+                                <ChevronDown className="h-3.5 w-3.5" />
                             </Button>
-                        </>
+                            {isAddDropdownOpen && (
+                                <div className="absolute right-0 top-full mt-1 z-50 min-w-[170px] rounded-md border bg-popover shadow-md">
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                                        onClick={() => { setIsAddDropdownOpen(false); handleCreateAndRaisePO(); }}
+                                        disabled={isSaving}
+                                    >
+                                        <Package className="h-3.5 w-3.5 text-green-600" />
+                                        Create &amp; Raise PO
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                                        onClick={() => { setIsAddDropdownOpen(false); handleCreateAndPrint(); }}
+                                        disabled={isSaving}
+                                    >
+                                        <Printer className="h-3.5 w-3.5 text-blue-600" />
+                                        Create &amp; Print
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -1682,6 +1940,36 @@ export default function SaleOrderForm() {
                                 <AlertDescription>{errors.eyeSelection}</AlertDescription>
                             </Alert>
                         )}
+
+                        {/* Child / Derived Orders */}
+                        {formData.children?.length > 0 && (
+                            <div className="mt-3 border-t pt-3">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <GitBranch className="h-3.5 w-3.5 text-amber-600" />
+                                    <span className="text-xs font-semibold">Derived Orders</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    {formData.children.map((child) => (
+                                        <button
+                                            key={child.id}
+                                            type="button"
+                                            onClick={() => navigate(`/sales/orders/view/${child.id}`)}
+                                            className="flex items-center justify-between rounded-md border px-2 py-1.5 text-xs hover:bg-muted text-left w-full"
+                                        >
+                                            <span className="font-medium text-primary underline underline-offset-2">
+                                                {child.orderNo}
+                                            </span>
+                                            <Badge
+                                                variant="outline"
+                                                className="text-[10px] px-1 py-0 leading-4 h-4 capitalize"
+                                            >
+                                                {child.status.replace(/_/g, " ").toLowerCase()}
+                                            </Badge>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -1726,9 +2014,13 @@ export default function SaleOrderForm() {
                                     options={lensProducts}
                                     value={formData.lens_id}
                                     onChange={(value) => handleSelectChange("lens_id", value)}
-                                    placeholder="Select lens"
+                                    placeholder={
+                                        isLoadingLensProducts ? "Loading..." :
+                                            lensProducts.length === 0 ? "Select Type & Category first" :
+                                                "Select lens"
+                                    }
                                     isSearchable={true}
-                                    disabled={mode !== "add"}
+                                    disabled={mode !== "add" || isLoadingLensProducts || lensProducts.length === 0}
                                     required
                                     error={errors.lens_id}
                                 />
@@ -1782,12 +2074,16 @@ export default function SaleOrderForm() {
                                     <FormSelect
                                         singleLine={true} label="Coating Name"
                                         name="coating_id"
-                                        options={coatings}
+                                        options={filteredCoatings}
                                         value={formData.coating_id}
                                         onChange={(value) => handleSelectChange("coating_id", value)}
-                                        placeholder="Select coating"
+                                        placeholder={
+                                            isLoadingCoatings ? "Loading..." :
+                                                !formData.lens_id ? "Select Lens first" :
+                                                    "Select coating"
+                                        }
                                         isSearchable={true}
-                                        disabled={mode !== "add"}
+                                        disabled={mode !== "add" || !formData.lens_id || isLoadingCoatings}
                                         required
                                         error={errors.coating_id}
                                     />
