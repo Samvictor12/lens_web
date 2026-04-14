@@ -361,6 +361,7 @@ export class SaleOrderService {
         sortBy = 'createdAt',
         sortOrder = 'desc',
         status,
+        statuses,
         customerId,
         search,
         startDate,
@@ -370,8 +371,10 @@ export class SaleOrderService {
 
       const where = { deleteStatus: false };
 
-      // Filter by status
-      if (status) {
+      // Filter by multiple statuses (comma-separated) or single status
+      if (statuses) {
+        where.status = { in: statuses.split(',').map(s => s.trim()) };
+      } else if (status) {
         where.status = status;
       }
 
@@ -791,9 +794,10 @@ export class SaleOrderService {
    * @param {string} status - New status
    * @param {number} userId - User performing update
    * @param {Object} req - Express request object (for audit logging)
+   * @param {string} [remark] - Optional remark (used for QC rejection reason)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateStatus(id, status, userId, req = null) {
+  async updateStatus(id, status, userId, req = null, remark = undefined) {
     try {
       const existing = await prisma.saleOrder.findUnique({
         where: { id },
@@ -816,7 +820,7 @@ export class SaleOrderService {
       }
 
       // Validate status
-      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'DELIVERED'];
+      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED'];
       if (!validStatuses.includes(status)) {
         const error = new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
         await logValidationError({
@@ -837,7 +841,8 @@ export class SaleOrderService {
         where: { id },
         data: {
           status,
-          updatedBy: userId
+          updatedBy: userId,
+          ...(remark !== undefined && { remark })
         },
         include: {
           customer: {

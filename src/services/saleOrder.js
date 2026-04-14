@@ -89,10 +89,10 @@ export const deleteSaleOrder = async (id) => {
 /**
  * Update sale order status only (for status transition buttons)
  */
-export const updateSaleOrderStatus = async (id, status) => {
+export const updateSaleOrderStatus = async (id, status, remark = undefined) => {
     try {
         const response = await apiClient("patch", `/sale-orders/${id}/status`, {
-            data: { status },
+            data: { status, ...(remark !== undefined && { remark }) },
         });
         return response;
     } catch (error) {

@@ -58,6 +58,8 @@ import TrayMain from "./pages/TrayMaster/TrayMain";
 import TrayForm from "./pages/TrayMaster/TrayForm";
 import LogsViewer from "./pages/LogsViewer";
 import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
+import { ProductionOperatorList, ProductionOrderDetail } from "./pages/ProductionOperator";
+import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -144,6 +146,10 @@ const AppRoutes = () => (
       <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
       <Route path="/masters/purchase-orders/receive/:id/inward/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><POInwardToInventory /></div>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
+      <Route path="/production/operator" element={<ProtectedRoute><ProductionOperatorList /></ProtectedRoute>} />
+      <Route path="/production/operator/:id" element={<ProtectedRoute><ProductionOrderDetail /></ProtectedRoute>} />
+      <Route path="/quality/operator" element={<ProtectedRoute><QualityOperatorList /></ProtectedRoute>} />
+      <Route path="/quality/operator/:id" element={<ProtectedRoute><QualityOrderDetail /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
       <Route path="/accounts/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />

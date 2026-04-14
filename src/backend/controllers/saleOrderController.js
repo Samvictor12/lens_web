@@ -189,7 +189,8 @@ export class SaleOrderController {
         idValidation.data,
         validation.data.status,
         userId,
-        req
+        req,
+        validation.data.remark
       );
 
       res.status(200).json({
