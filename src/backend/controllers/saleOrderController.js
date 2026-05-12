@@ -189,7 +189,8 @@ export class SaleOrderController {
         idValidation.data,
         validation.data.status,
         userId,
-        req
+        req,
+        validation.data.remark
       );
 
       res.status(200).json({
@@ -326,6 +327,38 @@ export class SaleOrderController {
         success: true,
         message: 'Sale orders dropdown retrieved successfully',
         data: dropdownData
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+  /**
+   * Close an existing sale order and create a new duplicate as its parent
+   * POST /api/sale-orders/:id/close-and-create
+   */
+  async closeAndCreate(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validation.errors
+        });
+      }
+
+      const userId = req.user?.id || 1;
+      const result = await this.saleOrderService.closeAndCreateSaleOrder(
+        validation.data,
+        userId,
+        req
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Sale order closed and new order created successfully',
+        data: result
       });
     } catch (error) {
       next(error);

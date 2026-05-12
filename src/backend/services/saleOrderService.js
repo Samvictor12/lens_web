@@ -361,6 +361,7 @@ export class SaleOrderService {
         sortBy = 'createdAt',
         sortOrder = 'desc',
         status,
+        statuses,
         customerId,
         search,
         startDate,
@@ -370,8 +371,10 @@ export class SaleOrderService {
 
       const where = { deleteStatus: false };
 
-      // Filter by status
-      if (status) {
+      // Filter by multiple statuses (comma-separated) or single status
+      if (statuses) {
+        where.status = { in: statuses.split(',').map(s => s.trim()) };
+      } else if (status) {
         where.status = status;
       }
 
@@ -458,6 +461,15 @@ export class SaleOrderService {
             select: {
               id: true,
               name: true
+            }
+          },
+          offer: {
+            select: {
+              id: true,
+              offerType: true,
+              discountValue: true,
+              discountPercentage: true,
+              withDiscount: true
             }
           },
           items: true
@@ -565,6 +577,10 @@ export class SaleOrderService {
                 select: { id: true, name: true }
               }
             }
+          },
+          children: {
+            where: { deleteStatus: false },
+            select: { id: true, orderNo: true, status: true }
           }
         }
       });
@@ -778,9 +794,10 @@ export class SaleOrderService {
    * @param {string} status - New status
    * @param {number} userId - User performing update
    * @param {Object} req - Express request object (for audit logging)
+   * @param {string} [remark] - Optional remark (used for QC rejection reason)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateStatus(id, status, userId, req = null) {
+  async updateStatus(id, status, userId, req = null, remark = undefined) {
     try {
       const existing = await prisma.saleOrder.findUnique({
         where: { id },
@@ -803,7 +820,7 @@ export class SaleOrderService {
       }
 
       // Validate status
-      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'DELIVERED'];
+      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED'];
       if (!validStatuses.includes(status)) {
         const error = new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
         await logValidationError({
@@ -824,7 +841,8 @@ export class SaleOrderService {
         where: { id },
         data: {
           status,
-          updatedBy: userId
+          updatedBy: userId,
+          ...(remark !== undefined && { remark })
         },
         include: {
           customer: {
@@ -1255,6 +1273,139 @@ export class SaleOrderService {
       
       console.error('Error fetching sale orders dropdown:', error);
       throw new APIError('Failed to fetch sale orders dropdown', 500, 'FETCH_DROPDOWN_ERROR');
+    }
+  }
+
+  /**
+   * Close an existing sale order and create a new duplicate as its parent
+   * @param {number} id - ID of the sale order to close
+   * @param {number} userId - User performing the action
+   * @param {Object} req - Express request object (for audit logging)
+   * @returns {Promise<Object>} { newOrder, closedOrder }
+   */
+  async closeAndCreateSaleOrder(id, userId, req = null) {
+    try {
+      // Fetch the existing order
+      const existing = await prisma.saleOrder.findUnique({
+        where: { id },
+        include: { customer: true }
+      });
+
+      if (!existing || existing.deleteStatus) {
+        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+      }
+
+      if (existing.status === 'CLOSED') {
+        throw new APIError('Sale order is already closed', 400, 'ORDER_ALREADY_CLOSED');
+      }
+
+      // Generate a new order number for the parent
+      const newOrderNo = await this.generateOrderNumber();
+
+      // Run both writes in a transaction
+      const [newOrder, closedOrder] = await prisma.$transaction(async (tx) => {
+        // 1. Create new (parent) sale order as a copy
+        const created = await tx.saleOrder.create({
+          data: {
+            orderNo: newOrderNo,
+            customerId: existing.customerId,
+            status: 'DRAFT',
+            customerRefNo: existing.customerRefNo,
+            orderDate: new Date(),
+            type: existing.type,
+            remark: existing.remark,
+            itemRefNo: existing.itemRefNo,
+            freeLens: existing.freeLens,
+            urgentOrder: existing.urgentOrder,
+            freeFitting: existing.freeFitting,
+            offer_id: existing.offer_id,
+            lens_id: existing.lens_id,
+            category_id: existing.category_id,
+            Type_id: existing.Type_id,
+            dia_id: existing.dia_id,
+            fitting_id: existing.fitting_id,
+            material_id: existing.material_id,
+            coating_id: existing.coating_id,
+            tinting_id: existing.tinting_id,
+            rightEye: existing.rightEye,
+            leftEye: existing.leftEye,
+            rightSpherical: existing.rightSpherical,
+            rightCylindrical: existing.rightCylindrical,
+            rightAxis: existing.rightAxis,
+            rightAdd: existing.rightAdd,
+            rightDia: existing.rightDia,
+            leftSpherical: existing.leftSpherical,
+            leftCylindrical: existing.leftCylindrical,
+            leftAxis: existing.leftAxis,
+            leftAdd: existing.leftAdd,
+            leftDia: existing.leftDia,
+            lensPrice: existing.lensPrice,
+            rightEyeExtra: existing.rightEyeExtra,
+            leftEyeExtra: existing.leftEyeExtra,
+            fittingPrice: existing.fittingPrice,
+            tintingPrice: existing.tintingPrice,
+            discount: existing.discount,
+            additionalPrice: existing.additionalPrice,
+            dispatchStatus: 'Pending',
+            activeStatus: true,
+            deleteStatus: false,
+            createdBy: userId,
+            updatedBy: userId,
+          },
+          include: {
+            customer: { select: { id: true, name: true, code: true } }
+          }
+        });
+
+        // 2. Close the original order and set it as a child of the new one
+        const closed = await tx.saleOrder.update({
+          where: { id },
+          data: {
+            status: 'CLOSED',
+            parentId: created.id,
+            updatedBy: userId,
+          },
+          include: {
+            customer: { select: { id: true, name: true, code: true } }
+          }
+        });
+
+        return [created, closed];
+      });
+
+      // Audit log
+      await logCreate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: newOrder.id,
+        newValues: { orderNo: newOrder.orderNo, status: newOrder.status, sourceOrderId: id },
+        req,
+        metadata: { operation: 'closeAndCreateSaleOrder', sourceOrderNo: existing.orderNo }
+      });
+
+      await logUpdate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: closedOrder.id,
+        oldValues: { status: existing.status },
+        newValues: { status: 'CLOSED', parentId: newOrder.id },
+        req,
+        metadata: { operation: 'closeAndCreateSaleOrder', newOrderNo: newOrder.orderNo }
+      });
+
+      return { newOrder, closedOrder };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+
+      await logDatabaseError({
+        error,
+        userId,
+        req,
+        metadata: { operation: 'closeAndCreateSaleOrder', saleOrderId: id }
+      }).catch(err => console.error('Error log failed:', err));
+
+      console.error('Error in closeAndCreateSaleOrder:', error);
+      throw new APIError('Failed to close and create sale order', 500, 'CLOSE_CREATE_ORDER_ERROR');
     }
   }
 }

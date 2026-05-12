@@ -34,7 +34,7 @@ const isValidPositiveNumber = (num) => {
  * Validate sale order status
  */
 const isValidStatus = (status) => {
-  const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'DELIVERED'];
+  const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED'];
   return validStatuses.includes(status);
 };
 
@@ -478,7 +478,8 @@ export const validateUpdateStatus = (data) => {
     isValid: errors.length === 0,
     errors,
     data: errors.length === 0 ? {
-      status: data.status
+      status: data.status,
+      ...(data.remark !== undefined && { remark: data.remark })
     } : null
   };
 };
@@ -562,6 +563,16 @@ export const validateQueryParams = (query) => {
     errors.push({ field: 'status', message: 'Invalid status filter' });
   } else if (query.status) {
     params.status = query.status;
+  }
+
+  if (query.statuses) {
+    const statusList = query.statuses.split(',').map(s => s.trim());
+    const invalidStatuses = statusList.filter(s => !isValidStatus(s));
+    if (invalidStatuses.length > 0) {
+      errors.push({ field: 'statuses', message: `Invalid status values: ${invalidStatuses.join(', ')}` });
+    } else {
+      params.statuses = query.statuses;
+    }
   }
 
   if (query.dispatchStatus && !isValidDispatchStatus(query.dispatchStatus)) {

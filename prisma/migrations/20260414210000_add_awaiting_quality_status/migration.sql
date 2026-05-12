@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "SaleOrderStatus" ADD VALUE 'AWAITING_QUALITY';

@@ -89,10 +89,10 @@ export const deleteSaleOrder = async (id) => {
 /**
  * Update sale order status only (for status transition buttons)
  */
-export const updateSaleOrderStatus = async (id, status) => {
+export const updateSaleOrderStatus = async (id, status, remark = undefined) => {
     try {
         const response = await apiClient("patch", `/sale-orders/${id}/status`, {
-            data: { status },
+            data: { status, ...(remark !== undefined && { remark }) },
         });
         return response;
     } catch (error) {
@@ -400,6 +400,20 @@ export const getLensProductsFiltered = async (typeId, categoryId) => {
 /**
  * Get coatings available for a specific lens product (via LensPriceMaster)
  */
+/**
+ * Close an existing sale order and create a new duplicate as its parent
+ */
+export const closeAndCreateSaleOrder = async (id) => {
+    try {
+        const response = await apiClient("post", `/sale-orders/${id}/close-and-create`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to close and create sale order"
+        );
+    }
+};
+
 export const getLensCoatingsByLensProduct = async (lensId) => {
     try {
         const response = await apiClient("get", `/v1/lens-coatings/by-lens-product?lens_id=${lensId}`);

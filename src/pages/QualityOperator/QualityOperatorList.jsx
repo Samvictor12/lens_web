@@ -1,0 +1,178 @@
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Search, RefreshCw, ClipboardCheck, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getSaleOrders } from "@/services/saleOrder";
+import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
+
+function OrderCard({ order, onClick }) {
+  const statusClass = statusColors[order.status] || "bg-gray-100 text-gray-800 border-gray-200";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-2 active:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+    >
+      {/* Row 1: Order No + Status + Urgent */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-gray-900 text-base truncate">{order.orderNo}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {order.urgentOrder && (
+            <Badge className="bg-red-100 text-red-700 border-red-200 text-xs px-1.5 py-0">Urgent</Badge>
+          )}
+          <Badge className={`${statusClass} text-xs border px-2 py-0`}>Awaiting QC</Badge>
+        </div>
+      </div>
+
+      {/* Row 2: Customer */}
+      <div className="text-sm text-gray-600 truncate">
+        {order.customer?.shopname || order.customer?.name || "—"}
+      </div>
+
+      {/* Row 3: Lens + Coating */}
+      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+        <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">
+          {order.lensProduct?.lens_name || "—"}
+          {order.coating?.short_name ? ` · ${order.coating.short_name}` : ""}
+        </span>
+      </div>
+
+      {/* Row 4: Date */}
+      <div className="text-xs text-gray-400">
+        {new Date(order.orderDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}
+      </div>
+    </button>
+  );
+}
+
+function LoadingCards() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+          <div className="flex justify-between">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-5 w-20" />
+          </div>
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function QualityOperatorList() {
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [error, setError] = useState(null);
+
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await getSaleOrders(
+        1,
+        100,
+        search,
+        { statuses: "AWAITING_QUALITY" },
+        "orderDate",
+        "desc"
+      );
+      if (response.success) {
+        setOrders(response.data || []);
+      }
+    } catch {
+      setError("Failed to load quality check orders.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setSearch(searchInput.trim());
+  };
+
+  return (
+    <div className="max-w-lg mx-auto p-3 sm:p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">Quality Check</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={fetchOrders}
+          disabled={isLoading}
+          aria-label="Refresh"
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+
+      {/* Search */}
+      <form onSubmit={handleSearchSubmit} className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Input
+            placeholder="Search order, customer…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button type="submit" variant="outline" size="sm">Search</Button>
+      </form>
+
+      {/* Count */}
+      {!isLoading && orders.length > 0 && (
+        <p className="text-xs font-medium text-cyan-700">
+          {orders.length} order{orders.length !== 1 ? "s" : ""} awaiting quality check
+        </p>
+      )}
+
+      {/* Content */}
+      {isLoading ? (
+        <LoadingCards />
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
+          <AlertCircle className="w-10 h-10" />
+          <p className="text-sm">{error}</p>
+          <Button variant="outline" size="sm" onClick={fetchOrders}>Retry</Button>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
+          <ClipboardCheck className="w-10 h-10" />
+          <p className="text-sm">No orders awaiting quality check.</p>
+        </div>
+      ) : (
+        <div className="space-y-3 pb-4">
+          {orders.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              onClick={() => navigate(`/quality/operator/${order.id}`)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

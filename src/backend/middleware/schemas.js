@@ -30,6 +30,8 @@ export const updateSaleOrderStatusSchema = z.object({
       'DRAFT',
       'CONFIRMED',
       'IN_PRODUCTION',
+      'ON_HOLD',
+      'AWAITING_QUALITY',
       'READY_FOR_DISPATCH',
       'DISPATCHED',
       'DELIVERED'

@@ -24,6 +24,8 @@ import {
   Warehouse,
   MapPin,
   Box,
+  Factory,
+  ClipboardCheck,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
@@ -77,6 +79,18 @@ const navItems = [
     url: "/dispatch",
     icon: Truck,
     // allowedRoles: ["admin", "sales", "inventory"],
+  },
+  {
+    title: "Production",
+    url: "/production/operator",
+    icon: Factory,
+    // allowedRoles: ["admin", "operator"],
+  },
+  {
+    title: "Quality",
+    url: "/quality/operator",
+    icon: ClipboardCheck,
+    // allowedRoles: ["admin", "quality"],
   },
   {
     title: "Billing",
