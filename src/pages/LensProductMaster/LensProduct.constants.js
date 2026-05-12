@@ -23,6 +23,8 @@ export const defaultLensProduct = {
   addMin: "",
   addMax: "",
   rangeText: "",
+  minThresholdQty: "",
+  maxThresholdQty: "",
   prices: [],
   activeStatus: "active",
 };

@@ -16,7 +16,7 @@ const mapToBackend = (frontendData) => {
     city: frontendData.city || null,
     state: frontendData.state || null,
     pincode: frontendData.pincode || null,
-    category: frontendData.category || null,
+    businessCategory_id: frontendData.category ? parseInt(frontendData.category) : null,
     gstin: frontendData.gstNumber || null,
     notes: frontendData.remarks || null,
     active_status: frontendData.activeStatus !== undefined ? frontendData.activeStatus : true,
@@ -38,7 +38,8 @@ const mapFromBackend = (backendData) => {
     city: backendData.city || "",
     state: backendData.state || "",
     pincode: backendData.pincode || "",
-    category: backendData.category || "",
+    category: backendData.businessCategory_id ? String(backendData.businessCategory_id) : (backendData.category?.id ? String(backendData.category.id) : ""),
+    categoryName: backendData.category?.name || "",
     gstNumber: backendData.gstin || "",
     remarks: backendData.notes || "",
     activeStatus: backendData.active_status !== undefined ? backendData.active_status : true,
@@ -71,9 +72,9 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
       params.active_status = filters.active_status;
     }
 
-    // Category filter (ID from dropdown)
+    // Category filter (businessCategory_id)
     if (filters.category && filters.category !== "all" && filters.category !== null) {
-      params.category = filters.category;
+      params.businessCategory_id = filters.category;
     }
 
     // City filter (contains search, case insensitive)

@@ -677,6 +677,41 @@ export default function LensProductForm() {
             </CardContent>
           </Card>
 
+          {/* Inventory Settings */}
+          <Card>
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="text-sm">Inventory Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <FormInput
+                  label="Min Threshold Qty"
+                  name="minThresholdQty"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.minThresholdQty}
+                  onChange={handleInputChange}
+                  error={errors.minThresholdQty}
+                  disabled={!isEditing}
+                  placeholder="e.g., 10"
+                />
+                <FormInput
+                  label="Max Threshold Qty"
+                  name="maxThresholdQty"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.maxThresholdQty}
+                  onChange={handleInputChange}
+                  error={errors.maxThresholdQty}
+                  disabled={!isEditing}
+                  placeholder="e.g., 100"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Pricing */}
           <Card>
             <CardHeader className="p-3 pb-2 w-full">

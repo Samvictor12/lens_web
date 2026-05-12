@@ -54,7 +54,7 @@ export class VendorMasterService {
           city: vendorData.city,
           state: vendorData.state,
           pincode: vendorData.pincode,
-          category: vendorData.category,
+          businessCategory_id: vendorData.businessCategory_id ?? null,
           gstin: vendorData.gstin,
           active_status: vendorData.active_status,
           delete_status: vendorData.delete_status || false,
@@ -63,12 +63,9 @@ export class VendorMasterService {
           // updatedBy is optional - only set on updates, not on create
         },
         include: {
-          usercreate: {
-            select: { id: true, name: true, email: true },
-          },
-          userupdate: {
-            select: { id: true, name: true, email: true },
-          },
+          usercreate: { select: { id: true, name: true, email: true } },
+          userupdate: { select: { id: true, name: true, email: true } },
+          category: { select: { id: true, name: true } },
         },
       });
 
@@ -125,9 +122,8 @@ export class VendorMasterService {
         };
       }
 
-      if (filters.category) {
-        // Category is stored as ID (string representation of businessCategory_id)
-        where.category = filters.category;
+      if (filters.businessCategory_id) {
+        where.businessCategory_id = filters.businessCategory_id;
       }
 
       if (filters.email) {
@@ -167,12 +163,9 @@ export class VendorMasterService {
           [sortBy]: sortOrder,
         },
         include: {
-          usercreate: {
-            select: { id: true, name: true, email: true },
-          },
-          userupdate: {
-            select: { id: true, name: true, email: true },
-          },
+          usercreate: { select: { id: true, name: true, email: true } },
+          userupdate: { select: { id: true, name: true, email: true } },
+          category: { select: { id: true, name: true } },
         },
       });
 
@@ -208,17 +201,10 @@ export class VendorMasterService {
       const vendorMaster = await prisma.vendor.findUnique({
         where: { id },
         include: {
-          usercreate: {
-            select: { id: true, name: true, email: true },
-          },
-          userupdate: {
-            select: { id: true, name: true, email: true },
-          },
-          _count: {
-            select: {
-              purchaseOrders: true,
-            },
-          },
+          usercreate: { select: { id: true, name: true, email: true } },
+          userupdate: { select: { id: true, name: true, email: true } },
+          category: { select: { id: true, name: true } },
+          _count: { select: { purchaseOrders: true } },
         },
       });
 

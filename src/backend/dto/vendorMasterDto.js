@@ -93,8 +93,11 @@ export const validateCreateVendorMaster = (data) => {
         errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
     }
 
-    if (data.category && !isValidLength(data.category, 0, 100)) {
-        errors.push({ field: 'category', message: 'Category must not exceed 100 characters' });
+    if (data.businessCategory_id !== undefined && data.businessCategory_id !== null) {
+        const catId = parseInt(data.businessCategory_id);
+        if (isNaN(catId) || catId <= 0) {
+            errors.push({ field: 'businessCategory_id', message: 'Business category must be a valid ID' });
+        }
     }
 
     if (data.gstin && !isValidLength(data.gstin, 0, 15)) {
@@ -122,7 +125,7 @@ export const validateCreateVendorMaster = (data) => {
             city: data.city?.trim() || null,
             state: data.state?.trim() || null,
             pincode: data.pincode?.trim() || null,
-            category: data.category?.trim() || null,
+            businessCategory_id: data.businessCategory_id != null ? parseInt(data.businessCategory_id) : null,
             gstin: data.gstin?.trim() || null,
             active_status: data.active_status !== undefined ? data.active_status : true, // Default to true
             delete_status: false, // Default to false for new records
@@ -207,8 +210,11 @@ export const validateUpdateVendorMaster = (data) => {
         errors.push({ field: 'pincode', message: 'Pincode is required' });
     }
 
-    if (data.category !== undefined && data.category && !isValidLength(data.category, 0, 100)) {
-        errors.push({ field: 'category', message: 'Category must not exceed 100 characters' });
+    if (data.businessCategory_id !== undefined && data.businessCategory_id !== null) {
+        const catId = parseInt(data.businessCategory_id);
+        if (isNaN(catId) || catId <= 0) {
+            errors.push({ field: 'businessCategory_id', message: 'Business category must be a valid ID' });
+        }
     }
 
     if (data.gstin !== undefined && data.gstin && !isValidLength(data.gstin, 0, 15)) {
@@ -228,10 +234,12 @@ export const validateUpdateVendorMaster = (data) => {
         if (data[key] !== undefined) {
             if (key === 'updatedBy') {
                 cleanedData[key] = parseInt(data[key]);
+            } else if (key === 'businessCategory_id') {
+                cleanedData[key] = data[key] != null ? parseInt(data[key]) : null;
             } else if (typeof data[key] === 'string') {
                 cleanedData[key] = data[key].trim();
                 // Set null for empty strings on optional fields
-                if ((key === 'shopname' || key === 'phone' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode' || key === 'category' || key === 'gstin' || key === 'notes') && !cleanedData[key]) {
+                if ((key === 'shopname' || key === 'phone' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode' || key === 'gstin' || key === 'notes') && !cleanedData[key]) {
                     cleanedData[key] = null;
                 }
             } else if (key === 'active_status' || key === 'delete_status') {
@@ -266,7 +274,7 @@ export const validateQueryParams = (query) => {
         errors.push({ field: 'limit', message: 'Limit must be between 1 and 100' });
     }
 
-    const validSortFields = ['name', 'code', 'email', 'city', 'category', 'active_status', 'createdAt'];
+    const validSortFields = ['name', 'code', 'email', 'city', 'active_status', 'createdAt'];
     const sortBy = query.sortBy || 'createdAt';
     if (!validSortFields.includes(sortBy)) {
         errors.push({ field: 'sortBy', message: 'sort field must be one of ' + validSortFields.join(', ') });
@@ -287,7 +295,7 @@ export const validateQueryParams = (query) => {
             email: query.email,
             phone: query.phone,
             city: query.city,
-            category: query.category,
+            businessCategory_id: query.businessCategory_id ? parseInt(query.businessCategory_id) : undefined,
             active_status: query.active_status === 'true' ? true : query.active_status === 'false' ? false : undefined,
             page,
             limit,

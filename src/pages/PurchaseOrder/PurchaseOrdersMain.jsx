@@ -37,9 +37,7 @@ export default function PurchaseOrders() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [view, setView] = useState(
-    () => localStorage.getItem("purchaseOrdersView") || "card"
-  );
+  const [view, setView] = useState("table");
   const [isLoading, setIsLoading] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   
@@ -77,6 +75,10 @@ export default function PurchaseOrders() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    localStorage.setItem("purchaseOrdersView", "table");
+  }, []);
 
   // Handle delete purchase order click
   const handleDeleteClick = (po) => {

@@ -69,7 +69,7 @@ export default function VendorForm() {
               city: vendor.city || "",
               state: vendor.state || "",
               pincode: vendor.pincode || "",
-              category: vendor.category || "",
+              category: vendor.category || (vendor.businessCategory_id ? String(vendor.businessCategory_id) : ""),
               gstNumber: vendor.gstNumber || "",
               remarks: vendor.remarks || "",
               activeStatus:

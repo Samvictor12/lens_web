@@ -961,6 +961,406 @@ export class InventoryService {
       );
     }
   }
+
+  /**
+   * Get tray occupancy information
+   * @param {number} trayId - Tray ID
+   * @returns {Promise<Object>} Tray occupancy data
+   */
+  async getTrayOccupancy(trayId) {
+    try {
+      const tray = await prisma.trayMaster.findUnique({
+        where: { id: trayId, deleteStatus: false },
+        select: { id: true, name: true, capacity: true },
+      });
+
+      if (!tray) {
+        throw new APIError("Tray not found", 404, "TRAY_NOT_FOUND");
+      }
+
+      // Get current quantity in tray
+      const currentQty = await prisma.inventoryItem.aggregate({
+        where: { tray_id: trayId, deleteStatus: false },
+        _sum: { quantity: true },
+      });
+
+      const usedQty = currentQty._sum.quantity || 0;
+      const availableQty = (tray.capacity || 0) - usedQty;
+      const percentUsed = tray.capacity ? (usedQty / tray.capacity) * 100 : 0;
+
+      return {
+        trayId: tray.id,
+        trayName: tray.name,
+        capacity: tray.capacity || 0,
+        currentQty: usedQty,
+        availableQty: Math.max(0, availableQty),
+        percentUsed: Math.min(100, percentUsed),
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error getting tray occupancy:", error);
+      throw new APIError(
+        "Failed to get tray occupancy",
+        500,
+        "GET_TRAY_OCCUPANCY_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Get inventory stock with grouping support
+   * @param {Object} queryParams - Query parameters including groupBy
+   * @returns {Promise<Object>} Grouped or flat stock data
+   */
+  async getInventoryStockWithGrouping(queryParams) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        lens_id,
+        location_id,
+        tray_id,
+        category_id,
+        groupBy = null, // 'location' or 'location_tray' or null
+      } = queryParams;
+
+      const skip = (page - 1) * limit;
+      const take = limit;
+      const where = { deleteStatus: false };
+
+      if (lens_id) where.lens_id = lens_id;
+      if (location_id) where.location_id = location_id;
+      if (tray_id) where.tray_id = tray_id;
+      if (category_id) where.category_id = category_id;
+
+      if (groupBy === "location") {
+        // Group by location
+        const stocks = await prisma.inventoryStock.findMany({
+          where,
+          skip,
+          take,
+          include: {
+            lensProduct: {
+              select: { id: true, lens_name: true, product_code: true },
+            },
+            category: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+          },
+          orderBy: { location_id: "asc" },
+        });
+
+        return {
+          data: stocks,
+          grouping: "location",
+        };
+      } else if (groupBy === "location_tray") {
+        // Group by location and tray
+        const stocks = await prisma.inventoryStock.findMany({
+          where,
+          skip,
+          take,
+          include: {
+            lensProduct: {
+              select: { id: true, lens_name: true, product_code: true },
+            },
+            category: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true, capacity: true } },
+          },
+          orderBy: [{ location_id: "asc" }, { tray_id: "asc" }],
+        });
+
+        return {
+          data: stocks,
+          grouping: "location_tray",
+        };
+      } else {
+        // No grouping - return items
+        const items = await prisma.inventoryItem.findMany({
+          where,
+          skip,
+          take,
+          include: {
+            lensProduct: {
+              select: { id: true, lens_name: true, product_code: true },
+            },
+            category: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true } },
+          },
+        });
+
+        return {
+          data: items,
+          grouping: "none",
+        };
+      }
+    } catch (error) {
+      console.error("Error getting inventory stock with grouping:", error);
+      throw new APIError(
+        "Failed to get inventory stock",
+        500,
+        "GET_INVENTORY_STOCK_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Get items below low stock threshold
+   * @returns {Promise<Array>} Items below minimum threshold
+   */
+  async getItemsBelowThreshold() {
+    try {
+      const lowStockItems = await prisma.inventoryStock.findMany({
+        where: {
+          lensProduct: {
+            minThresholdQty: { not: null },
+          },
+        },
+        include: {
+          lensProduct: {
+            select: {
+              id: true,
+              lens_name: true,
+              product_code: true,
+              minThresholdQty: true,
+            },
+          },
+          category: { select: { id: true, name: true } },
+          location: { select: { id: true, name: true } },
+        },
+        orderBy: { totalStock: "asc" },
+        take: 15, // Top 15 low stock items
+      });
+
+      // Filter items where current stock < min threshold
+      return lowStockItems
+        .filter(
+          (item) =>
+            item.totalStock <
+            (item.lensProduct?.minThresholdQty || Number.MAX_VALUE)
+        )
+        .map((item) => ({
+          ...item,
+          gap: (item.lensProduct?.minThresholdQty || 0) - item.totalStock,
+        }));
+    } catch (error) {
+      console.error("Error getting low stock items:", error);
+      throw new APIError(
+        "Failed to get low stock items",
+        500,
+        "GET_LOW_STOCK_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Get enhanced inventory dashboard with pending inwards and low stock
+   * @returns {Promise<Object>} Dashboard statistics
+   */
+  async getInventoryDashboardEnhanced() {
+    try {
+      const [
+        totalItems,
+        availableItems,
+        reservedItems,
+        damagedItems,
+        totalValue,
+        lowStockItems,
+        pendingInwards,
+      ] = await Promise.all([
+        // Total items
+        prisma.inventoryItem.count({
+          where: { deleteStatus: false, activeStatus: true },
+        }),
+        // Available items
+        prisma.inventoryItem.count({
+          where: {
+            deleteStatus: false,
+            activeStatus: true,
+            status: "AVAILABLE",
+          },
+        }),
+        // Reserved items
+        prisma.inventoryItem.count({
+          where: {
+            deleteStatus: false,
+            activeStatus: true,
+            status: "RESERVED",
+          },
+        }),
+        // Damaged items
+        prisma.inventoryItem.count({
+          where: {
+            deleteStatus: false,
+            activeStatus: true,
+            status: "DAMAGED",
+          },
+        }),
+        // Total inventory value
+        prisma.inventoryStock.aggregate({
+          where: { deleteStatus: false },
+          _sum: {
+            totalValue: true,
+          },
+        }),
+        // Low stock items (using the service method)
+        this.getItemsBelowThreshold(),
+        // Pending inwards (receipts not fully inwarded)
+        prisma.purchaseOrderReceipt.findMany({
+          where: {
+            deleteStatus: false,
+            NOT: {
+              inwardedQty: { equals: prisma.raw(`"totalReceivedQty"`) },
+            },
+          },
+          include: {
+            purchaseOrder: {
+              select: { id: true, poNumber: true, vendor: true },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }),
+      ]);
+
+      // Count actual pending inwards (inwardedQty < totalReceivedQty)
+      const pendingCount = await prisma.purchaseOrderReceipt.count({
+        where: {
+          deleteStatus: false,
+          totalReceivedQty: {
+            gt: prisma.raw(`"inwardedQty"`),
+          },
+        },
+      });
+
+      return {
+        totalItems,
+        availableItems,
+        reservedItems,
+        damagedItems,
+        lowStockItems: lowStockItems || [],
+        totalValue: totalValue._sum.totalValue || 0,
+        pendingInwardsCount: pendingCount,
+        pendingInwardsList: pendingInwards || [],
+      };
+    } catch (error) {
+      console.error("Error getting inventory dashboard:", error);
+      throw new APIError(
+        "Failed to get dashboard data",
+        500,
+        "GET_DASHBOARD_ERROR"
+      );
+    }
+  }
+
+  /**
+   * Get stock value report by date range
+   * @param {Object} queryParams - Date range and grouping params
+   * @returns {Promise<Object>} Stock value report data
+   */
+  async getStockValueReport(queryParams) {
+    try {
+      const {
+        startDate,
+        endDate,
+        groupBy = "lens_id", // lens_id, category_id, location_id
+      } = queryParams;
+
+      const dateFilter = {};
+      if (startDate) {
+        dateFilter.gte = new Date(startDate);
+      }
+      if (endDate) {
+        dateFilter.lte = new Date(endDate);
+      }
+
+      // Get inward and outward transactions
+      const transactions = await prisma.inventoryTransaction.findMany({
+        where: {
+          transactionDate: Object.keys(dateFilter).length > 0 ? dateFilter : undefined,
+          type: { in: ["INWARD_PO", "INWARD_DIRECT", "OUTWARD_SALE", "OUTWARD_RETURN"] },
+          deleteStatus: false,
+        },
+        include: {
+          inventoryItem: {
+            select: {
+              id: true,
+              lens_id: true,
+              category_id: true,
+              location_id: true,
+              lensProduct: {
+                select: { id: true, lens_name: true, product_code: true },
+              },
+              category: { select: { id: true, name: true } },
+              location: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      // Group and aggregate
+      const grouped = {};
+      let totalInwardValue = 0;
+      let totalOutwardValue = 0;
+
+      transactions.forEach((txn) => {
+        const groupKey =
+          groupBy === "lens_id"
+            ? txn.inventoryItem.lens_id
+            : groupBy === "category_id"
+              ? txn.inventoryItem.category_id
+              : txn.inventoryItem.location_id;
+
+        const label =
+          groupBy === "lens_id"
+            ? txn.inventoryItem.lensProduct?.lens_name || "N/A"
+            : groupBy === "category_id"
+              ? txn.inventoryItem.category?.name || "N/A"
+              : txn.inventoryItem.location?.name || "N/A";
+
+        if (!grouped[groupKey]) {
+          grouped[groupKey] = {
+            groupKey,
+            label,
+            inwardValue: 0,
+            outwardValue: 0,
+            quantity: 0,
+          };
+        }
+
+        if (["INWARD_PO", "INWARD_DIRECT"].includes(txn.type)) {
+          grouped[groupKey].inwardValue += txn.totalValue || 0;
+          grouped[groupKey].quantity += txn.quantity || 0;
+          totalInwardValue += txn.totalValue || 0;
+        } else {
+          grouped[groupKey].outwardValue += Math.abs(txn.totalValue || 0);
+          totalOutwardValue += Math.abs(txn.totalValue || 0);
+        }
+      });
+
+      const data = Object.values(grouped);
+
+      return {
+        summary: {
+          totalInwardValue,
+          totalOutwardValue,
+          netValue: totalInwardValue - totalOutwardValue,
+          startDate,
+          endDate,
+          groupBy,
+        },
+        data,
+      };
+    } catch (error) {
+      console.error("Error getting stock value report:", error);
+      throw new APIError(
+        "Failed to get stock value report",
+        500,
+        "GET_STOCK_VALUE_REPORT_ERROR"
+      );
+    }
+  }
 }
 
 export default InventoryService;

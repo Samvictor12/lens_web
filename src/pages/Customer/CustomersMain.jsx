@@ -205,7 +205,7 @@ export default function Customers() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          <Button
+          {/* <Button
             variant="outline"
             size="xs"
             className="gap-1.5 h-8"
@@ -222,7 +222,7 @@ export default function Customers() {
           >
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Upload</span>
-          </Button>
+          </Button> */}
           <Button
             size="xs"
             className="gap-1.5 h-8"

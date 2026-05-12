@@ -9,7 +9,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { getPurchaseOrderById } from "@/services/purchaseOrder";
 import { getReceiptInwardStatus, inwardReceiptToInventory } from "@/services/purchaseOrder";
-import { getInventoryDropdowns } from "@/services/inventory";
+import { getInventoryDropdowns, getTrayOccupancy } from "@/services/inventory";
 import { getTraysByLocation } from "@/services/tray";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ const parseKey = (key) => {
   };
 };
 
-const emptyRow = () => ({ location_id: "", tray_id: "", qty: "" });
+const emptyRow = () => ({ tray_id: "", qty: "" });
 
 export default function POInwardToInventory() {
   const location = useLocation();
@@ -55,8 +55,10 @@ export default function POInwardToInventory() {
   const [locations, setLocations] = useState([]);
   const [trayOptionsByLocation, setTrayOptionsByLocation] = useState({});
   const [loadingTrayLocations, setLoadingTrayLocations] = useState({});
+  const [globalLocationId, setGlobalLocationId] = useState("");
+  const [trayOccupancyData, setTrayOccupancyData] = useState({}); // { trayId: { trayId, capacity, currentQty, availableQty, percentUsed } }
 
-  // rowSplits: { [rowKey]: [{ location_id, tray_id, qty }] }
+  // rowSplits: { [rowKey]: [{ tray_id, qty }] }  — location is global
   const [rowSplits, setRowSplits] = useState({});
   const [highlightedKey, setHighlightedKey] = useState(null);
   const [showSubmitWarnings, setShowSubmitWarnings] = useState(false);
@@ -112,6 +114,7 @@ export default function POInwardToInventory() {
         }
       }
       setRowSplits(initial);
+      setGlobalLocationId("");
       setTrayOptionsByLocation({});
       setLoadingTrayLocations({});
       setShowSubmitWarnings(false);
@@ -180,10 +183,32 @@ export default function POInwardToInventory() {
     setRowSplits((prev) => ({
       ...prev,
       [key]: (prev[key] || []).map((sp, i) =>
-        i === idx ? { ...sp, [field]: value, ...(field === "location_id" ? { tray_id: "" } : {}) } : sp
+        i === idx ? { ...sp, [field]: value } : sp
       ),
     }));
+
+    // Fetch tray occupancy if tray_id is being set
+    if (field === "tray_id" && value) {
+      fetchTrayOccupancy(parseInt(value));
+    }
   };
+
+  const fetchTrayOccupancy = useCallback(async (trayId) => {
+    // Return early if already cached
+    if (trayOccupancyData[trayId]) return;
+
+    try {
+      const response = await getTrayOccupancy(trayId);
+      if (response.success && response.data) {
+        setTrayOccupancyData((prev) => ({
+          ...prev,
+          [trayId]: response.data,
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch tray occupancy:", error);
+    }
+  }, [trayOccupancyData]);
 
   const loadTraysForLocation = useCallback(async (locationId) => {
     if (!locationId || trayOptionsByLocation[locationId]) return;
@@ -208,12 +233,33 @@ export default function POInwardToInventory() {
     }
   }, [toast, trayOptionsByLocation]);
 
-  const handleLocationChange = async (key, idx, value) => {
-    const locationId = value ? String(value) : "";
-    updateSplit(key, idx, "location_id", locationId);
+  const handleGlobalLocationChange = async (value) => {
+    const newLocationId = value ? String(value) : "";
 
-    if (locationId) {
-      await loadTraysForLocation(parseInt(locationId));
+    // If location changed and there are existing tray selections, clear them all
+    if (newLocationId !== globalLocationId) {
+      const hasTraySelections = Object.values(rowSplits).some((splits) =>
+        splits.some((sp) => sp.tray_id)
+      );
+      if (hasTraySelections) {
+        setRowSplits((prev) => {
+          const updated = {};
+          for (const k of Object.keys(prev)) {
+            updated[k] = prev[k].map((sp) => ({ ...sp, tray_id: "" }));
+          }
+          return updated;
+        });
+        toast({
+          title: "Tray selections cleared",
+          description: "All tray selections were cleared because the location changed.",
+          variant: "destructive",
+        });
+      }
+    }
+
+    setGlobalLocationId(newLocationId);
+    if (newLocationId) {
+      await loadTraysForLocation(parseInt(newLocationId));
     }
   };
 
@@ -235,6 +281,11 @@ export default function POInwardToInventory() {
       return false;
     }
 
+    if (!globalLocationId) {
+      toast({ title: "Location required", description: "Select a storage location before pushing to inventory.", variant: "destructive" });
+      return false;
+    }
+
     for (const row of pendingRows) {
       const splits = rowSplits[row.key] || [];
       const activeSplits = splits.filter((sp) => parseFloat(sp.qty) > 0);
@@ -251,17 +302,11 @@ export default function POInwardToInventory() {
       }
 
       for (const sp of activeSplits) {
-        if (!sp.location_id) {
-          scrollToRow(row.key);
-          toast({ title: "Location required", description: "Select a location for each split.", variant: "destructive" });
-          return false;
-        }
-
         if (!sp.tray_id) {
           scrollToRow(row.key);
           toast({
             title: "Tray required",
-            description: "Select a tray after choosing the location for each split.",
+            description: "Select a tray for each split.",
             variant: "destructive",
           });
           return false;
@@ -293,7 +338,7 @@ export default function POInwardToInventory() {
         spherical: row.spherical ?? "0",
         cylindrical: row.cylindrical ?? "0",
         splits: splits.map((sp) => ({
-          location_id: parseInt(sp.location_id),
+          location_id: parseInt(globalLocationId),
           tray_id: sp.tray_id ? parseInt(sp.tray_id) : null,
           qty: parseFloat(sp.qty),
         })),
@@ -531,6 +576,30 @@ export default function POInwardToInventory() {
 
         {/* ── Right: Inward Grid ── */}
         <div className="flex flex-col gap-3 flex-1 min-w-0 md:h-full md:overflow-y-auto md:overflow-x-hidden pb-3">
+          {/* Global Location Selector */}
+          <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border flex-shrink-0">
+            <span className="text-xs font-semibold text-muted-foreground shrink-0">Storage Location</span>
+            <div className="flex-1 max-w-xs">
+              <FormSelect
+                name="global_location"
+                value={globalLocationId || null}
+                onChange={handleGlobalLocationChange}
+                options={locationOptions}
+                placeholder="Select location for all items..."
+                isSearchable={true}
+                isClearable={false}
+              />
+            </div>
+            {globalLocationId && loadingTrayLocations[parseInt(globalLocationId)] && (
+              <span className="text-xs text-muted-foreground">Loading trays...</span>
+            )}
+            {globalLocationId && !loadingTrayLocations[parseInt(globalLocationId)] && (
+              <span className="text-xs text-green-700 font-medium">
+                {locationOptions.find((o) => String(o.value) === globalLocationId)?.label}
+              </span>
+            )}
+          </div>
+
           {totalPending === 0 ? (
             <Card className="border-green-300 bg-green-50">
               <CardContent className="p-6 flex flex-col items-center justify-center gap-2 text-green-700">
@@ -597,10 +666,19 @@ export default function POInwardToInventory() {
                           </thead> */}
                           <tbody>
                             {splits.map((split, splitIdx) => {
-                              const availableTrays = traysForLocation(split.location_id);
+                              const availableTrays = traysForLocation(globalLocationId);
                               const trayOptions = availableTrays.map((tray) => ({ value: tray.id, label: tray.name }));
-                              const showTrayWarning = showSubmitWarnings && Boolean(split.location_id) && !split.tray_id;
-                              const isTrayLoading = Boolean(split.location_id) && loadingTrayLocations[parseInt(split.location_id)];
+                              const showTrayWarning = showSubmitWarnings && !split.tray_id;
+                              const isTrayLoading = Boolean(globalLocationId) && Boolean(loadingTrayLocations[parseInt(globalLocationId)]);
+                              const selectedTrayOccupancy = split.tray_id ? trayOccupancyData[parseInt(split.tray_id)] : null;
+                              
+                              // Calculate percent used and color
+                              const percentUsed = selectedTrayOccupancy ? (selectedTrayOccupancy.percentUsed || 0) : 0;
+                              const occupancyColor = 
+                                percentUsed >= 90 ? "bg-red-100 text-red-800" :
+                                percentUsed >= 70 ? "bg-orange-100 text-orange-800" :
+                                "bg-green-100 text-green-800";
+                              
                               return (
                                 <tr
                                   key={splitIdx}
@@ -608,31 +686,30 @@ export default function POInwardToInventory() {
                                 >
                                   <td className="px-3 py-1.5 text-muted-foreground font-medium">{splitIdx + 1}</td>
                                   <td className="px-2 py-1.5">
-                                    <FormSelect
-                                      name={`location_${row.key}_${splitIdx}`}
-                                      value={split.location_id || null}
-                                      onChange={(value) => handleLocationChange(row.key, splitIdx, value)}
-                                      options={locationOptions}
-                                      placeholder="Select location"
-                                      isSearchable={true}
-                                      isClearable={false}
-                                    />
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    <FormSelect
-                                      name={`tray_${row.key}_${splitIdx}`}
-                                      value={split.tray_id || null}
-                                      onChange={(value) => updateSplit(row.key, splitIdx, "tray_id", value ? String(value) : "")}
-                                      options={trayOptions}
-                                      placeholder={split.location_id ? (isTrayLoading ? "Loading trays..." : "Select tray") : "Select location first"}
-                                      isClearable={false}
-                                      disabled={!split.location_id || isTrayLoading}
-                                    />
-                                    {/* {showTrayWarning && (
-                                      <p className="mt-1 text-[10px] font-medium text-amber-700">
-                                        Tray selection is required for this row.
-                                      </p>
-                                    )} */}
+                                    <div className="flex flex-col gap-1">
+                                      <FormSelect
+                                        name={`tray_${row.key}_${splitIdx}`}
+                                        value={split.tray_id || null}
+                                        onChange={(value) => updateSplit(row.key, splitIdx, "tray_id", value ? String(value) : "")}
+                                        options={trayOptions}
+                                        placeholder={globalLocationId ? (isTrayLoading ? "Loading trays..." : "Select tray") : "Select location first"}
+                                        isClearable={false}
+                                        disabled={!globalLocationId || isTrayLoading}
+                                      />
+                                      {selectedTrayOccupancy && (
+                                        <div className="flex flex-col gap-1">
+                                          <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                            <div
+                                              className={`h-full ${percentUsed >= 90 ? "bg-red-500" : percentUsed >= 70 ? "bg-orange-500" : "bg-green-500"}`}
+                                              style={{ width: `${Math.min(percentUsed, 100)}%` }}
+                                            />
+                                          </div>
+                                          <div className={`text-[10px] px-1.5 py-0.5 rounded ${occupancyColor} text-center`}>
+                                            {selectedTrayOccupancy.currentQty}/{selectedTrayOccupancy.capacity} ({selectedTrayOccupancy.availableQty} available)
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-2 py-1.5">
                                     <input

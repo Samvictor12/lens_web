@@ -44,6 +44,8 @@ const FormSelect = React.forwardRef(
         ...base,
         minHeight: "32px",
         height: "32px",
+        maxHeight: "32px",
+        overflow: "hidden",
         fontSize: "0.875rem", // text-sm
         borderColor: error
           ? "hsl(var(--destructive))"
@@ -64,11 +66,15 @@ const FormSelect = React.forwardRef(
         ...base,
         height: "32px",
         padding: "0 8px",
+        overflow: "hidden",
+        flexWrap: "nowrap",
       }),
       input: (base) => ({
         ...base,
         margin: "0px",
         padding: "0px",
+        height: "30px",
+        lineHeight: "30px",
         color: "hsl(var(--foreground))",
       }),
       indicatorSeparator: () => ({

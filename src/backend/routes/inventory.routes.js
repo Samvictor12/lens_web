@@ -469,4 +469,89 @@ router.get('/dashboard', (req, res, next) => {
   inventoryController.getInventoryDashboard(req, res, next);
 });
 
+/**
+ * @swagger
+ * /api/inventory/tray-occupancy/{trayId}:
+ *   get:
+ *     summary: Get tray occupancy information
+ *     tags: [Inventory]
+ *     parameters:
+ *       - name: trayId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Tray occupancy data
+ */
+router.get('/tray-occupancy/:trayId', (req, res, next) => {
+  inventoryController.getTrayOccupancy(req, res, next);
+});
+
+/**
+ * @swagger
+ * /api/inventory/stock-grouped:
+ *   get:
+ *     summary: Get inventory stock with grouping support
+ *     tags: [Inventory]
+ *     parameters:
+ *       - name: groupBy
+ *         in: query
+ *         description: Group by location or location_tray
+ *         schema:
+ *           type: string
+ *           enum: [location, location_tray]
+ *     responses:
+ *       200:
+ *         description: Grouped stock data
+ */
+router.get('/stock-grouped', (req, res, next) => {
+  inventoryController.getInventoryStockGrouped(req, res, next);
+});
+
+/**
+ * @swagger
+ * /api/inventory/low-stock-items:
+ *   get:
+ *     summary: Get items below low stock threshold
+ *     tags: [Inventory]
+ *     responses:
+ *       200:
+ *         description: Low stock items list
+ */
+router.get('/low-stock-items', (req, res, next) => {
+  inventoryController.getLowStockItems(req, res, next);
+});
+
+/**
+ * @swagger
+ * /api/inventory/reports/value:
+ *   get:
+ *     summary: Get stock value report by date range
+ *     tags: [Inventory]
+ *     parameters:
+ *       - name: startDate
+ *         in: query
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - name: endDate
+ *         in: query
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - name: groupBy
+ *         in: query
+ *         schema:
+ *           type: string
+ *           enum: [lens_id, category_id, location_id]
+ *     responses:
+ *       200:
+ *         description: Stock value report
+ */
+router.get('/reports/value', (req, res, next) => {
+  inventoryController.getStockValueReport(req, res, next);
+});
+
 export default router;

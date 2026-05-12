@@ -29,6 +29,8 @@ export const mapFromBackend = (data) => {
     addMin: data.add_min,
     addMax: data.add_max,
     rangeText: data.range_text || "",
+    minThresholdQty: data.minThresholdQty ?? "",
+    maxThresholdQty: data.maxThresholdQty ?? "",
     prices: (data.lensPriceMasters || data.prices || []).map(price => ({
       id: price.id,
       coatingId: price.coating_id,
@@ -65,6 +67,8 @@ export const mapToBackend = (data) => {
     add_min: data.addMin ? parseFloat(data.addMin) : null,
     add_max: data.addMax ? parseFloat(data.addMax) : null,
     range_text: data.rangeText || "",
+    minThresholdQty: data.minThresholdQty !== "" && data.minThresholdQty != null ? parseInt(data.minThresholdQty) : null,
+    maxThresholdQty: data.maxThresholdQty !== "" && data.maxThresholdQty != null ? parseInt(data.maxThresholdQty) : null,
     prices: data.prices?.map(price => ({
       coating_id: price.coatingId,
       price: parseFloat(price.price) || 0

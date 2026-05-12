@@ -241,7 +241,7 @@ const InventoryMain = () => {
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-0">
-          <InventoryDashboard stats={dashboardStats} isLoading={dashboardLoading} />
+          <InventoryDashboard stats={dashboardStats} isLoading={dashboardLoading} onRefresh={handleRefresh} />
         </TabsContent>
 
         <TabsContent value="items" className="flex flex-col h-full gap-2 mt-0">
