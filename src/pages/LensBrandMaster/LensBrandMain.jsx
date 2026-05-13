@@ -11,6 +11,7 @@ import { getLensBrands, deleteLensBrand } from "@/services/lensBrand";
 import { lensBrandFilters } from "./LensBrand.constants";
 import { useLensBrandColumns } from "./useLensBrandColumns";
 import LensBrandFilter from "./LensBrandFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensBrands() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensBrands() {
   // Brand data
   const [brands, setBrands] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,10 +84,15 @@ export default function LensBrands() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens brand list has been refreshed." });
+  };
+
   // Fetch brands on mount and when dependencies change
   useEffect(() => {
     fetchBrands();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete brand
   const handleDeleteConfirm = async () => {
@@ -181,6 +188,7 @@ export default function LensBrands() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensBrandFilter
               filters={filters}
               tempFilters={tempFilters}

@@ -12,6 +12,7 @@ import { getLensProducts, getGroupedLensProducts, deleteLensProduct } from "@/se
 import { lensProductFilters } from "./LensProduct.constants";
 import LensProductFilter from "./LensProductFilter";
 import { useLensProductColumns } from "./useLensProductColumns";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensProductMain() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export default function LensProductMain() {
   const [tempFilters, setTempFilters] = useState(lensProductFilters);
   const [products, setProducts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -265,9 +267,14 @@ export default function LensProductMain() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens product list has been refreshed." });
+  };
+
   useEffect(() => {
     fetchProducts();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting, groupBy]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, groupBy, refreshKey]);
 
   const handleDeleteProduct = async () => {
     if (!productToDelete) return;
@@ -399,6 +406,8 @@ export default function LensProductMain() {
             onCancel={handleCancelFilters}
             hasActiveFilters={hasActiveFilters}
           />
+
+          <Refresh onClick={handleRefresh} />
 
           {hasActiveFilters && (
             <Button

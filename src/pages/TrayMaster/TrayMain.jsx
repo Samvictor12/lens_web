@@ -11,6 +11,7 @@ import { getTrays, deleteTray } from "@/services/tray";
 import { trayFilters } from "./Tray.constants";
 import { useTrayColumns } from "./useTrayColumns";
 import TrayFilter from "./TrayFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function Trays() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export default function Trays() {
 
   const [trays, setTrays] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [trayToDelete, setTrayToDelete] = useState(null);
@@ -72,9 +74,14 @@ export default function Trays() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Tray list has been refreshed." });
+  };
+
   useEffect(() => {
     fetchTrays();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   const handleDeleteConfirm = async () => {
     if (!trayToDelete) return;
@@ -161,6 +168,7 @@ export default function Trays() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <TrayFilter
               filters={filters}
               tempFilters={tempFilters}

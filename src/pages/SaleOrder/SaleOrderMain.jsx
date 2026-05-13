@@ -15,6 +15,7 @@ import {
 import { saleOrderFilters } from "./SaleOrder.constants";
 import { useSaleOrderColumns } from "./useSaleOrderColumns";
 import SaleOrderFilter from "./SaleOrderFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function SaleOrderMain() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function SaleOrderMain() {
   // Sale order data
   const [saleOrders, setSaleOrders] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Customers for filter dropdown
   const [customers, setCustomers] = useState([]);
@@ -104,10 +106,15 @@ export default function SaleOrderMain() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Sale order list has been refreshed." });
+  };
+
   // Fetch sale orders on mount and when dependencies change
   useEffect(() => {
     fetchSaleOrders();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete sale order
   const handleDeleteConfirm = async () => {
@@ -208,6 +215,7 @@ export default function SaleOrderMain() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <SaleOrderFilter
               filters={filters}
               tempFilters={tempFilters}

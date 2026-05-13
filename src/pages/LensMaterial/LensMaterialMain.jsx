@@ -11,6 +11,7 @@ import { getLensMaterials, deleteLensMaterial } from "@/services/lensMaterial";
 import { lensMaterialFilters } from "./LensMaterial.constants";
 import { LensMaterialFilter } from "./LensMaterialFilter";
 import { useLensMaterialColumns } from "./useLensMaterialColumns";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensMaterials() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensMaterials() {
   // Material data
   const [materials, setMaterials] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,10 +84,15 @@ export default function LensMaterials() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens material list has been refreshed." });
+  };
+
   // Fetch materials on mount and when dependencies change
   useEffect(() => {
     fetchMaterials();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete material
   const handleDeleteConfirm = async () => {
@@ -181,6 +188,7 @@ export default function LensMaterials() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensMaterialFilter
               filters={filters}
               tempFilters={tempFilters}

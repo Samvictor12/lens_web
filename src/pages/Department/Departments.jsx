@@ -11,6 +11,7 @@ import { getDepartments, deleteDepartment } from "@/services/department";
 import { departmentFilters } from "./Department.constants";
 import DepartmentFilter from "./DepartmentFilter";
 import { useDepartmentColumns } from "./useDepartmentColumns";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function Departments() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function Departments() {
   // Department data
   const [departments, setDepartments] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,10 +84,15 @@ export default function Departments() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Department list has been refreshed." });
+  };
+
   // Fetch departments on mount and when dependencies change
   useEffect(() => {
     fetchDepartments();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete department
   const handleDeleteConfirm = async () => {
@@ -179,6 +186,7 @@ export default function Departments() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <DepartmentFilter
               filters={filters}
               tempFilters={tempFilters}

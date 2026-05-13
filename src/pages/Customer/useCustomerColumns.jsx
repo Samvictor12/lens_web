@@ -1,13 +1,14 @@
-import { Building, Trash2, DollarSign } from "lucide-react";
+import { Building, Trash2, DollarSign, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
  * Custom hook that returns the table columns configuration for the customer list
  * @param {Function} navigate - React Router navigate function
  * @param {Function} onDelete - Delete handler function
+ * @param {Function} onActions - Actions (portal) handler function
  * @returns {Array} Array of column definitions
  */
-export const useCustomerColumns = (navigate, onDelete) => {
+export const useCustomerColumns = (navigate, onDelete, onActions) => {
   return [
     {
       accessorKey: "customerCode",
@@ -94,6 +95,15 @@ export const useCustomerColumns = (navigate, onDelete) => {
           >
             View
           </Button> */}
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+            onClick={() => onActions && onActions(customer)}
+            title="Customer Actions"
+          >
+            <Zap className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="xs"

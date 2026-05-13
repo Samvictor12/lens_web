@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 import Login from "./pages/Login";
@@ -61,6 +62,10 @@ import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
 import { ProductionOperatorList, ProductionOrderDetail } from "./pages/ProductionOperator";
 import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
 import NotFound from "./pages/NotFound";
+import CustomerPortalLogin from "./pages/CustomerPortal/CustomerPortalLogin";
+import CustomerPortalDashboard from "./pages/CustomerPortal/CustomerPortalDashboard";
+import CheckSheetMain from "./pages/CheckSheet/CheckSheetMain";
+import CheckSheetForm from "./pages/CheckSheet/CheckSheetForm";
 
 const queryClient = new QueryClient();
 
@@ -175,6 +180,9 @@ const AppRoutes = () => (
       <Route path="/masters/lens-coating" element={<ProtectedRoute><LensCoatingMain /></ProtectedRoute>} />
       <Route path="/masters/lens-coating/:mode" element={<ProtectedRoute><LensCoatingForm /></ProtectedRoute>} />
       <Route path="/masters/lens-coating/:mode/:id" element={<ProtectedRoute><LensCoatingForm /></ProtectedRoute>} />
+      <Route path="/masters/check-sheets" element={<ProtectedRoute><CheckSheetMain /></ProtectedRoute>} />
+      <Route path="/masters/check-sheets/:mode" element={<ProtectedRoute><CheckSheetForm /></ProtectedRoute>} />
+      <Route path="/masters/check-sheets/:mode/:id" element={<ProtectedRoute><CheckSheetForm /></ProtectedRoute>} />
       <Route path="/masters/lens-brand" element={<ProtectedRoute><LensBrandMain /></ProtectedRoute>} />
       <Route path="/masters/lens-brand/:mode" element={<ProtectedRoute><LensBrandForm /></ProtectedRoute>} />
       <Route path="/masters/lens-brand/:mode/:id" element={<ProtectedRoute><LensBrandForm /></ProtectedRoute>} />
@@ -201,6 +209,9 @@ const AppRoutes = () => (
       <Route path="/masters/tray/:mode/:id" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="/system/logs" element={<ProtectedRoute><LogsViewer /></ProtectedRoute>} />
       <Route path="/masters/price-mapping" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
+      {/* Public Customer Portal */}
+      <Route path="/portal/:token" element={<CustomerPortalLogin />} />
+      <Route path="/portal/:token/dashboard" element={<CustomerPortalDashboard />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </BrowserRouter>
@@ -210,9 +221,11 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <AppRoutes />
+        <CompanyProvider>
+          <Toaster />
+          <Sonner />
+          <AppRoutes />
+        </CompanyProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

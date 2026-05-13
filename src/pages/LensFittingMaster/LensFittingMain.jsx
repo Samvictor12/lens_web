@@ -11,6 +11,7 @@ import { getLensFittings, deleteLensFitting } from "@/services/lensFitting";
 import { lensFittingFilters } from "./LensFitting.constants";
 import { useLensFittingColumns } from "./useLensFittingColumns";
 import LensFittingFilter from "./LensFittingFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensFittings() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensFittings() {
   // Fitting data
   const [fittings, setFittings] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,10 +84,15 @@ export default function LensFittings() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens fitting list has been refreshed." });
+  };
+
   // Fetch fittings on mount and when dependencies change
   useEffect(() => {
     fetchFittings();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete fitting
   const handleDeleteConfirm = async () => {
@@ -181,6 +188,7 @@ export default function LensFittings() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensFittingFilter
               filters={filters}
               tempFilters={tempFilters}

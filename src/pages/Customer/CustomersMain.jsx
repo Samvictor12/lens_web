@@ -24,6 +24,8 @@ import { customerFilters } from "./Customer.constants";
 import CustomerFilter from "./CustomerFilter";
 import { useCustomerColumns } from "./useCustomerColumns";
 import CustomerCard from "./CustomerCard";
+import CustomerActionsModal from "./CustomerActionsModal";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function Customers() {
   const navigate = useNavigate();
@@ -49,11 +51,16 @@ export default function Customers() {
   // Customer data
   const [customers, setCustomers] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Actions modal state
+  const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  const [actionsCustomer, setActionsCustomer] = useState(null);
 
   // Handle delete customer click
   const handleDeleteClick = (customer) => {
@@ -61,8 +68,13 @@ export default function Customers() {
     setDeleteDialogOpen(true);
   };
 
+  const handleActionsClick = (customer) => {
+    setActionsCustomer(customer);
+    setActionsModalOpen(true);
+  };
+
   // Get table columns with delete handler
-  const columns = useCustomerColumns(navigate, handleDeleteClick);
+  const columns = useCustomerColumns(navigate, handleDeleteClick, handleActionsClick);
 
   // Fetch customers from API
   const fetchCustomers = async () => {
@@ -98,10 +110,15 @@ export default function Customers() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Customer list has been refreshed." });
+  };
+
   // Fetch customers on mount and when dependencies change
   useEffect(() => {
     fetchCustomers();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete customer
   const handleDeleteConfirm = async () => {
@@ -247,6 +264,7 @@ export default function Customers() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <ViewToggle view={view} onViewChange={handleViewChange} />
             <CustomerFilter
               filters={filters}
@@ -297,6 +315,7 @@ export default function Customers() {
                 onView={(id) => navigate(`/sales/customers/view/${id}`)}
                 onDelete={handleDeleteClick}
                 onPriceMapping={(id) => navigate(`/sales/customers/${id}/price-mapping`)}
+                onActions={handleActionsClick}
               />
             )}
             isLoading={isLoading}
@@ -313,6 +332,13 @@ export default function Customers() {
           />
         </div>
       )}
+
+      {/* Customer Actions Modal */}
+      <CustomerActionsModal
+        customer={actionsCustomer}
+        open={actionsModalOpen}
+        onClose={() => { setActionsModalOpen(false); setActionsCustomer(null); }}
+      />
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog

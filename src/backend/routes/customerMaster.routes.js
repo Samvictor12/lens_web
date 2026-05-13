@@ -667,4 +667,17 @@ router.delete('/:id',
     controller.delete.bind(controller)
 );
 
+// ─── Customer Portal Routes ──────────────────────────────────────────────────
+
+// Public portal endpoints (no auth required)
+router.get('/portal/token/:token', controller.getPortalCustomerByToken.bind(controller));
+router.get('/portal/token/:token/dashboard', controller.getPortalDashboard.bind(controller));
+router.post('/portal/login', controller.portalLogin.bind(controller));
+
+// Protected portal management endpoints
+router.get('/:id/portal/status', authenticateToken, controller.getPortalStatus.bind(controller));
+router.post('/:id/portal/activate', authenticateToken, controller.activatePortal.bind(controller));
+router.post('/:id/portal/change-pin', authenticateToken, controller.changePortalPin.bind(controller));
+router.get('/:id/portal/invoices', authenticateToken, controller.getCustomerPendingInvoices.bind(controller));
+
 export default router;

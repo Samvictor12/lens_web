@@ -163,6 +163,11 @@ export class UserMasterService {
         where.delete_status = false;
       }
 
+      // Exclude the requesting user from results
+      if (filters.excludeId) {
+        where.id = { not: Number(filters.excludeId) };
+      }
+
       // Calculate offset
       const offset = (page - 1) * limit;
 

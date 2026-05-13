@@ -11,6 +11,7 @@ import { getLensOffers, deleteLensOffer } from "@/services/lensOffers";
 import { lensOffersFilters } from "./LensOffers.constants";
 import { useLensOffersColumns } from "./useLensOffersColumns";
 import LensOffersFilter from "./LensOffersFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensOffersMain() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensOffersMain() {
   // Data
   const [offers, setOffers] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -79,9 +81,14 @@ export default function LensOffersMain() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens offer list has been refreshed." });
+  };
+
   useEffect(() => {
     fetchOffers();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   const handleDeleteConfirm = async () => {
     if (!offerToDelete) return;
@@ -165,6 +172,7 @@ export default function LensOffersMain() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensOffersFilter
               filters={filters}
               tempFilters={tempFilters}

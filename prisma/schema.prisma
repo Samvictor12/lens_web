@@ -123,6 +123,9 @@ model User {
   financialTransactionsUpdatedBy FinancialTransaction[] @relation("transactionUpdatedBy")
   transactionEntryCreatedBy      TransactionEntry[]     @relation("transactionEntryCreatedBy")
   transactionEntryUpdatedBy      TransactionEntry[]     @relation("transactionEntryUpdatedBy")
+  companySettingsUpdated         CompanySettings[]      @relation("companySettingsUpdatedBy")
+  checkSheetsCreated             CheckSheetMaster[]     @relation("checkSheetCreatedBy")
+  checkSheetsUpdated             CheckSheetMaster[]     @relation("checkSheetUpdatedBy")
 }
 
 model Role {
@@ -196,6 +199,13 @@ model Customer {
   notes               String?
   sale_person_id      Int?
   delivery_person_id  Int?
+  // Customer Portal Fields
+  portal_token          String?           @unique // UUID for secure portal URL
+  portal_pin_hash       String?           // bcrypt-hashed 6-digit PIN
+  portal_active         Boolean           @default(false)
+  portal_activated_at   DateTime?         // When portal was first activated
+  portal_pin_changed_at DateTime?         // When PIN was last changed
+  portal_last_accessed  DateTime?         // Last portal login timestamp
   // Default fields
   active_status       Boolean           @default(true)
   delete_status       Boolean           @default(false)
@@ -1402,4 +1412,58 @@ model TransactionEntry {
   @@index([transactionId])
   @@index([ledgerId])
   @@index([entryType])
+}
+
+// ============================================================
+// COMPANY SETTINGS
+// Single-row configuration table for the manufacturing unit.
+// Used across: reports, print templates, invoices, dispatch copies, portal.
+// ============================================================
+
+model CheckSheetMaster {
+  id          Int               @id @default(autoincrement())
+  name        String            @unique
+  check_key   String            @unique
+  description String?
+  activeStatus Boolean          @default(true)
+  deleteStatus Boolean          @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   Int
+  updatedBy   Int?
+  createdByUser User            @relation("checkSheetCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("checkSheetUpdatedBy", fields: [updatedBy], references: [id])
+  items       CheckSheetItem[]
+}
+
+model CheckSheetItem {
+  id                Int              @id @default(autoincrement())
+  checkSheetMasterId Int
+  item_name         String
+  sequence          Int              @default(0)
+  activeStatus      Boolean          @default(true)
+  deleteStatus      Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  checkSheetMaster  CheckSheetMaster @relation(fields: [checkSheetMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([checkSheetMasterId, item_name])
+}
+
+model CompanySettings {
+  id          Int      @id @default(autoincrement())
+  companyName String   @default("My Company")
+  gstin       String?
+  logo        String?  @db.Text // Base64 encoded image (PNG/JPG/SVG, max ~500KB raw)
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  phone       String?
+  email       String?
+  website     String?
+  tagline     String?  // Used in letterheads / print footers
+  updatedAt   DateTime @updatedAt
+  updatedBy   Int?
+  updatedByUser User?  @relation("companySettingsUpdatedBy", fields: [updatedBy], references: [id])
 }
