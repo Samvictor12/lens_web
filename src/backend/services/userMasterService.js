@@ -146,8 +146,8 @@ export class UserMasterService {
         };
       }
 
-      if (filters.roleId) {
-        where.roleId = filters.roleId;
+      if (filters.role_id) {
+        where.role_id = filters.role_id;
       }
 
       if (filters.department_id) {

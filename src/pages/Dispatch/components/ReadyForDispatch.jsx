@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/ui/form-select";
-import { RefreshCw, Search, Package2, Truck, X } from "lucide-react";
+import { Refresh } from "@/components/ui/Refresh";
+import { Search, Package2, Truck, X } from "lucide-react";
 import { getReadyForDispatch } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 import DispatchGroupSection from "./DispatchGroupSection";
@@ -114,45 +116,34 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeli
 
     return (
         <div className="flex flex-col gap-3 pb-6">
-            {/* Controls row */}
-            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
-                {/* Search */}
-                <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                        className="pl-8 h-8 text-sm"
-                        placeholder="Search orders or customer..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+            {/* Controls row — Card-wrapped like PO */}
+            <Card className="p-1 sm:p-1 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                            className="pl-9 h-8 text-sm"
+                            placeholder="Search orders or customer..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">Group by:</span>
+                        <div className="w-40">
+                            <FormSelect
+                                options={GROUP_BY_OPTIONS}
+                                value={groupBy}
+                                onChange={(value) => setGroupBy(value)}
+                                placeholder="Select grouping"
+                                isSearchable={false}
+                                isClearable={false}
+                            />
+                        </div>
+                        <Refresh onClick={fetchOrders} />
+                    </div>
                 </div>
-
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 h-8 shrink-0"
-                    onClick={fetchOrders}
-                    disabled={isLoading}
-                >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-                    <span className="hidden sm:inline">Refresh</span>
-                </Button>
-            </div>
-
-            {/* Group by dropdown */}
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Group by:</span>
-                <div className="w-48">
-                    <FormSelect
-                        options={GROUP_BY_OPTIONS}
-                        value={groupBy}
-                        onChange={(value) => setGroupBy(value)}
-                        placeholder="Select grouping"
-                        isSearchable={false}
-                        isClearable={false}
-                    />
-                </div>
-            </div>
+            </Card>
 
             {/* Selection bar */}
             {selectedIds.size > 0 && (

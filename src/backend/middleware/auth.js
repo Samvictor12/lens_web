@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 
-const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
 
 export const authenticateToken = async (req, res, next) => {
   try {
@@ -15,7 +15,7 @@ export const authenticateToken = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
 
     // Get user with role and permissions
     const user = await prisma.user.findUnique({
@@ -28,6 +28,8 @@ export const authenticateToken = async (req, res, next) => {
         phonenumber: true,
         usercode: true,
         is_login: true,
+        active_status: true,
+        delete_status: true,
         role: {
           select: {
             name: true,
@@ -43,6 +45,20 @@ export const authenticateToken = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    if (user.delete_status === true) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account has been removed. Please contact administrator.'
+      });
+    }
+
+    if (user.active_status === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is inactive. Please contact administrator.'
       });
     }
 

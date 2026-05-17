@@ -324,7 +324,7 @@ export const validateQueryParams = (query) => {
             email: query.email,
             phonenumber: query.phonenumber,
             city: query.city,
-            roleId: query.roleId ? parseInt(query.roleId) : undefined,
+            role_id: query.role_id ? parseInt(query.role_id) : undefined,
             department_id: query.department_id ? parseInt(query.department_id) : undefined,
             active_status: query.active_status === 'true' ? true : query.active_status === 'false' ? false : undefined,
             page,

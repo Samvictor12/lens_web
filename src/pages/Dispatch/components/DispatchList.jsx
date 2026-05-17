@@ -2,13 +2,25 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RefreshCw, Search, List, Filter, X } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Search, List, Filter, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from "@/components/ui/sheet";
 import { getDispatchList, updateDispatchStatus } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 import DispatchRecordCard from "./DispatchRecordCard";
 import SignatureModal from "./SignatureModal";
 import ViewDispatchModal from "./ViewDispatchModal";
 import { FormSelect } from "@/components/ui/form-select";
+import { Refresh } from "@/components/ui/Refresh";
 
 const STATUS_OPTIONS = [
     { value: "", label: "All Statuses" },
@@ -23,13 +35,18 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
     const [dispatches, setDispatches] = useState([]);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
-    const [showFilters, setShowFilters] = useState(false);
+    const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-    // Filters
+    // Committed filters
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
+
+    // Temp filters (inside sheet before Apply)
+    const [tempStatus, setTempStatus] = useState("");
+    const [tempDateFrom, setTempDateFrom] = useState("");
+    const [tempDateTo, setTempDateTo] = useState("");
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -89,92 +106,132 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
         onStatusUpdated?.();
     };
 
-    const hasFilters = search || statusFilter || dateFrom || dateTo;
+    const hasActiveFilters = !!(statusFilter || dateFrom || dateTo);
 
-    const clearFilters = () => {
-        setSearch("");
+    const handleApplyFilters = () => {
+        setStatusFilter(tempStatus);
+        setDateFrom(tempDateFrom);
+        setDateTo(tempDateTo);
+        setPage(1);
+        setShowFilterSheet(false);
+    };
+
+    const handleClearFilters = () => {
+        setTempStatus("");
+        setTempDateFrom("");
+        setTempDateTo("");
         setStatusFilter("");
         setDateFrom("");
         setDateTo("");
         setPage(1);
+        setShowFilterSheet(false);
+    };
+
+    const handleCancelFilters = () => {
+        setTempStatus(statusFilter);
+        setTempDateFrom(dateFrom);
+        setTempDateTo(dateTo);
+        setShowFilterSheet(false);
     };
 
     const totalPages = Math.ceil(total / PAGE_SIZE);
 
     return (
         <div className="flex flex-col gap-3 pb-6">
-            {/* Top bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative flex-1 min-w-[180px] max-w-xs">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                        className="pl-8 h-8 text-sm"
-                        placeholder="Search DC number or customer..."
-                        value={search}
-                        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                    />
-                </div>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5"
-                    onClick={() => setShowFilters((v) => !v)}
-                >
-                    <Filter className="h-3.5 w-3.5" />
-                    Filters
-                    {hasFilters && <span className="h-1.5 w-1.5 rounded-full bg-primary ml-0.5" />}
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5"
-                    onClick={fetchList}
-                    disabled={isLoading}
-                >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-                    <span className="hidden sm:inline">Refresh</span>
-                </Button>
-                {hasFilters && (
-                    <Button variant="ghost" size="sm" className="h-8 gap-1 text-muted-foreground" onClick={clearFilters}>
-                        <X className="h-3.5 w-3.5" />
-                        Clear
-                    </Button>
-                )}
-            </div>
+            {/* Search + Filter toolbar — Card-wrapped like PO */}
+            <Card className="p-1 sm:p-1 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                            className="pl-9 h-8 text-sm"
+                            placeholder="Search DC number or customer..."
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                        />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <Refresh onClick={fetchList} />
 
-            {/* Expanded filters */}
-            {showFilters && (
-                <div className="rounded-lg border p-3 bg-muted/20 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="grid gap-1.5">
-                        <Label className="text-xs">Status</Label>
-                        <FormSelect
-                            options={STATUS_OPTIONS}
-                            value={statusFilter}
-                            onChange={(v) => { setStatusFilter(v || ""); setPage(1); }}
-                            placeholder="All statuses"
-                            isClearable
-                        />
-                    </div>
-                    <div className="grid gap-1.5">
-                        <Label className="text-xs">Date From</Label>
-                        <Input
-                            type="date"
-                            className="h-8 text-sm"
-                            value={dateFrom}
-                            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                        />
-                    </div>
-                    <div className="grid gap-1.5">
-                        <Label className="text-xs">Date To</Label>
-                        <Input
-                            type="date"
-                            className="h-8 text-sm"
-                            value={dateTo}
-                            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                        />
+                        {/* Sheet-based Filter (same pattern as PO) */}
+                        <Sheet open={showFilterSheet} onOpenChange={setShowFilterSheet}>
+                            <SheetTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="xs"
+                                    className="gap-1.5 h-8 relative"
+                                    onClick={() => {
+                                        setTempStatus(statusFilter);
+                                        setTempDateFrom(dateFrom);
+                                        setTempDateTo(dateTo);
+                                    }}
+                                >
+                                    <Filter className="h-3.5 w-3.5" />
+                                    <span className="text-sm">Filters</span>
+                                    {hasActiveFilters && (
+                                        <Badge variant="default" className="ml-1 h-4 px-1 text-xs">•</Badge>
+                                    )}
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent>
+                                <SheetHeader>
+                                    <SheetTitle>Filter Dispatches</SheetTitle>
+                                    <SheetDescription>
+                                        Apply filters to refine your dispatch list
+                                    </SheetDescription>
+                                </SheetHeader>
+
+                                <div className="space-y-4 py-4">
+                                    {/* Status */}
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Status</Label>
+                                        <FormSelect
+                                            options={STATUS_OPTIONS}
+                                            value={tempStatus}
+                                            onChange={(v) => setTempStatus(v || "")}
+                                            placeholder="All statuses"
+                                            isClearable
+                                            isSearchable={false}
+                                        />
+                                    </div>
+
+                                    {/* Date From */}
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Dispatch Date From</Label>
+                                        <Input
+                                            type="date"
+                                            className="h-8 text-sm"
+                                            value={tempDateFrom}
+                                            onChange={(e) => setTempDateFrom(e.target.value)}
+                                        />
+                                    </div>
+
+                                    {/* Date To */}
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Dispatch Date To</Label>
+                                        <Input
+                                            type="date"
+                                            className="h-8 text-sm"
+                                            value={tempDateTo}
+                                            onChange={(e) => setTempDateTo(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <SheetFooter className="flex gap-2 pt-4">
+                                    <Button variant="outline" className="flex-1" onClick={handleClearFilters}>
+                                        <X className="h-3.5 w-3.5 mr-1.5" />
+                                        Clear Filters
+                                    </Button>
+                                    <Button className="flex-1" onClick={handleApplyFilters}>
+                                        Apply Filters
+                                    </Button>
+                                </SheetFooter>
+                            </SheetContent>
+                        </Sheet>
                     </div>
                 </div>
-            )}
+            </Card>
 
             {/* Summary */}
             {!isLoading && (

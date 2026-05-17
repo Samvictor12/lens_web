@@ -84,7 +84,7 @@ export async function getUsers(
 
   // Add search term
   if (search && search.trim()) {
-    params.search = search.trim();
+    params.name = search.trim();
   }
 
   // Add filters

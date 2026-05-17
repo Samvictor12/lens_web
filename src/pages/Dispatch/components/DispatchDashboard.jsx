@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    PackageCheck, Truck, Clock, RefreshCw,
+    PackageCheck, Truck, Clock,
     ArrowRight, CalendarClock, User, MapPin,
 } from "lucide-react";
 import { getDispatchDashboard } from "@/services/dispatch";
@@ -108,14 +108,6 @@ export default function DispatchDashboard({ refreshKey, onNavigate }) {
 
     return (
         <div className="flex flex-col gap-4 pb-6">
-            {/* Refresh */}
-            <div className="flex justify-end">
-                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={fetchDashboard} disabled={isLoading}>
-                    <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-                    <span className="hidden sm:inline">Refresh</span>
-                </Button>
-            </div>
-
             {/* Stat cards */}
             {isLoading && !stats ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
