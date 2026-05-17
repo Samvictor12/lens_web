@@ -11,6 +11,7 @@ import { getLocations, deleteLocation } from "@/services/location";
 import { locationFilters } from "./Location.constants";
 import { useLocationColumns } from "./useLocationColumns";
 import LocationFilter from "./LocationFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function Locations() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export default function Locations() {
 
   const [locations, setLocations] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [locationToDelete, setLocationToDelete] = useState(null);
@@ -72,9 +74,14 @@ export default function Locations() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Location list has been refreshed." });
+  };
+
   useEffect(() => {
     fetchLocations();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   const handleDeleteConfirm = async () => {
     if (!locationToDelete) return;
@@ -161,6 +168,7 @@ export default function Locations() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LocationFilter
               filters={filters}
               tempFilters={tempFilters}

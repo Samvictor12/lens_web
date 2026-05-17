@@ -1,4 +1,4 @@
-import { Phone, Mail, Building, Trash2, DollarSign } from "lucide-react";
+import { Phone, Mail, Building, Trash2, DollarSign, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
  * @param {Function} onEdit - Callback function when edit button is clicked
  * @param {Function} onDelete - Callback function when delete button is clicked
  * @param {Function} onPriceMapping - Callback function when price mapping button is clicked
+ * @param {Function} onActions - Callback function when actions (portal) button is clicked
  */
-export default function CustomerCard({ customer, onView, onEdit, onDelete, onPriceMapping }) {
+export default function CustomerCard({ customer, onView, onEdit, onDelete, onPriceMapping, onActions }) {
   return (
     <Card
       key={customer.id}
@@ -91,6 +92,15 @@ export default function CustomerCard({ customer, onView, onEdit, onDelete, onPri
           onClick={() => onView(customer.id)}
         >
           View
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          className="h-7 px-2 text-green-600 hover:bg-green-50 hover:text-green-700"
+          onClick={() => onActions && onActions(customer)}
+          title="Customer Actions"
+        >
+          <Zap className="h-3.5 w-3.5" />
         </Button>
         <Button
           variant="outline"

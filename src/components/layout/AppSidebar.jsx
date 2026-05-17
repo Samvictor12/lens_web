@@ -154,6 +154,12 @@ const masterItems = [
         icon: UserCog,
         // allowedRoles: ["admin"],
       },
+      {
+        title: "Check Sheets",
+        url: "/masters/check-sheets",
+        icon: ClipboardCheck,
+        // allowedRoles: ["admin"],
+      },
     ],
   },
   {

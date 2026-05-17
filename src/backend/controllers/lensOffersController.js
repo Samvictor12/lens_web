@@ -63,7 +63,7 @@ export const getAllLensOffers = async (req, res, next) => {
       });
     }
 
-    const result = await lensOffersService.getAllLensOffers(req.query);
+    const result = await lensOffersService.getAllLensOffers(validation.data);
     res.status(200).json({
       success: true,
       message: "Lens offers retrieved successfully",

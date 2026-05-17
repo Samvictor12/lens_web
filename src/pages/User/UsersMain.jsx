@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState,useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import UserFilter from "./UserFilter";
 import { useUserColumns } from "./useUserColumns";
 import UserLoginDialog from "./UserLoginDialog";
 import UserCard from "./UserCard";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function Users() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ export default function Users() {
   // User data
   const [users, setUsers] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -99,10 +101,15 @@ export default function Users() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "User list has been refreshed." });
+  };
+
   // Fetch users on mount and when dependencies change
   useEffect(() => {
     fetchUsers();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete user
   const handleDeleteConfirm = async () => {
@@ -166,8 +173,7 @@ export default function Users() {
     setShowFilterDialog(false);
   };
 
-  // For client-side display, we use the users directly from API
-  // Backend handles filtering, so we just display what we receive
+  // Backend already excludes the logged-in user
   const displayUsers = users;
 
   return (
@@ -206,6 +212,7 @@ export default function Users() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <ViewToggle view={view} onViewChange={handleViewChange} />
             <UserFilter
               filters={filters}

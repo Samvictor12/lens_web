@@ -142,11 +142,14 @@ export const stockColumns = [
   { key: 'lensProduct', label: 'Lens Product', sortable: false },
   { key: 'category', label: 'Category', sortable: false },
   { key: 'location', label: 'Location', sortable: false },
+  { key: 'tray', label: 'Tray', sortable: false },
   { key: 'totalStock', label: 'Total Stock', sortable: true },
   { key: 'availableStock', label: 'Available', sortable: true },
   { key: 'reservedStock', label: 'Reserved', sortable: true },
   { key: 'damagedStock', label: 'Damaged', sortable: true },
   { key: 'avgCostPrice', label: 'Avg Cost', sortable: true },
+  { key: 'lastCostPrice', label: 'Last Cost', sortable: true },
+  { key: 'totalValue', label: 'Total Value', sortable: true },
   { key: 'lastInwardDate', label: 'Last Inward', sortable: true },
 ];
 

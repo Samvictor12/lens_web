@@ -146,8 +146,8 @@ export class UserMasterService {
         };
       }
 
-      if (filters.roleId) {
-        where.roleId = filters.roleId;
+      if (filters.role_id) {
+        where.role_id = filters.role_id;
       }
 
       if (filters.department_id) {
@@ -161,6 +161,11 @@ export class UserMasterService {
       // Always filter out deleted records unless specifically requested
       if (!filters.includeDeleted) {
         where.delete_status = false;
+      }
+
+      // Exclude the requesting user from results
+      if (filters.excludeId) {
+        where.id = { not: Number(filters.excludeId) };
       }
 
       // Calculate offset

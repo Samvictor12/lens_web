@@ -11,6 +11,7 @@ import { getLensTypes, deleteLensType } from "@/services/lensType";
 import { lensTypeFilters } from "./LensType.constants";
 import { useLensTypeColumns } from "./useLensTypeColumns";
 import LensTypeFilter from "./LensTypeFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensTypes() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensTypes() {
   // Type data
   const [types, setTypes] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -81,10 +83,15 @@ export default function LensTypes() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens type list has been refreshed." });
+  };
+
   // Fetch types on mount and when dependencies change
   useEffect(() => {
     fetchTypes();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete type
   const handleDeleteConfirm = async () => {
@@ -180,6 +187,7 @@ export default function LensTypes() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensTypeFilter
               filters={filters}
               tempFilters={tempFilters}

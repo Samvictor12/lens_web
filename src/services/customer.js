@@ -236,3 +236,40 @@ export async function checkCustomerEmail(email, excludeId = null) {
     data: { email, excludeId },
   });
 }
+
+// ─── Customer Portal API Calls ────────────────────────────────────────────────
+
+export async function getPortalStatus(id) {
+  return await apiClient("get", `/customer-master/${id}/portal/status`);
+}
+
+export async function activateCustomerPortal(id, pin) {
+  return await apiClient("post", `/customer-master/${id}/portal/activate`, {
+    data: { pin },
+  });
+}
+
+export async function changeCustomerPortalPin(id, pin) {
+  return await apiClient("post", `/customer-master/${id}/portal/change-pin`, {
+    data: { pin },
+  });
+}
+
+export async function getCustomerPendingInvoices(id) {
+  return await apiClient("get", `/customer-master/${id}/portal/invoices`);
+}
+
+// Public portal calls — no auth required (token won't be in localStorage on portal pages)
+export async function portalLogin(token, pin) {
+  return await apiClient("post", "/customer-master/portal/login", {
+    data: { token, pin },
+  });
+}
+
+export async function getPortalCustomerByToken(token) {
+  return await apiClient("get", `/customer-master/portal/token/${token}`);
+}
+
+export async function getPortalDashboard(token) {
+  return await apiClient("get", `/customer-master/portal/token/${token}/dashboard`);
+}

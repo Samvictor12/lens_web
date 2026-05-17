@@ -24,6 +24,7 @@ import { vendorFilters } from "./Vendor.constants";
 import VendorFilter from "./VendorFilter";
 import { useVendorColumns } from "./useVendorColumns";
 import VendorCard from "./VendorCard";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function Vendors() {
   const navigate = useNavigate();
@@ -49,6 +50,7 @@ export default function Vendors() {
   // Vendor data
   const [vendors, setVendors] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -98,10 +100,15 @@ export default function Vendors() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Vendor list has been refreshed." });
+  };
+
   // Fetch vendors on mount and when dependencies change
   useEffect(() => {
     fetchVendors();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete vendor
   const handleDeleteConfirm = async () => {
@@ -206,7 +213,7 @@ export default function Vendors() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          <Button
+          {/* <Button
             variant="outline"
             size="xs"
             className="gap-1.5 h-8"
@@ -223,7 +230,7 @@ export default function Vendors() {
           >
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Upload</span>
-          </Button>
+          </Button> */}
           <Button
             size="xs"
             className="gap-1.5 h-8"
@@ -248,6 +255,7 @@ export default function Vendors() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <ViewToggle view={view} onViewChange={handleViewChange} />
             <VendorFilter
               filters={filters}

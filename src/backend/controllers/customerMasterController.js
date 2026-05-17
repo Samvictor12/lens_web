@@ -282,6 +282,84 @@ export class CustomerMasterController {
       next(error);
     }
   }
+
+  // ─── Portal Methods ──────────────────────────────────────────────────────────
+
+  async getPortalStatus(req, res, next) {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid customer ID" });
+      const data = await this.customerMasterService.getPortalStatus(id);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  }
+
+  async activatePortal(req, res, next) {
+    try {
+      const id = parseInt(req.params.id);
+      const { pin } = req.body;
+      if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid customer ID" });
+      if (!pin || !/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ success: false, message: "PIN must be exactly 6 digits" });
+      }
+      const userId = req.user?.id || 1;
+      const data = await this.customerMasterService.activatePortal(id, pin, userId);
+      res.json({ success: true, data, message: "Portal activated successfully" });
+    } catch (error) { next(error); }
+  }
+
+  async changePortalPin(req, res, next) {
+    try {
+      const id = parseInt(req.params.id);
+      const { pin } = req.body;
+      if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid customer ID" });
+      if (!pin || !/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ success: false, message: "PIN must be exactly 6 digits" });
+      }
+      const userId = req.user?.id || 1;
+      const data = await this.customerMasterService.changePortalPin(id, pin, userId);
+      res.json({ success: true, data, message: "PIN changed successfully" });
+    } catch (error) { next(error); }
+  }
+
+  async getCustomerPendingInvoices(req, res, next) {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid customer ID" });
+      const data = await this.customerMasterService.getCustomerPendingInvoices(id);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  }
+
+  // Public portal endpoints (no auth)
+  async portalLogin(req, res, next) {
+    try {
+      const { token, pin } = req.body;
+      if (!token || !pin) {
+        return res.status(400).json({ success: false, message: "Token and PIN are required" });
+      }
+      const data = await this.customerMasterService.portalLogin(token, pin);
+      res.json({ success: true, data, message: "Login successful" });
+    } catch (error) { next(error); }
+  }
+
+  async getPortalCustomerByToken(req, res, next) {
+    try {
+      const { token } = req.params;
+      if (!token) return res.status(400).json({ success: false, message: "Token is required" });
+      const data = await this.customerMasterService.getPortalCustomerByToken(token);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  }
+
+  async getPortalDashboard(req, res, next) {
+    try {
+      const { token } = req.params;
+      if (!token) return res.status(400).json({ success: false, message: "Token is required" });
+      const data = await this.customerMasterService.getPortalDashboard(token);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  }
 }
 
 export default CustomerMasterController;

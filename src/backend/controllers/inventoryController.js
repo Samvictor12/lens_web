@@ -320,18 +320,108 @@ export class InventoryController {
    */
   async getInventoryDashboard(req, res, next) {
     try {
-      // This could be implemented to provide dashboard statistics
-      // For now, return basic counts
-      const stats = {
-        totalItems: 0,
-        availableItems: 0,
-        reservedItems: 0,
-        lowStockItems: 0
-      };
-
+      const stats = await this.inventoryService.getInventoryDashboardEnhanced();
       res.json({
         success: true,
-        data: stats
+        data: stats,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get tray occupancy information
+   * @route GET /api/v1/inventory/tray-occupancy/:trayId
+   */
+  async getTrayOccupancy(req, res, next) {
+    try {
+      const { trayId } = req.params;
+      const occupancy = await this.inventoryService.getTrayOccupancy(
+        parseInt(trayId)
+      );
+      res.json({
+        success: true,
+        data: occupancy,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get inventory stock with grouping support
+   * @route GET /api/v1/inventory/stock-grouped
+   */
+  async getInventoryStockGrouped(req, res, next) {
+    try {
+      const queryParams = {
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 10,
+        lens_id: req.query.lens_id ? parseInt(req.query.lens_id) : null,
+        location_id: req.query.location_id
+          ? parseInt(req.query.location_id)
+          : null,
+        tray_id: req.query.tray_id ? parseInt(req.query.tray_id) : null,
+        category_id: req.query.category_id
+          ? parseInt(req.query.category_id)
+          : null,
+        groupBy: req.query.groupBy || null,
+      };
+
+      const result = await this.inventoryService.getInventoryStockWithGrouping(
+        queryParams
+      );
+      res.json({
+        success: true,
+        data: result.data,
+        grouping: result.grouping,
+        pagination: {
+          page: queryParams.page,
+          limit: queryParams.limit,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get items below low stock threshold
+   * @route GET /api/v1/inventory/low-stock-items
+   */
+  async getLowStockItems(req, res, next) {
+    try {
+      const lowStockItems = await this.inventoryService.getItemsBelowThreshold();
+      res.json({
+        success: true,
+        data: lowStockItems,
+        count: lowStockItems.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get stock value report
+   * @route GET /api/v1/inventory/reports/value
+   */
+  async getStockValueReport(req, res, next) {
+    try {
+      const queryParams = {
+        startDate: req.query.startDate || null,
+        endDate: req.query.endDate || null,
+        groupBy: req.query.groupBy || "lens_id",
+      };
+
+      const report = await this.inventoryService.getStockValueReport(
+        queryParams
+      );
+      res.json({
+        success: true,
+        data: report.data,
+        summary: report.summary,
       });
     } catch (error) {
       next(error);

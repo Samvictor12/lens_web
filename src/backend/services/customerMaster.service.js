@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
+import { randomUUID } from "crypto";
 
 /**
  * Customer Master Service
@@ -518,6 +519,260 @@ export class CustomerMasterService {
         500,
         "FETCH_DROPDOWN_ERROR"
       );
+    }
+  }
+
+  // ─── Customer Portal Methods ────────────────────────────────────────────────
+
+  /**
+   * Activate customer portal: hash PIN, generate UUID token, mark active
+   */
+  async activatePortal(id, pin, userId) {
+    try {
+      const customer = await prisma.customer.findUnique({ where: { id, delete_status: false } });
+      if (!customer) throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+
+      const token = randomUUID();
+
+      const updated = await prisma.customer.update({
+        where: { id },
+        data: {
+          portal_pin_hash: pin,
+          portal_token: token,
+          portal_active: true,
+          portal_activated_at: new Date(),
+          portal_pin_changed_at: new Date(),
+          updatedBy: userId,
+        },
+        select: { id: true, name: true, phone: true, portal_token: true, portal_active: true, portal_activated_at: true },
+      });
+
+      return updated;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error activating portal:", error);
+      throw new APIError("Failed to activate portal", 500, "PORTAL_ACTIVATE_ERROR");
+    }
+  }
+
+  /**
+   * Change customer portal PIN
+   */
+  async changePortalPin(id, pin, userId) {
+    try {
+      const customer = await prisma.customer.findUnique({ where: { id, delete_status: false } });
+      if (!customer) throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+      if (!customer.portal_active) throw new APIError("Portal is not activated", 400, "PORTAL_NOT_ACTIVE");
+
+      const updated = await prisma.customer.update({
+        where: { id },
+        data: {
+          portal_pin_hash: pin,
+          portal_pin_changed_at: new Date(),
+          updatedBy: userId,
+        },
+        select: { id: true, name: true, portal_active: true, portal_pin_changed_at: true },
+      });
+
+      return updated;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error changing portal PIN:", error);
+      throw new APIError("Failed to change portal PIN", 500, "PORTAL_PIN_CHANGE_ERROR");
+    }
+  }
+
+  /**
+   * Get customer portal status (for the actions modal)
+   */
+  async getPortalStatus(id) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { id, delete_status: false },
+        select: {
+          id: true, name: true, phone: true, email: true,
+          portal_token: true, portal_pin_hash: true, portal_active: true,
+          portal_activated_at: true, portal_pin_changed_at: true, portal_last_accessed: true,
+        },
+      });
+      if (!customer) throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+
+      // If the stored PIN looks like an old bcrypt hash, mask it so the admin
+      // knows to reset it via "Change PIN"
+      const pin = customer.portal_pin_hash;
+      const isLegacyHash = pin && pin.startsWith("$2");
+      return {
+        ...customer,
+        portal_pin_hash: isLegacyHash ? null : pin,
+        pin_needs_reset: isLegacyHash,
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError("Failed to get portal status", 500, "PORTAL_STATUS_ERROR");
+    }
+  }
+
+  /**
+   * Portal login: verify token + PIN, update last_accessed, return safe customer data
+   */
+  async portalLogin(token, pin) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { portal_token: token },
+        select: {
+          id: true, name: true, shopname: true, phone: true, email: true, code: true,
+          city: true, state: true, address: true, credit_limit: true, outstanding_credit: true,
+          portal_active: true, portal_pin_hash: true, portal_last_accessed: true,
+          category: { select: { id: true, name: true } },
+        },
+      });
+
+      if (!customer) throw new APIError("Invalid portal link", 404, "INVALID_TOKEN");
+      if (!customer.portal_active) throw new APIError("Portal is deactivated. Contact your supplier.", 403, "PORTAL_INACTIVE");
+      if (!customer.portal_pin_hash) throw new APIError("PIN not set. Contact your supplier.", 400, "PIN_NOT_SET");
+
+      if (customer.portal_pin_hash !== pin) throw new APIError("Invalid PIN", 401, "INVALID_PIN");
+
+      // Update last accessed timestamp
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { portal_last_accessed: new Date() },
+      });
+
+      // Return safe data (no pin)
+      const { portal_pin_hash, ...safeData } = customer;
+      return safeData;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError("Portal login failed", 500, "PORTAL_LOGIN_ERROR");
+    }
+  }
+
+  /**
+   * Get pending invoices for a customer (dummy data with real SaleOrder counts)
+   */
+  async getCustomerPendingInvoices(id) {
+    try {
+      const customer = await prisma.customer.findUnique({ where: { id, delete_status: false } });
+      if (!customer) throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+
+      // Get real sale orders for invoice context
+      const pendingOrders = await prisma.saleOrder.findMany({
+        where: {
+          customerId: id,
+          deleteStatus: false,
+          status: { in: ["CONFIRMED", "IN_PRODUCTION", "AWAITING_QUALITY", "READY_FOR_DISPATCH", "DELIVERED"] },
+        },
+        select: {
+          id: true, orderNo: true, status: true, orderDate: true,
+          lensPrice: true, discount: true, totalValue: true,
+          lensProduct: { select: { lens_name: true } },
+        },
+        orderBy: { orderDate: "desc" },
+        take: 10,
+      });
+
+      return {
+        customerId: id,
+        customerName: customer.name,
+        outstandingBalance: customer.outstanding_credit || 0,
+        creditLimit: customer.credit_limit || 0,
+        pendingOrders,
+      };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError("Failed to get pending invoices", 500, "FETCH_INVOICES_ERROR");
+    }
+  }
+
+  /**
+   * Get portal customer data by token (used by portal pages - public)
+   */
+  async getPortalCustomerByToken(token) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { portal_token: token },
+        select: { id: true, name: true, portal_active: true },
+      });
+      if (!customer) throw new APIError("Invalid portal link", 404, "INVALID_TOKEN");
+      if (!customer.portal_active) throw new APIError("Portal is deactivated", 403, "PORTAL_INACTIVE");
+      return customer;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError("Failed to fetch portal info", 500, "PORTAL_FETCH_ERROR");
+    }
+  }
+
+  /**
+   * Get full portal dashboard data for a customer by token (public endpoint)
+   * Returns sale orders, dispatch copies, and account summary.
+   */
+  async getPortalDashboard(token) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { portal_token: token },
+        select: {
+          id: true, name: true, shopname: true, phone: true,
+          outstanding_credit: true, credit_limit: true,
+          portal_active: true,
+        },
+      });
+
+      if (!customer) throw new APIError("Invalid portal link", 404, "INVALID_TOKEN");
+      if (!customer.portal_active) throw new APIError("Portal is deactivated. Contact your supplier.", 403, "PORTAL_INACTIVE");
+
+      // Fetch recent sale orders
+      const saleOrders = await prisma.saleOrder.findMany({
+        where: { customerId: customer.id, deleteStatus: false },
+        select: {
+          id: true,
+          orderNo: true,
+          status: true,
+          orderDate: true,
+          type: true,
+          urgentOrder: true,
+          lensPrice: true,
+          rightEyeExtra: true,
+          leftEyeExtra: true,
+          fittingPrice: true,
+          tintingPrice: true,
+          discount: true,
+          dispatchStatus: true,
+          category: { select: { name: true } },
+          lensProduct: { select: { lens_name: true } },
+          coating: { select: { name: true } },
+        },
+        orderBy: { orderDate: "desc" },
+        take: 30,
+      });
+
+      // Fetch recent dispatch copies
+      const dispatches = await prisma.dispatchCopy.findMany({
+        where: { customerId: customer.id },
+        select: {
+          id: true,
+          dcNumber: true,
+          status: true,
+          expectedDeliveryDate: true,
+          actualDeliveryDate: true,
+          createdAt: true,
+          saleOrders: { select: { id: true, orderNo: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+
+      // Update last accessed timestamp
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { portal_last_accessed: new Date() },
+      });
+
+      const { portal_active, ...safeCustomer } = customer;
+      return { customer: safeCustomer, saleOrders, dispatches };
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError("Failed to fetch portal dashboard", 500, "PORTAL_DASHBOARD_ERROR");
     }
   }
 }

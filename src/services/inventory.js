@@ -90,6 +90,33 @@ export const getInventoryDashboard = async () => {
   return response;
 };
 
+export const getTrayOccupancy = async (trayId) => {
+  const response = await apiClient(
+    "get",
+    `${INVENTORY_BASE_URL}/tray-occupancy/${trayId}`
+  );
+  return response;
+};
+
+export const getInventoryStockGrouped = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/stock-grouped`, {
+    params,
+  });
+  return response;
+};
+
+export const getLowStockItems = async () => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/low-stock-items`);
+  return response;
+};
+
+export const getStockValueReport = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/reports/value`, {
+    params,
+  });
+  return response;
+};
+
 export const inventoryService = {
   getInventoryItems,
   getInventoryInwardQueue,
@@ -104,4 +131,8 @@ export const inventoryService = {
   reserveInventoryForSale,
   getInventoryDropdowns,
   getInventoryDashboard,
+  getTrayOccupancy,
+  getInventoryStockGrouped,
+  getLowStockItems,
+  getStockValueReport,
 };

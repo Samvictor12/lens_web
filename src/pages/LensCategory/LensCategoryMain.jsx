@@ -11,6 +11,7 @@ import { getLensCategories, deleteLensCategory } from "@/services/lensCategory";
 import { lensCategoryFilters } from "./LensCategory.constants";
 import { useLensCategoryColumns } from "./useLensCategoryColumns";
 import LensCategoryFilter from "./LensCategoryFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensCategories() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensCategories() {
   // Category data
   const [categories, setCategories] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,10 +84,15 @@ export default function LensCategories() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens category list has been refreshed." });
+  };
+
   // Fetch categories on mount and when dependencies change
   useEffect(() => {
     fetchCategories();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete category
   const handleDeleteConfirm = async () => {
@@ -182,6 +189,7 @@ export default function LensCategories() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensCategoryFilter
               filters={filters}
               tempFilters={tempFilters}

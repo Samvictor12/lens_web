@@ -380,7 +380,7 @@ router.post(
  */
 router.get(
   "/",
-//   authenticateToken,
+  authenticateToken,
 //   requireRole(["Admin"]),
   userMasterController.list.bind(userMasterController)
 );

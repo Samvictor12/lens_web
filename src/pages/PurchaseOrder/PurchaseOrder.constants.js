@@ -116,9 +116,9 @@ export const getStatusColor = (status) => {
 // Purchase order filters
 export const purchaseOrderFilters = {
   search: "",
-  vendorId: null,
-  status: "all",
-  activeStatus: "all",
-  startDate: "",
-  endDate: "",
+  vendor_id: null,
+  status: null,
+  active_status: "all",
+  start_date: "",
+  end_date: "",
 };

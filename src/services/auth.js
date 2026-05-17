@@ -26,12 +26,30 @@ export async function login(username, password) {
 
 /**
  * Logout current user
- * Clears all auth data from localStorage
+ * Clears all auth data from localStorage and invalidates the refresh token on the backend
  */
-export function logout() {
-  localStorage.removeItem('lens_management_token');
-  localStorage.removeItem('lens_management_refresh_token');
-  localStorage.removeItem('lens_management_user');
+export async function logout() {
+  try {
+    const token = localStorage.getItem('lens_management_token');
+    if (token) {
+      // Best-effort: revoke the refresh token in the backend.
+      // Uses fetch directly (not the axios interceptor) to avoid refresh loops
+      // when this is triggered from a session-expiry path.
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    }
+  } catch (_) {
+    // Ignore errors — we always clear local state regardless
+  } finally {
+    localStorage.removeItem('lens_management_token');
+    localStorage.removeItem('lens_management_refresh_token');
+    localStorage.removeItem('lens_management_user');
+  }
 }
 
 /**

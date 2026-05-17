@@ -64,8 +64,11 @@ export class UserMasterController {
         });
       }
 
-      // Get user masters with pagination
-      const result = await this.userMasterService.getUserMasters(validation.data);
+      // Get user masters with pagination (exclude the requesting user)
+      const result = await this.userMasterService.getUserMasters({
+        ...validation.data,
+        excludeId: req.user?.id,
+      });
 
       res.json({
         success: true,

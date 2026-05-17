@@ -11,6 +11,7 @@ import { getLensTintings, deleteLensTinting } from "@/services/lensTinting";
 import { lensTintingFilters } from "./LensTinting.constants";
 import { useLensTintingColumns } from "./useLensTintingColumns";
 import LensTintingFilter from "./LensTintingFilter";
+import { Refresh } from "@/components/ui/Refresh";
 
 export default function LensTintings() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function LensTintings() {
   // Tinting data
   const [tintings, setTintings] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -81,10 +83,15 @@ export default function LensTintings() {
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+    toast({ title: "Refreshed", description: "Lens tinting list has been refreshed." });
+  };
+
   // Fetch tintings on mount and when dependencies change
   useEffect(() => {
     fetchTintings();
-  }, [pageIndex, pageSize, searchQuery, filters, sorting]);
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
 
   // Handle delete tinting
   const handleDeleteConfirm = async () => {
@@ -180,6 +187,7 @@ export default function LensTintings() {
             />
           </div>
           <div className="flex items-center gap-1.5">
+            <Refresh onClick={handleRefresh} />
             <LensTintingFilter
               filters={filters}
               tempFilters={tempFilters}

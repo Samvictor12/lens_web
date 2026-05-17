@@ -1,8 +1,8 @@
+import 'dotenv/config'; // Must be first — loads .env before any module initializes
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -35,9 +35,8 @@ import logsRoutes from './routes/logs.routes.js';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
 import inventoryRoutes from './routes/inventory.routes.js';
 import invoiceRoutes from './routes/invoices.routes.js';
-
-// Load environment variables
-dotenv.config();
+import settingsRoutes from './routes/settings.routes.js';
+import checkSheetRoutes from './routes/checkSheet.routes.js';
 
 const app = express();
 
@@ -124,6 +123,8 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/check-sheets', checkSheetRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
