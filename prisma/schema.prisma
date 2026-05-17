@@ -114,6 +114,8 @@ model User {
   dispatchCopiesDelivery        DispatchCopy[]         @relation("dispatchDeliveryPerson")
   dispatchCopiesCreated         DispatchCopy[]         @relation("dispatchCopyCreatedBy")
   dispatchCopiesUpdated         DispatchCopy[]         @relation("dispatchCopyUpdatedBy")
+  invoicesCreated               Invoice[]              @relation("invoiceCreatedBy")
+  invoicesUpdated               Invoice[]              @relation("invoiceUpdatedBy")
 
   receiptLogsCreated             PurchaseReceiptLog[]   @relation("receiptLogCreatedBy")
   receiptLogsUpdated             PurchaseReceiptLog[]   @relation("receiptLogUpdatedBy")
@@ -212,6 +214,7 @@ model Customer {
   saleOrders          SaleOrder[]
   dispatchCopies      DispatchCopy[]
   priceMappings       PriceMapping[]
+  invoices            Invoice[]
 }
 
 model Vendor {
@@ -522,6 +525,7 @@ enum SaleOrderStatus {
   AWAITING_QUALITY
   READY_FOR_DISPATCH
   DELIVERED
+  BILLED
   CLOSED
   PROCESSING
   PENDING
@@ -556,15 +560,25 @@ enum InvoiceStatus {
 
 model Invoice {
   id          Int           @id @default(autoincrement())
-  invoiceNo   String        @unique // e.g., INV-2025-001
+  invoiceNo   String        @unique // e.g., INV-2026-001
   status      InvoiceStatus @default(DRAFT)
+  customerId  Int
+  customer    Customer      @relation(fields: [customerId], references: [id])
   saleOrders  SaleOrder[]
   totalAmount Float
   paidAmount  Float         @default(0)
   dueDate     DateTime
+  notes       String?
   payments    Payment[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  // Audit Fields
+  activeStatus Boolean  @default(true)
+  deleteStatus Boolean  @default(false)
+  createdAt   DateTime  @default(now())
+  createdBy   Int
+  updatedAt   DateTime  @updatedAt
+  updatedBy   Int?
+  createdByUser User    @relation("invoiceCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?   @relation("invoiceUpdatedBy", fields: [updatedBy], references: [id])
 }
 
 model Payment {

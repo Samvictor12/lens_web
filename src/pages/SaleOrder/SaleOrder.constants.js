@@ -71,6 +71,7 @@ export const orderStatusOptions = [
   { value: "AWAITING_QUALITY", label: "Awaiting Quality" },
   { value: "READY_FOR_DISPATCH", label: "Ready for Dispatch" },
   { value: "DELIVERED", label: "Delivered" },
+  { value: "BILLED", label: "Billed" },
   { value: "CLOSED", label: "Closed" },
 ];
 
@@ -103,6 +104,7 @@ export const statusColors = {
   AWAITING_QUALITY: "bg-cyan-100 text-cyan-800 border-cyan-200",
   READY_FOR_DISPATCH: "bg-purple-100 text-purple-800 border-purple-200",
   DELIVERED: "bg-green-100 text-green-800 border-green-200",
+  BILLED: "bg-indigo-100 text-indigo-800 border-indigo-200",
   CLOSED: "bg-red-100 text-red-800 border-red-200",
 };
 

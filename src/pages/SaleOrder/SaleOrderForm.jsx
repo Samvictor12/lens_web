@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getActiveOffers } from "@/services/lensOffers";
 import { Button } from "@/components/ui/button";
@@ -1584,6 +1584,17 @@ export default function SaleOrderForm() {
                                         >
                                             <GitBranch className="h-3.5 w-3.5" />
                                             Close &amp; Create SO
+                                        </button>
+                                    )}
+                                    {!isEditing && (formData.status === "DELIVERED" || formData.status === "BILLED") && (
+                                        <button
+                                            type="button"
+                                            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-indigo-700 disabled:opacity-50"
+                                            onClick={() => { setIsViewDropdownOpen(false); navigate("/billing"); }}
+                                            disabled={isSaving}
+                                        >
+                                            <Receipt className="h-3.5 w-3.5" />
+                                            Go to Billing
                                         </button>
                                     )}
                                     {mode === "view" && (

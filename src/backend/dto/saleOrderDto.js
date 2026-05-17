@@ -34,7 +34,7 @@ const isValidPositiveNumber = (num) => {
  * Validate sale order status
  */
 const isValidStatus = (status) => {
-  const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED'];
+  const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED', 'BILLED'];
   return validStatuses.includes(status);
 };
 

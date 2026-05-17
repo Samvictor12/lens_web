@@ -73,7 +73,20 @@ export const requireRole = ({ module, actions = [] }) => {
       });
     }
 
-    let permissions = req.user.role.permissions;
+    // No role assigned to the user
+    if (!req.user.role) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions'
+      });
+    }
+
+    // Admin role bypasses all permission checks
+    if (req.user.role.name === 'Admin') {
+      return next();
+    }
+
+    let permissions = req.user.role.permissions || [];
 
     if (module) {
       permissions = permissions.filter(p => p.subject === module || p.subject === 'all');

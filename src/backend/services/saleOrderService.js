@@ -820,7 +820,7 @@ export class SaleOrderService {
       }
 
       // Validate status
-      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED'];
+      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED', 'BILLED'];
       if (!validStatuses.includes(status)) {
         const error = new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
         await logValidationError({
@@ -1097,13 +1097,13 @@ export class SaleOrderService {
         throw error;
       }
 
-      if (['DELIVERED'].includes(existing.status)) {
-        const error = new APIError('Cannot delete delivered sale order', 400, 'INVALID_STATUS');
+      if (['DELIVERED', 'BILLED'].includes(existing.status)) {
+        const error = new APIError('Cannot delete a delivered or billed sale order', 400, 'INVALID_STATUS');
         await logBusinessError({
           error,
           userId,
           req,
-          businessRule: 'Cannot delete sale order with DELIVERED status',
+          businessRule: 'Cannot delete sale order with DELIVERED or BILLED status',
           metadata: {
             operation: 'deleteSaleOrder',
             saleOrderId: id,

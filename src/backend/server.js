@@ -34,6 +34,7 @@ import dispatchRoutes from './routes/dispatch.routes.js';
 import logsRoutes from './routes/logs.routes.js';
 import purchaseOrderRoutes from './routes/purchaseOrder.routes.js';
 import inventoryRoutes from './routes/inventory.routes.js';
+import invoiceRoutes from './routes/invoices.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -122,6 +123,7 @@ app.use('/api/v1/dispatch', dispatchRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

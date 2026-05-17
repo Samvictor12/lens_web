@@ -21,45 +21,56 @@ async function main() {
     }
   };
   
-  await deleteTable('Payment', () => prisma.payment.deleteMany());
-  await deleteTable('Invoice', () => prisma.invoice.deleteMany());
-  await deleteTable('PurchaseOrder', () => prisma.purchaseOrder.deleteMany());
-  await deleteTable('SaleOrderItem', () => prisma.saleOrderItem.deleteMany());
-  await deleteTable('PriceMapping', () => prisma.priceMapping.deleteMany());
-  await deleteTable('SaleOrder', () => prisma.saleOrder.deleteMany());
-  await deleteTable('DispatchCopy', () => prisma.dispatchCopy.deleteMany());
-  await deleteTable('LensPriceMaster', () => prisma.lensPriceMaster.deleteMany());
-  await deleteTable('LensProductMaster', () => prisma.lensProductMaster.deleteMany());
-  await deleteTable('LensTintingMaster', () => prisma.lensTintingMaster.deleteMany());
-  await deleteTable('LensDiaMaster', () => prisma.lensDiaMaster.deleteMany());
-  await deleteTable('LensFittingMaster', () => prisma.lensFittingMaster.deleteMany());
-  await deleteTable('LensCoatingMaster', () => prisma.lensCoatingMaster.deleteMany());
-  await deleteTable('LensTypeMaster', () => prisma.lensTypeMaster.deleteMany());
-  await deleteTable('LensBrandMaster', () => prisma.lensBrandMaster.deleteMany());
-  await deleteTable('LensMaterialMaster', () => prisma.lensMaterialMaster.deleteMany());
-  await deleteTable('LensCategoryMaster', () => prisma.lensCategoryMaster.deleteMany());
-  await deleteTable('Customer', () => prisma.customer.deleteMany());
-  await deleteTable('Vendor', () => prisma.vendor.deleteMany());
-  await deleteTable('BusinessCategory', () => prisma.businessCategory.deleteMany());
-  await deleteTable('Permission', () => prisma.permission.deleteMany());
-  await deleteTable('RefreshToken', () => prisma.refreshToken.deleteMany());
-  
-  // Need to delete DepartmentDetails before User due to circular dependency
-  // First update all departments to remove the user references
+  // Disable FK triggers at session level so we can delete in any order.
+  // This is the standard PostgreSQL approach for seeding.
+  await prisma.$executeRaw`SET session_replication_role = 'replica'`;
   try {
-    await prisma.departmentDetails.updateMany({
-      data: {
-        createdBy: 1,
-        updatedBy: 1,
-      }
-    });
-  } catch (e) {
-    console.log('   ℹ️  Could not update departments, continuing...');
+    for (const fn of [
+      () => prisma.payment.deleteMany(),
+      () => prisma.invoice.deleteMany(),
+      () => prisma.transactionEntry?.deleteMany?.(),
+      () => prisma.financialTransaction?.deleteMany?.(),
+      () => prisma.ledger?.deleteMany?.(),
+      () => prisma.inventoryAlert?.deleteMany?.(),
+      () => prisma.inventoryTransaction?.deleteMany?.(),
+      () => prisma.inventoryItem?.deleteMany?.(),
+      () => prisma.inventoryStock?.deleteMany?.(),
+      () => prisma.purchaseReceiptLog?.deleteMany?.(),
+      () => prisma.purchaseOrderReceipt?.deleteMany?.(),
+      () => prisma.purchaseOrder.deleteMany(),
+      () => prisma.saleOrderItem.deleteMany(),
+      () => prisma.priceMapping.deleteMany(),
+      () => prisma.saleOrder.deleteMany(),
+      () => prisma.dispatchCopy.deleteMany(),
+      () => prisma.lensOffers?.deleteMany?.(),
+      () => prisma.lensPriceMaster.deleteMany(),
+      () => prisma.lensProductMaster.deleteMany(),
+      () => prisma.lensTintingMaster.deleteMany(),
+      () => prisma.lensDiaMaster.deleteMany(),
+      () => prisma.lensFittingMaster.deleteMany(),
+      () => prisma.lensCoatingMaster.deleteMany(),
+      () => prisma.lensTypeMaster.deleteMany(),
+      () => prisma.lensBrandMaster.deleteMany(),
+      () => prisma.lensMaterialMaster.deleteMany(),
+      () => prisma.lensCategoryMaster.deleteMany(),
+      () => prisma.customer.deleteMany(),
+      () => prisma.vendor.deleteMany(),
+      () => prisma.businessCategory.deleteMany(),
+      () => prisma.permission.deleteMany(),
+      () => prisma.refreshToken.deleteMany(),
+      () => prisma.auditLog?.deleteMany?.(),
+      () => prisma.errorLog?.deleteMany?.(),
+      () => prisma.trayMaster?.deleteMany?.(),
+      () => prisma.locationMaster?.deleteMany?.(),
+      () => prisma.departmentDetails.deleteMany(),
+      () => prisma.user.deleteMany(),
+      () => prisma.role.deleteMany(),
+    ]) {
+      try { await fn(); } catch (_) { /* table may not exist yet */ }
+    }
+  } finally {
+    await prisma.$executeRaw`SET session_replication_role = 'origin'`;
   }
-  
-  await deleteTable('User', () => prisma.user.deleteMany());
-  await deleteTable('Role', () => prisma.role.deleteMany());
-  await deleteTable('DepartmentDetails', () => prisma.departmentDetails.deleteMany());
   
   console.log('✅ Existing data cleared\n');
 
@@ -75,10 +86,10 @@ async function main() {
   `;
 
   // Step 2: Create user without department (set to NULL temporarily)
-  const hashedSystemPassword = await bcrypt.hash('system123', 10);
+  const hashedSystemPassword = await bcrypt.hash('admin123', 10);
   await prisma.$executeRaw`
-    INSERT INTO "User" (id, name, email, usercode, username, password, role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt")
-    VALUES (1, 'System Admin', 'system@lensbilling.com', 'SYS001', 'admin', ${hashedSystemPassword}, 1, NULL, 1, true, false, NOW(), NOW())
+    INSERT INTO "User" (id, name, email, usercode, username, password,is_login , role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt")
+    VALUES (1, 'System Admin', 'system@lensbilling.com', 'admin001', 'Admin', ${hashedSystemPassword}, true, 1, NULL, 1, true, false, NOW(), NOW())
     ON CONFLICT (id) DO NOTHING
   `;
 
@@ -184,7 +195,9 @@ async function main() {
         name: 'Accounts',
         permissions: {
           create: [
+            { action: 'create', subject: 'Invoice' },
             { action: 'read', subject: 'Invoice' },
+            { action: 'update', subject: 'Invoice' },
             { action: 'create', subject: 'Payment' },
             { action: 'read', subject: 'Payment' },
             { action: 'read', subject: 'SaleOrder' },
@@ -207,6 +220,7 @@ async function main() {
         name: 'Admin User',
         email: 'admin@lensbilling.com',
         usercode: 'ADM001',
+        username: 'admin',
         password: hashedPassword,
         role_id: roles[0].id,
         createdBy: systemUser.id,
@@ -214,6 +228,7 @@ async function main() {
         department_id: departments[0].id,
         active_status: true,
         delete_status: false,
+        is_login: true,
       },
     }),
     prisma.user.create({
@@ -221,6 +236,7 @@ async function main() {
         name: 'Sales User',
         email: 'sales@lensbilling.com',
         usercode: 'SAL001',
+        username: 'sales',
         password: hashedPassword,
         role_id: roles[1].id,
         createdBy: systemUser.id,
@@ -228,6 +244,7 @@ async function main() {
         department_id: departments[1].id,
         active_status: true,
         delete_status: false,
+        is_login: true,
       },
     }),
     prisma.user.create({
@@ -235,6 +252,7 @@ async function main() {
         name: 'Inventory User',
         email: 'inventory@lensbilling.com',
         usercode: 'INV001',
+        username: 'inventory',
         password: hashedPassword,
         role_id: roles[2].id,
         createdBy: systemUser.id,
@@ -242,6 +260,7 @@ async function main() {
         department_id: departments[2].id,
         active_status: true,
         delete_status: false,
+        is_login: true,
       },
     }),
     prisma.user.create({
@@ -249,6 +268,7 @@ async function main() {
         name: 'Accounts User',
         email: 'accounts@lensbilling.com',
         usercode: 'ACC001',
+        username: 'accounts',
         password: hashedPassword,
         role_id: roles[3].id,
         createdBy: systemUser.id,
@@ -256,6 +276,7 @@ async function main() {
         department_id: departments[3].id,
         active_status: true,
         delete_status: false,
+        is_login: true,
       },
     }),
   ]);
