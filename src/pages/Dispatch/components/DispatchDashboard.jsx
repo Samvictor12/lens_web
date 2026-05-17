@@ -1,89 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    PackageCheck, Truck, Clock,
+    PackageCheck, Truck, Clock, CheckCircle2,
     ArrowRight, CalendarClock, User, MapPin,
 } from "lucide-react";
 import { getDispatchDashboard } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_CONFIG = {
-    PENDING:     { label: "Pending",     className: "bg-amber-100 text-amber-800 border-amber-300" },
-    IN_TRANSIT:  { label: "In Transit",  className: "bg-blue-100 text-blue-800 border-blue-300" },
-    DELIVERED:   { label: "Delivered",   className: "bg-green-100 text-green-800 border-green-300" },
-    ON_HOLD:     { label: "On Hold",     className: "bg-red-100 text-red-800 border-red-300" },
+    PENDING:     { label: "Pending",     className: "bg-amber-50 text-amber-700 border-amber-200" },
+    IN_TRANSIT:  { label: "In Transit",  className: "bg-blue-50 text-blue-700 border-blue-200" },
+    DELIVERED:   { label: "Delivered",   className: "bg-green-50 text-green-700 border-green-200" },
+    ON_HOLD:     { label: "On Hold",     className: "bg-red-50 text-red-700 border-red-200" },
 };
 
 function StatusBadge({ status }) {
-    const cfg = STATUS_CONFIG[status] ?? { label: status, className: "bg-muted text-muted-foreground" };
+    const cfg = STATUS_CONFIG[status] ?? { label: status, className: "bg-muted text-muted-foreground border-border" };
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${cfg.className}`}>
+        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${cfg.className}`}>
             {cfg.label}
         </span>
-    );
-}
-
-function StatCard({ icon: Icon, label, value, colorClass, onClick }) {
-    return (
-        <Card
-            className={`border ${colorClass} cursor-pointer hover:shadow-sm transition-shadow`}
-            onClick={onClick}
-        >
-            <CardContent className="py-3 px-4 flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${colorClass} bg-opacity-20`}>
-                    <Icon className="h-4 w-4" />
-                </div>
-                <div>
-                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
-                    <p className="text-2xl font-bold">{value ?? "—"}</p>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function RecentDispatchCard({ dispatch }) {
-    const expectedDate = dispatch.expectedDeliveryDate
-        ? new Date(dispatch.expectedDeliveryDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })
-        : null;
-
-    const orderCount = dispatch.saleOrders?.length ?? 0;
-
-    return (
-        <div className="flex items-start justify-between gap-2 p-3 rounded-lg border bg-card">
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold">{dispatch.dcNumber}</span>
-                    <StatusBadge status={dispatch.status} />
-                </div>
-                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3 shrink-0" />
-                    <span className="truncate">
-                        {dispatch.customer?.shopname || dispatch.customer?.name || "—"}
-                    </span>
-                    {dispatch.customer?.city && (
-                        <>
-                            <MapPin className="h-3 w-3 shrink-0 ml-1" />
-                            <span>{dispatch.customer.city}</span>
-                        </>
-                    )}
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground flex-wrap">
-                    {expectedDate && (
-                        <span className="flex items-center gap-1">
-                            <CalendarClock className="h-3 w-3" />
-                            {expectedDate}
-                        </span>
-                    )}
-                    {dispatch.deliveryPerson && (
-                        <span className="text-primary font-medium">{dispatch.deliveryPerson.name}</span>
-                    )}
-                    <span>{orderCount} order{orderCount !== 1 ? "s" : ""}</span>
-                </div>
-            </div>
-        </div>
     );
 }
 
@@ -107,45 +44,81 @@ export default function DispatchDashboard({ refreshKey, onNavigate }) {
     useEffect(() => { fetchDashboard(); }, [fetchDashboard, refreshKey]);
 
     return (
-        <div className="flex flex-col gap-4 pb-6">
-            {/* Stat cards */}
-            {isLoading && !stats ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
-                    ))}
-                </div>
-            ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <StatCard
-                        icon={PackageCheck}
-                        label="Ready for Dispatch"
-                        value={stats?.readyCount ?? 0}
-                        colorClass="border-amber-200 text-amber-700"
-                        onClick={() => onNavigate?.("ready")}
-                    />
-                    <StatCard
-                        icon={Truck}
-                        label="In Transit"
-                        value={stats?.inTransitCount ?? 0}
-                        colorClass="border-blue-200 text-blue-700"
-                        onClick={() => onNavigate?.("list")}
-                    />
-                    <StatCard
-                        icon={Clock}
-                        label="Total Pending"
-                        value={stats?.totalPending ?? 0}
-                        colorClass="border-border text-muted-foreground"
-                        onClick={() => onNavigate?.("ready")}
-                    />
-                </div>
-            )}
+        <div className="flex h-full min-h-0 flex-col gap-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 flex-shrink-0">
+                {isLoading && !stats ? (
+                    <>
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
+                        ))}
+                    </>
+                ) : (
+                    <>
+                        <Card
+                            className="cursor-pointer hover:shadow-sm transition-shadow"
+                            onClick={() => onNavigate?.("ready")}
+                        >
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Ready for Dispatch</CardTitle>
+                                <PackageCheck className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-orange-600">{stats?.readyCount ?? 0}</div>
+                                <p className="text-xs text-muted-foreground">Awaiting dispatch</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card
+                            className="cursor-pointer hover:shadow-sm transition-shadow"
+                            onClick={() => onNavigate?.("list")}
+                        >
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">In Transit</CardTitle>
+                                <Truck className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-blue-600">{stats?.inTransitCount ?? 0}</div>
+                                <p className="text-xs text-muted-foreground">Out for delivery</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card
+                            className="cursor-pointer hover:shadow-sm transition-shadow"
+                            onClick={() => onNavigate?.("list")}
+                        >
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Delivered</CardTitle>
+                                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-green-600">{stats?.deliveredCount ?? 0}</div>
+                                <p className="text-xs text-muted-foreground">Successfully delivered</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card
+                            className="cursor-pointer hover:shadow-sm transition-shadow"
+                            onClick={() => onNavigate?.("ready")}
+                        >
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Total Pending</CardTitle>
+                                <Clock className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{stats?.totalPending ?? 0}</div>
+                                <p className="text-xs text-muted-foreground">Not yet dispatched</p>
+                            </CardContent>
+                        </Card>
+                    </>
+                )}
+            </div>
 
             {/* Recent Dispatches */}
-            <Card>
-                <CardHeader className="pb-2 pt-4 px-4">
+            <Card className="flex min-h-0 flex-1 flex-col">
+                <CardHeader>
                     <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm font-semibold">Recent Dispatches</CardTitle>
+                        <CardTitle>Recent Dispatches</CardTitle>
                         <Button
                             variant="ghost"
                             size="sm"
@@ -157,20 +130,45 @@ export default function DispatchDashboard({ refreshKey, onNavigate }) {
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent className="px-4 pb-4">
+                <CardContent className="flex-1 min-h-0">
                     {isLoading && !stats ? (
-                        <div className="flex flex-col gap-2">
-                            {[...Array(3)].map((_, i) => (
-                                <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
-                            ))}
-                        </div>
+                        <p className="text-muted-foreground text-center py-4">Loading dashboard...</p>
                     ) : (stats?.recentDispatches?.length ?? 0) === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-6">No recent dispatches</p>
+                        <p className="text-muted-foreground text-center py-4">No recent dispatches</p>
                     ) : (
-                        <div className="flex flex-col gap-2">
-                            {stats.recentDispatches.map((d) => (
-                                <RecentDispatchCard key={d.id} dispatch={d} />
-                            ))}
+                        <div className="h-full overflow-y-auto pr-1 space-y-3">
+                            {stats.recentDispatches.map((d) => {
+                                const dispatchDate = d.createdAt
+                                    ? new Date(d.createdAt).toLocaleDateString()
+                                    : null;
+                                const customerName = d.customer?.shopname || d.customer?.name || "Unknown Customer";
+                                const orderCount = d.saleOrders?.length ?? 0;
+                                const details = [
+                                    customerName,
+                                    d.customer?.city,
+                                    d.deliveryPerson?.name,
+                                    `${orderCount} order${orderCount !== 1 ? "s" : ""}`,
+                                ].filter(Boolean).join(" • ");
+
+                                return (
+                                    <div
+                                        key={d.id}
+                                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                                        onClick={() => onNavigate?.("list")}
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium">{d.dcNumber}</div>
+                                            <div className="text-sm text-muted-foreground truncate">{details}</div>
+                                        </div>
+                                        <div className="text-right shrink-0 ml-3">
+                                            <StatusBadge status={d.status} />
+                                            {dispatchDate && (
+                                                <div className="text-xs text-muted-foreground mt-1">{dispatchDate}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </CardContent>
