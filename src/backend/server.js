@@ -37,6 +37,7 @@ import inventoryRoutes from './routes/inventory.routes.js';
 import invoiceRoutes from './routes/invoices.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import checkSheetRoutes from './routes/checkSheet.routes.js';
+import printerConfigRoutes from './routes/printerConfig.routes.js';
 
 const app = express();
 
@@ -125,6 +126,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/check-sheets', checkSheetRoutes);
+app.use('/api/printer-config', printerConfigRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

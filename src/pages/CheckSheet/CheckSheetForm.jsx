@@ -16,7 +16,7 @@ import {
   saveCheckSheetItems,
   deleteCheckSheetItem,
 } from "@/services/checkSheet";
-import { defaultCheckSheet, activeStatusOptions } from "./CheckSheet.constants";
+import { defaultCheckSheet, activeStatusOptions, checkSheetClassOptions, checkSheetTypeOptions } from "./CheckSheet.constants";
 
 // ─── Inline Items Editor ─────────────────────────────────────────────────────
 function ItemsEditor({ masterId, initialItems = [], readOnly }) {
@@ -26,7 +26,7 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
       ? initialItems
       : []
   );
-  const [newItemName, setNewItemName] = useState("");
+  const [newItem, setNewItem] = useState({ item_name: "", item_code: "", description: "" });
   const [saving, setSaving] = useState(false);
 
   // Sync when parent changes (e.g., after data fetch)
@@ -35,7 +35,7 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
   }, [initialItems.length]);
 
   const addItem = () => {
-    const trimmed = newItemName.trim();
+    const trimmed = newItem.item_name.trim();
     if (!trimmed) return;
 
     // Client-side duplicate check (case-insensitive)
@@ -49,9 +49,16 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
 
     setItems((prev) => [
       ...prev,
-      { id: null, item_name: trimmed, sequence: prev.filter((i) => !i._deleted).length, activeStatus: true },
+      {
+        id: null,
+        item_name: trimmed,
+        item_code: newItem.item_code.trim() || null,
+        description: newItem.description.trim() || null,
+        sequence: prev.filter((i) => !i._deleted).length,
+        activeStatus: true,
+      },
     ]);
-    setNewItemName("");
+    setNewItem({ item_name: "", item_code: "", description: "" });
   };
 
   const removeItem = async (index) => {
@@ -71,8 +78,8 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
     }
   };
 
-  const updateItemName = (index, value) => {
-    setItems((prev) => prev.map((item, i) => i === index ? { ...item, item_name: value } : item));
+  const updateItem = (index, field, value) => {
+    setItems((prev) => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
 
   const handleSaveItems = async () => {
@@ -90,17 +97,21 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
     try {
       setSaving(true);
       const res = await saveCheckSheetItems(masterId, toSave.map((item, idx) => ({
-        id:          item.id || undefined,
-        item_name:   item.item_name.trim(),
-        sequence:    idx,
+        id:           item.id || undefined,
+        item_name:    item.item_name.trim(),
+        item_code:    item.item_code?.trim() || null,
+        description:  item.description?.trim() || null,
+        sequence:     idx,
         activeStatus: item.activeStatus ?? true,
       })));
       if (res.success) {
         // Re-sync with server IDs
         setItems(res.data.map((item) => ({
-          id:          item.id,
-          item_name:   item.item_name,
-          sequence:    item.sequence,
+          id:           item.id,
+          item_name:    item.item_name,
+          item_code:    item.item_code || null,
+          description:  item.description || null,
+          sequence:     item.sequence,
           activeStatus: item.activeStatus,
         })));
         toast({ title: "Items saved" });
@@ -126,22 +137,45 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
         {activeItems.map((item, idx) => (
           <div
             key={item.id ?? `new-${idx}`}
-            className="flex items-center gap-2 bg-muted/30 border rounded-md px-3 py-2"
+            className="flex items-start gap-2 bg-muted/30 border rounded-md px-3 py-2"
           >
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="text-xs text-muted-foreground w-5 flex-shrink-0">{idx + 1}.</span>
-            {readOnly ? (
-              <span className="flex-1 text-sm">{item.item_name}</span>
-            ) : (
-              <Input
-                value={item.item_name}
-                onChange={(e) => updateItemName(items.indexOf(item), e.target.value)}
-                className="flex-1 h-7 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none px-0"
-              />
-            )}
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-1.5" />
+            <span className="text-xs text-muted-foreground w-5 flex-shrink-0 mt-1.5">{idx + 1}.</span>
+            <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              {readOnly ? (
+                <span className="text-sm">{item.item_name}</span>
+              ) : (
+                <Input
+                  value={item.item_name}
+                  onChange={(e) => updateItem(items.indexOf(item), "item_name", e.target.value)}
+                  placeholder="Item name"
+                  className="h-7 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none px-0"
+                />
+              )}
+              {readOnly ? (
+                <span className="text-xs text-muted-foreground">{item.item_code || "—"}</span>
+              ) : (
+                <Input
+                  value={item.item_code || ""}
+                  onChange={(e) => updateItem(items.indexOf(item), "item_code", e.target.value)}
+                  placeholder="Item code (optional)"
+                  className="h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none px-0"
+                />
+              )}
+              {readOnly ? (
+                <span className="text-xs text-muted-foreground">{item.description || "—"}</span>
+              ) : (
+                <Input
+                  value={item.description || ""}
+                  onChange={(e) => updateItem(items.indexOf(item), "description", e.target.value)}
+                  placeholder="Description (optional)"
+                  className="h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none px-0"
+                />
+              )}
+            </div>
             <Badge
               variant="outline"
-              className={`text-[10px] flex-shrink-0 ${item.activeStatus ? "bg-green-50 text-green-700 border-green-200" : "text-muted-foreground"}`}
+              className={`text-[10px] flex-shrink-0 mt-1 ${item.activeStatus ? "bg-green-50 text-green-700 border-green-200" : "text-muted-foreground"}`}
             >
               {item.activeStatus ? "Active" : "Inactive"}
             </Badge>
@@ -150,7 +184,7 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
                 type="button"
                 size="xs"
                 variant="ghost"
-                className="h-6 w-6 p-0 text-destructive hover:text-destructive flex-shrink-0"
+                className="h-6 w-6 p-0 text-destructive hover:text-destructive flex-shrink-0 mt-0.5"
                 onClick={() => removeItem(items.indexOf(item))}
               >
                 <Trash2 className="h-3 w-3" />
@@ -162,17 +196,35 @@ function ItemsEditor({ masterId, initialItems = [], readOnly }) {
 
       {/* Add item row */}
       {!readOnly && (
-        <div className="flex gap-2">
-          <Input
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-            placeholder="Type item name and press Enter or click Add"
-            className="flex-1 h-8 text-sm"
-          />
-          <Button type="button" size="xs" variant="outline" className="h-8 gap-1.5" onClick={addItem}>
-            <Plus className="h-3.5 w-3.5" /> Add
-          </Button>
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Input
+              value={newItem.item_name}
+              onChange={(e) => setNewItem((p) => ({ ...p, item_name: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+              placeholder="Item name *"
+              className="h-8 text-sm"
+            />
+            <Input
+              value={newItem.item_code}
+              onChange={(e) => setNewItem((p) => ({ ...p, item_code: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+              placeholder="Item code (optional)"
+              className="h-8 text-sm"
+            />
+            <div className="flex gap-2">
+              <Input
+                value={newItem.description}
+                onChange={(e) => setNewItem((p) => ({ ...p, description: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+                placeholder="Description (optional)"
+                className="flex-1 h-8 text-sm"
+              />
+              <Button type="button" size="xs" variant="outline" className="h-8 gap-1.5 flex-shrink-0" onClick={addItem}>
+                <Plus className="h-3.5 w-3.5" /> Add
+              </Button>
+            </div>
+          </div>
           {masterId && (
             <Button type="button" size="xs" className="h-8 gap-1.5" onClick={handleSaveItems} disabled={saving}>
               {saving ? (
@@ -216,10 +268,13 @@ export default function CheckSheetForm() {
           if (res.success) {
             const d = res.data;
             const mapped = {
-              name:         d.name || "",
-              check_key:    d.check_key || "",
-              description:  d.description || "",
-              activeStatus: d.activeStatus ?? true,
+              name:           d.name || "",
+              check_key:      d.check_key || "",
+              description:    d.description || "",
+              primary_colour: d.primary_colour || "",
+              class:          d.class || "General",
+              type:           d.type || "",
+              activeStatus:   d.activeStatus ?? true,
             };
             setFormData(mapped);
             setOriginalData(mapped);
@@ -376,6 +431,46 @@ export default function CheckSheetForm() {
                 rows={3}
                 placeholder="Short description of this check sheet"
               />
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormSelect
+                  label="Class"
+                  name="class"
+                  options={checkSheetClassOptions.map((o) => ({ id: o.value, name: o.label }))}
+                  value={formData.class}
+                  onChange={(val) => setFormData((p) => ({ ...p, class: val }))}
+                  disabled={isReadOnly}
+                />
+                <FormSelect
+                  label="Type"
+                  name="type"
+                  options={checkSheetTypeOptions.map((o) => ({ id: o.value, name: o.label }))}
+                  value={formData.type}
+                  onChange={(val) => setFormData((p) => ({ ...p, type: val }))}
+                  disabled={isReadOnly}
+                  placeholder="Select type"
+                />
+              </div>
+
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <FormInput
+                    label="Primary Colour (HEX)"
+                    name="primary_colour"
+                    value={formData.primary_colour}
+                    onChange={handleChange}
+                    disabled={isReadOnly}
+                    placeholder="e.g. #FF5733"
+                  />
+                </div>
+                {formData.primary_colour && (
+                  <div
+                    className="h-9 w-9 rounded border flex-shrink-0 mb-0.5"
+                    style={{ backgroundColor: formData.primary_colour }}
+                    title={formData.primary_colour}
+                  />
+                )}
+              </div>
 
               <FormSelect
                 label="Status"

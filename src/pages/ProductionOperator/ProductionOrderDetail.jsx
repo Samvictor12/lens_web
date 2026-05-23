@@ -114,36 +114,44 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
 
   if (status === "CONFIRMED") {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex gap-3 shadow-lg z-50 safe-area-bottom">
-        {btn("Start Production", "IN_PRODUCTION", "default")}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-area-bottom">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
+          {btn("Start Production", "IN_PRODUCTION", "default")}
+        </div>
       </div>
     );
   }
 
   if (status === "IN_PRODUCTION") {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex gap-3 shadow-lg z-50">
-        {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
-        {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
+          {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
+          {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
+        </div>
       </div>
     );
   }
 
   if (status === "ON_HOLD") {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex gap-3 shadow-lg z-50">
-        {btn("Resume", "IN_PRODUCTION", "default")}
-        {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
+          {btn("Resume", "IN_PRODUCTION", "default")}
+          {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
+        </div>
       </div>
     );
   }
 
   // Read-only for other statuses
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 px-4 py-3 z-50">
-      <p className="text-center text-sm text-gray-400">
-        Order is <span className="font-medium">{STATUS_LABELS[status] || status}</span> — no actions available.
-      </p>
+    <div className="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 z-50">
+      <div className="max-w-4xl mx-auto px-4 py-3 text-center">
+        <p className="text-sm text-gray-400">
+          Order is <span className="font-medium">{STATUS_LABELS[status] || status}</span> — no actions available.
+        </p>
+      </div>
     </div>
   );
 }
@@ -213,7 +221,7 @@ export default function ProductionOrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="max-w-lg mx-auto p-4 space-y-4">
+      <div className="max-w-4xl mx-auto p-4 space-y-4">
         <Skeleton className="h-8 w-48" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -231,7 +239,7 @@ export default function ProductionOrderDetail() {
 
   if (error) {
     return (
-      <div className="max-w-lg mx-auto p-4 flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
+      <div className="max-w-4xl mx-auto p-4 flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
         <AlertCircle className="w-10 h-10" />
         <p className="text-sm">{error}</p>
         <Button variant="outline" size="sm" onClick={fetchOrder}>
@@ -246,9 +254,10 @@ export default function ProductionOrderDetail() {
   const statusClass = statusColors[order.status] || "bg-gray-100 text-gray-800 border-gray-200";
 
   return (
-    <div className="max-w-lg mx-auto pb-24">
+    <div className="max-w-4xl mx-auto pb-24">
       {/* Sticky header */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 px-3 py-3 flex items-center gap-3 shadow-sm">
+      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+      <div className="px-3 py-3 flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
@@ -270,8 +279,11 @@ export default function ProductionOrderDetail() {
           {STATUS_LABELS[order.status] || order.status}
         </Badge>
       </div>
+      </div>
 
-      <div className="p-3 space-y-3">
+      <div className="p-3 sm:p-4 md:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-3">
         {/* Order Info */}
         <SectionCard title="Order Info">
           <InfoRow label="Order No" value={order.orderNo} />
@@ -299,6 +311,8 @@ export default function ProductionOrderDetail() {
           {order.remark && <InfoRow label="Remark" value={order.remark} />}
         </SectionCard>
 
+        </div>
+        <div className="space-y-3">
         {/* Lens Details */}
         <SectionCard title="Lens Details">
           <InfoRow label="Lens" value={order.lensProduct?.lens_name} />
@@ -316,6 +330,8 @@ export default function ProductionOrderDetail() {
           <PrescriptionTable order={order} />
         </SectionCard>
 
+        </div>
+        </div>
         {/* Flags */}
         {(order.urgentOrder || order.freeLens || order.freeFitting) && (
           <SectionCard title="Flags">

@@ -182,7 +182,7 @@ export default function QualityOrderDetail() {
 
   if (isLoading) {
     return (
-      <div className="max-w-lg mx-auto p-4 space-y-4">
+      <div className="max-w-4xl mx-auto p-4 space-y-4">
         <Skeleton className="h-8 w-48" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -200,7 +200,7 @@ export default function QualityOrderDetail() {
 
   if (error) {
     return (
-      <div className="max-w-lg mx-auto p-4 flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
+      <div className="max-w-4xl mx-auto p-4 flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
         <AlertCircle className="w-10 h-10" />
         <p className="text-sm">{error}</p>
         <Button variant="outline" size="sm" onClick={fetchOrder}>Retry</Button>
@@ -214,9 +214,10 @@ export default function QualityOrderDetail() {
   const isQCPending = order.status === "AWAITING_QUALITY";
 
   return (
-    <div className="max-w-lg mx-auto pb-24">
+    <div className="max-w-4xl mx-auto pb-24">
       {/* Sticky header */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 px-3 py-3 flex items-center gap-3 shadow-sm">
+      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+      <div className="px-3 py-3 flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
@@ -238,8 +239,11 @@ export default function QualityOrderDetail() {
           {STATUS_LABELS[order.status] || order.status}
         </Badge>
       </div>
+      </div>
 
-      <div className="p-3 space-y-3">
+      <div className="p-3 sm:p-4 md:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-3">
         {/* Order Info */}
         <SectionCard title="Order Info">
           <InfoRow label="Order No" value={order.orderNo} />
@@ -267,6 +271,8 @@ export default function QualityOrderDetail() {
           {order.remark && <InfoRow label="Remark" value={order.remark} />}
         </SectionCard>
 
+        </div>
+        <div className="space-y-3">
         {/* Lens Details */}
         <SectionCard title="Lens Details">
           <InfoRow label="Lens" value={order.lensProduct?.lens_name} />
@@ -284,6 +290,8 @@ export default function QualityOrderDetail() {
           <PrescriptionTable order={order} />
         </SectionCard>
 
+        </div>
+        </div>
         {/* Flags */}
         {(order.urgentOrder || order.freeLens || order.freeFitting) && (
           <SectionCard title="Flags">
@@ -304,7 +312,8 @@ export default function QualityOrderDetail() {
 
       {/* Action bar */}
       {isQCPending ? (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex gap-3 shadow-lg z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
           <Button
             variant="outline"
             className="flex-1 h-12 text-base font-semibold border-red-400 text-red-600 hover:bg-red-50"
@@ -320,14 +329,17 @@ export default function QualityOrderDetail() {
           >
             {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
           </Button>
+          </div>
         </div>
       ) : (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 px-4 py-3 z-50">
-          <p className="text-center text-sm text-gray-400">
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 z-50">
+          <div className="max-w-4xl mx-auto px-4 py-3 text-center">
+          <p className="text-sm text-gray-400">
             Order is{" "}
             <span className="font-medium">{STATUS_LABELS[order.status] || order.status}</span> — no
             actions available.
           </p>
+          </div>
         </div>
       )}
 

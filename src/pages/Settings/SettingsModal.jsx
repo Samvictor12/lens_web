@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { checkPrintServiceHealth, getLocalPrinters, getPrinterConfigs, savePrinterConfig } from "@/services/printerConfig";
 import {
   getMyProfile,
   updateMyProfile,
@@ -21,6 +22,12 @@ import {
   EyeOff,
   Loader2,
   Camera,
+  Printer,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Download,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -32,6 +39,7 @@ const TABS = [
   { id: "profile",     label: "Profile",           icon: User },
   { id: "credentials", label: "Login Credentials", icon: KeyRound },
   { id: "company",     label: "Company Details",   icon: Building2 },
+  { id: "print",       label: "Print Service",     icon: Printer },
 ];
 
 // ─────────────────────────────────────────────
@@ -452,6 +460,218 @@ function CompanyTab() {
 }
 
 // ─────────────────────────────────────────────
+// Print Service Tab
+// ─────────────────────────────────────────────
+const PRINT_SERVICE_DOWNLOAD_URL = "/LensPrintService.exe"; // update to your CDN/static URL
+
+const CONFIG_LABELS = {
+  BARCODE_LABEL:  { label: "Barcode Label",   desc: "ZPL label printer (Zebra etc.)",  usesService: true },
+  SALE_ORDER:     { label: "Sale Order",       desc: "Invoice / challan printout",      usesService: false },
+  DISPATCH_NOTE:  { label: "Dispatch Note",    desc: "Delivery / dispatch document",    usesService: false },
+};
+const PAPER_SIZES = ["A4", "A5", "Thermal80", "Label_4x2"];
+
+function PrintServiceTab() {
+  const { toast } = useToast();
+  const [serviceStatus, setServiceStatus] = useState(null); // null=checking, true=ok, false=down
+  const [checking, setChecking]           = useState(false);
+  const [localPrinters, setLocalPrinters] = useState([]);
+  const [configs, setConfigs]             = useState({
+    BARCODE_LABEL: { printer_name: "", paper_size: "", label_width: 180, label_height: 200, extra_config: "" },
+    SALE_ORDER:    { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
+    DISPATCH_NOTE: { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
+  });
+  const [saving, setSaving] = useState({});
+
+  const pingService = async () => {
+    setChecking(true);
+    const res = await checkPrintServiceHealth();
+    setServiceStatus(!!res);
+    if (res) {
+      try {
+        const p = await getLocalPrinters();
+        setLocalPrinters(p.printers || []);
+      } catch { setLocalPrinters([]); }
+    }
+    setChecking(false);
+  };
+
+  useEffect(() => {
+    // Load saved configs from backend
+    getPrinterConfigs()
+      .then((res) => {
+        if (res?.success && Array.isArray(res.data)) {
+          const map = {};
+          res.data.forEach((c) => {
+            map[c.config_type] = {
+              printer_name:  c.printer_name  || "",
+              paper_size:    c.paper_size    || (c.config_type === "BARCODE_LABEL" ? "" : "A4"),
+              label_width:   c.label_width   ?? (c.config_type === "BARCODE_LABEL" ? 180 : null),
+              label_height:  c.label_height  ?? (c.config_type === "BARCODE_LABEL" ? 200 : null),
+              extra_config:  c.extra_config  || "",
+            };
+          });
+          setConfigs((prev) => ({ ...prev, ...map }));
+        }
+      })
+      .catch(() => {});
+    pingService();
+  }, []);
+
+  const handleSave = async (configType) => {
+    setSaving((s) => ({ ...s, [configType]: true }));
+    try {
+      const cfg = configs[configType];
+      const res = await savePrinterConfig({ config_type: configType, ...cfg });
+      if (res.success) {
+        toast({ title: "Saved", description: `${CONFIG_LABELS[configType].label} config saved.` });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
+    } finally {
+      setSaving((s) => ({ ...s, [configType]: false }));
+    }
+  };
+
+  const setField = (type, field, value) =>
+    setConfigs((prev) => ({ ...prev, [type]: { ...prev[type], [field]: value } }));
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Service Status ── */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">Local Print Service</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Runs on your Windows PC to send labels to local printers
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {serviceStatus === null || checking ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Checking…
+              </span>
+            ) : serviceStatus ? (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-green-600">
+                <CheckCircle2 className="h-4 w-4" /> Running on port 9333
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <XCircle className="h-4 w-4" /> Not running
+              </span>
+            )}
+            <Button size="xs" variant="outline" className="h-7 gap-1.5" onClick={pingService} disabled={checking}>
+              <RefreshCw className={`h-3 w-3 ${checking ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {!serviceStatus && (
+          <div className="flex items-center gap-3 pt-1 border-t">
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">
+                Download and run <strong>LensPrintService.exe</strong> on this Windows PC.
+                It installs itself silently and starts automatically with Windows.
+              </p>
+            </div>
+            <a href={PRINT_SERVICE_DOWNLOAD_URL} download>
+              <Button size="xs" className="h-8 gap-1.5 flex-shrink-0">
+                <Download className="h-3.5 w-3.5" />
+                Download .exe
+              </Button>
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* ── Config Cards ── */}
+      {Object.entries(CONFIG_LABELS).map(([type, meta]) => (
+        <div key={type} className="rounded-lg border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">{meta.label}</p>
+              <p className="text-xs text-muted-foreground">{meta.desc}</p>
+            </div>
+            <Button
+              size="xs"
+              className="h-7 gap-1.5"
+              onClick={() => handleSave(type)}
+              disabled={saving[type]}
+            >
+              {saving[type]
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <Save className="h-3 w-3" />}
+              Save
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Printer name */}
+            <FieldRow label="Printer Name">
+              {meta.usesService && serviceStatus && localPrinters.length > 0 ? (
+                <select
+                  value={configs[type].printer_name}
+                  onChange={(e) => setField(type, "printer_name", e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">— Select printer —</option>
+                  {localPrinters.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  value={configs[type].printer_name}
+                  onChange={(e) => setField(type, "printer_name", e.target.value)}
+                  placeholder={meta.usesService ? "Start service to auto-detect printers" : "e.g. HP LaserJet M1005"}
+                />
+              )}
+            </FieldRow>
+
+            {/* Paper size */}
+            <FieldRow label="Paper / Label Size">
+              <select
+                value={configs[type].paper_size}
+                onChange={(e) => setField(type, "paper_size", e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— Select size —</option>
+                {PAPER_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </FieldRow>
+
+            {/* Label dimensions (only for ZPL label type) */}
+            {meta.usesService && (
+              <>
+                <FieldRow label="Label Width (dots)" hint="Typical: 180 for 1-inch label">
+                  <Input
+                    type="number"
+                    value={configs[type].label_width ?? ""}
+                    onChange={(e) => setField(type, "label_width", e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="180"
+                  />
+                </FieldRow>
+                <FieldRow label="Label Height (dots)" hint="Typical: 200 for 1-inch label">
+                  <Input
+                    type="number"
+                    value={configs[type].label_height ?? ""}
+                    onChange={(e) => setField(type, "label_height", e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="200"
+                  />
+                </FieldRow>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Main Settings Modal
 // ─────────────────────────────────────────────
 export function SettingsModal({ open, onOpenChange, defaultTab = "profile" }) {
@@ -508,6 +728,7 @@ export function SettingsModal({ open, onOpenChange, defaultTab = "profile" }) {
               {activeTab === "profile"     && <ProfileTab     onClose={handleClose} />}
               {activeTab === "credentials" && <CredentialsTab onClose={handleClose} />}
               {activeTab === "company"     && <CompanyTab />}
+              {activeTab === "print"       && <PrintServiceTab />}
             </div>
           </div>
         </div>

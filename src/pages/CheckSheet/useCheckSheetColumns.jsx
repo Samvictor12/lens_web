@@ -42,6 +42,22 @@ export const useCheckSheetColumns = (navigate, onDelete) => [
     ),
   },
   {
+    accessorKey: "class",
+    header: "Class",
+    sortable: true,
+    cell: (row) => (
+      <span className="text-xs">{row.class || "General"}</span>
+    ),
+  },
+  {
+    accessorKey: "type",
+    header: "Type",
+    sortable: true,
+    cell: (row) => (
+      <span className="text-xs text-muted-foreground">{row.type || "—"}</span>
+    ),
+  },
+  {
     accessorKey: "itemCount",
     header: "Items",
     sortable: false,

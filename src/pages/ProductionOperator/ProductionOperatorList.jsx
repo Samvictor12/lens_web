@@ -68,7 +68,7 @@ function OrderCard({ order, onClick }) {
 
 function LoadingCards() {
   return (
-    <div className="space-y-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
           <div className="flex justify-between">
@@ -124,10 +124,10 @@ export default function ProductionOperatorList() {
   };
 
   return (
-    <div className="max-w-lg mx-auto p-3 sm:p-4 space-y-4">
+    <div className="w-full p-3 sm:p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Production Orders</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Production Orders</h1>
         <Button
           variant="ghost"
           size="icon"
@@ -190,7 +190,7 @@ export default function ProductionOperatorList() {
           <p className="text-sm">No active production orders found.</p>
         </div>
       ) : (
-        <div className="space-y-3 pb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4">
           {orders.map((order) => (
             <OrderCard
               key={order.id}

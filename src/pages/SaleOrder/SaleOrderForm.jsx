@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt, Tag as LabelIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getActiveOffers } from "@/services/lensOffers";
+import { printBarcodeLabels, getPrinterConfigs, checkPrintServiceHealth } from "@/services/printerConfig";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -1393,6 +1394,49 @@ export default function SaleOrderForm() {
         setIsPrinting(false);
     };
 
+    // Print Barcode Label via local print service
+    const [isPrintingLabel, setIsPrintingLabel] = useState(false);
+    const handlePrintLabel = async () => {
+        setIsViewDropdownOpen(false);
+        setIsPrintingLabel(true);
+        try {
+            const health = await checkPrintServiceHealth();
+            if (!health) {
+                toast({
+                    title: "Print Service Not Running",
+                    description: "Start LensPrintService.exe on this PC, then try again.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            const cfgRes = await getPrinterConfigs();
+            const cfg    = cfgRes?.data?.find?.((c) => c.config_type === "BARCODE_LABEL");
+            if (!cfg?.printer_name) {
+                toast({
+                    title: "No Printer Configured",
+                    description: "Go to Settings → Print Service and configure a Barcode Label printer.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            const orderId   = formData.id || formData.order_number || id;
+            const orderCode = formData.order_number || `SO-${orderId}`;
+            const customer  = formData.customer_name || formData.customerName || "Order";
+            await printBarcodeLabels({
+                printerName:   cfg.printer_name,
+                topLabel:      customer,
+                barcodeSerials: [String(orderId)],
+                bottomLabels:  [orderCode],
+                labelWidth:    cfg.label_width ?? 180,
+            });
+            toast({ title: "Label Sent", description: `Label sent to ${cfg.printer_name}` });
+        } catch (err) {
+            toast({ title: "Print Error", description: err.message || "Failed to print label", variant: "destructive" });
+        } finally {
+            setIsPrintingLabel(false);
+        }
+    };
+
     // Confirm Print and Close Modal
     const handlePrintConfirm = async () => {
         setIsPrinting(true);
@@ -1573,7 +1617,16 @@ export default function SaleOrderForm() {
                                         disabled={isSaving}
                                     >
                                         <Printer className="h-3.5 w-3.5" />
-                                        Print
+                                        Print Invoice
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                                        onClick={handlePrintLabel}
+                                        disabled={isSaving || isPrintingLabel}
+                                    >
+                                        <Tag className="h-3.5 w-3.5" />
+                                        {isPrintingLabel ? "Printing…" : "Print Label"}
                                     </button>
                                     {!isEditing && formData.status !== "CLOSED" && (
                                         <button

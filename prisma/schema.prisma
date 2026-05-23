@@ -128,6 +128,7 @@ model User {
   companySettingsUpdated         CompanySettings[]      @relation("companySettingsUpdatedBy")
   checkSheetsCreated             CheckSheetMaster[]     @relation("checkSheetCreatedBy")
   checkSheetsUpdated             CheckSheetMaster[]     @relation("checkSheetUpdatedBy")
+  printerConfigsUpdated          PrinterConfig[]        @relation("printerConfigUpdatedBy")
 }
 
 model Role {
@@ -1435,33 +1436,52 @@ model TransactionEntry {
 // ============================================================
 
 model CheckSheetMaster {
-  id          Int               @id @default(autoincrement())
-  name        String            @unique
-  check_key   String            @unique
-  description String?
-  activeStatus Boolean          @default(true)
-  deleteStatus Boolean          @default(false)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  createdBy   Int
-  updatedBy   Int?
-  createdByUser User            @relation("checkSheetCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?           @relation("checkSheetUpdatedBy", fields: [updatedBy], references: [id])
-  items       CheckSheetItem[]
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  check_key       String            @unique
+  description     String?
+  primary_colour  String?           // HEX colour code e.g. #FF5733
+  class           String?           @default("General")
+  type            String?
+  activeStatus    Boolean           @default(true)
+  deleteStatus    Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  createdBy       Int
+  updatedBy       Int?
+  createdByUser   User              @relation("checkSheetCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser   User?             @relation("checkSheetUpdatedBy", fields: [updatedBy], references: [id])
+  items           CheckSheetItem[]
 }
 
 model CheckSheetItem {
-  id                Int              @id @default(autoincrement())
+  id                 Int              @id @default(autoincrement())
   checkSheetMasterId Int
-  item_name         String
-  sequence          Int              @default(0)
-  activeStatus      Boolean          @default(true)
-  deleteStatus      Boolean          @default(false)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  checkSheetMaster  CheckSheetMaster @relation(fields: [checkSheetMasterId], references: [id], onDelete: Cascade)
+  item_name          String
+  item_code          String?          @unique
+  description        String?
+  sequence           Int              @default(0)
+  activeStatus       Boolean          @default(true)
+  deleteStatus       Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  checkSheetMaster   CheckSheetMaster @relation(fields: [checkSheetMasterId], references: [id], onDelete: Cascade)
 
   @@unique([checkSheetMasterId, item_name])
+}
+
+model PrinterConfig {
+  id           Int      @id @default(autoincrement())
+  config_type  String   @unique // "BARCODE_LABEL" | "SALE_ORDER" | "DISPATCH_NOTE"
+  printer_name String?
+  paper_size   String?  // "A4" | "A5" | "Thermal80" | "Label_4x2"
+  label_width  Int?     // dots (for ZPL label printers)
+  label_height Int?     // dots
+  extra_config String?  // JSON blob for extra type-specific settings
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  updatedBy    Int?
+  updatedByUser User?  @relation("printerConfigUpdatedBy", fields: [updatedBy], references: [id])
 }
 
 model CompanySettings {

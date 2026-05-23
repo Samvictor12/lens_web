@@ -6,8 +6,26 @@ export const defaultCheckSheet = {
   name: '',
   check_key: '',
   description: '',
+  primary_colour: '',
+  class: 'General',
+  type: '',
   activeStatus: true,
 };
+
+export const checkSheetClassOptions = [
+  { value: 'General',          label: 'General' },
+  { value: 'Quality Check',    label: 'Quality Check' },
+  { value: 'Inspection',       label: 'Inspection' },
+  { value: 'Pre-Production',   label: 'Pre-Production' },
+  { value: 'Post-Production',  label: 'Post-Production' },
+];
+
+export const checkSheetTypeOptions = [
+  { value: 'Incoming',  label: 'Incoming' },
+  { value: 'In-Process', label: 'In-Process' },
+  { value: 'Final',     label: 'Final' },
+  { value: 'Periodic',  label: 'Periodic' },
+];
 
 export const activeStatusOptions = [
   { value: true,    label: 'Active' },
