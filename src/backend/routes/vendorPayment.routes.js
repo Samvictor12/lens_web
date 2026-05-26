@@ -1,17 +1,14 @@
 import { Router } from 'express';
-import { ExpenseController } from '../controllers/expenseController.js';
+import { VendorPaymentController } from '../controllers/vendorPaymentController.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
-const ctrl = new ExpenseController();
+const ctrl = new VendorPaymentController();
 const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
-router.get('/summary', ...guard, ctrl.getSummary.bind(ctrl));
+router.get('/outstanding', ...guard, ctrl.getOutstanding.bind(ctrl));
 router.get('/', ...guard, ctrl.list.bind(ctrl));
-router.get('/:id/logs', ...guard, ctrl.getLogs.bind(ctrl));
 router.get('/:id', ...guard, ctrl.getById.bind(ctrl));
 router.post('/', ...guard, ctrl.create.bind(ctrl));
-router.put('/:id', ...guard, ctrl.update.bind(ctrl));
-router.delete('/:id', ...guard, ctrl.remove.bind(ctrl));
 
 export default router;

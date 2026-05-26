@@ -1,0 +1,18 @@
+import { VendorPaymentService } from '../services/vendorPaymentService.js';
+
+const service = new VendorPaymentService();
+
+export class VendorPaymentController {
+  async list(req, res, next) {
+    try { res.json({ success: true, ...(await service.list(req.query)) }); } catch (e) { next(e); }
+  }
+  async getById(req, res, next) {
+    try { res.json({ success: true, data: await service.getById(parseInt(req.params.id)) }); } catch (e) { next(e); }
+  }
+  async getOutstanding(req, res, next) {
+    try { res.json({ success: true, data: await service.getOutstanding(req.query.vendorId) }); } catch (e) { next(e); }
+  }
+  async create(req, res, next) {
+    try { res.status(201).json({ success: true, data: await service.create(req.body, req.user.id), message: 'Payment voucher created' }); } catch (e) { next(e); }
+  }
+}

@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { logCreate, logUpdate, logDelete } from '../utils/auditLogger.js';
 import { logDatabaseError, logNotFoundError, logBusinessError } from '../utils/errorLogger.js';
+import { postInvoice, postClientPayment } from './accountingService.js';
 
 /**
  * Invoice Service
@@ -94,6 +95,8 @@ export class InvoiceService {
 
       const invoiceNo = await this.generateInvoiceNo();
 
+      const taxAmount = parseFloat(req?.body?.taxAmount || 0);
+
       const invoice = await prisma.$transaction(async (tx) => {
         // Create invoice
         const created = await tx.invoice.create({
@@ -101,6 +104,7 @@ export class InvoiceService {
             invoiceNo,
             customerId,
             totalAmount: Math.round(totalAmount * 100) / 100,
+            taxAmount,
             paidAmount: 0,
             dueDate: new Date(dueDate),
             status: 'DRAFT',
@@ -115,6 +119,9 @@ export class InvoiceService {
           where: { id: { in: saleOrderIds } },
           data: { invoiceId: created.id, updatedBy: userId },
         });
+
+        // Auto-post accounting entry
+        await postInvoice(tx, { invoiceId: created.id, invoiceNo, totalAmount: created.totalAmount, taxAmount }, userId);
 
         return created;
       });
@@ -211,7 +218,7 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Record a payment against an invoice
   // ──────────────────────────────────────────────────────────
-  async recordPayment(invoiceId, { amount, method, referenceNo, notes }, userId, req = null) {
+  async recordPayment(invoiceId, { amount, method, referenceNo, notes, bankLedgerId }, userId, req = null) {
     try {
       const invoice = await prisma.invoice.findUnique({
         where: { id: invoiceId },
@@ -267,6 +274,11 @@ export class InvoiceService {
             where: { id: { in: saleOrderIds } },
             data: { status: 'BILLED', updatedBy: userId },
           });
+        }
+
+        // Auto-post accounting entry if bankLedgerId provided
+        if (bankLedgerId) {
+          await postClientPayment(tx, { invoiceId, invoiceNo: invoice.invoiceNo, amount, bankLedgerId: parseInt(bankLedgerId) }, userId);
         }
       });
 

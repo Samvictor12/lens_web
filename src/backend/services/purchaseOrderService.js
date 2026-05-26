@@ -2,6 +2,7 @@ import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
 import InventoryService from "./inventory.service.js";
 import ExcelJS from "exceljs";
+import { postPurchaseReceipt } from "./accountingService.js";
 
 class PurchaseOrderService {
   /**
@@ -1288,9 +1289,12 @@ class PurchaseOrderService {
       // Any receipt sets PO to RECEIVED (partial or full)
       const newPOStatus = "RECEIVED";
 
-      // Step 1: Create receipt + update PO atomically
-      const [receipt] = await prisma.$transaction([
-        prisma.purchaseOrderReceipt.create({
+      const subtotal = parseFloat(receiptData.subtotal) || 0;
+      const taxAmount = parseFloat(receiptData.taxAmount) || 0;
+
+      // Step 1: Create receipt + update PO + post accounting — all atomic
+      const receipt = await prisma.$transaction(async (tx) => {
+        const created = await tx.purchaseOrderReceipt.create({
           data: {
             receiptNumber,
             purchaseOrderId: poId,
@@ -1300,8 +1304,8 @@ class PurchaseOrderService {
             totalValue,
             actualDeliveryDate: receiptData.actualDeliveryDate ? new Date(receiptData.actualDeliveryDate) : null,
             unitPrice: parseFloat(receiptData.unitPrice) || 0,
-            subtotal: parseFloat(receiptData.subtotal) || 0,
-            taxAmount: parseFloat(receiptData.taxAmount) || 0,
+            subtotal,
+            taxAmount,
             supplierInvoiceNo: receiptData.supplierInvoiceNo || null,
             purchaseType: receiptData.purchaseType || null,
             placeOfSupply: receiptData.placeOfSupply || null,
@@ -1310,8 +1314,9 @@ class PurchaseOrderService {
             status: receiptStatus,
             createdBy: receiptData.createdBy,
           },
-        }),
-        prisma.purchaseOrder.update({
+        });
+
+        await tx.purchaseOrder.update({
           where: { id: poId },
           data: {
             receivedQty: newCumulativeReceived,
@@ -1319,8 +1324,19 @@ class PurchaseOrderService {
             ...(receiptData.actualDeliveryDate && { actualDeliveryDate: new Date(receiptData.actualDeliveryDate) }),
             updatedBy: receiptData.createdBy,
           },
-        }),
-      ]);
+        });
+
+        // Auto-post accounting entry
+        await postPurchaseReceipt(tx, {
+          purchaseOrderId: poId,
+          poNumber: po.poNumber,
+          subtotal: subtotal || totalValue,
+          taxAmount,
+          totalValue,
+        }, receiptData.createdBy);
+
+        return created;
+      });
 
       // Step 2: Create audit log now that we have the receipt id
       await prisma.purchaseReceiptLog.create({

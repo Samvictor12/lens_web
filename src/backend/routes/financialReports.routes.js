@@ -1,21 +1,16 @@
 import { Router } from 'express';
-import { FinancialReportController } from '../controllers/financialReportController';
-import { requireRole } from '../middleware/auth';
+import { FinancialReportController } from '../controllers/financialReportController.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
-const controller = new FinancialReportController();
+const ctrl = new FinancialReportController();
+const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
-// Get financial summary
-router.get('/summary',
-  requireRole(['Accounts', 'Admin']),
-  controller.generateSummary
-);
-
-// Get profit and loss statement
-router.get('/profit-loss',
-  requireRole(['Accounts', 'Admin']),
-  controller.getProfitLossStatement
-);
+router.get('/summary',         ...guard, ctrl.getSummary.bind(ctrl));
+router.get('/profit-loss',     ...guard, ctrl.getProfitLoss.bind(ctrl));
+router.get('/ledger-statement',...guard, ctrl.getLedgerStatement.bind(ctrl));
+router.get('/trial-balance',   ...guard, ctrl.getTrialBalance.bind(ctrl));
+router.get('/day-book',        ...guard, ctrl.getDayBook.bind(ctrl));
+router.get('/cash-bank-book',  ...guard, ctrl.getCashBankBook.bind(ctrl));
 
 export default router;
-

@@ -66,6 +66,12 @@ import CustomerPortalLogin from "./pages/CustomerPortal/CustomerPortalLogin";
 import CustomerPortalDashboard from "./pages/CustomerPortal/CustomerPortalDashboard";
 import CheckSheetMain from "./pages/CheckSheet/CheckSheetMain";
 import CheckSheetForm from "./pages/CheckSheet/CheckSheetForm";
+import ChartOfAccounts from "./pages/Accounting/ChartOfAccounts";
+import ExpenseCategories from "./pages/Accounting/ExpenseCategories";
+import ExpensesMain from "./pages/Accounting/ExpensesMain";
+import VendorPayments from "./pages/Accounting/VendorPayments";
+import FinancialReports from "./pages/Accounting/FinancialReports";
+import BankReconciliation from "./pages/Accounting/BankReconciliation";
 
 const queryClient = new QueryClient();
 
@@ -157,7 +163,12 @@ const AppRoutes = () => (
       <Route path="/quality/operator/:id" element={<ProtectedRoute><QualityOrderDetail /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/accounts/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
-      <Route path="/accounts/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+      <Route path="/accounts/expenses" element={<ProtectedRoute><ExpensesMain /></ProtectedRoute>} />
+      <Route path="/accounts/vendor-payments" element={<ProtectedRoute><VendorPayments /></ProtectedRoute>} />
+      <Route path="/accounts/bank-reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
+      <Route path="/accounts/ledgers" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />
+      <Route path="/accounts/expense-categories" element={<ProtectedRoute><ExpenseCategories /></ProtectedRoute>} />
+      <Route path="/accounts/reports" element={<ProtectedRoute><FinancialReports /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
       <Route path="/masters/vendors/:mode" element={<ProtectedRoute><VendorForm /></ProtectedRoute>} />

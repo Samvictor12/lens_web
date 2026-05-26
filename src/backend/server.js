@@ -38,6 +38,12 @@ import invoiceRoutes from './routes/invoices.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import checkSheetRoutes from './routes/checkSheet.routes.js';
 import printerConfigRoutes from './routes/printerConfig.routes.js';
+import ledgerRoutes from './routes/ledger.routes.js';
+import expenseCategoryRoutes from './routes/expenseCategory.routes.js';
+import expenseRoutes from './routes/expenses.routes.js';
+import vendorPaymentRoutes from './routes/vendorPayment.routes.js';
+import bankReconciliationRoutes from './routes/bankReconciliation.routes.js';
+import financialReportRoutes from './routes/financialReports.routes.js';
 
 const app = express();
 
@@ -127,6 +133,12 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/check-sheets', checkSheetRoutes);
 app.use('/api/printer-config', printerConfigRoutes);
+app.use('/api/ledgers', ledgerRoutes);
+app.use('/api/expense-categories', expenseCategoryRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/vendor-payments', vendorPaymentRoutes);
+app.use('/api/bank-reconciliation', bankReconciliationRoutes);
+app.use('/api/financial-reports', financialReportRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

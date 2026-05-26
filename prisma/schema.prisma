@@ -129,6 +129,13 @@ model User {
   checkSheetsCreated             CheckSheetMaster[]     @relation("checkSheetCreatedBy")
   checkSheetsUpdated             CheckSheetMaster[]     @relation("checkSheetUpdatedBy")
   printerConfigsUpdated          PrinterConfig[]        @relation("printerConfigUpdatedBy")
+  vpvCreatedBy                   VendorPaymentVoucher[] @relation("vpvCreatedBy")
+  vpvUpdatedBy                   VendorPaymentVoucher[] @relation("vpvUpdatedBy")
+  expCatCreatedBy                ExpenseCategory[]      @relation("expCatCreatedBy")
+  expCatUpdatedBy                ExpenseCategory[]      @relation("expCatUpdatedBy")
+  expenseCreatedBy               Expense[]              @relation("expenseCreatedBy")
+  expenseUpdatedBy               Expense[]              @relation("expenseUpdatedBy")
+  expLogCreatedBy                ExpenseLog[]           @relation("expLogCreatedBy")
 }
 
 model Role {
@@ -258,7 +265,8 @@ model Vendor {
   // Relationship Tables
   purchaseOrders        PurchaseOrder[]
   inventoryItems        InventoryItem[]
-  inventoryTransactions InventoryTransaction[] @relation("inventoryVendorTransactions")
+  inventoryTransactions InventoryTransaction[]    @relation("inventoryVendorTransactions")
+  vendorPaymentVouchers VendorPaymentVoucher[]    @relation("vendorPaymentVouchers")
 }
 
 model LensCategoryMaster {
@@ -587,14 +595,17 @@ model Invoice {
   notes       String?
   payments    Payment[]
   // Audit Fields
-  activeStatus Boolean  @default(true)
-  deleteStatus Boolean  @default(false)
-  createdAt   DateTime  @default(now())
+  taxAmount    Decimal   @default(0) @db.Decimal(15, 2)
+  bankLedgerId Int?
+  bankLedger   Ledger?   @relation("invoicePaymentLedger", fields: [bankLedgerId], references: [id])
+  activeStatus Boolean   @default(true)
+  deleteStatus Boolean   @default(false)
+  createdAt   DateTime   @default(now())
   createdBy   Int
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime   @updatedAt
   updatedBy   Int?
-  createdByUser User    @relation("invoiceCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?   @relation("invoiceUpdatedBy", fields: [updatedBy], references: [id])
+  createdByUser User     @relation("invoiceCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("invoiceUpdatedBy", fields: [updatedBy], references: [id])
 }
 
 model Payment {
@@ -710,12 +721,13 @@ model PurchaseOrder {
   updatedBy    Int?
 
   // Relationships
-  createdByUser         User                   @relation("poCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser         User?                  @relation("poUpdatedBy", fields: [updatedBy], references: [id])
+  createdByUser         User                       @relation("poCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser         User?                      @relation("poUpdatedBy", fields: [updatedBy], references: [id])
   inventoryItems        InventoryItem[]
-  inventoryTransactions InventoryTransaction[] @relation("inventoryPOTransactions")
+  inventoryTransactions InventoryTransaction[]     @relation("inventoryPOTransactions")
   receipts              PurchaseOrderReceipt[]
   receiptLogs           PurchaseReceiptLog[]
+  paymentVoucherItems   VendorPaymentVoucherItem[] @relation("poPaymentItems")
 }
 
 model PurchaseOrderReceipt {
@@ -1322,7 +1334,11 @@ model Ledger {
   updatedByUser User?    @relation("ledgerUpdatedBy", fields: [updatedBy], references: [id])
 
   // Relationships
-  transactionEntries TransactionEntry[]
+  transactionEntries    TransactionEntry[]
+  expenseCategories     ExpenseCategory[]          @relation("expCategoryLedger")
+  expenses              Expense[]                  @relation("expenseBankLedger")
+  vpvBankLedger         VendorPaymentVoucher[]     @relation("vpvBankLedger")
+  invoicePayments       Invoice[]                  @relation("invoicePaymentLedger")
 
   @@index([ledgerType])
   @@index([parentLedgerId])
@@ -1370,8 +1386,10 @@ model FinancialTransaction {
 
   // Status
   isPosted       Boolean   @default(true) // If false, it's a draft transaction
-  isReconciled   Boolean   @default(false) // Bank reconciliation status
+  isReconciled   Boolean   @default(false)
   reconciledDate DateTime?
+  reconciledBy   Int?
+  reconciledNote String?
 
   // Audit Fields
   createdAt     DateTime @default(now())
@@ -1488,7 +1506,7 @@ model CompanySettings {
   id          Int      @id @default(autoincrement())
   companyName String   @default("My Company")
   gstin       String?
-  logo        String?  @db.Text // Base64 encoded image (PNG/JPG/SVG, max ~500KB raw)
+  logo        String?  @db.Text
   address     String?
   city        String?
   state       String?
@@ -1496,8 +1514,108 @@ model CompanySettings {
   phone       String?
   email       String?
   website     String?
-  tagline     String?  // Used in letterheads / print footers
+  tagline     String?
   updatedAt   DateTime @updatedAt
   updatedBy   Int?
   updatedByUser User?  @relation("companySettingsUpdatedBy", fields: [updatedBy], references: [id])
+}
+
+// ============================================================
+// ACCOUNTING MODULE — NEW MODELS
+// ============================================================
+
+model VendorPaymentVoucher {
+  id            Int      @id @default(autoincrement())
+  voucherNumber String   @unique
+  vendorId      Int
+  paymentDate   DateTime @default(now())
+  totalAmount   Decimal  @db.Decimal(15, 2)
+  paymentMethod PaymentMethod
+  bankLedgerId  Int
+  referenceNo   String?
+  notes         String?
+  active_status Boolean  @default(true)
+  delete_status Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  createdBy     Int
+  updatedAt     DateTime @updatedAt
+  updatedBy     Int?
+  vendor        Vendor   @relation("vendorPaymentVouchers", fields: [vendorId], references: [id])
+  bankLedger    Ledger   @relation("vpvBankLedger", fields: [bankLedgerId], references: [id])
+  createdByUser User     @relation("vpvCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("vpvUpdatedBy", fields: [updatedBy], references: [id])
+  items         VendorPaymentVoucherItem[]
+
+  @@index([vendorId])
+  @@index([paymentDate])
+}
+
+model VendorPaymentVoucherItem {
+  id              Int                  @id @default(autoincrement())
+  voucherId       Int
+  purchaseOrderId Int
+  allocatedAmount Decimal              @db.Decimal(15, 2)
+  notes           String?
+  voucher         VendorPaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  purchaseOrder   PurchaseOrder        @relation("poPaymentItems", fields: [purchaseOrderId], references: [id])
+
+  @@index([voucherId])
+}
+
+model ExpenseCategory {
+  id            Int       @id @default(autoincrement())
+  name          String    @unique
+  ledger_id     Int?
+  active_status Boolean   @default(true)
+  delete_status Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  createdBy     Int
+  updatedAt     DateTime  @updatedAt
+  updatedBy     Int?
+  ledger        Ledger?   @relation("expCategoryLedger", fields: [ledger_id], references: [id])
+  createdByUser User      @relation("expCatCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?     @relation("expCatUpdatedBy", fields: [updatedBy], references: [id])
+  expenses      Expense[]
+}
+
+model Expense {
+  id            Int             @id @default(autoincrement())
+  expenseNumber String          @unique
+  categoryId    Int
+  amount        Decimal         @db.Decimal(15, 2)
+  paymentMethod PaymentMethod
+  bankLedgerId  Int
+  expenseDate   DateTime        @default(now())
+  description   String
+  referenceNo   String?
+  paidTo        String?
+  notes         String?
+  active_status Boolean         @default(true)
+  delete_status Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  createdBy     Int
+  updatedAt     DateTime        @updatedAt
+  updatedBy     Int?
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  bankLedger    Ledger          @relation("expenseBankLedger", fields: [bankLedgerId], references: [id])
+  createdByUser User            @relation("expenseCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("expenseUpdatedBy", fields: [updatedBy], references: [id])
+  logs          ExpenseLog[]
+
+  @@index([expenseDate])
+  @@index([categoryId])
+}
+
+model ExpenseLog {
+  id          Int      @id @default(autoincrement())
+  expenseId   Int
+  oldValues   Json
+  newValues   Json
+  changeNote  String?
+  createdAt   DateTime @default(now())
+  createdBy   Int
+  expense     Expense  @relation(fields: [expenseId], references: [id])
+  createdByUser User   @relation("expLogCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([expenseId])
 }

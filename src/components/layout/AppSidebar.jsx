@@ -26,6 +26,11 @@ import {
   Box,
   Factory,
   ClipboardCheck,
+  BookOpen,
+  CreditCard,
+  TrendingDown,
+  RefreshCw,
+  Scale,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
@@ -99,16 +104,17 @@ const navItems = [
     // allowedRoles: ["admin", "accounts"],
   },
   {
-    title: "Payments",
-    url: "/accounts/payments",
-    icon: DollarSign,
-    // allowedRoles: ["admin", "accounts"],
-  },
-  {
-    title: "Expenses",
-    url: "/accounts/expenses",
-    icon: DollarSign,
-    // allowedRoles: ["admin", "accounts"],
+    title: "Accounting",
+    icon: BookOpen,
+    subItems: [
+      { title: "Chart of Accounts", url: "/accounts/ledgers", icon: BookOpen },
+      { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown },
+      { title: "Expense Categories", url: "/accounts/expense-categories", icon: Tag },
+      { title: "Vendor Payments", url: "/accounts/vendor-payments", icon: CreditCard },
+      { title: "Client Payments", url: "/accounts/payments", icon: DollarSign },
+      { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw },
+      { title: "Financial Reports", url: "/accounts/reports", icon: Scale },
+    ],
   },
   {
     title: "Reports",
