@@ -5,7 +5,6 @@ import {
   Package,
   Truck,
   Receipt,
-  DollarSign,
   BarChart3,
   Settings,
   Users,
@@ -109,9 +108,7 @@ const navItems = [
     subItems: [
       { title: "Chart of Accounts", url: "/accounts/ledgers", icon: BookOpen },
       { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown },
-      { title: "Expense Categories", url: "/accounts/expense-categories", icon: Tag },
       { title: "Vendor Payments", url: "/accounts/vendor-payments", icon: CreditCard },
-      { title: "Client Payments", url: "/accounts/payments", icon: DollarSign },
       { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw },
       { title: "Financial Reports", url: "/accounts/reports", icon: Scale },
     ],
@@ -130,6 +127,12 @@ const masterItems = [
     url: "/masters/business-categories",
     icon: Tag,
     // allowedRoles: ["admin", "sales"],
+  },
+  {
+    title: "Expense Categories",
+    url: "/masters/expense-categories",
+    icon: Tag,
+    // allowedRoles: ["admin", "accounts"],
   },
   {
     title: "Customers",
