@@ -89,7 +89,7 @@ async function main() {
   const hashedSystemPassword = await bcrypt.hash('admin123', 10);
   await prisma.$executeRaw`
     INSERT INTO "User" (id, name, email, usercode, username, password,is_login , role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt")
-    VALUES (1, 'System Admin', 'system@lensbilling.com', 'admin001', 'Admin', ${hashedSystemPassword}, true, 1, NULL, 1, true, false, NOW(), NOW())
+    VALUES (1, 'System Admin', 'system@lensbilling.com', 'admin001', 'system', ${hashedSystemPassword}, true, 1, NULL, 1, true, false, NOW(), NOW())
     ON CONFLICT (id) DO NOTHING
   `;
 
@@ -210,7 +210,7 @@ async function main() {
   console.log('✅ Roles and permissions created\n');
 
   // Hash passwords
-  const hashedPassword = await bcrypt.hash('demo123', 10);
+  const hashedPassword = await bcrypt.hash('admin123', 10);
 
   // Create demo users
   console.log('👤 Creating demo users...');
@@ -683,7 +683,6 @@ async function main() {
         city: 'Mumbai',
         state: 'Maharashtra',
         pincode: '400001',
-        category: 'Lens Supplier',
         gstin: '27AAAAA0000A1Z5',
         active_status: true,
         delete_status: false,
@@ -702,7 +701,6 @@ async function main() {
         city: 'Delhi',
         state: 'Delhi',
         pincode: '110001',
-        category: 'Eye Care Products',
         gstin: '07BBBBB0000B2Z6',
         active_status: true,
         delete_status: false,
@@ -902,9 +900,9 @@ async function main() {
   console.log(`   - ${saleOrders.length} sale orders created`);
   console.log('\n🔐 Login credentials:');
   console.log('   Email: admin@lensbilling.com');
-  console.log('   Password: demo123');
+  console.log('   Password: admin123');
   console.log('\n   Email: sales@lensbilling.com');
-  console.log('   Password: demo123');
+  console.log('   Password: admin123');
 }
 
 main()

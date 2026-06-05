@@ -16,7 +16,7 @@ async function createInitialData() {
     `;
 
     console.log('👤 Creating system user (ID: 1)...');
-    const hashedPassword = await bcrypt.hash('Admin@123', 10);
+    const hashedPassword = await bcrypt.hash('admin123', 10);
     await prisma.$executeRaw`
       INSERT INTO "User" (
         id, name, email, username, usercode, password, 
@@ -178,7 +178,7 @@ async function createInitialData() {
     console.log(`   • Admin User: ${adminUser.username}`);
     console.log('\n🔑 Admin Credentials:');
     console.log(`   Username: ${adminUser.username}`);
-    console.log(`   Password: Admin@123`);
+    console.log(`   Password: admin123`);
     console.log(`   Email: ${adminUser.email}`);
     console.log('\n⚠️  IMPORTANT: Change the admin password after first login!\n');
 
