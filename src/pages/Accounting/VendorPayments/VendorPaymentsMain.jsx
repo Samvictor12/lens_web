@@ -174,6 +174,10 @@ export default function VendorPaymentsMain() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         payment={loadingDetail ? null : selectedPayment}
+        onClosed={() => {
+          handleView(selectedPayment);
+          fetchPayments();
+        }}
       />
     </div>
   );

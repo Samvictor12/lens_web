@@ -51,6 +51,25 @@ export class VendorPaymentService {
     return v;
   }
 
+  async closeVoucher(id, userId) {
+    const v = await prisma.vendorPaymentVoucher.findFirst({
+      where: { id, delete_status: false },
+    });
+    if (!v) throw new APIError('Voucher not found', 404, 'NOT_FOUND');
+    if (v.closedStatus) throw new APIError('Voucher already closed', 400, 'ALREADY_CLOSED');
+
+    return prisma.vendorPaymentVoucher.update({
+      where: { id },
+      data: { closedStatus: true, closedAt: new Date(), updatedBy: userId },
+      include: {
+        vendor: true,
+        bankLedger: true,
+        items: { include: { purchaseOrder: { select: { id: true, poNumber: true, totalValue: true, receivedQty: true } } } },
+        createdByUser: { select: { id: true, name: true } },
+      },
+    });
+  }
+
   async getOutstanding(vendorId) {
     if (!vendorId) throw new APIError('vendorId is required', 400, 'VALIDATION_ERROR');
     const vid = parseInt(vendorId);

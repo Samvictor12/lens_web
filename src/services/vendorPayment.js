@@ -6,3 +6,4 @@ export const getVendorPayments = (params = {}) => apiClient("get", BASE, { param
 export const getVendorPaymentById = (id) => apiClient("get", `${BASE}/${id}`);
 export const getOutstandingPOs = (vendorId) => apiClient("get", `${BASE}/outstanding`, { params: { vendorId } });
 export const createVendorPayment = (data) => apiClient("post", BASE, { data });
+export const closeVendorPayment = (id) => apiClient("patch", `${BASE}/${id}/close`);
