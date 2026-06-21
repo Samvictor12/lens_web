@@ -1,5 +1,6 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Custom hook that returns the table column configuration for expense categories.
@@ -39,6 +40,23 @@ export const useExpenseCategoryColumns = (onEdit, onDelete) => {
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         ),
+    },
+    {
+      accessorKey: "expenseType",
+      header: "Classification",
+      sortable: false,
+      cell: (cat) => (
+        <Badge
+          variant="outline"
+          className={
+            cat.expenseType === "DIRECT"
+              ? "text-xs font-normal bg-blue-100 text-blue-700 border-blue-300"
+              : "text-xs font-normal bg-gray-100 text-gray-700 border-gray-300"
+          }
+        >
+          {cat.expenseType === "DIRECT" ? "Direct" : "Indirect"}
+        </Badge>
+      ),
     },
     {
       accessorKey: "id",

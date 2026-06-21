@@ -1300,6 +1300,11 @@ enum LedgerType {
   EQUITY // Owner's Capital, Retained Earnings
 }
 
+enum ExpenseClassification {
+  DIRECT   // tied to producing goods/services → Cost of Goods Sold
+  INDIRECT // general overhead → Operating Expenses
+}
+
 // Chart of Accounts - Ledger Master
 model Ledger {
   id         Int        @id @default(autoincrement())
@@ -1536,6 +1541,8 @@ model VendorPaymentVoucher {
   notes         String?
   active_status Boolean  @default(true)
   delete_status Boolean  @default(false)
+  closedStatus  Boolean   @default(false)
+  closedAt      DateTime?
   createdAt     DateTime @default(now())
   createdBy     Int
   updatedAt     DateTime @updatedAt
@@ -1563,18 +1570,19 @@ model VendorPaymentVoucherItem {
 }
 
 model ExpenseCategory {
-  id            Int       @id @default(autoincrement())
-  name          String    @unique
+  id            Int                    @id @default(autoincrement())
+  name          String                 @unique
   ledger_id     Int?
-  active_status Boolean   @default(true)
-  delete_status Boolean   @default(false)
-  createdAt     DateTime  @default(now())
+  expenseType   ExpenseClassification  @default(INDIRECT)
+  active_status Boolean                @default(true)
+  delete_status Boolean                @default(false)
+  createdAt     DateTime               @default(now())
   createdBy     Int
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime               @updatedAt
   updatedBy     Int?
-  ledger        Ledger?   @relation("expCategoryLedger", fields: [ledger_id], references: [id])
-  createdByUser User      @relation("expCatCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?     @relation("expCatUpdatedBy", fields: [updatedBy], references: [id])
+  ledger        Ledger?                @relation("expCategoryLedger", fields: [ledger_id], references: [id])
+  createdByUser User                   @relation("expCatCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?                  @relation("expCatUpdatedBy", fields: [updatedBy], references: [id])
   expenses      Expense[]
 }
 
