@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { seedFinancialLedgers } from './financial-ledgers-seed.js';
+import { seedAccountingTestData } from './accounting-test-seed.js';
 
 const prisma = new PrismaClient();
 
@@ -26,11 +28,17 @@ async function main() {
   await prisma.$executeRaw`SET session_replication_role = 'replica'`;
   try {
     for (const fn of [
+      () => prisma.expenseLog?.deleteMany?.(),
+      () => prisma.expense?.deleteMany?.(),
+      () => prisma.expenseCategory?.deleteMany?.(),
+      () => prisma.vendorPaymentVoucherItem?.deleteMany?.(),
+      () => prisma.vendorPaymentVoucher?.deleteMany?.(),
       () => prisma.payment.deleteMany(),
       () => prisma.invoice.deleteMany(),
       () => prisma.transactionEntry?.deleteMany?.(),
       () => prisma.financialTransaction?.deleteMany?.(),
       () => prisma.ledger?.deleteMany?.(),
+      () => prisma.companySettings?.deleteMany?.(),
       () => prisma.inventoryAlert?.deleteMany?.(),
       () => prisma.inventoryTransaction?.deleteMany?.(),
       () => prisma.inventoryItem?.deleteMany?.(),
@@ -891,6 +899,12 @@ async function main() {
   ]);
   console.log('✅ Sale orders created\n');
 
+  // Financial Accounting + test GL data
+  console.log('💰 Seeding accounting module data…');
+  await seedFinancialLedgers(prisma);
+  await seedAccountingTestData(prisma);
+  console.log('✅ Accounting module seeded\n');
+
   console.log('🎉 Seed data created successfully!\n');
   console.log('📊 Summary:');
   console.log(`   - ${users.length} users created`);
@@ -898,11 +912,15 @@ async function main() {
   console.log(`   - ${vendors.length} vendors created`);
   console.log(`   - ${lensProducts.length} lens products created`);
   console.log(`   - ${saleOrders.length} sale orders created`);
+  console.log('   - 20 AC-* ledgers + 7 expense categories');
+  console.log('   - Sample POs, invoices, payments, expenses (TEST-* records)');
   console.log('\n🔐 Login credentials:');
   console.log('   Email: admin@lensbilling.com');
   console.log('   Password: admin123');
   console.log('\n   Email: sales@lensbilling.com');
   console.log('   Password: admin123');
+  console.log('\n   For dispatch test data: npm run db:seed:dispatch');
+  console.log('   For full module test data: npm run db:seed:modules');
 }
 
 main()

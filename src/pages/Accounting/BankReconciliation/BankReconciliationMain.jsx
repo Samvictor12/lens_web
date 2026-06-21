@@ -51,7 +51,7 @@ export default function BankReconciliationMain() {
 
   const fetchLedgers = useCallback(async () => {
     try {
-      const res = await getLedgers({ limit: 200, ledgerType: "ASSET" });
+      const res = await getLedgers({ limit: 200, type: "ASSET" });
       setLedgers(res.data || []);
     } catch {
       toast({ variant: "destructive", title: "Failed to load bank accounts" });
@@ -65,16 +65,19 @@ export default function BankReconciliationMain() {
     try {
       const params = {
         ledgerId: selectedLedgerId,
-        fromDate,
-        toDate,
-        status: statusFilter,
+        from: fromDate,
+        to: toDate,
+        ...(statusFilter === "reconciled" && { isReconciled: "true" }),
+        ...(statusFilter === "unreconciled" && { isReconciled: "false" }),
       };
       const res = await getBankStatement(params);
-      setTransactions(res.data || []);
+      const statement = res.data || {};
+      const txns = statement.transactions || [];
+      setTransactions(txns);
       setSummary({
-        openingBalance: res.openingBalance ?? 0,
-        closingBalance: res.closingBalance ?? 0,
-        totalEntries: (res.data || []).length,
+        openingBalance: statement.openingBalance ?? 0,
+        closingBalance: statement.currentBalance ?? 0,
+        totalEntries: txns.length,
       });
     } catch {
       toast({ variant: "destructive", title: "Failed to load bank statement" });
@@ -108,7 +111,7 @@ export default function BankReconciliationMain() {
   const unreconciledTxns = transactions.filter((t) => !t.isReconciled);
 
   const handleSelectAllUnreconciled = () => {
-    setSelected(new Set(unreconciledTxns.map((t) => t.id)));
+    setSelected(new Set(unreconciledTxns.map((t) => t.transactionId)));
   };
 
   const handleClearSelection = () => {
@@ -286,30 +289,34 @@ export default function BankReconciliationMain() {
                 <RefreshCw className="h-3 w-3 mx-auto" />
               </span>
             </div>
-            {transactions.map((t) => (
+            {transactions.map((t) => {
+              const debitAmt = t.entryType === "DEBIT" ? parseFloat(t.amount || 0) : 0;
+              const creditAmt = t.entryType === "CREDIT" ? parseFloat(t.amount || 0) : 0;
+              return (
               <div
-                key={t.id}
+                key={t.transactionId}
                 className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 px-3 py-2.5 items-center transition-colors ${
-                  selected.has(t.id) ? "bg-primary/5" : "hover:bg-muted/20"
+                  selected.has(t.transactionId) ? "bg-primary/5" : "hover:bg-muted/20"
                 } ${t.isReconciled ? "opacity-60" : ""}`}
               >
                 <Checkbox
-                  checked={selected.has(t.id)}
-                  onCheckedChange={() => toggleRow(t.id)}
+                  checked={selected.has(t.transactionId)}
+                  onCheckedChange={() => toggleRow(t.transactionId)}
                   disabled={t.isReconciled}
                   className="mt-0.5"
                 />
                 <div>
-                  <p className="font-medium">{t.description || t.narration || "—"}</p>
+                  <p className="font-medium">{t.description || "—"}</p>
                   <p className="text-muted-foreground">
-                    {new Date(t.transactionDate || t.date).toLocaleDateString("en-IN")}
+                    {new Date(t.transactionDate).toLocaleDateString("en-IN")}
+                    {t.transactionNumber ? ` · ${t.transactionNumber}` : ""}
                   </p>
                 </div>
                 <span className="text-right w-28 font-mono">
-                  {t.debitAmount > 0 ? fmt(t.debitAmount) : "—"}
+                  {debitAmt > 0 ? fmt(debitAmt) : "—"}
                 </span>
                 <span className="text-right w-28 font-mono text-green-700">
-                  {t.creditAmount > 0 ? fmt(t.creditAmount) : "—"}
+                  {creditAmt > 0 ? fmt(creditAmt) : "—"}
                 </span>
                 <span className="w-6 text-center">
                   {t.isReconciled ? (
@@ -319,7 +326,8 @@ export default function BankReconciliationMain() {
                   )}
                 </span>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>

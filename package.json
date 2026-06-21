@@ -17,6 +17,10 @@
     "preview": "vite preview",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "db:seed:ledgers": "node prisma/seed/financial-ledgers-seed.js",
+    "db:seed:accounting": "node prisma/seed/accounting-test-seed.js",
+    "db:seed:modules": "node prisma/seed/all-modules-test-seed.js",
+    "db:seed:dispatch": "node prisma/seed/dispatch-test-seed.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:accounting": "vitest run src/backend/__tests__/accounting"

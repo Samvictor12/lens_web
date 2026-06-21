@@ -50,9 +50,16 @@ export default function CreateVendorPaymentDialog({
     setLoadingPOs(true);
     getOutstandingPOs(form.vendorId)
       .then((res) => {
-        const pos = res.data || [];
+        const pos = (res.data?.purchaseOrders || [])
+          .filter((po) => parseFloat(po.outstanding || 0) > 0)
+          .map((po) => ({
+            id: po.purchaseOrderId,
+            poNumber: po.poNumber,
+            orderDate: po.orderDate,
+            outstandingAmount: po.outstanding,
+            totalValue: po.totalValue,
+          }));
         setOutstandingPOs(pos);
-        // Pre-fill allocations with outstanding amount
         const init = {};
         pos.forEach((po) => {
           init[po.id] = String(parseFloat(po.outstandingAmount || 0).toFixed(2));
@@ -91,7 +98,7 @@ export default function CreateVendorPaymentDialog({
       .filter((po) => parseFloat(allocations[po.id] || 0) > 0)
       .map((po) => ({
         purchaseOrderId: po.id,
-        amount: parseFloat(allocations[po.id]),
+        allocatedAmount: parseFloat(allocations[po.id]),
       }));
 
     setSaving(true);
@@ -101,7 +108,7 @@ export default function CreateVendorPaymentDialog({
         bankLedgerId: parseInt(form.bankLedgerId),
         paymentDate: form.paymentDate,
         paymentMethod: form.paymentMethod,
-        referenceNumber: form.referenceNumber || undefined,
+        referenceNo: form.referenceNumber || undefined,
         notes: form.notes || undefined,
         totalAmount: totalAllocated,
         items,
@@ -211,7 +218,7 @@ export default function CreateVendorPaymentDialog({
                 <p className="text-xs text-muted-foreground py-2">Loading outstanding POs...</p>
               ) : outstandingPOs.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">
-                  No outstanding purchase orders for this vendor.
+                  No outstanding purchase orders for this vendor. POs must be received (goods receipt recorded) before payment can be allocated.
                 </p>
               ) : (
                 <div className="border rounded-md divide-y text-xs">

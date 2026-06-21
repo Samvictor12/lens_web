@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Truck, User, MapPin, Package, X } from "lucide-react";
 import { FormSelect } from "@/components/ui/form-select";
 import { createDispatch } from "@/services/dispatch";
-import { getUsersDropdown } from "@/services/saleOrder";
+import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 
 export default function CreateDispatchModal({ open, onClose, selectedOrders = [], customer, onSuccess }) {
@@ -39,13 +39,19 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
     }, [open, customer]);
 
     useEffect(() => {
-        getUsersDropdown()
+        if (!open) return;
+        getDeliveryPersonsDropdown()
             .then((res) => {
-                const list = res?.data || res || [];
-                setUsers(list.map((u) => ({ value: u.id, label: u.name })));
+                const list = res?.data || [];
+                setUsers(list.map((u) => ({
+                    value: u.value ?? u.id,
+                    label: u.label ?? u.name,
+                })));
             })
-            .catch(() => {});
-    }, []);
+            .catch(() => {
+                toast({ title: "Error", description: "Failed to load delivery persons", variant: "destructive" });
+            });
+    }, [open]);
 
     const handleChange = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 

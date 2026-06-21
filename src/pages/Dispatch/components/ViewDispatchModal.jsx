@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { FormSelect } from "@/components/ui/form-select";
 import { Calendar, User, Truck, MapPin, Phone, Package, Clock } from "lucide-react";
 import { updateDispatchStatus } from "@/services/dispatch";
-import { getUsersDropdown } from "@/services/saleOrder";
+import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_CONFIG = {
@@ -50,8 +50,14 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
 
     useEffect(() => {
         if (open) {
-            getUsersDropdown()
-                .then((res) => setDeliveryPersons(res?.data?.map((u) => ({ value: u.id, label: u.name })) || []))
+            getDeliveryPersonsDropdown()
+                .then((res) => {
+                    const list = res?.data || [];
+                    setDeliveryPersons(list.map((u) => ({
+                        value: u.value ?? u.id,
+                        label: u.label ?? u.name,
+                    })));
+                })
                 .catch(() => {});
         }
     }, [open]);

@@ -1,344 +1,103 @@
 /**
- * Seed script for Financial Accounting System
- * Creates initial Chart of Accounts (Ledgers) for the lens management system
- * 
- * Run: npx prisma db seed (or node prisma/seed/financial-ledgers-seed.js)
+ * Financial Ledgers + Expense Categories Seed
+ * Seeds the Chart of Accounts (AC-* codes) required by accountingService auto-posting.
+ *
+ * Run:  node prisma/seed/financial-ledgers-seed.js
+ * Safe to re-run — uses upsert.
  */
 
-const { PrismaClient } = require('@prisma/client');
+import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
-async function seedFinancialLedgers() {
-  console.log('🏦 Seeding Financial Ledgers (Chart of Accounts)...');
+const SYSTEM_USER_ID = 1;
 
-  // Default user ID for system entries (adjust as needed)
-  const systemUserId = 1;
+/** @type {import('@prisma/client').Prisma.LedgerCreateInput[]} */
+const SYSTEM_LEDGERS = [
+  { ledgerCode: 'AC-1001', ledgerName: 'Cash in Hand', ledgerType: 'ASSET', description: 'Physical cash at premises', isSystemLedger: true },
+  {
+    ledgerCode: 'AC-1002',
+    ledgerName: 'Bank Account (HDFC)',
+    ledgerType: 'ASSET',
+    description: 'Primary HDFC current account',
+    isSystemLedger: true,
+    bankDetails: { accountNumber: '50100123456789', ifscCode: 'HDFC0001234', bankName: 'HDFC Bank', branch: 'Mumbai Main' },
+  },
+  { ledgerCode: 'AC-1003', ledgerName: 'Accounts Receivable', ledgerType: 'ASSET', description: 'Customer outstanding', isSystemLedger: true },
+  { ledgerCode: 'AC-1004', ledgerName: 'Inventory / Stock', ledgerType: 'ASSET', description: 'Lens stock value', isSystemLedger: true },
+  { ledgerCode: 'AC-1005', ledgerName: 'GST Input Credit', ledgerType: 'ASSET', description: 'GST paid on purchases', isSystemLedger: true },
+  { ledgerCode: 'AC-2001', ledgerName: 'Accounts Payable', ledgerType: 'LIABILITY', description: 'Vendor outstanding', isSystemLedger: true },
+  { ledgerCode: 'AC-2002', ledgerName: 'TDS Payable', ledgerType: 'LIABILITY', description: 'Tax deducted at source payable', isSystemLedger: false },
+  { ledgerCode: 'AC-2003', ledgerName: 'GST Output Collected', ledgerType: 'LIABILITY', description: 'GST collected on sales', isSystemLedger: true },
+  { ledgerCode: 'AC-3001', ledgerName: 'Sales Revenue', ledgerType: 'INCOME', description: 'Net lens sales revenue', isSystemLedger: true },
+  { ledgerCode: 'AC-3002', ledgerName: 'Other Income', ledgerType: 'INCOME', description: 'Miscellaneous income', isSystemLedger: false },
+  { ledgerCode: 'AC-4001', ledgerName: 'Purchase / COGS', ledgerType: 'EXPENSE', description: 'Cost of goods purchased', isSystemLedger: true },
+  { ledgerCode: 'AC-4002', ledgerName: 'Salary & Wages', ledgerType: 'EXPENSE', description: 'Employee salaries', isSystemLedger: false },
+  { ledgerCode: 'AC-4003', ledgerName: 'Rent Expense', ledgerType: 'EXPENSE', description: 'Shop and office rent', isSystemLedger: false },
+  { ledgerCode: 'AC-4004', ledgerName: 'Utilities', ledgerType: 'EXPENSE', description: 'Electricity, water, internet', isSystemLedger: false },
+  { ledgerCode: 'AC-4005', ledgerName: 'Transport & Logistics', ledgerType: 'EXPENSE', description: 'Delivery and freight costs', isSystemLedger: false },
+  { ledgerCode: 'AC-4006', ledgerName: 'Marketing & Advertising', ledgerType: 'EXPENSE', description: 'Promotional spend', isSystemLedger: false },
+  { ledgerCode: 'AC-4007', ledgerName: 'Office Supplies', ledgerType: 'EXPENSE', description: 'Stationery and consumables', isSystemLedger: false },
+  { ledgerCode: 'AC-4008', ledgerName: 'Repairs & Maintenance', ledgerType: 'EXPENSE', description: 'Equipment upkeep', isSystemLedger: false },
+  { ledgerCode: 'AC-5001', ledgerName: "Owner's Capital", ledgerType: 'EQUITY', description: 'Owner investment', isSystemLedger: true },
+  { ledgerCode: 'AC-5002', ledgerName: 'Retained Earnings', ledgerType: 'EQUITY', description: 'Accumulated profits', isSystemLedger: true },
+];
 
-  // ============================================================
-  // ASSETS
-  // ============================================================
-  
-  // Current Assets
-  const cashInHand = await prisma.ledger.upsert({
-    where: { ledgerCode: 'AS-1001' },
-    update: {},
-    create: {
-      ledgerCode: 'AS-1001',
-      ledgerName: 'Cash in Hand',
-      ledgerType: 'ASSET',
-      description: 'Physical cash available at the business premises',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
+const EXPENSE_CATEGORIES = [
+  { name: 'Salary', ledgerCode: 'AC-4002' },
+  { name: 'Rent', ledgerCode: 'AC-4003' },
+  { name: 'Utilities', ledgerCode: 'AC-4004' },
+  { name: 'Transport', ledgerCode: 'AC-4005' },
+  { name: 'Marketing', ledgerCode: 'AC-4006' },
+  { name: 'Office Supplies', ledgerCode: 'AC-4007' },
+  { name: 'Repairs', ledgerCode: 'AC-4008' },
+];
 
-  const bankAccount = await prisma.ledger.upsert({
-    where: { ledgerCode: 'AS-1002' },
-    update: {},
-    create: {
-      ledgerCode: 'AS-1002',
-      ledgerName: 'Bank Account - Primary',
-      ledgerType: 'ASSET',
-      description: 'Primary bank account for business operations',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      bankDetails: {
-        accountNumber: 'XXXXXXXXXX',
-        ifscCode: 'XXXXXX',
-        bankName: 'Bank Name',
-        branch: 'Branch Name'
+export async function seedFinancialLedgers(client = prisma) {
+  console.log('🏦 Seeding Chart of Accounts (AC-* ledgers)…');
+
+  for (const ledger of SYSTEM_LEDGERS) {
+    const { bankDetails, ...rest } = ledger;
+    await client.ledger.upsert({
+      where: { ledgerCode: ledger.ledgerCode },
+      update: {
+        ledgerName: ledger.ledgerName,
+        description: ledger.description,
+        isSystemLedger: ledger.isSystemLedger,
+        ...(bankDetails ? { bankDetails } : {}),
       },
-      createdBy: systemUserId,
-    },
-  });
+      create: {
+        ...rest,
+        openingBalance: 0,
+        currentBalance: 0,
+        createdBy: SYSTEM_USER_ID,
+        ...(bankDetails ? { bankDetails } : {}),
+      },
+    });
+  }
 
-  const accountsReceivable = await prisma.ledger.upsert({
-    where: { ledgerCode: 'AS-1003' },
-    update: {},
-    create: {
-      ledgerCode: 'AS-1003',
-      ledgerName: 'Accounts Receivable (Debtors)',
-      ledgerType: 'ASSET',
-      description: 'Money owed by customers for lens sales',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
+  console.log(`   ✅ ${SYSTEM_LEDGERS.length} ledgers upserted`);
 
-  const inventory = await prisma.ledger.upsert({
-    where: { ledgerCode: 'AS-1004' },
-    update: {},
-    create: {
-      ledgerCode: 'AS-1004',
-      ledgerName: 'Inventory - Lens Stock',
-      ledgerType: 'ASSET',
-      description: 'Value of lens inventory in stock',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  // Fixed Assets
-  const furnitureEquipment = await prisma.ledger.upsert({
-    where: { ledgerCode: 'AS-2001' },
-    update: {},
-    create: {
-      ledgerCode: 'AS-2001',
-      ledgerName: 'Furniture & Equipment',
-      ledgerType: 'ASSET',
-      description: 'Office furniture, fixtures, and equipment',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  // ============================================================
-  // LIABILITIES
-  // ============================================================
-  
-  const accountsPayable = await prisma.ledger.upsert({
-    where: { ledgerCode: 'LI-1001' },
-    update: {},
-    create: {
-      ledgerCode: 'LI-1001',
-      ledgerName: 'Accounts Payable (Creditors)',
-      ledgerType: 'LIABILITY',
-      description: 'Money owed to vendors for lens purchases',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const gstPayable = await prisma.ledger.upsert({
-    where: { ledgerCode: 'LI-1002' },
-    update: {},
-    create: {
-      ledgerCode: 'LI-1002',
-      ledgerName: 'GST Payable',
-      ledgerType: 'LIABILITY',
-      description: 'Goods and Services Tax payable to government',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const salariesPayable = await prisma.ledger.upsert({
-    where: { ledgerCode: 'LI-1003' },
-    update: {},
-    create: {
-      ledgerCode: 'LI-1003',
-      ledgerName: 'Salaries Payable',
-      ledgerType: 'LIABILITY',
-      description: 'Outstanding salary payments to employees',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  // ============================================================
-  // INCOME
-  // ============================================================
-  
-  const salesRevenue = await prisma.ledger.upsert({
-    where: { ledgerCode: 'IN-1001' },
-    update: {},
-    create: {
-      ledgerCode: 'IN-1001',
-      ledgerName: 'Lens Sales Revenue',
-      ledgerType: 'INCOME',
-      description: 'Revenue from lens sales to customers',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const fittingCharges = await prisma.ledger.upsert({
-    where: { ledgerCode: 'IN-1002' },
-    update: {},
-    create: {
-      ledgerCode: 'IN-1002',
-      ledgerName: 'Fitting Charges Income',
-      ledgerType: 'INCOME',
-      description: 'Income from lens fitting services',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const discountRecovered = await prisma.ledger.upsert({
-    where: { ledgerCode: 'IN-1003' },
-    update: {},
-    create: {
-      ledgerCode: 'IN-1003',
-      ledgerName: 'Discount Recovered',
-      ledgerType: 'INCOME',
-      description: 'Discounts recovered or reversed',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  // ============================================================
-  // EXPENSES
-  // ============================================================
-  
-  const purchaseExpense = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EX-1001' },
-    update: {},
-    create: {
-      ledgerCode: 'EX-1001',
-      ledgerName: 'Lens Purchase Expense',
-      ledgerType: 'EXPENSE',
-      description: 'Cost of lens purchases from vendors',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const salaryExpense = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EX-2001' },
-    update: {},
-    create: {
-      ledgerCode: 'EX-2001',
-      ledgerName: 'Salary Expense',
-      ledgerType: 'EXPENSE',
-      description: 'Employee salary payments',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const rentExpense = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EX-2002' },
-    update: {},
-    create: {
-      ledgerCode: 'EX-2002',
-      ledgerName: 'Rent Expense',
-      ledgerType: 'EXPENSE',
-      description: 'Office/shop rent payments',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const utilityExpense = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EX-2003' },
-    update: {},
-    create: {
-      ledgerCode: 'EX-2003',
-      ledgerName: 'Utility Expense',
-      ledgerType: 'EXPENSE',
-      description: 'Electricity, water, internet, phone bills',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const discountGiven = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EX-3001' },
-    update: {},
-    create: {
-      ledgerCode: 'EX-3001',
-      ledgerName: 'Discount Given',
-      ledgerType: 'EXPENSE',
-      description: 'Discounts given to customers on sales',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const transportExpense = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EX-3002' },
-    update: {},
-    create: {
-      ledgerCode: 'EX-3002',
-      ledgerName: 'Transport & Delivery Expense',
-      ledgerType: 'EXPENSE',
-      description: 'Costs for product delivery and transportation',
-      isSystemLedger: false,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  // ============================================================
-  // EQUITY
-  // ============================================================
-  
-  const ownersCapital = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EQ-1001' },
-    update: {},
-    create: {
-      ledgerCode: 'EQ-1001',
-      ledgerName: "Owner's Capital",
-      ledgerType: 'EQUITY',
-      description: "Owner's investment in the business",
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  const retainedEarnings = await prisma.ledger.upsert({
-    where: { ledgerCode: 'EQ-1002' },
-    update: {},
-    create: {
-      ledgerCode: 'EQ-1002',
-      ledgerName: 'Retained Earnings',
-      ledgerType: 'EQUITY',
-      description: 'Accumulated profits retained in the business',
-      isSystemLedger: true,
-      openingBalance: 0,
-      currentBalance: 0,
-      createdBy: systemUserId,
-    },
-  });
-
-  console.log('✅ Financial Ledgers seeded successfully!');
-  console.log(`   - Assets: 6 ledgers`);
-  console.log(`   - Liabilities: 3 ledgers`);
-  console.log(`   - Income: 3 ledgers`);
-  console.log(`   - Expenses: 6 ledgers`);
-  console.log(`   - Equity: 2 ledgers`);
-  console.log(`   Total: 20 ledgers created in Chart of Accounts`);
+  console.log('📂 Seeding expense categories…');
+  for (const cat of EXPENSE_CATEGORIES) {
+    const ledger = await client.ledger.findFirst({ where: { ledgerCode: cat.ledgerCode } });
+    await client.expenseCategory.upsert({
+      where: { name: cat.name },
+      update: { ledger_id: ledger?.id ?? null },
+      create: { name: cat.name, ledger_id: ledger?.id ?? null, createdBy: SYSTEM_USER_ID },
+    });
+  }
+  console.log(`   ✅ ${EXPENSE_CATEGORIES.length} expense categories upserted\n`);
 }
 
 async function main() {
   try {
+    const user = await prisma.user.findUnique({ where: { id: SYSTEM_USER_ID } });
+    if (!user) {
+      throw new Error('System user (id=1) not found. Run `npm run db:seed` first.');
+    }
     await seedFinancialLedgers();
+    console.log('🎉 Financial ledgers seed complete.\n');
   } catch (error) {
     console.error('❌ Error seeding financial ledgers:', error);
     throw error;
@@ -347,14 +106,7 @@ async function main() {
   }
 }
 
-// Run if called directly
-if (require.main === module) {
-  main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    });
+const isDirectRun = process.argv[1]?.replace(/\\/g, '/').endsWith('financial-ledgers-seed.js');
+if (isDirectRun) {
+  main().catch(() => process.exit(1));
 }
-
-module.exports = { seedFinancialLedgers };

@@ -330,7 +330,7 @@ function CashBankBook() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    getLedgers({ limit: 200, ledgerType: "ASSET" }).then(r => setLedgers(r.data || [])).catch(() => {});
+    getLedgers({ limit: 200, type: "ASSET" }).then(r => setLedgers(r.data || [])).catch(() => {});
   }, []);
 
   const load = async () => {
