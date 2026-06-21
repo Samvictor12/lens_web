@@ -6,6 +6,7 @@
   "last_agent": "orchestrator",
   "recent_log": [
     "2026-06-21: dashboard-sales-widgets DONE. KB-010 added. All 9 original backlog items now DONE: pnl-asset-liability-fix, vendor-payment-receipt-voucher, invoice-quick-close, dispatch-delivery-agent-filter, invoice-preview, expense-direct-indirect-categories, coa-hide-balance-values, production-quality-scanning, dashboard-sales-widgets.",
-    "2026-06-21: Nothing committed to git yet this session -- all 9 features' changes sit together uncommitted in the working tree. Two new Prisma migrations (vendor-payment-receipt-voucher, expense-direct-indirect-categories) not yet applied to any DB. Backlog empty, awaiting new work."
+    "2026-06-21: Nothing committed to git yet this session -- all 9 features' changes sit together uncommitted in the working tree. Two new Prisma migrations (vendor-payment-receipt-voucher, expense-direct-indirect-categories) not yet applied to any DB. Backlog empty, awaiting new work.",
+    "2026-06-21: Docker infra fix (not a feature, KB-011 added). Root docker-compose.yml was unbuildable (stale absolute dockerfile paths from another project, npm Ci typo, wrong env var names, missing root .dockerignore). Built a working dev stack in new Dev_lens/ folder (own .env + docker-compose.yml, ports 6001/6002/6013/6014); fixed Dockerfile.backend (npm ci) and Dockerfile.frontend (healthcheck IPv4 fix); applied all 30 Prisma migrations to the fresh Dev_lens postgres DB. All 4 containers (postgres, backend, frontend, pgadmin) confirmed healthy and serving. Root docker-compose.yml left as-is/legacy -- still broken, superseded by Dev_lens/."
   ]
 }
