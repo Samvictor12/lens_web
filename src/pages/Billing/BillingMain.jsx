@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Plus,
   Receipt,
@@ -18,7 +18,7 @@ import { CardGrid } from "@/components/ui/card-grid";
 import { Refresh } from "@/components/ui/Refresh";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { getInvoices } from "@/services/invoice";
+import { getInvoices, recordPayment } from "@/services/invoice";
 
 import { fmt, PAGE_SIZE, billingFilters } from "./Billing.constants";
 import BillingFilter from "./BillingFilter";
@@ -27,6 +27,7 @@ import InvoiceCard, { InvoiceStatusBadge } from "./InvoiceCard";
 import CreateInvoiceDialog from "./CreateInvoiceDialog";
 import RecordPaymentDialog from "./RecordPaymentDialog";
 import InvoiceDetailDialog from "./InvoiceDetailDialog";
+import InvoicePreviewDialog from "./InvoicePreviewDialog";
 import DispatchedOrdersTab from "./DispatchedOrdersTab";
 
 // ─── Column definitions for the smart Table view ─────────────────────────────
@@ -122,11 +123,13 @@ function useBillingColumns(onView, onPay) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BillingMain() {
+  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [createOpen, setCreateOpen] = useState(false);
   const [createForCustomer, setCreateForCustomer] = useState("");
   const [detailId, setDetailId] = useState(null);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
+  const [previewInvoice, setPreviewInvoice] = useState(null);
 
   // Invoice list controls
   const [view, setView] = useState("table");
@@ -239,6 +242,18 @@ export default function BillingMain() {
     (id) => setDetailId(id),
     (inv) => setPaymentInvoice(inv)
   );
+
+  // ── Quick close mutation (one-click full-payment shortcut) ────────────────
+  const quickCloseMutation = useMutation({
+    mutationFn: ({ id, data }) => recordPayment(id, data),
+    onSuccess: (_res, variables) => {
+      toast.success("Invoice closed");
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoices-stats"] });
+      qc.invalidateQueries({ queryKey: ["invoice", variables.id] });
+    },
+    onError: (err) => toast.error(err?.message || "Failed to close invoice"),
+  });
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -395,7 +410,18 @@ export default function BillingMain() {
                     key={inv.id}
                     invoice={inv}
                     onView={(id) => setDetailId(id)}
+                    onPreview={(inv) => setPreviewInvoice(inv)}
                     onPay={(inv) => setPaymentInvoice(inv)}
+                    onQuickClose={(inv) =>
+                      quickCloseMutation.mutate({
+                        id: inv.id,
+                        data: {
+                          amount: inv.totalAmount - inv.paidAmount,
+                          method: "CASH",
+                          notes: "Quick close",
+                        },
+                      })
+                    }
                   />
                 )}
                 isLoading={isLoading}
@@ -429,11 +455,27 @@ export default function BillingMain() {
         open={!!detailId}
         onClose={() => setDetailId(null)}
         onPay={(inv) => setPaymentInvoice(inv)}
+        onPreview={(inv) => setPreviewInvoice(inv)}
+        onQuickClose={(inv) =>
+          quickCloseMutation.mutate({
+            id: inv.id,
+            data: {
+              amount: inv.totalAmount - inv.paidAmount,
+              method: "CASH",
+              notes: "Quick close",
+            },
+          })
+        }
       />
       <RecordPaymentDialog
         invoice={paymentInvoice}
         open={!!paymentInvoice}
         onClose={() => setPaymentInvoice(null)}
+      />
+      <InvoicePreviewDialog
+        invoice={previewInvoice}
+        open={!!previewInvoice}
+        onClose={() => setPreviewInvoice(null)}
       />
     </div>
   );

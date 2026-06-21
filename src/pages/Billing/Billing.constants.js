@@ -38,9 +38,8 @@ export const billingFilters = {
   endDate: "",
 };
 
-// ─── printInvoice ─────────────────────────────────────────────────────────────
-export function printInvoice(invoice) {
-  if (!invoice) return;
+// ─── buildInvoiceHtml ─────────────────────────────────────────────────────────
+export function buildInvoiceHtml(invoice) {
   const remaining = invoice.totalAmount - invoice.paidAmount;
   const orderRows = (invoice.saleOrders || [])
     .map((o) => {
@@ -162,6 +161,14 @@ export function printInvoice(invoice) {
         : ""
     }
   </body></html>`;
+
+  return html;
+}
+
+// ─── printInvoice ─────────────────────────────────────────────────────────────
+export function printInvoice(invoice) {
+  if (!invoice) return;
+  const html = buildInvoiceHtml(invoice);
 
   const win = window.open("", "_blank");
   if (!win) {
