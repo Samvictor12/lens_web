@@ -1,9 +1,11 @@
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pencil } from "lucide-react";
 
 /**
  * Column definitions for the Expenses table.
  */
-export const useExpenseColumns = () => {
+export const useExpenseColumns = (onEdit) => {
   return [
     {
       accessorKey: "expenseNumber",
@@ -29,6 +31,23 @@ export const useExpenseColumns = () => {
       sortable: false,
       cell: (e) => (
         <span className="font-medium text-xs">{e.category?.name || "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "expenseType",
+      header: "Classification",
+      sortable: false,
+      cell: (e) => (
+        <Badge
+          variant="outline"
+          className={
+            e.category?.expenseType === "DIRECT"
+              ? "text-xs font-normal bg-blue-100 text-blue-700 border-blue-300"
+              : "text-xs font-normal bg-gray-100 text-gray-700 border-gray-300"
+          }
+        >
+          {e.category?.expenseType === "DIRECT" ? "Direct" : "Indirect"}
+        </Badge>
       ),
     },
     {
@@ -70,6 +89,21 @@ export const useExpenseColumns = () => {
             minimumFractionDigits: 2,
           })}
         </span>
+      ),
+    },
+    {
+      accessorKey: "id",
+      header: "Actions",
+      align: "right",
+      cell: (e) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => onEdit?.(e)}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
       ),
     },
   ];

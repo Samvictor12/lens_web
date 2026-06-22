@@ -18,7 +18,7 @@ async function seedTestData() {
     `;
 
     // Create system user without department first
-    const hashedPassword = await bcrypt.hash('demo123', 10);
+    const hashedPassword = await bcrypt.hash('admin123', 10);
     await prisma.$executeRaw`
       INSERT INTO "User" (id, name, email, username, usercode, password, role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt", is_login)
       VALUES (1, 'Admin User', 'admin@lensbilling.com', 'admin', 'ADM001', ${hashedPassword}, 1, NULL, 1, true, false, NOW(), NOW(), false)
@@ -471,7 +471,7 @@ async function seedTestData() {
     console.log(`   - 3 sale orders created`);
     console.log('\n🔐 Login credentials:');
     console.log('   Username: admin');
-    console.log('   Password: demo123');
+    console.log('   Password: admin123');
     console.log('═══════════════════════════════════════\n');
 
   } catch (error) {

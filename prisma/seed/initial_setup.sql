@@ -115,7 +115,7 @@ ON CONFLICT DO NOTHING;
 
 -- 4. CREATE ADMIN USER
 -- ==========================================
--- Default password: demo123
+-- Default password: admin123
 -- NOTE: Change this password immediately after first login!
 INSERT INTO "User" (
   id,
@@ -151,7 +151,7 @@ VALUES (
   NULL,
   'ADM001',
   'admin',
-  '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- bcrypt hash of 'demo123'
+  '$2b$10$.dWfaq/2Go09celTjvEaqObtpuhHn7IRxHj2q2KPXvCSY46I8e.mO', -- bcrypt hash of 'admin123'
   false,
   1, -- Admin role
   NULL,
@@ -168,7 +168,7 @@ VALUES (
   NULL
 )
 ON CONFLICT (username) DO UPDATE SET
-  password = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+  password = '$2b$10$.dWfaq/2Go09celTjvEaqObtpuhHn7IRxHj2q2KPXvCSY46I8e.mO',
   email = 'admin@lensbilling.com',
   "updatedAt" = NOW();
 
@@ -203,10 +203,10 @@ ORDER BY p.subject, p.action;
 -- ==========================================
 -- PASSWORD HASH INFORMATION
 -- ==========================================
--- The password hash above is for 'demo123'
--- Generated using: bcrypt.hash('demo123', 10)
--- Hash: $2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
+-- The password hash above is for 'admin123'
+-- Generated using: bcrypt.hash('admin123', 10)
+-- Hash: $2b$10$.dWfaq/2Go09celTjvEaqObtpuhHn7IRxHj2q2KPXvCSY46I8e.mO
 --
 -- Credentials:
 -- Username: admin
--- Password: demo123
+-- Password: admin123

@@ -102,6 +102,7 @@ export const getReadyForDispatch = async (userId, roleName, filters = {}) => {
   const where = {
     deleteStatus: false,
     status: 'READY_FOR_DISPATCH',
+    dispatchCopyId: null,
   };
 
   // Delivery Person: default to their assigned orders; can be filtered by customer
@@ -109,7 +110,7 @@ export const getReadyForDispatch = async (userId, roleName, filters = {}) => {
     where.assignedPerson_id = userId;
   }
 
-  if (customerId) where.customer_id = Number(customerId);
+  if (customerId) where.customerId = Number(customerId);
   if (assignedPersonId) where.assignedPerson_id = Number(assignedPersonId);
   if (dateFrom || dateTo) {
     where.estimatedDate = {};
@@ -158,7 +159,7 @@ export const createDispatch = async (payload, userId) => {
   // Verify all sale orders exist, belong to this customer, and are READY_FOR_DISPATCH
   const saleOrders = await prisma.saleOrder.findMany({
     where: { id: { in: saleOrderIds.map(Number) }, deleteStatus: false },
-    select: { id: true, status: true, customer_id: true },
+    select: { id: true, status: true, customerId: true, dispatchCopyId: true },
   });
 
   if (saleOrders.length !== saleOrderIds.length) {
@@ -167,6 +168,14 @@ export const createDispatch = async (payload, userId) => {
   const notReady = saleOrders.filter((o) => o.status !== 'READY_FOR_DISPATCH');
   if (notReady.length > 0) {
     throw new APIError('All selected orders must have status READY_FOR_DISPATCH', 400, 'INVALID_STATUS');
+  }
+  const alreadyDispatched = saleOrders.filter((o) => o.dispatchCopyId != null);
+  if (alreadyDispatched.length > 0) {
+    throw new APIError('One or more orders are already assigned to a dispatch', 400, 'ALREADY_DISPATCHED');
+  }
+  const wrongCustomer = saleOrders.filter((o) => o.customerId !== Number(customerId));
+  if (wrongCustomer.length > 0) {
+    throw new APIError('All selected orders must belong to the same customer', 400, 'INVALID_INPUT');
   }
 
   const dcNumber = await generateDcNumber();
@@ -196,6 +205,7 @@ export const createDispatch = async (payload, userId) => {
       where: { id: { in: saleOrderIds.map(Number) } },
       data: {
         dispatchId: dcNumber,
+        dispatchCopyId: created.id,
         assignedPerson_id: deliveryPersonId ? Number(deliveryPersonId) : undefined,
         updatedBy: userId,
       },
@@ -210,7 +220,7 @@ export const createDispatch = async (payload, userId) => {
 // ─── List Dispatch Records ────────────────────────────────────────────────────
 
 export const getDispatchList = async (userId, roleName, filters = {}) => {
-  const { status, customerId, dateFrom, dateTo, search, page = 1, limit = 20 } = filters;
+  const { status, customerId, deliveryPersonId, dateFrom, dateTo, search, page = 1, limit = 20 } = filters;
 
   const where = {};
 
@@ -219,6 +229,7 @@ export const getDispatchList = async (userId, roleName, filters = {}) => {
   }
   if (status) where.status = status;
   if (customerId) where.customerId = Number(customerId);
+  if (deliveryPersonId && !isDeliveryPerson(roleName)) where.deliveryPersonId = Number(deliveryPersonId);
   if (dateFrom || dateTo) {
     where.expectedDeliveryDate = {};
     if (dateFrom) where.expectedDeliveryDate.gte = new Date(dateFrom);

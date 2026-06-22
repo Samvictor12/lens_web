@@ -1,4 +1,4 @@
-import { Eye, CreditCard } from "lucide-react";
+import { Eye, CreditCard, Zap, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fmt, STATUS_CONFIG } from "./Billing.constants";
@@ -16,12 +16,16 @@ export function InvoiceStatusBadge({ status }) {
 }
 
 // ─── InvoiceCard ──────────────────────────────────────────────────────────────
-export default function InvoiceCard({ invoice, onView, onPay }) {
+export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuickClose }) {
   const remaining = invoice.totalAmount - invoice.paidAmount;
   const pct =
     invoice.totalAmount > 0
       ? Math.min(100, (invoice.paidAmount / invoice.totalAmount) * 100)
       : 0;
+  const canQuickClose =
+    !["PAID", "CANCELLED"].includes(invoice.status) &&
+    invoice.paidAmount === 0 &&
+    remaining > 0.01;
 
   return (
     <Card className="hover:shadow-md transition-shadow flex flex-col h-full">
@@ -79,9 +83,27 @@ export default function InvoiceCard({ invoice, onView, onPay }) {
         >
           <Eye className="h-3.5 w-3.5" /> View
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-1"
+          onClick={() => onPreview(invoice)}
+        >
+          <FileText className="h-3.5 w-3.5" /> Preview
+        </Button>
         {!["PAID", "CANCELLED"].includes(invoice.status) && (
           <Button size="sm" className="flex-1 gap-1" onClick={() => onPay(invoice)}>
             <CreditCard className="h-3.5 w-3.5" /> Pay
+          </Button>
+        )}
+        {canQuickClose && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 gap-1"
+            onClick={() => onQuickClose(invoice)}
+          >
+            <Zap className="h-3.5 w-3.5" /> Quick Close
           </Button>
         )}
       </div>

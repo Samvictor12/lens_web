@@ -15,6 +15,7 @@ import {
     SheetTrigger,
 } from "@/components/ui/sheet";
 import { getDispatchList, updateDispatchStatus } from "@/services/dispatch";
+import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 import DispatchRecordCard from "./DispatchRecordCard";
 import SignatureModal from "./SignatureModal";
@@ -40,13 +41,18 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
     // Committed filters
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
+    const [deliveryAgentFilter, setDeliveryAgentFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
     // Temp filters (inside sheet before Apply)
     const [tempStatus, setTempStatus] = useState("");
+    const [tempDeliveryAgent, setTempDeliveryAgent] = useState("");
     const [tempDateFrom, setTempDateFrom] = useState("");
     const [tempDateTo, setTempDateTo] = useState("");
+
+    // Delivery agent dropdown options
+    const [deliveryAgents, setDeliveryAgents] = useState([]);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -67,6 +73,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
                 limit: PAGE_SIZE,
                 ...(search ? { search } : {}),
                 ...(statusFilter ? { status: statusFilter } : {}),
+                ...(deliveryAgentFilter ? { deliveryPersonId: deliveryAgentFilter } : {}),
                 ...(dateFrom ? { dateFrom } : {}),
                 ...(dateTo ? { dateTo } : {}),
             };
@@ -78,12 +85,29 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
         } finally {
             setIsLoading(false);
         }
-    }, [toast, page, search, statusFilter, dateFrom, dateTo]);
+    }, [toast, page, search, statusFilter, deliveryAgentFilter, dateFrom, dateTo]);
 
     useEffect(() => {
         const timeout = setTimeout(fetchList, search ? 400 : 0);
         return () => clearTimeout(timeout);
     }, [fetchList, refreshKey, search]);
+
+    useEffect(() => {
+        getDeliveryPersonsDropdown()
+            .then((res) => {
+                const list = res?.data || [];
+                setDeliveryAgents([
+                    { value: "", label: "All Delivery Agents" },
+                    ...list.map((u) => ({
+                        value: u.value ?? u.id,
+                        label: u.label ?? u.name,
+                    })),
+                ]);
+            })
+            .catch(() => {
+                toast({ title: "Error", description: "Failed to load delivery agents", variant: "destructive" });
+            });
+    }, [toast]);
 
     const handleSignatureConfirm = async (signature) => {
         if (!signatureDispatchId) return;
@@ -106,10 +130,11 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
         onStatusUpdated?.();
     };
 
-    const hasActiveFilters = !!(statusFilter || dateFrom || dateTo);
+    const hasActiveFilters = !!(statusFilter || deliveryAgentFilter || dateFrom || dateTo);
 
     const handleApplyFilters = () => {
         setStatusFilter(tempStatus);
+        setDeliveryAgentFilter(tempDeliveryAgent);
         setDateFrom(tempDateFrom);
         setDateTo(tempDateTo);
         setPage(1);
@@ -118,9 +143,11 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
 
     const handleClearFilters = () => {
         setTempStatus("");
+        setTempDeliveryAgent("");
         setTempDateFrom("");
         setTempDateTo("");
         setStatusFilter("");
+        setDeliveryAgentFilter("");
         setDateFrom("");
         setDateTo("");
         setPage(1);
@@ -129,6 +156,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
 
     const handleCancelFilters = () => {
         setTempStatus(statusFilter);
+        setTempDeliveryAgent(deliveryAgentFilter);
         setTempDateFrom(dateFrom);
         setTempDateTo(dateTo);
         setShowFilterSheet(false);
@@ -162,6 +190,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
                                     className="gap-1.5 h-8 relative"
                                     onClick={() => {
                                         setTempStatus(statusFilter);
+                                        setTempDeliveryAgent(deliveryAgentFilter);
                                         setTempDateFrom(dateFrom);
                                         setTempDateTo(dateTo);
                                     }}
@@ -190,6 +219,19 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
                                             value={tempStatus}
                                             onChange={(v) => setTempStatus(v || "")}
                                             placeholder="All statuses"
+                                            isClearable
+                                            isSearchable={false}
+                                        />
+                                    </div>
+
+                                    {/* Delivery Agent */}
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Delivery Agent</Label>
+                                        <FormSelect
+                                            options={deliveryAgents}
+                                            value={tempDeliveryAgent}
+                                            onChange={(v) => setTempDeliveryAgent(v || "")}
+                                            placeholder="All Delivery Agents"
                                             isClearable
                                             isSearchable={false}
                                         />

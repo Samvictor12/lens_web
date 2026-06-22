@@ -53,23 +53,6 @@ export const useChartOfAccountsColumns = (onEdit, onDelete) => {
       ),
     },
     {
-      accessorKey: "currentBalance",
-      header: "Current Bal.",
-      sortable: false,
-      cell: (l) => {
-        const v = parseFloat(l.currentBalance || 0);
-        return (
-          <span
-            className={`text-xs font-mono font-semibold ${
-              v < 0 ? "text-red-600" : "text-green-700"
-            }`}
-          >
-            ₹{v.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-          </span>
-        );
-      },
-    },
-    {
       accessorKey: "id",
       header: "Actions",
       align: "right",

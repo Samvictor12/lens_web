@@ -14,6 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Refresh } from "@/components/ui/Refresh";
 import {
@@ -62,7 +69,11 @@ export default function ExpenseCategoryMain() {
   // Open edit dialog
   const openEdit = (cat) => {
     setEditing(cat);
-    setForm({ name: cat.name, description: cat.description || "" });
+    setForm({
+      name: cat.name,
+      description: cat.description || "",
+      expenseType: cat.expenseType || "INDIRECT",
+    });
     setDialogOpen(true);
   };
 
@@ -260,6 +271,21 @@ export default function ExpenseCategoryMain() {
                 placeholder="Optional description"
                 rows={3}
               />
+            </div>
+            <div className="space-y-1">
+              <Label>Classification</Label>
+              <Select
+                value={form.expenseType}
+                onValueChange={(v) => setForm((f) => ({ ...f, expenseType: v }))}
+              >
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Select classification" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DIRECT">Direct Expense</SelectItem>
+                  <SelectItem value="INDIRECT">Indirect Expense</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

@@ -44,6 +44,7 @@ import expenseRoutes from './routes/expenses.routes.js';
 import vendorPaymentRoutes from './routes/vendorPayment.routes.js';
 import bankReconciliationRoutes from './routes/bankReconciliation.routes.js';
 import financialReportRoutes from './routes/financialReports.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 
 const app = express();
 
@@ -139,6 +140,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/vendor-payments', vendorPaymentRoutes);
 app.use('/api/bank-reconciliation', bankReconciliationRoutes);
 app.use('/api/financial-reports', financialReportRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

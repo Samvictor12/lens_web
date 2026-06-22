@@ -91,7 +91,7 @@ export default function ChartOfAccountsMain() {
     try {
       const params = { page: pageIndex + 1, limit: pageSize };
       if (searchQuery) params.search = searchQuery;
-      if (typeFilter !== "all") params.ledgerType = typeFilter;
+      if (typeFilter !== "all") params.type = typeFilter;
       const sortField = sorting[0]?.id || "ledgerCode";
       const sortDir = sorting[0]?.desc ? "desc" : "asc";
       params.sortField = sortField;
@@ -224,7 +224,6 @@ export default function ChartOfAccountsMain() {
                   </p>
                 </div>
                 <p className="text-lg font-bold">{g.count}</p>
-                <p className="text-xs text-muted-foreground">{fmt(g.balance)}</p>
               </CardContent>
             </Card>
           ))}

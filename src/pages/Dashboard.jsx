@@ -5,18 +5,27 @@ import {
   Package,
   FileText,
   Activity,
+  Trophy,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { dummySaleOrders, dummyCustomers, dummyLensVariants, dummyPurchaseOrders } from "@/lib/dummyData";
+import { dummyCustomers, dummyLensVariants, dummyPurchaseOrders } from "@/lib/dummyData";
+import { getDashboardSummary } from "@/services/dashboard";
+import { InvoiceStatusBadge } from "@/pages/Billing/InvoiceCard";
 
 export default function Dashboard() {
-  // Calculate stats
-  const totalSales = dummySaleOrders
-    .filter((o) => o.status === "delivered")
-    .reduce((sum, o) => sum + o.totalAmount, 0);
+  const { data: summaryRes, isLoading: summaryLoading } = useQuery({
+    queryKey: ["dashboard-summary"],
+    queryFn: getDashboardSummary,
+  });
 
+  const summary = summaryRes?.data;
+  const todaySales = summary?.todaySales || 0;
+  const top5Sales = summary?.top5Sales || [];
+  const topProduct = summary?.topProduct || null;
+
+  // Calculate stats (still mock — out of scope for this feature)
   const outstandingPayments = dummyCustomers.reduce(
     (sum, c) => sum + c.outstandingBalance,
     0
@@ -28,17 +37,6 @@ export default function Dashboard() {
 
   const pendingPOs = dummyPurchaseOrders.filter((po) => po.status === "pending" || po.status === "ordered").length;
 
-  const recentOrders = dummySaleOrders.slice(0, 5);
-
-  const statusColors = {
-    pending: "bg-warning/10 text-warning border-warning/20",
-    "in-production": "bg-primary/10 text-primary border-primary/20",
-    "ready-for-dispatch": "bg-accent/10 text-accent border-accent/20",
-    dispatched: "bg-success/10 text-success border-success/20",
-    delivered: "bg-success/10 text-success border-success/20",
-    returned: "bg-destructive/10 text-destructive border-destructive/20",
-  };
-
   return (
     <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4 animate-in fade-in duration-500">
       <div>
@@ -49,12 +47,17 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          title="Total Sales (MTD)"
-          value={`₹${totalSales.toLocaleString("en-IN")}`}
+          title="Today's Sales"
+          value={summaryLoading ? "—" : `₹${todaySales.toLocaleString("en-IN")}`}
           icon={DollarSign}
-          trend={{ value: "12.5% vs last month", isPositive: true }}
+        />
+        <StatCard
+          title="Top Selling Product"
+          value={summaryLoading ? "—" : topProduct ? topProduct.name : "No sales today"}
+          trend={topProduct ? { value: `₹${topProduct.revenue.toLocaleString("en-IN")} revenue`, isPositive: true } : undefined}
+          icon={Trophy}
         />
         <StatCard
           title="Outstanding Payments"
@@ -80,34 +83,38 @@ export default function Dashboard() {
           <CardHeader className="p-3 pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
               <Activity className="h-3.5 w-3.5 text-primary" />
-              Recent Orders
+              Top 5 Sales Today
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
             <div className="space-y-2">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                >
-                  <div className="space-y-0.5">
-                    <div className="font-medium text-xs">{order.orderNumber}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(order.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <div className="font-semibold text-xs">
-                        ₹{order.totalAmount.toLocaleString("en-IN")}
+              {summaryLoading ? (
+                <p className="text-xs text-muted-foreground py-2">Loading...</p>
+              ) : top5Sales.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No sales recorded today</p>
+              ) : (
+                top5Sales.map((sale) => (
+                  <div
+                    key={sale.invoiceNo}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="font-medium text-xs">{sale.invoiceNo}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {sale.customerName || "—"}
                       </div>
                     </div>
-                    <Badge className={`${statusColors[order.status]} text-xs px-1.5 py-0 h-5`} variant="outline">
-                      {order.status.replace(/-/g, " ")}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className="font-semibold text-xs">
+                          ₹{sale.totalAmount.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                      <InvoiceStatusBadge status={sale.status} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

@@ -45,10 +45,21 @@ export default function ExpensesMain() {
 
   // Dialog data
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
   const [categories, setCategories] = useState([]);
   const [bankLedgers, setBankLedgers] = useState([]);
 
-  const columns = useExpenseColumns();
+  const openCreate = () => {
+    setEditingExpense(null);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (expense) => {
+    setEditingExpense(expense);
+    setDialogOpen(true);
+  };
+
+  const columns = useExpenseColumns(openEdit);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -131,7 +142,7 @@ export default function ExpensesMain() {
             Track and manage business expenses
           </p>
         </div>
-        <Button size="xs" className="gap-1.5 h-8" onClick={() => setDialogOpen(true)}>
+        <Button size="xs" className="gap-1.5 h-8" onClick={openCreate}>
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Add Expense</span>
         </Button>
@@ -195,7 +206,11 @@ export default function ExpensesMain() {
       {/* Add Expense Dialog */}
       <AddExpenseDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingExpense(null);
+        }}
+        editing={editingExpense}
         categories={categories}
         bankLedgers={bankLedgers}
         onCreated={handleExpenseCreated}

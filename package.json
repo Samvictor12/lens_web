@@ -9,13 +9,21 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "nodemon --config nodemon.json",
+    "dev:all": "concurrently --kill-others-on-fail -n FE,SERVER -c cyan,green \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:server": "node src/backend/server.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:seed:ledgers": "node prisma/seed/financial-ledgers-seed.js",
+    "db:seed:accounting": "node prisma/seed/accounting-test-seed.js",
+    "db:seed:modules": "node prisma/seed/all-modules-test-seed.js",
+    "db:seed:dispatch": "node prisma/seed/dispatch-test-seed.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:accounting": "vitest run src/backend/__tests__/accounting"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -90,6 +98,7 @@
     "@tailwindcss/typography": "^0.5.16",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -98,8 +107,10 @@
     "nodemon": "^3.1.10",
     "postcss": "^8.5.6",
     "prisma": "^6.17.1",
+    "supertest": "^7.2.2",
     "tailwindcss": "^3.4.17",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "vitest": "^4.1.7"
   },
   "description": "**URL**: https://lovable.dev/projects/a0e40835-040e-457e-bc8a-aa2a22f98ca1",
   "main": "eslint.config.js",

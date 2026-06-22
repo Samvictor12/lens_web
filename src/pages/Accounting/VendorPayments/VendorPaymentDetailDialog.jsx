@@ -1,17 +1,46 @@
+import { useState } from "react";
+import { Printer, Lock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { PAYMENT_METHOD_LABELS } from "./VendorPayments.constants";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { closeVendorPayment } from "@/services/vendorPayment";
+import {
+  PAYMENT_METHOD_LABELS,
+  printVendorPaymentVoucher,
+} from "./VendorPayments.constants";
 
-export default function VendorPaymentDetailDialog({ open, onOpenChange, payment }) {
+export default function VendorPaymentDetailDialog({ open, onOpenChange, payment, onClosed }) {
+  const { toast } = useToast();
+  const [isClosing, setIsClosing] = useState(false);
+
   if (!payment) return null;
 
+  const handleClose = async () => {
+    setIsClosing(true);
+    try {
+      await closeVendorPayment(payment.id);
+      toast({ title: "Voucher closed" });
+      onClosed?.();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Failed to close voucher",
+        description: err?.message,
+      });
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
   const totalAllocated = (payment.items || []).reduce(
-    (s, i) => s + parseFloat(i.amount || 0),
+    (s, i) => s + parseFloat(i.allocatedAmount || 0),
     0
   );
 
@@ -19,7 +48,19 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Payment — {payment.voucherNumber}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Payment — {payment.voucherNumber}
+            <Badge
+              variant="outline"
+              className={
+                payment.closedStatus
+                  ? "text-xs font-normal bg-gray-100 text-gray-700 border-gray-300"
+                  : "text-xs font-normal bg-green-100 text-green-700 border-green-300"
+              }
+            >
+              {payment.closedStatus ? "Closed" : "Open"}
+            </Badge>
+          </DialogTitle>
         </DialogHeader>
 
         {/* Summary */}
@@ -42,7 +83,7 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Reference No.</p>
-            <p className="font-medium">{payment.referenceNumber || "—"}</p>
+            <p className="font-medium">{payment.referenceNo || "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Payment Account</p>
@@ -91,7 +132,7 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
                     )}
                   </div>
                   <span className="font-mono font-semibold">
-                    ₹{parseFloat(item.amount || 0).toLocaleString("en-IN", {
+                    ₹{parseFloat(item.allocatedAmount || 0).toLocaleString("en-IN", {
                       minimumFractionDigits: 2,
                     })}
                   </span>
@@ -106,6 +147,28 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
             </div>
           </div>
         )}
+
+        <DialogFooter className="flex flex-wrap gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => printVendorPaymentVoucher(payment)}
+          >
+            <Printer className="h-4 w-4" /> Print Voucher
+          </Button>
+          {!payment.closedStatus && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+              onClick={handleClose}
+              disabled={isClosing}
+            >
+              <Lock className="h-4 w-4" /> Close Voucher
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

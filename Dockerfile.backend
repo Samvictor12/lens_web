@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install production dependencies
-RUN npm Ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 # Copy backend source code
 COPY src/backend ./src/backend

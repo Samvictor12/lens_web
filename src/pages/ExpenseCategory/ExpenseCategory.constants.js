@@ -1,1 +1,1 @@
-export const emptyExpenseCategoryForm = { name: "", description: "" };
+export const emptyExpenseCategoryForm = { name: "", description: "", expenseType: "INDIRECT" };

@@ -33,6 +33,14 @@ export class FinancialReportService {
       where: { delete_status: false, ledgerType: { in: ['INCOME', 'EXPENSE'] } },
       select: { id: true, ledgerCode: true, ledgerName: true, ledgerType: true },
     });
+    // Ledger → expenseType map, to partition EXPENSE ledgers into Direct (COGS) vs Indirect (Opex)
+    const expenseCategoryLedgers = await prisma.expenseCategory.findMany({
+      where: { ledger_id: { not: null } },
+      select: { ledger_id: true, expenseType: true },
+    });
+    const directLedgerIds = new Set(
+      expenseCategoryLedgers.filter(c => c.expenseType === 'DIRECT').map(c => c.ledger_id)
+    );
     const gstInputLedger = await prisma.ledger.findFirst({ where: { ledgerCode: 'AC-1005' } });
     const gstOutputLedger = await prisma.ledger.findFirst({ where: { ledgerCode: 'AC-2003' } });
 
@@ -74,15 +82,17 @@ export class FinancialReportService {
 
     const gstOutput = parseFloat(gstOutputCredits._sum.amount || 0);
     const gstInput  = parseFloat(gstInputDebits._sum.amount  || 0);
-    const netRevenue = totalIncome - gstOutput;
+    // GST Input/Output are ASSET/LIABILITY ledgers — informational only, not netted into P&L totals.
+    const netRevenue = totalIncome;
 
-    // Split expenses: COGS (AC-4001) vs operating
-    const cogsLedger = expenseLedgers.find(l => l.ledgerCode === 'AC-4001');
-    const cogsAmount = cogsLedger ? parseFloat(expenseNet[cogsLedger.id] || 0) : 0;
+    // Split expenses: DIRECT (Cost of Goods Sold) vs INDIRECT (Operating Expenses), by ExpenseCategory.expenseType.
+    // Ledgers with no linked category (or no category at all) fall back to INDIRECT.
+    const directLedgers = expenseLedgers.filter(l => directLedgerIds.has(l.id));
+    const cogsAmount = directLedgers.reduce((s, l) => s + parseFloat(expenseNet[l.id] || 0), 0);
     const grossProfit = netRevenue - cogsAmount;
 
     const operatingExpenses = expenseLedgers
-      .filter(l => l.ledgerCode !== 'AC-4001')
+      .filter(l => !directLedgerIds.has(l.id))
       .map(l => ({ ledgerCode: l.ledgerCode, ledgerName: l.ledgerName, amount: parseFloat(expenseNet[l.id] || 0).toFixed(2) }));
     const totalOpex = operatingExpenses.reduce((s, e) => s + parseFloat(e.amount), 0);
 
@@ -95,7 +105,7 @@ export class FinancialReportService {
       netRevenue: netRevenue.toFixed(2),
       costOfGoodsSold: {
         total: cogsAmount.toFixed(2),
-        breakdown: cogsLedger ? [{ ledgerCode: cogsLedger.ledgerCode, ledgerName: cogsLedger.ledgerName, amount: cogsAmount.toFixed(2) }] : [],
+        breakdown: directLedgers.map(l => ({ ledgerCode: l.ledgerCode, ledgerName: l.ledgerName, amount: parseFloat(expenseNet[l.id] || 0).toFixed(2) })),
       },
       grossProfit: grossProfit.toFixed(2),
       gstInput: { total: gstInput.toFixed(2), ledgerName: gstInputLedger?.ledgerName || 'GST Input Credit' },

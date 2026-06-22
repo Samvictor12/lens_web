@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Receipt, Printer, Share2, MessageSquare, CreditCard, XCircle } from "lucide-react";
+import { Receipt, Printer, Share2, MessageSquare, CreditCard, XCircle, Zap, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,14 @@ import {
 } from "./Billing.constants";
 import { InvoiceStatusBadge } from "./InvoiceCard";
 
-export default function InvoiceDetailDialog({ invoiceId, open, onClose, onPay }) {
+export default function InvoiceDetailDialog({
+  invoiceId,
+  open,
+  onClose,
+  onPay,
+  onQuickClose,
+  onPreview,
+}) {
   const qc = useQueryClient();
 
   const { data: res, isLoading } = useQuery({
@@ -29,6 +36,12 @@ export default function InvoiceDetailDialog({ invoiceId, open, onClose, onPay })
     enabled: open && !!invoiceId,
   });
   const invoice = res?.data;
+
+  const canQuickClose =
+    invoice &&
+    !["PAID", "CANCELLED"].includes(invoice.status) &&
+    invoice.paidAmount === 0 &&
+    invoice.totalAmount - invoice.paidAmount > 0.01;
 
   const issueMutation = useMutation({
     mutationFn: issueInvoice,
@@ -175,6 +188,13 @@ export default function InvoiceDetailDialog({ invoiceId, open, onClose, onPay })
             <Button
               variant="outline"
               size="sm"
+              onClick={() => onPreview(invoice)}
+            >
+              <FileText className="h-4 w-4 mr-1" /> Preview
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               className="gap-1.5"
               onClick={() => printInvoice(invoice)}
             >
@@ -221,6 +241,16 @@ export default function InvoiceDetailDialog({ invoiceId, open, onClose, onPay })
                 >
                   <CreditCard className="h-3.5 w-3.5" /> Record Payment
                 </Button>
+                {canQuickClose && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => onQuickClose(invoice)}
+                  >
+                    <Zap className="h-3.5 w-3.5" /> Quick Close
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"

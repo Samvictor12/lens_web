@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, RefreshCw, ClipboardCheck, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ScanInput } from "@/components/ui/ScanInput";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -111,6 +112,32 @@ export default function QualityOperatorList() {
     setSearch(searchInput.trim());
   };
 
+  const handleScan = async (scannedOrderNo) => {
+    try {
+      const response = await getSaleOrders(
+        1,
+        1,
+        scannedOrderNo,
+        { statuses: "AWAITING_QUALITY" },
+        "orderDate",
+        "desc"
+      );
+      const results = response?.data || [];
+      if (
+        response?.success &&
+        results.length === 1 &&
+        results[0].orderNo === scannedOrderNo
+      ) {
+        navigate(`/quality/operator/${results[0].id}`);
+        return;
+      }
+    } catch {
+      // fall through to manual search behavior below
+    }
+    setSearchInput(scannedOrderNo);
+    setSearch(scannedOrderNo);
+  };
+
   return (
     <div className="w-full p-3 sm:p-4 md:p-6 space-y-4">
       {/* Header */}
@@ -140,6 +167,9 @@ export default function QualityOperatorList() {
         </div>
         <Button type="submit" variant="outline" size="sm">Search</Button>
       </form>
+
+      {/* Scan */}
+      <ScanInput placeholder="Scan order barcode/QR…" onScan={handleScan} />
 
       {/* Count */}
       {!isLoading && orders.length > 0 && (

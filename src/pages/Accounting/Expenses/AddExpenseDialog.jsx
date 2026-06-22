@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,15 +18,35 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { createExpense } from "@/services/expense";
+import { createExpense, updateExpense } from "@/services/expense";
 import { emptyExpenseForm } from "./Expenses.constants";
 
-export default function AddExpenseDialog({ open, onOpenChange, categories, bankLedgers, onCreated }) {
+export default function AddExpenseDialog({ open, onOpenChange, categories, bankLedgers, onCreated, editing = null }) {
   const { toast } = useToast();
   const [form, setForm] = useState(emptyExpenseForm);
   const [saving, setSaving] = useState(false);
+  const isEdit = Boolean(editing?.id);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setForm({
+        categoryId: String(editing.categoryId ?? editing.category?.id ?? ""),
+        description: editing.description || "",
+        amount: String(editing.amount ?? ""),
+        expenseDate: editing.expenseDate
+          ? new Date(editing.expenseDate).toISOString().split("T")[0]
+          : emptyExpenseForm.expenseDate,
+        paidTo: editing.paidTo || "",
+        bankLedgerId: String(editing.bankLedgerId ?? editing.bankLedger?.id ?? ""),
+        notes: editing.notes || "",
+      });
+    } else {
+      setForm(emptyExpenseForm);
+    }
+  }, [open, editing]);
 
   const handleSave = async () => {
     if (!form.categoryId || !form.amount) {
@@ -39,7 +59,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
     }
     setSaving(true);
     try {
-      await createExpense({
+      const payload = {
         categoryId: parseInt(form.categoryId),
         description: form.description || undefined,
         amount: parseFloat(form.amount),
@@ -47,8 +67,14 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
         paidTo: form.paidTo || undefined,
         bankLedgerId: form.bankLedgerId ? parseInt(form.bankLedgerId) : undefined,
         notes: form.notes || undefined,
-      });
-      toast({ title: "Expense recorded" });
+      };
+      if (isEdit) {
+        await updateExpense(editing.id, payload);
+        toast({ title: "Expense updated" });
+      } else {
+        await createExpense(payload);
+        toast({ title: "Expense recorded" });
+      }
       setForm(emptyExpenseForm);
       onCreated();
       onOpenChange(false);
@@ -68,7 +94,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Expense</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Expense" : "Add Expense"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="grid grid-cols-2 gap-3">
@@ -159,7 +185,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Record Expense"}
+            {saving ? "Saving..." : isEdit ? "Save Changes" : "Record Expense"}
           </Button>
         </DialogFooter>
       </DialogContent>

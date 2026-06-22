@@ -14,21 +14,21 @@ export class ExpenseService {
     });
   }
 
-  async createCategory({ name, ledger_id }, userId) {
+  async createCategory({ name, ledger_id, expenseType }, userId) {
     if (!name) throw new APIError('Category name is required', 400, 'VALIDATION_ERROR');
     const exists = await prisma.expenseCategory.findFirst({ where: { name } });
     if (exists) throw new APIError('Category already exists', 409, 'DUPLICATE');
     return prisma.expenseCategory.create({
-      data: { name, ledger_id: ledger_id || null, createdBy: userId },
+      data: { name, ledger_id: ledger_id || null, expenseType: expenseType || 'INDIRECT', createdBy: userId },
     });
   }
 
-  async updateCategory(id, { name, ledger_id }, userId) {
+  async updateCategory(id, { name, ledger_id, expenseType }, userId) {
     const cat = await prisma.expenseCategory.findFirst({ where: { id, delete_status: false } });
     if (!cat) throw new APIError('Category not found', 404, 'NOT_FOUND');
     return prisma.expenseCategory.update({
       where: { id },
-      data: { ...(name && { name }), ...(ledger_id !== undefined && { ledger_id: ledger_id || null }), updatedBy: userId },
+      data: { ...(name && { name }), ...(ledger_id !== undefined && { ledger_id: ledger_id || null }), ...(expenseType && { expenseType }), updatedBy: userId },
     });
   }
 
@@ -56,7 +56,7 @@ export class ExpenseService {
       prisma.expense.findMany({
         where,
         include: {
-          category: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true, expenseType: true } },
           bankLedger: { select: { id: true, ledgerName: true } },
           _count: { select: { logs: true } },
         },
