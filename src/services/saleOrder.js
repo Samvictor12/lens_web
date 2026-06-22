@@ -89,15 +89,33 @@ export const deleteSaleOrder = async (id) => {
 /**
  * Update sale order status only (for status transition buttons)
  */
-export const updateSaleOrderStatus = async (id, status, remark = undefined) => {
+export const updateSaleOrderStatus = async (id, status, remark = undefined, inventoryItemIds = undefined) => {
     try {
         const response = await apiClient("patch", `/sale-orders/${id}/status`, {
-            data: { status, ...(remark !== undefined && { remark }) },
+            data: { 
+                status, 
+                ...(remark !== undefined && { remark }),
+                ...(inventoryItemIds !== undefined && { inventoryItemIds })
+            },
         });
         return response;
     } catch (error) {
         throw new Error(
             error.response?.data?.message || "Failed to update sale order status"
+        );
+    }
+};
+
+/**
+ * Get matching available inventory items on a FIFO basis for a sale order
+ */
+export const getMatchingInventoryFIFO = async (saleOrderId) => {
+    try {
+        const response = await apiClient("get", `/sale-orders/${saleOrderId}/fifo-matches`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch FIFO matching stock"
         );
     }
 };

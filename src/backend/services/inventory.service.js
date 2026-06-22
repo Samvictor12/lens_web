@@ -1022,19 +1022,48 @@ export class InventoryService {
         tray_id,
         category_id,
         groupBy = null, // 'location' or 'location_tray' or null
+        search = "",
       } = queryParams;
 
       const skip = (page - 1) * limit;
       const take = limit;
-      const where = { deleteStatus: false };
+      
+      const isGrouped = groupBy && groupBy !== "none";
+      const where = isGrouped ? { lensProduct: { deleteStatus: false } } : { deleteStatus: false };
 
       if (lens_id) where.lens_id = lens_id;
       if (location_id) where.location_id = location_id;
       if (tray_id) where.tray_id = tray_id;
       if (category_id) where.category_id = category_id;
 
+      if (search) {
+        where.OR = [
+          {
+            lensProduct: {
+              lens_name: { contains: search, mode: "insensitive" }
+            }
+          },
+          {
+            lensProduct: {
+              product_code: { contains: search, mode: "insensitive" }
+            }
+          },
+          {
+            category: {
+              name: { contains: search, mode: "insensitive" }
+            }
+          },
+          {
+            location: {
+              name: { contains: search, mode: "insensitive" }
+            }
+          }
+        ];
+      }
+
       if (groupBy === "location") {
         // Group by location
+        const count = await prisma.inventoryStock.count({ where });
         const stocks = await prisma.inventoryStock.findMany({
           where,
           skip,
@@ -1045,6 +1074,7 @@ export class InventoryService {
             },
             category: { select: { id: true, name: true } },
             location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true } },
           },
           orderBy: { location_id: "asc" },
         });
@@ -1052,9 +1082,11 @@ export class InventoryService {
         return {
           data: stocks,
           grouping: "location",
+          total: count,
         };
       } else if (groupBy === "location_tray") {
         // Group by location and tray
+        const count = await prisma.inventoryStock.count({ where });
         const stocks = await prisma.inventoryStock.findMany({
           where,
           skip,
@@ -1073,9 +1105,57 @@ export class InventoryService {
         return {
           data: stocks,
           grouping: "location_tray",
+          total: count,
+        };
+      } else if (groupBy === "category") {
+        // Group by category
+        const count = await prisma.inventoryStock.count({ where });
+        const stocks = await prisma.inventoryStock.findMany({
+          where,
+          skip,
+          take,
+          include: {
+            lensProduct: {
+              select: { id: true, lens_name: true, product_code: true },
+            },
+            category: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true } },
+          },
+          orderBy: { category_id: "asc" },
+        });
+
+        return {
+          data: stocks,
+          grouping: "category",
+          total: count,
+        };
+      } else if (groupBy === "lens") {
+        // Group by lens product
+        const count = await prisma.inventoryStock.count({ where });
+        const stocks = await prisma.inventoryStock.findMany({
+          where,
+          skip,
+          take,
+          include: {
+            lensProduct: {
+              select: { id: true, lens_name: true, product_code: true },
+            },
+            category: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true } },
+          },
+          orderBy: { lens_id: "asc" },
+        });
+
+        return {
+          data: stocks,
+          grouping: "lens",
+          total: count,
         };
       } else {
         // No grouping - return items
+        const count = await prisma.inventoryItem.count({ where });
         const items = await prisma.inventoryItem.findMany({
           where,
           skip,
@@ -1093,6 +1173,7 @@ export class InventoryService {
         return {
           data: items,
           grouping: "none",
+          total: count,
         };
       }
     } catch (error) {
@@ -1100,7 +1181,8 @@ export class InventoryService {
       throw new APIError(
         "Failed to get inventory stock",
         500,
-        "GET_INVENTORY_STOCK_ERROR"
+        "GET_INVENTORY_STOCK_ERROR",
+        { originalError: error.message, stack: error.stack }
       );
     }
   }

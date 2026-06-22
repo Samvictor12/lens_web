@@ -45,7 +45,7 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {statCards.map(({ label, value, icon: Icon, className, iconClass }) => (

@@ -119,14 +119,105 @@ def health():
     })
 
 
+def decode_status(status):
+    statuses = []
+    if status == 0:
+        return "Ready"
+    if status & 0x00000001: statuses.append("Paused")
+    if status & 0x00000002: statuses.append("Error")
+    if status & 0x00000004: statuses.append("Pending Deletion")
+    if status & 0x00000008: statuses.append("Paper Jam")
+    if status & 0x00000010: statuses.append("Paper Out")
+    if status & 0x00000020: statuses.append("Paper Problem")
+    if status & 0x00000040: statuses.append("Out of Memory")
+    if status & 0x00000080: statuses.append("Offline")
+    if status & 0x00000100: statuses.append("IO Active")
+    if status & 0x00000200: statuses.append("Busy")
+    if status & 0x00000400: statuses.append("Printing")
+    if status & 0x00000800: statuses.append("Output Bin Full")
+    if status & 0x00001000: statuses.append("Not Available")
+    if status & 0x00002000: statuses.append("Waiting")
+    if status & 0x00004000: statuses.append("Processing")
+    if status & 0x00008000: statuses.append("Initializing")
+    if status & 0x00010000: statuses.append("Warming Up")
+    if status & 0x00020000: statuses.append("Toner Low")
+    if status & 0x00040000: statuses.append("No Toner")
+    if status & 0x00080000: statuses.append("Page Punt")
+    if status & 0x00100000: statuses.append("User Intervention Required")
+    if status & 0x00200000: statuses.append("Out of Paper")
+    if status & 0x00400000: statuses.append("Door Open")
+    return ", ".join(statuses) if statuses else f"Status ({status})"
+
+
 @app.route("/api/printers", methods=["GET"])
 def list_printers():
     try:
-        flags    = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
-        printers = [p[2] for p in win32print.EnumPrinters(flags)]
-        return jsonify({"printers": printers, "status": 200})
+        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        try:
+            # Query Level 2 to get the Status field
+            printers_info = win32print.EnumPrinters(flags, None, 2)
+            printers = []
+            details = []
+            for p in printers_info:
+                name = p.get('pPrinterName', '')
+                status_code = p.get('Status', 0)
+                status_str = decode_status(status_code)
+                printers.append(name)
+                details.append({
+                    "name": name,
+                    "status_code": status_code,
+                    "status": status_str
+                })
+            return jsonify({"printers": printers, "details": details, "status": 200})
+        except Exception as e:
+            log.warning(f"Failed to enum level 2: {e}, falling back to level 1")
+            printers_info = win32print.EnumPrinters(flags)
+            printers = [p[2] for p in printers_info]
+            details = [{"name": name, "status_code": 0, "status": "Ready"} for name in printers]
+            return jsonify({"printers": printers, "details": details, "status": 200})
     except Exception as e:
         log.error(f"list_printers: {e}")
+        return jsonify({"message": str(e), "status": 500}), 500
+
+
+@app.route("/api/printers/test-print", methods=["POST"])
+def test_print():
+    try:
+        data = request.json or {}
+        printer_name = data.get("printerName")
+        print_type = data.get("printType", "BARCODE_LABEL")
+        
+        if not printer_name:
+            return jsonify({"message": "printerName is required", "status": 400}), 400
+            
+        if print_type == "BARCODE_LABEL":
+            # Simple test ZPL label
+            zpl = (
+                "^XA\n"
+                "^FO40,30^A0N,30,20^FDTEST PRINT - OK^FS\n"
+                f"^FO40,65^A0N,18,12^FDPrinter: {printer_name}^FS\n"
+                "^FO40,95^A0N,18,12^FDConnection: local^FS\n"
+                "^PQ1,0,1,Y\n"
+                "^XZ"
+            )
+            raw = zpl.encode("utf-8")
+            _send_to_printer(printer_name, raw)
+        else:
+            # Standard print test for A4/A5 sent as raw text
+            test_text = (
+                "\r\n========================================\r\n"
+                "LENS PRINT SERVICE TEST PRINT\r\n"
+                f"Printer: {printer_name}\r\n"
+                f"Type: {print_type}\r\n"
+                "Status: OK\r\n"
+                "========================================\r\n\f"
+            )
+            raw = test_text.encode("utf-8")
+            _send_to_printer(printer_name, raw)
+            
+        return jsonify({"message": "Test print job spooled successfully", "status": 200})
+    except Exception as e:
+        log.error(f"test_print: {e}")
         return jsonify({"message": str(e), "status": 500}), 500
 
 

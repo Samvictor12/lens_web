@@ -42,6 +42,16 @@ export async function printBarcodeLabels({ printerName, topLabel, barcodeSerials
   return res.json();
 }
 
+export async function testLocalPrinter({ printerName, printType }) {
+  const res = await fetch(`${PRINT_SERVICE_URL}/api/printers/test-print`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ printerName, printType }),
+  });
+  if (!res.ok) throw new Error('Test print failed: print service returned an error');
+  return res.json();
+}
+
 // ── Printer config API (cloud backend) ───────────────────────────────────────
 
 export const getPrinterConfigs = () =>

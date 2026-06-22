@@ -9,19 +9,21 @@ import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
 import { FormSelect } from "@/components/ui/form-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { PrintPreviewModal } from "@/components/LensPrint/PrintPreviewModal";
+import { SaleOrderPrintModal } from "@/components/LensPrint/SaleOrderPrintModal";
 import { generatePONumber, createPurchaseOrder } from "@/services/purchaseOrder";
 import {
     createSaleOrder,
     getSaleOrderById,
     updateSaleOrder,
     updateSaleOrderStatus,
+    getMatchingInventoryFIFO,
     closeAndCreateSaleOrder,
     getCustomersDropdown,
     getLensProductsDropdown,
@@ -73,6 +75,11 @@ export default function SaleOrderForm() {
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [printActionMode, setPrintActionMode] = useState(null); // "create-and-print" or "print-existing"
+
+    // FIFO pick states
+    const [isFifoModalOpen, setIsFifoModalOpen] = useState(false);
+    const [fifoMatches, setFifoMatches] = useState({ rightEyeMatches: [], leftEyeMatches: [] });
+    const [selectedFifoItems, setSelectedFifoItems] = useState({ rightEyeItemId: null, leftEyeItemId: null });
 
     // Dropdown open states for split buttons
     const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
@@ -1079,8 +1086,10 @@ export default function SaleOrderForm() {
 
         switch (currentStatus) {
             case "DRAFT":
+            case "CONFIRMED":
+            case "ON_HOLD":
                 return {
-                    label: "Start Production",
+                    label: currentStatus === "ON_HOLD" ? "Resume Production" : "Start Production",
                     nextStatus: "IN_PRODUCTION",
                     icon: Play,
                     variant: "default",
@@ -1108,6 +1117,45 @@ export default function SaleOrderForm() {
         const statusAction = getStatusActionButton();
         if (!statusAction) return;
 
+        // If transitioning to IN_PRODUCTION, trigger the FIFO selection modal instead of direct update
+        if (statusAction.nextStatus === "IN_PRODUCTION") {
+            try {
+                setIsSaving(true);
+                const response = await getMatchingInventoryFIFO(parseInt(id));
+                if (response.success) {
+                    const matches = response.data;
+                    const rightMatches = matches.rightEyeMatches || [];
+                    const leftMatches = matches.leftEyeMatches || [];
+
+                    setFifoMatches({
+                        rightEyeMatches: rightMatches,
+                        leftEyeMatches: leftMatches,
+                    });
+
+                    // Pre-select the first match (FIFO) for each required eye
+                    const initialSelections = {};
+                    if (formData.rightEye && rightMatches.length > 0) {
+                        initialSelections.rightEyeItemId = rightMatches[0].id;
+                    }
+                    if (formData.leftEye && leftMatches.length > 0) {
+                        initialSelections.leftEyeItemId = leftMatches[0].id;
+                    }
+                    
+                    setSelectedFifoItems(initialSelections);
+                    setIsFifoModalOpen(true);
+                }
+            } catch (error) {
+                toast({
+                    title: "Error finding matching stock",
+                    description: error.message || "Failed to search inventory on FIFO basis.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsSaving(false);
+            }
+            return;
+        }
+
         const confirmMessage = `Are you sure you want to change status to "${statusAction.label}"?`;
         if (!window.confirm(confirmMessage)) return;
 
@@ -1133,6 +1181,62 @@ export default function SaleOrderForm() {
             toast({
                 title: "Error",
                 description: error.message || "Failed to update status",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleFifoConfirm = async () => {
+        const itemIds = [];
+        if (formData.rightEye) {
+            if (!selectedFifoItems.rightEyeItemId) {
+                toast({
+                    title: "Selection missing",
+                    description: "Please select an inventory item for the Right Eye.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            itemIds.push(selectedFifoItems.rightEyeItemId);
+        }
+        if (formData.leftEye) {
+            if (!selectedFifoItems.leftEyeItemId) {
+                toast({
+                    title: "Selection missing",
+                    description: "Please select an inventory item for the Left Eye.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            itemIds.push(selectedFifoItems.leftEyeItemId);
+        }
+
+        try {
+            setIsSaving(true);
+            const response = await updateSaleOrderStatus(parseInt(id), "IN_PRODUCTION", undefined, itemIds);
+
+            if (response.success) {
+                toast({
+                    title: "Success",
+                    description: "Order status updated to In Production and stock allocated successfully.",
+                    success: true,
+                });
+                setFormData((prev) => ({ ...prev, status: "IN_PRODUCTION" }));
+                setIsFifoModalOpen(false);
+                
+                // Refresh order data
+                const refreshResponse = await getSaleOrderById(parseInt(id));
+                if (refreshResponse.success) {
+                    setFormData(refreshResponse.data);
+                    setOriginalData(refreshResponse.data);
+                }
+            }
+        } catch (error) {
+            toast({
+                title: "Error moving to production",
+                description: error.message || "Failed to update status and allocate stock.",
                 variant: "destructive",
             });
         } finally {
@@ -2590,7 +2694,7 @@ export default function SaleOrderForm() {
             </div>
 
             {/* Print Preview Modal */}
-            <PrintPreviewModal
+            <SaleOrderPrintModal
                 isOpen={isPrintModalOpen}
                 onClose={closePrintModal}
                 onConfirm={handlePrintConfirm}
@@ -2598,6 +2702,213 @@ export default function SaleOrderForm() {
                 coatings={coatings}
                 isPrinting={isPrinting}
             />
+
+            {/* FIFO Inventory Item Pick Modal */}
+            <Dialog open={isFifoModalOpen} onOpenChange={setIsFifoModalOpen}>
+                <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                            <Package className="h-5 w-5 text-blue-600" />
+                            Inventory Stock Pick (FIFO Allocation)
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="space-y-6 py-4">
+                        <p className="text-sm text-slate-500">
+                            Select the matching available lenses physically being taken from inventory to start production for Sale Order <strong className="text-slate-800">{formData.orderNo}</strong>.
+                        </p>
+                        
+                        {/* Right Eye Stock Section */}
+                        {formData.rightEye && (
+                            <div className="space-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                    <h3 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
+                                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">R</Badge>
+                                        Right Eye Specs: 
+                                        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                                            SPH: {formData.rightSpherical} | CYL: {formData.rightCylindrical} {formData.rightAdd ? `| ADD: ${formData.rightAdd}` : ""}
+                                        </span>
+                                    </h3>
+                                    {fifoMatches.rightEyeMatches.length === 0 ? (
+                                        <Badge variant="destructive">No Stock Available</Badge>
+                                    ) : (
+                                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">
+                                            {fifoMatches.rightEyeMatches.length} matching item(s) found
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                {fifoMatches.rightEyeMatches.length === 0 ? (
+                                    <div className="text-center py-6 text-sm text-red-500 bg-red-50/50 rounded-lg border border-dashed border-red-100">
+                                        No matching items found in inventory for Right Eye specifications.
+                                    </div>
+                                ) : (
+                                    <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b text-xs uppercase">
+                                                <tr>
+                                                    <th className="p-3 w-12 text-center">Select</th>
+                                                    <th className="p-3">Inward Date (FIFO)</th>
+                                                    <th className="p-3">Tray</th>
+                                                    <th className="p-3">Location</th>
+                                                    <th className="p-3 text-right">Available Qty</th>
+                                                    <th className="p-3 text-right">Cost Price</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {fifoMatches.rightEyeMatches.map((item, idx) => (
+                                                    <tr 
+                                                        key={item.id} 
+                                                        onClick={() => setSelectedFifoItems(prev => ({ ...prev, rightEyeItemId: item.id }))}
+                                                        className={`hover:bg-slate-50/50 cursor-pointer ${selectedFifoItems.rightEyeItemId === item.id ? "bg-blue-50/30 font-medium" : ""}`}
+                                                    >
+                                                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                            <input 
+                                                                type="radio" 
+                                                                name="rightEyeItem"
+                                                                checked={selectedFifoItems.rightEyeItemId === item.id}
+                                                                onChange={() => setSelectedFifoItems(prev => ({ ...prev, rightEyeItemId: item.id }))}
+                                                                className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                                            />
+                                                        </td>
+                                                        <td className="p-3 text-slate-700 flex items-center gap-2">
+                                                            {idx === 0 && (
+                                                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
+                                                            )}
+                                                            {new Date(item.inwardDate).toLocaleDateString("en-IN", {
+                                                                day: "2-digit",
+                                                                month: "short",
+                                                                year: "numeric"
+                                                            })}
+                                                        </td>
+                                                        <td className="p-3 font-semibold text-slate-800">
+                                                            {item.tray ? `${item.tray.name} (Cap: ${item.tray.capacity})` : "N/A"}
+                                                        </td>
+                                                        <td className="p-3 text-slate-600">
+                                                            {item.location ? item.location.name : "N/A"}
+                                                        </td>
+                                                        <td className="p-3 text-right font-medium text-slate-700">
+                                                            {item.quantity}
+                                                        </td>
+                                                        <td className="p-3 text-right text-slate-600 font-mono">
+                                                            ₹{parseFloat(item.costPrice).toFixed(2)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Left Eye Stock Section */}
+                        {formData.leftEye && (
+                            <div className="space-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                    <h3 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
+                                        <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">L</Badge>
+                                        Left Eye Specs: 
+                                        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                                            SPH: {formData.leftSpherical} | CYL: {formData.leftCylindrical} {formData.leftAdd ? `| ADD: ${formData.leftAdd}` : ""}
+                                        </span>
+                                    </h3>
+                                    {fifoMatches.leftEyeMatches.length === 0 ? (
+                                        <Badge variant="destructive">No Stock Available</Badge>
+                                    ) : (
+                                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">
+                                            {fifoMatches.leftEyeMatches.length} matching item(s) found
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                {fifoMatches.leftEyeMatches.length === 0 ? (
+                                    <div className="text-center py-6 text-sm text-red-500 bg-red-50/50 rounded-lg border border-dashed border-red-100">
+                                        No matching items found in inventory for Left Eye specifications.
+                                    </div>
+                                ) : (
+                                    <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b text-xs uppercase">
+                                                <tr>
+                                                    <th className="p-3 w-12 text-center">Select</th>
+                                                    <th className="p-3">Inward Date (FIFO)</th>
+                                                    <th className="p-3">Tray</th>
+                                                    <th className="p-3">Location</th>
+                                                    <th className="p-3 text-right">Available Qty</th>
+                                                    <th className="p-3 text-right">Cost Price</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {fifoMatches.leftEyeMatches.map((item, idx) => (
+                                                    <tr 
+                                                        key={item.id} 
+                                                        onClick={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
+                                                        className={`hover:bg-slate-50/50 cursor-pointer ${selectedFifoItems.leftEyeItemId === item.id ? "bg-purple-50/30 font-medium" : ""}`}
+                                                    >
+                                                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                            <input 
+                                                                type="radio" 
+                                                                name="leftEyeItem"
+                                                                checked={selectedFifoItems.leftEyeItemId === item.id}
+                                                                onChange={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
+                                                                className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500"
+                                                            />
+                                                        </td>
+                                                        <td className="p-3 text-slate-700 flex items-center gap-2">
+                                                            {idx === 0 && (
+                                                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
+                                                            )}
+                                                            {new Date(item.inwardDate).toLocaleDateString("en-IN", {
+                                                                day: "2-digit",
+                                                                month: "short",
+                                                                year: "numeric"
+                                                            })}
+                                                        </td>
+                                                        <td className="p-3 font-semibold text-slate-800">
+                                                            {item.tray ? `${item.tray.name} (Cap: ${item.tray.capacity})` : "N/A"}
+                                                        </td>
+                                                        <td className="p-3 text-slate-600">
+                                                            {item.location ? item.location.name : "N/A"}
+                                                        </td>
+                                                        <td className="p-3 text-right font-medium text-slate-700">
+                                                            {item.quantity}
+                                                        </td>
+                                                        <td className="p-3 text-right text-slate-600 font-mono">
+                                                            ₹{parseFloat(item.costPrice).toFixed(2)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button 
+                            variant="outline" 
+                            onClick={() => setIsFifoModalOpen(false)}
+                            disabled={isSaving}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={
+                                isSaving || 
+                                (formData.rightEye && !selectedFifoItems.rightEyeItemId) || 
+                                (formData.leftEye && !selectedFifoItems.leftEyeItemId)
+                            }
+                            onClick={handleFifoConfirm}
+                        >
+                            {isSaving ? "Processing..." : "Confirm & Move to Production"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
         </div >
     );

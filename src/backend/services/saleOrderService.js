@@ -797,92 +797,274 @@ export class SaleOrderService {
    * @param {string} [remark] - Optional remark (used for QC rejection reason)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateStatus(id, status, userId, req = null, remark = undefined) {
+  async updateStatus(id, status, userId, req = null, remark = undefined, inventoryItemIds = undefined) {
     try {
-      const existing = await prisma.saleOrder.findUnique({
-        where: { id },
-        include: {
-          customer: true
+      // Helper function to generate transaction numbers transactionally
+      const generateInventoryTransactionNo = async (tx) => {
+        const year = new Date().getFullYear();
+        const month = String(new Date().getMonth() + 1).padStart(2, "0");
+
+        const latestTransaction = await tx.inventoryTransaction.findFirst({
+          where: {
+            transactionNo: {
+              startsWith: `IT-${year}-${month}-`,
+            },
+          },
+          orderBy: { transactionNo: "desc" },
+          select: { transactionNo: true },
+        });
+
+        let sequence = 1;
+        if (latestTransaction) {
+          const parts = latestTransaction.transactionNo.split("-");
+          sequence = parseInt(parts[3]) + 1;
         }
-      });
 
-      if (!existing || existing.deleteStatus) {
-        const error = new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
-        await logNotFoundError({
-          error,
-          userId,
-          req,
-          resource: 'SaleOrder',
-          resourceId: id,
-          metadata: { operation: 'updateStatus' }
+        return `IT-${year}-${month}-${String(sequence).padStart(3, "0")}`;
+      };
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const existing = await tx.saleOrder.findUnique({
+          where: { id },
+          include: {
+            customer: true
+          }
         });
-        throw error;
-      }
 
-      // Validate status
-      const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED', 'BILLED'];
-      if (!validStatuses.includes(status)) {
-        const error = new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
-        await logValidationError({
-          error,
-          userId,
-          req,
-          validationDetails: {
-            field: 'status',
-            provided: status,
-            allowed: validStatuses
-          },
-          metadata: { operation: 'updateStatus', saleOrderId: id }
-        });
-        throw error;
-      }
+        if (!existing || existing.deleteStatus) {
+          throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+        }
 
-      const updated = await prisma.saleOrder.update({
-        where: { id },
-        data: {
-          status,
-          updatedBy: userId,
-          ...(remark !== undefined && { remark })
-        },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              code: true,
-              name: true
+        // Validate status
+        const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED', 'BILLED'];
+        if (!validStatuses.includes(status)) {
+          throw new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
+        }
+
+        let targetStatus = status;
+
+        // A. FIFO Pick-to-Production
+        if (status === 'IN_PRODUCTION') {
+          if (!inventoryItemIds || !Array.isArray(inventoryItemIds) || inventoryItemIds.length === 0) {
+            throw new APIError('Inventory items must be selected to move to production', 400, 'INVENTORY_REQUIRED');
+          }
+
+          // Fetch the inventory items
+          const items = await tx.inventoryItem.findMany({
+            where: { id: { in: inventoryItemIds }, deleteStatus: false }
+          });
+
+          if (items.length !== inventoryItemIds.length) {
+            throw new APIError('One or more selected inventory items could not be found', 404, 'INVENTORY_NOT_FOUND');
+          }
+
+          if (items.some(item => item.status !== 'AVAILABLE')) {
+            throw new APIError('One or more selected inventory items are not available', 400, 'INVENTORY_NOT_AVAILABLE');
+          }
+
+          // Verify exact match
+          if (existing.rightEye) {
+            const rightMatch = items.find(item => 
+              item.lens_id === existing.lens_id &&
+              item.rightSpherical === existing.rightSpherical &&
+              item.rightCylindrical === existing.rightCylindrical &&
+              (!existing.rightAdd || item.rightAdd === existing.rightAdd)
+            );
+            if (!rightMatch) {
+              throw new APIError('No matching inventory item found for Right Eye specifications', 400, 'RIGHT_EYE_SPEC_MISMATCH');
             }
-          },
-          updatedByUser: {
-            select: {
-              id: true,
-              name: true
+          }
+
+          if (existing.leftEye) {
+            const leftMatch = items.find(item => 
+              item.lens_id === existing.lens_id &&
+              item.leftSpherical === existing.leftSpherical &&
+              item.leftCylindrical === existing.leftCylindrical &&
+              (!existing.leftAdd || item.leftAdd === existing.leftAdd)
+            );
+            if (!leftMatch) {
+              throw new APIError('No matching inventory item found for Left Eye specifications', 400, 'LEFT_EYE_SPEC_MISMATCH');
+            }
+          }
+
+          // Deduct stock for each selected item
+          for (const item of items) {
+            const transactionNo = await generateInventoryTransactionNo(tx);
+
+            // Log OUTWARD_SALE transaction
+            await tx.inventoryTransaction.create({
+              data: {
+                transactionNo,
+                type: 'OUTWARD_SALE',
+                inventoryItemId: item.id,
+                quantity: -item.quantity,
+                balanceAfter: 0,
+                unitPrice: item.costPrice,
+                totalValue: item.quantity * item.costPrice,
+                saleOrderId: id,
+                reason: `Picked for Sale Order ${existing.orderNo}`,
+                createdBy: userId
+              }
+            });
+
+            // Update item quantity to 0 and status to IN_PRODUCTION
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: {
+                quantity: 0,
+                status: 'IN_PRODUCTION',
+                saleOrderId: id,
+                reservedDate: new Date(),
+                updatedBy: userId
+              }
+            });
+
+            // Update stock levels
+            const stockKey = {
+              lens_id: item.lens_id,
+              category_id: item.category_id,
+              Type_id: item.Type_id,
+              coating_id: item.coating_id,
+              location_id: item.location_id,
+              tray_id: item.tray_id
+            };
+
+            const existingStock = await tx.inventoryStock.findFirst({
+              where: stockKey
+            });
+
+            if (existingStock) {
+              await tx.inventoryStock.update({
+                where: { id: existingStock.id },
+                data: {
+                  totalStock: Math.max(0, existingStock.totalStock - item.quantity),
+                  availableStock: Math.max(0, existingStock.availableStock - item.quantity),
+                  lastOutwardDate: new Date()
+                }
+              });
             }
           }
         }
-      });
 
-      // ✅ LOG THE STATUS UPDATE
-      await logUpdate({
-        userId,
-        entity: 'SaleOrder',
-        entityId: updated.id,
-        oldValues: { status: existing.status },
-        newValues: { status: updated.status },
-        req,
-        metadata: {
-          orderNo: updated.orderNo,
-          customerName: updated.customer?.name,
-          oldStatus: existing.status,
-          newStatus: updated.status,
-          operation: 'Sale order status updated'
+        // B. QC Damage Rejection
+        if (status === 'ON_HOLD') {
+          const pickedItems = await tx.inventoryItem.findMany({
+            where: { saleOrderId: id, status: 'IN_PRODUCTION', deleteStatus: false }
+          });
+
+          if (pickedItems.length > 0) {
+            for (const item of pickedItems) {
+              const transactionNo = await generateInventoryTransactionNo(tx);
+
+              // Log DAMAGE transaction
+              await tx.inventoryTransaction.create({
+                data: {
+                  transactionNo,
+                  type: 'DAMAGE',
+                  inventoryItemId: item.id,
+                  quantity: 0, // already deducted, but we log the damage transaction
+                  balanceAfter: 0,
+                  unitPrice: item.costPrice,
+                  totalValue: 0,
+                  saleOrderId: id,
+                  reason: remark || 'QC Rejection / Lens Damaged in Production',
+                  createdBy: userId
+                }
+              });
+
+              // Transition item to DAMAGED
+              await tx.inventoryItem.update({
+                where: { id: item.id },
+                data: {
+                  status: 'DAMAGED',
+                  updatedBy: userId
+                }
+              });
+
+              // Update stock summary
+              const stockKey = {
+                lens_id: item.lens_id,
+                category_id: item.category_id,
+                Type_id: item.Type_id,
+                coating_id: item.coating_id,
+                location_id: item.location_id,
+                tray_id: item.tray_id
+              };
+
+              const existingStock = await tx.inventoryStock.findFirst({
+                where: stockKey
+              });
+
+              // Get original quantity from OUTWARD_SALE transaction
+              const outwardTx = await tx.inventoryTransaction.findFirst({
+                where: { inventoryItemId: item.id, type: 'OUTWARD_SALE', saleOrderId: id }
+              });
+              const originalQty = outwardTx ? Math.abs(outwardTx.quantity) : 1.0;
+
+              if (existingStock) {
+                await tx.inventoryStock.update({
+                  where: { id: existingStock.id },
+                  data: {
+                    damagedStock: existingStock.damagedStock + originalQty
+                  }
+                });
+              }
+            }
+
+            // Reset the order status to CONFIRMED so they can pick new stock
+            targetStatus = 'CONFIRMED';
+          }
         }
+
+        // Update the Sale Order status
+        const updatedOrder = await tx.saleOrder.update({
+          where: { id },
+          data: {
+            status: targetStatus,
+            updatedBy: userId,
+            ...(remark !== undefined && { remark })
+          },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                code: true,
+                name: true
+              }
+            },
+            updatedByUser: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        });
+
+        // ✅ LOG THE STATUS UPDATE
+        await logUpdate({
+          userId,
+          entity: 'SaleOrder',
+          entityId: updatedOrder.id,
+          oldValues: { status: existing.status },
+          newValues: { status: updatedOrder.status },
+          req,
+          metadata: {
+            orderNo: updatedOrder.orderNo,
+            customerName: updatedOrder.customer?.name,
+            oldStatus: existing.status,
+            newStatus: updatedOrder.status,
+            operation: 'Sale order status updated'
+          }
+        });
+
+        return updatedOrder;
       });
 
       return updated;
     } catch (error) {
       if (error instanceof APIError) throw error;
-      
-      // ✅ LOG THE ERROR
+
       await logDatabaseError({
         error,
         userId,
@@ -893,9 +1075,92 @@ export class SaleOrderService {
           newStatus: status
         }
       }).catch(err => console.error('Error log failed:', err));
-      
+
       console.error('Error updating order status:', error);
       throw new APIError('Failed to update order status', 500, 'UPDATE_STATUS_ERROR');
+    }
+  }
+
+  /**
+   * Get matching available inventory items on a FIFO basis for a sale order
+   * @param {number} saleOrderId - Sale order ID
+   * @returns {Promise<Object>} Object containing rightEyeMatches and leftEyeMatches arrays
+   */
+  async getMatchingInventoryFIFO(saleOrderId) {
+    try {
+      const saleOrder = await prisma.saleOrder.findUnique({
+        where: { id: saleOrderId, deleteStatus: false }
+      });
+
+      if (!saleOrder) {
+        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+      }
+
+      const results = {
+        rightEyeMatches: [],
+        leftEyeMatches: []
+      };
+
+      // Helper function to build query conditions
+      const buildWhereClause = (eyeType) => {
+        const where = {
+          status: 'AVAILABLE',
+          deleteStatus: false,
+          quantity: { gt: 0 }
+        };
+
+        if (saleOrder.lens_id) where.lens_id = saleOrder.lens_id;
+        if (saleOrder.category_id) where.category_id = saleOrder.category_id;
+        if (saleOrder.Type_id) where.Type_id = saleOrder.Type_id;
+        if (saleOrder.coating_id) where.coating_id = saleOrder.coating_id;
+        if (saleOrder.dia_id) where.dia_id = saleOrder.dia_id;
+        if (saleOrder.fitting_id) where.fitting_id = saleOrder.fitting_id;
+        if (saleOrder.tinting_id) where.tinting_id = saleOrder.tinting_id;
+
+        if (eyeType === 'right') {
+          where.rightSpherical = saleOrder.rightSpherical;
+          where.rightCylindrical = saleOrder.rightCylindrical;
+          if (saleOrder.rightAdd) {
+            where.rightAdd = saleOrder.rightAdd;
+          }
+        } else {
+          where.leftSpherical = saleOrder.leftSpherical;
+          where.leftCylindrical = saleOrder.leftCylindrical;
+          if (saleOrder.leftAdd) {
+            where.leftAdd = saleOrder.leftAdd;
+          }
+        }
+
+        return where;
+      };
+
+      if (saleOrder.rightEye) {
+        results.rightEyeMatches = await prisma.inventoryItem.findMany({
+          where: buildWhereClause('right'),
+          orderBy: { inwardDate: 'asc' }, // FIFO
+          include: {
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true, capacity: true } }
+          }
+        });
+      }
+
+      if (saleOrder.leftEye) {
+        results.leftEyeMatches = await prisma.inventoryItem.findMany({
+          where: buildWhereClause('left'),
+          orderBy: { inwardDate: 'asc' }, // FIFO
+          include: {
+            location: { select: { id: true, name: true } },
+            tray: { select: { id: true, name: true, capacity: true } }
+          }
+        });
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Error in getMatchingInventoryFIFO:', error);
+      if (error instanceof APIError) throw error;
+      throw new APIError('Failed to get matching inventory', 500, 'FIFO_MATCH_ERROR');
     }
   }
 

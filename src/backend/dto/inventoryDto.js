@@ -274,7 +274,7 @@ export const validateQueryParams = (params) => {
   }
 
   // Filters
-  if (params.status) {
+  if (params.status && params.status !== 'all') {
     const validStatuses = ['AVAILABLE', 'RESERVED', 'IN_PRODUCTION', 'DAMAGED', 'RETURNED', 'QUALITY_CHECK'];
     if (!validStatuses.includes(params.status)) {
       errors.push({ field: 'status', message: `Status must be one of: ${validStatuses.join(', ')}` });

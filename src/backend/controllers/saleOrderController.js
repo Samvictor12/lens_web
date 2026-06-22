@@ -190,13 +190,43 @@ export class SaleOrderController {
         validation.data.status,
         userId,
         req,
-        validation.data.remark
+        validation.data.remark,
+        validation.data.inventoryItemIds
       );
 
       res.status(200).json({
         success: true,
         message: 'Sale order status updated successfully',
         data: saleOrder
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get matching available inventory items on a FIFO basis for a sale order
+   * GET /api/sale-orders/:id/fifo-matches
+   */
+  async getFifoMatches(req, res, next) {
+    try {
+      // Validate ID parameter
+      const idValidation = validateIdParam(req.params.id);
+
+      if (!idValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: idValidation.errors
+        });
+      }
+
+      const matches = await this.saleOrderService.getMatchingInventoryFIFO(idValidation.data);
+
+      res.status(200).json({
+        success: true,
+        message: 'FIFO matches retrieved successfully',
+        data: matches
       });
     } catch (error) {
       next(error);

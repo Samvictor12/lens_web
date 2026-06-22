@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Warehouse } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Refresh } from '@/components/ui/Refresh';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table } from '@/components/ui/table';
@@ -24,6 +25,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
 
   useEffect(() => {
     const loadQueue = async () => {
@@ -56,7 +58,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
     };
 
     loadQueue();
-  }, [pageIndex, pageSize, refreshKey, searchQuery, toast]);
+  }, [pageIndex, pageSize, refreshKey, searchQuery, toast, localRefreshKey]);
 
   const columns = useMemo(
     () => [
@@ -131,17 +133,23 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
   return (
     <div className="flex flex-col h-full gap-2">
       <Card className="p-1 flex-shrink-0">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search receipt no, PO no, vendor, lens..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPageIndex(0);
-            }}
-            className="pl-9 h-8 text-sm"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search receipt no, PO no, vendor, lens..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPageIndex(0);
+              }}
+              className="pl-9 h-8 text-sm"
+            />
+          </div>
+          <Refresh onClick={() => {
+            setLocalRefreshKey(prev => prev + 1);
+            setPageIndex(0);
+          }} />
         </div>
       </Card>
 

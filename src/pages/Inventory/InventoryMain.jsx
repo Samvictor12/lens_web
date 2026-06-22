@@ -201,7 +201,7 @@ const InventoryMain = () => {
   };
 
   return (
-    <div className="flex flex-col h-full p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Inventory Management</h1>
@@ -210,7 +210,6 @@ const InventoryMain = () => {
           </p>
         </div>
         <div className="flex gap-1.5">
-          <Refresh onClick={handleRefresh} />
           <Button
             variant="outline"
             size="xs"
@@ -231,8 +230,8 @@ const InventoryMain = () => {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => navigate(tabRoutes[value])} className="flex flex-col h-full gap-2">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={activeTab} onValueChange={(value) => navigate(tabRoutes[value])} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="grid w-full grid-cols-5 mb-4 flex-shrink-0">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="items">Items</TabsTrigger>
           <TabsTrigger value="inward">Inward Queue</TabsTrigger>
@@ -240,11 +239,11 @@ const InventoryMain = () => {
           <TabsTrigger value="stock">Stock Summary</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard" className="mt-0">
+        <TabsContent value="dashboard" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryDashboard stats={dashboardStats} isLoading={dashboardLoading} onRefresh={handleRefresh} />
         </TabsContent>
 
-        <TabsContent value="items" className="flex flex-col h-full gap-2 mt-0">
+        <TabsContent value="items" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden gap-2">
           <Card className="p-1 sm:p-1 flex-shrink-0">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative flex-1">
@@ -285,6 +284,7 @@ const InventoryMain = () => {
                   }}
                   dropdownData={dropdownData}
                 />
+                <Refresh onClick={handleRefresh} />
               </div>
             </div>
           </Card>
@@ -343,15 +343,15 @@ const InventoryMain = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="inward" className="flex flex-col h-full mt-0">
+        <TabsContent value="inward" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryInwardQueueTab refreshKey={refreshKey} />
         </TabsContent>
 
-        <TabsContent value="transactions" className="flex flex-col h-full mt-0">
+        <TabsContent value="transactions" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryTransactionsTab refreshKey={refreshKey} />
         </TabsContent>
 
-        <TabsContent value="stock" className="flex flex-col h-full mt-0">
+        <TabsContent value="stock" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryStockTab refreshKey={refreshKey} />
         </TabsContent>
       </Tabs>

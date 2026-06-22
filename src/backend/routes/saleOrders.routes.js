@@ -874,6 +874,11 @@ router.put('/:id',
  *       403:
  *         description: Forbidden - Insufficient permissions
  */
+router.get('/:id/fifo-matches',
+  authenticateToken,
+  controller.getFifoMatches.bind(controller)
+);
+
 router.patch('/:id/status',
   authenticateToken,
   // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing

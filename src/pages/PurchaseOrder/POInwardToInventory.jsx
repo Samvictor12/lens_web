@@ -286,6 +286,19 @@ export default function POInwardToInventory() {
       return false;
     }
 
+    // Calculate total quantity allocated to each tray across the whole batch
+    const trayAllocations = {};
+    for (const row of pendingRows) {
+      const splits = rowSplits[row.key] || [];
+      const activeSplits = splits.filter((sp) => parseFloat(sp.qty) > 0);
+      for (const sp of activeSplits) {
+        if (sp.tray_id) {
+          const tId = parseInt(sp.tray_id);
+          trayAllocations[tId] = (trayAllocations[tId] || 0) + parseFloat(sp.qty);
+        }
+      }
+    }
+
     for (const row of pendingRows) {
       const splits = rowSplits[row.key] || [];
       const activeSplits = splits.filter((sp) => parseFloat(sp.qty) > 0);
@@ -310,6 +323,33 @@ export default function POInwardToInventory() {
             variant: "destructive",
           });
           return false;
+        }
+
+        const tId = parseInt(sp.tray_id);
+        const selectedTrayOccupancy = trayOccupancyData[tId];
+        if (selectedTrayOccupancy) {
+          const available = selectedTrayOccupancy.availableQty || 0;
+          const allocatedToThisTray = trayAllocations[tId] || 0;
+
+          if (parseFloat(sp.qty) > available) {
+            scrollToRow(row.key);
+            toast({
+              title: "Tray capacity exceeded",
+              description: `Tray "${selectedTrayOccupancy.trayName}" only has space for ${available} items, but you entered ${sp.qty}.`,
+              variant: "destructive",
+            });
+            return false;
+          }
+
+          if (allocatedToThisTray > available) {
+            scrollToRow(row.key);
+            toast({
+              title: "Tray capacity exceeded",
+              description: `Tray "${selectedTrayOccupancy.trayName}" only has space for ${available} items, but this batch allocates ${allocatedToThisTray} items in total to it.`,
+              variant: "destructive",
+            });
+            return false;
+          }
         }
       }
     }

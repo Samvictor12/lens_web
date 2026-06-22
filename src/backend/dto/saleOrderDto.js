@@ -474,12 +474,17 @@ export const validateUpdateStatus = (data) => {
     errors.push({ field: 'status', message: 'Invalid status. Must be one of: DRAFT, CONFIRMED, IN_PRODUCTION, READY_FOR_DISPATCH, DELIVERED' });
   }
 
+  if (data.inventoryItemIds && !Array.isArray(data.inventoryItemIds)) {
+    errors.push({ field: 'inventoryItemIds', message: 'inventoryItemIds must be an array of integers' });
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
     data: errors.length === 0 ? {
       status: data.status,
-      ...(data.remark !== undefined && { remark: data.remark })
+      ...(data.remark !== undefined && { remark: data.remark }),
+      ...(data.inventoryItemIds !== undefined && { inventoryItemIds: data.inventoryItemIds.map(Number) })
     } : null
   };
 };

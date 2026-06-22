@@ -367,6 +367,7 @@ export class InventoryController {
           ? parseInt(req.query.category_id)
           : null,
         groupBy: req.query.groupBy || null,
+        search: req.query.search || "",
       };
 
       const result = await this.inventoryService.getInventoryStockWithGrouping(
@@ -376,9 +377,11 @@ export class InventoryController {
         success: true,
         data: result.data,
         grouping: result.grouping,
+        total: result.total || 0,
         pagination: {
           page: queryParams.page,
           limit: queryParams.limit,
+          total: result.total || 0,
         },
       });
     } catch (error) {

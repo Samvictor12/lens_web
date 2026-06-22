@@ -163,9 +163,9 @@ export default function QualityOrderDetail() {
     setIsUpdating(true);
     setRejectDialogOpen(false);
     try {
-      const response = await updateSaleOrderStatus(id, "IN_PRODUCTION", rejectRemark.trim());
+      const response = await updateSaleOrderStatus(id, "ON_HOLD", rejectRemark.trim());
       if (response.success) {
-        toast({ title: "Order rejected — sent back to production" });
+        toast({ title: "Order rejected — logged damage and reset to Confirmed" });
         navigate("/quality/operator");
       }
     } catch (err) {

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import { checkPrintServiceHealth, getLocalPrinters, getPrinterConfigs, savePrinterConfig } from "@/services/printerConfig";
+import { checkPrintServiceHealth, getLocalPrinters, getPrinterConfigs, savePrinterConfig, testLocalPrinter } from "@/services/printerConfig";
 import {
   getMyProfile,
   updateMyProfile,
@@ -465,9 +465,10 @@ function CompanyTab() {
 const PRINT_SERVICE_DOWNLOAD_URL = "/LensPrintService.exe"; // update to your CDN/static URL
 
 const CONFIG_LABELS = {
-  BARCODE_LABEL:  { label: "Barcode Label",   desc: "ZPL label printer (Zebra etc.)",  usesService: true },
-  SALE_ORDER:     { label: "Sale Order",       desc: "Invoice / challan printout",      usesService: false },
-  DISPATCH_NOTE:  { label: "Dispatch Note",    desc: "Delivery / dispatch document",    usesService: false },
+  BARCODE_LABEL:      { label: "Barcode Label",      desc: "ZPL label printer (Zebra etc.)",  usesService: true },
+  LENS_SPECIFICATION: { label: "Lens Specification", desc: "A5 lens prescription details",    usesService: true },
+  SALE_ORDER:         { label: "Sale Order",         desc: "Invoice / challan printout",      usesService: false },
+  DISPATCH_NOTE:      { label: "Dispatch Note",      desc: "Delivery / dispatch document",    usesService: false },
 };
 const PAPER_SIZES = ["A4", "A5", "Thermal80", "Label_4x2"];
 
@@ -475,13 +476,15 @@ function PrintServiceTab() {
   const { toast } = useToast();
   const [serviceStatus, setServiceStatus] = useState(null); // null=checking, true=ok, false=down
   const [checking, setChecking]           = useState(false);
-  const [localPrinters, setLocalPrinters] = useState([]);
+  const [localPrinters, setLocalPrinters] = useState([]); // [{ name, status_code, status }]
   const [configs, setConfigs]             = useState({
-    BARCODE_LABEL: { printer_name: "", paper_size: "", label_width: 180, label_height: 200, extra_config: "" },
-    SALE_ORDER:    { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
-    DISPATCH_NOTE: { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
+    BARCODE_LABEL:      { printer_name: "", paper_size: "", label_width: 180, label_height: 200, extra_config: "" },
+    LENS_SPECIFICATION: { printer_name: "", paper_size: "A5",  label_width: null, label_height: null, extra_config: "" },
+    SALE_ORDER:         { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
+    DISPATCH_NOTE:      { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
   });
   const [saving, setSaving] = useState({});
+  const [testing, setTesting] = useState({});
 
   const pingService = async () => {
     setChecking(true);
@@ -490,7 +493,7 @@ function PrintServiceTab() {
     if (res) {
       try {
         const p = await getLocalPrinters();
-        setLocalPrinters(p.printers || []);
+        setLocalPrinters(p.details || (p.printers || []).map(name => ({ name, status: "Ready" })));
       } catch { setLocalPrinters([]); }
     }
     setChecking(false);
@@ -503,9 +506,10 @@ function PrintServiceTab() {
         if (res?.success && Array.isArray(res.data)) {
           const map = {};
           res.data.forEach((c) => {
+            const defaultSize = c.config_type === "BARCODE_LABEL" ? "" : (c.config_type === "LENS_SPECIFICATION" ? "A5" : "A4");
             map[c.config_type] = {
               printer_name:  c.printer_name  || "",
-              paper_size:    c.paper_size    || (c.config_type === "BARCODE_LABEL" ? "" : "A4"),
+              paper_size:    c.paper_size    || defaultSize,
               label_width:   c.label_width   ?? (c.config_type === "BARCODE_LABEL" ? 180 : null),
               label_height:  c.label_height  ?? (c.config_type === "BARCODE_LABEL" ? 200 : null),
               extra_config:  c.extra_config  || "",
@@ -530,6 +534,23 @@ function PrintServiceTab() {
       toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
     } finally {
       setSaving((s) => ({ ...s, [configType]: false }));
+    }
+  };
+
+  const handleTestPrint = async (type) => {
+    const printerName = configs[type].printer_name;
+    if (!printerName) {
+      toast({ title: "No Printer Selected", description: "Please select or enter a printer name before testing.", variant: "destructive" });
+      return;
+    }
+    setTesting((t) => ({ ...t, [type]: true }));
+    try {
+      await testLocalPrinter({ printerName, printType: type });
+      toast({ title: "Success", description: `Test print request spooled to ${printerName}` });
+    } catch (err) {
+      toast({ title: "Test Print Failed", description: err.message || "Could not execute test print.", variant: "destructive" });
+    } finally {
+      setTesting((t) => ({ ...t, [type]: false }));
     }
   };
 
@@ -595,17 +616,37 @@ function PrintServiceTab() {
               <p className="text-sm font-semibold">{meta.label}</p>
               <p className="text-xs text-muted-foreground">{meta.desc}</p>
             </div>
-            <Button
-              size="xs"
-              className="h-7 gap-1.5"
-              onClick={() => handleSave(type)}
-              disabled={saving[type]}
-            >
-              {saving[type]
-                ? <Loader2 className="h-3 w-3 animate-spin" />
-                : <Save className="h-3 w-3" />}
-              Save
-            </Button>
+            <div className="flex gap-2">
+              {configs[type].printer_name && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  className="h-7 gap-1.5"
+                  onClick={() => handleTestPrint(type)}
+                  disabled={testing[type] || !serviceStatus}
+                  title={!serviceStatus ? "Start local service to run test prints" : ""}
+                >
+                  {testing[type] ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Printer className="h-3 w-3" />
+                  )}
+                  Test Print
+                </Button>
+              )}
+              <Button
+                size="xs"
+                className="h-7 gap-1.5"
+                onClick={() => handleSave(type)}
+                disabled={saving[type]}
+              >
+                {saving[type]
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <Save className="h-3 w-3" />}
+                Save
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -619,7 +660,9 @@ function PrintServiceTab() {
                 >
                   <option value="">— Select printer —</option>
                   {localPrinters.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.status ? `(${p.status})` : ""}
+                    </option>
                   ))}
                 </select>
               ) : (
