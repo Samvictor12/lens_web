@@ -270,8 +270,8 @@ export const validateQueryParams = (query) => {
         errors.push({ field: 'page', message: 'Page must be greater than 0' });
     }
 
-    if (limit < 1 || limit > 100) {
-        errors.push({ field: 'limit', message: 'Limit must be between 1 and 100' });
+    if (limit < 1 || limit > 10000) {
+        errors.push({ field: 'limit', message: 'Limit must be between 1 and 10000' });
     }
 
     const validSortFields = ['name', 'code', 'email', 'city', 'active_status', 'createdAt'];

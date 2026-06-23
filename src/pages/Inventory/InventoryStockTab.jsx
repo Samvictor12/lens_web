@@ -201,12 +201,12 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     },
     ...(groupBy !== "none"
       ? [
-          {
-            accessorKey: "tray",
-            header: "Tray",
-            cell: (item) => <span className="text-xs">{item.tray?.tray_name || item.tray?.name || "-"}</span>,
-          },
-        ]
+        {
+          accessorKey: "tray",
+          header: "Tray",
+          cell: (item) => <span className="text-xs">{item.tray?.tray_name || item.tray?.name || "-"}</span>,
+        },
+      ]
       : []),
     {
       accessorKey: "totalStock",
@@ -444,11 +444,10 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
                                   setSelectedCellInfo({ sph, colVal: col, items: cell.items, qty: cell.qty });
                                 }
                               }}
-                              className={`p-2 border-r text-center transition-all cursor-pointer ${
-                                isSelected ? "bg-primary/20 ring-1 ring-primary" : 
-                                hasQty ? "bg-green-50 text-green-700 font-semibold hover:bg-green-100" : 
-                                "text-muted-foreground/30 hover:bg-muted/5"
-                              }`}
+                              className={`p-2 border-r text-center transition-all cursor-pointer ${isSelected ? "bg-primary/20 ring-1 ring-primary" :
+                                  hasQty ? "bg-green-50 text-green-700 font-semibold hover:bg-green-100" :
+                                    "text-muted-foreground/30 hover:bg-muted/5"
+                                }`}
                             >
                               {hasQty ? cell.qty : "—"}
                             </td>

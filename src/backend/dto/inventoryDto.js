@@ -259,8 +259,8 @@ export const validateQueryParams = (params) => {
 
   if (params.limit) {
     const limit = parseInt(params.limit);
-    if (isNaN(limit) || limit < 1 || limit > 100) {
-      errors.push({ field: 'limit', message: 'Limit must be between 1 and 100' });
+    if (isNaN(limit) || limit < 1 || limit > 10000) {
+      errors.push({ field: 'limit', message: 'Limit must be between 1 and 10000' });
     } else {
       data.limit = limit;
     }

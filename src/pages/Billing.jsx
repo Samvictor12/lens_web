@@ -54,11 +54,11 @@ const orderTotal = (o) => {
 };
 
 const STATUS_CONFIG = {
-  DRAFT:          { label: "Draft",          color: "bg-gray-100 text-gray-700 border-gray-300" },
-  ISSUED:         { label: "Issued",         color: "bg-blue-100 text-blue-700 border-blue-300" },
+  DRAFT: { label: "Draft", color: "bg-gray-100 text-gray-700 border-gray-300" },
+  ISSUED: { label: "Issued", color: "bg-blue-100 text-blue-700 border-blue-300" },
   PARTIALLY_PAID: { label: "Partially Paid", color: "bg-yellow-100 text-yellow-700 border-yellow-300" },
-  PAID:           { label: "Paid",           color: "bg-green-100 text-green-700 border-green-300" },
-  CANCELLED:      { label: "Cancelled",      color: "bg-red-100 text-red-700 border-red-300" },
+  PAID: { label: "Paid", color: "bg-green-100 text-green-700 border-green-300" },
+  CANCELLED: { label: "Cancelled", color: "bg-red-100 text-red-700 border-red-300" },
 };
 
 const PAYMENT_METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER", "CHECK"];
@@ -862,9 +862,9 @@ export default function Billing() {
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: <Receipt className="h-5 w-5 text-blue-500" />,       label: "Total Invoices",   value: stats.total },
-          { icon: <Clock className="h-5 w-5 text-yellow-500" />,       label: "Pending Payment",  value: stats.pending },
-          { icon: <CheckCircle2 className="h-5 w-5 text-green-500" />, label: "Paid",             value: stats.paid },
+          { icon: <Receipt className="h-5 w-5 text-blue-500" />, label: "Total Invoices", value: stats.total },
+          { icon: <Clock className="h-5 w-5 text-yellow-500" />, label: "Pending Payment", value: stats.pending },
+          { icon: <CheckCircle2 className="h-5 w-5 text-green-500" />, label: "Paid", value: stats.paid },
           { icon: <AlertCircle className="h-5 w-5 text-orange-500" />, label: "Outstanding (₹)", value: stats.outstanding.toLocaleString("en-IN", { maximumFractionDigits: 0 }) },
         ].map((s) => (
           <Card key={s.label}>
