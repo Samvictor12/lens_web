@@ -204,7 +204,7 @@ export default function LensCategoryForm() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Back
           </Button>
-          {mode === "view" && (
+          {/* {mode === "view" && (
             <Button
               size="xs"
               className="h-8 gap-1.5"
@@ -223,7 +223,7 @@ export default function LensCategoryForm() {
                 </>
               )}
             </Button>
-          )}
+          )} */}
 
           {(mode !== "view" || isEditing) && (
             <>

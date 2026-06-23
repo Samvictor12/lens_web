@@ -602,18 +602,17 @@ export default function SaleOrderForm() {
 
     const checkCustomerCreditLimit = (customerId) => {
         checkCreditLimit(customerId).then(({ outstanding_credit, credit_limit }) => {
-            if (outstanding_credit === null || outstanding_credit === undefined || outstanding_credit === 0) {
+            if (outstanding_credit === credit_limit) {
                 toast({
-                    title: "No Outstanding Credit",
-                    description: "Customer has no outstanding credit.",
+                    title: "Full Credit Utilization",
+                    description: "Customer has utilized their full credit limit.",
                     variant: "info",
                 });
-                setCustomerCreditLimit({ outstanding_credit: 0, credit_limit: null });
+                setCustomerCreditLimit({ outstanding_credit, credit_limit });
                 setIsEditing(false);
             } else {
                 setCustomerCreditLimit({ outstanding_credit, credit_limit });
             }
-
         });
     };
 
@@ -1625,8 +1624,9 @@ export default function SaleOrderForm() {
     // Eye spec gating: both Type and Category must be selected before entering eye data
     const eyeSpecReady = !!(formData.Type_id && formData.category_id);
     // Add field is only relevant for Bifocal / Progressive lenses
-    const selectedCategoryName = (categories.find((c) => c.id === formData.category_id)?.name || "").toLowerCase();
+    const selectedCategoryName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
     const showAddField = selectedCategoryName.includes("bifocal") || selectedCategoryName.includes("progressive");
+    console.log("Selected Category:", selectedCategoryName, "Show Add Field:", showAddField, "categories",categories.find((c) => c.id === formData.category_id));
 
     if (isLoading) {
         return (
@@ -1861,11 +1861,10 @@ export default function SaleOrderForm() {
                             }}
                             placeholder="Select customer"
                             isSearchable={true}
-
                             disabled={mode !== "add"}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.credit_limit - customerCreditLimit.outstanding_credit}` : ""}
+                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.outstanding_credit || 0}` : ""}
                         />
 
                         <FormInput
@@ -2235,7 +2234,7 @@ export default function SaleOrderForm() {
                                     placeholder="Select tinting"
                                     isSearchable={false}
                                     disabled={mode !== "add"}
-                                    required
+                                    // required
                                     error={errors.tinting_id}
                                 />
                                 <div className="md:col-span-2">
@@ -2457,13 +2456,13 @@ export default function SaleOrderForm() {
 
                             <div className="flex md:flex-row flex-col gap-4">
                                 <div className="flex flex-col gap-2 mr-4 w-full">
-                                    {formData.lensPrice > 0 && (
+                                    {(effectiveBreakdown?.lensPrice ?? formData.lensPrice) > 0 && (
                                         <FormInput
                                             singleLine={true}
                                             label="Lens Price"
                                             type="number"
                                             name="lensPrice"
-                                            value={formData.lensPrice}
+                                            value={effectiveBreakdown?.lensPrice ?? formData.lensPrice}
                                             onChange={handleChange}
                                             disabled={true}
                                         />

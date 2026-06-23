@@ -245,7 +245,10 @@ export class SaleOrderService {
           
           // Billing information
           lensPrice: orderData.lensPrice ?? 0,
+          rightEyeExtra: orderData.rightEyeExtra ?? 0,
+          leftEyeExtra: orderData.leftEyeExtra ?? 0,
           fittingPrice: orderData.fittingPrice ?? 0,
+          tintingPrice: orderData.tintingPrice ?? 0,
           discount: orderData.discount ?? 0,
           additionalPrice: orderData.additionalPrice || null,
 
