@@ -61,10 +61,10 @@ export const validateCreateUserMaster = (data) => {
         errors.push({ field: 'email', message: 'Invalid email format' });
     }
 
-    if (!data.password || data.password.trim() === '') {
-        errors.push({ field: 'password', message: 'Password is required' });
-    } else if (!isValidLength(data.password, 6, 100)) {
-        errors.push({ field: 'password', message: 'Password must be between 6 and 100 characters' });
+    if (data.password !== undefined && data.password !== null && data.password !== '') {
+        if (!isValidLength(data.password, 6, 100)) {
+            errors.push({ field: 'password', message: 'Password must be between 6 and 100 characters' });
+        }
     }
 
     if (!data.createdBy) {
@@ -140,7 +140,7 @@ export const validateCreateUserMaster = (data) => {
             name: data.name?.trim(),
             usercode: data.usercode?.trim(),
             email: data.email?.trim(),
-            password: data.password?.trim(), // Will be hashed in service
+            password: data.password ? data.password.trim() : null, // Will be hashed in service
             phonenumber: data.phonenumber?.trim() || null,
             alternatenumber: data.alternatenumber?.trim() || null,
             bloodgroup: data.bloodgroup?.trim() || null,
@@ -299,8 +299,8 @@ export const validateQueryParams = (query) => {
         errors.push({ field: 'page', message: 'Page must be greater than 0' });
     }
 
-    if (limit < 1 || limit > 100) {
-        errors.push({ field: 'limit', message: 'Limit must be between 1 and 100' });
+    if (limit < 1 || limit > 10000) {
+        errors.push({ field: 'limit', message: 'Limit must be between 1 and 10000' });
     }
 
     const validSortFields = ['name', 'usercode', 'email', 'city', 'active_status', 'createdAt'];

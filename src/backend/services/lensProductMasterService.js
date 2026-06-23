@@ -30,31 +30,19 @@ class LensProductMasterService {
         throw new APIError("Material not found", 404, "MATERIAL_NOT_FOUND");
       if (!type) throw new APIError("Type not found", 404, "TYPE_NOT_FOUND");
 
-      // Check for duplicate product (same brand, category, material, type combination)
-      const duplicateProduct = await prisma.lensProductMaster.findFirst({
+      // Check for duplicate product code
+      const duplicateProductCode = await prisma.lensProductMaster.findFirst({
         where: {
-          brand_id: productData.brand_id,
-          category_id: productData.category_id,
-          material_id: productData.material_id,
-          type_id: productData.type_id,
+          product_code: productData.product_code,
           deleteStatus: false,
-        },
-        select: {
-          id: true,
-          lens_name: true,
-          product_code: true,
-          brand: { select: { name: true } },
-          category: { select: { name: true } },
-          material: { select: { name: true } },
-          type: { select: { name: true } },
         },
       });
 
-      if (duplicateProduct) {
+      if (duplicateProductCode) {
         throw new APIError(
-          `A product with this combination already exists: ${duplicateProduct.brand.name} - ${duplicateProduct.category.name} - ${duplicateProduct.material.name} - ${duplicateProduct.type.name} (Product: ${duplicateProduct.lens_name})`,
+          `Product code already exists: ${productData.product_code} (Product: ${duplicateProductCode.lens_name})`,
           400,
-          "DUPLICATE_PRODUCT_COMBINATION"
+          "DUPLICATE_PRODUCT_CODE"
         );
       }
 
@@ -373,33 +361,21 @@ class LensProductMasterService {
         throw new APIError("Lens product not found", 404, "PRODUCT_NOT_FOUND");
       }
 
-      // Check for duplicate product (same brand, category, material, type combination)
+      // Check for duplicate product code
       // Exclude the current product being updated
-      const duplicateProduct = await prisma.lensProductMaster.findFirst({
+      const duplicateProductCode = await prisma.lensProductMaster.findFirst({
         where: {
-          brand_id: updateData.brand_id,
-          category_id: updateData.category_id,
-          material_id: updateData.material_id,
-          type_id: updateData.type_id,
+          product_code: updateData.product_code,
           deleteStatus: false,
           id: { not: id }, // Exclude current product
         },
-        select: {
-          id: true,
-          lens_name: true,
-          product_code: true,
-          brand: { select: { name: true } },
-          category: { select: { name: true } },
-          material: { select: { name: true } },
-          type: { select: { name: true } },
-        },
       });
 
-      if (duplicateProduct) {
+      if (duplicateProductCode) {
         throw new APIError(
-          `A product with this combination already exists: ${duplicateProduct.brand.name} - ${duplicateProduct.category.name} - ${duplicateProduct.material.name} - ${duplicateProduct.type.name} (Product: ${duplicateProduct.lens_name})`,
+          `Product code already exists: ${updateData.product_code} (Product: ${duplicateProductCode.lens_name})`,
           400,
-          "DUPLICATE_PRODUCT_COMBINATION"
+          "DUPLICATE_PRODUCT_CODE"
         );
       }
 
@@ -533,6 +509,7 @@ class LensProductMasterService {
           id: true,
           lens_name: true,
           product_code: true,
+          material_id: true,
           brand: { select: { name: true } },
           category: { select: { name: true } },
         },
@@ -547,6 +524,7 @@ class LensProductMasterService {
         lens_name: p.lens_name,
         brand: p.brand.name,
         category: p.category.name,
+        material_id: p.material_id,
       }));
     } catch (error) {
       console.error("Error fetching product dropdown:", error);

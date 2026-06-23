@@ -676,10 +676,13 @@ export default function SaleOrderForm() {
         }
         // When lens changes, also clear coating_id and reset price breakdown
         if (name === "lens_id") {
+            const selectedLens = lensProducts.find((p) => p.id === value);
+            const newMaterialId = selectedLens ? selectedLens.material_id : null;
             setPriceBreakdown(null);
             setFormData((prev) => ({
                 ...prev,
                 lens_id: value,
+                material_id: newMaterialId,
                 coating_id: null,
                 offer_id: null,
                 lensPrice: 0,
@@ -691,6 +694,7 @@ export default function SaleOrderForm() {
             }));
             if (errors.lens_id) setErrors((prev) => ({ ...prev, lens_id: "" }));
             if (errors.coating_id) setErrors((prev) => ({ ...prev, coating_id: "" }));
+            if (errors.material_id) setErrors((prev) => ({ ...prev, material_id: "" }));
             return;
         }
         // When coating changes, reset price breakdown and offer so user must recalculate
@@ -2222,7 +2226,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("material_id", value)}
                                     placeholder="Material"
                                     isSearchable={false}
-                                    disabled={mode !== "add"}
+                                    disabled={true}
                                     required
                                     error={errors.material_id}
                                 />
