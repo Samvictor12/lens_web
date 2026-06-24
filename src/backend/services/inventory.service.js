@@ -553,6 +553,38 @@ export class InventoryService {
           throw new APIError("Inventory item not found", 404, "INVENTORY_ITEM_NOT_FOUND");
         }
 
+        if (transactionData.type === 'TRANSFER') {
+          const transaction = await prisma.inventoryTransaction.create({
+            data: {
+              ...transactionData,
+              transactionNo,
+              quantity: Math.abs(transactionData.quantity),
+              balanceAfter: inventoryItem.quantity, // unchanged
+              totalValue: null,
+            },
+          });
+
+          await prisma.inventoryItem.update({
+            where: { id: transactionData.inventoryItemId },
+            data: {
+              location_id: transactionData.toLocationId,
+              tray_id: transactionData.toTrayId,
+              updatedAt: new Date(),
+              updatedBy: transactionData.createdBy,
+            },
+          });
+
+          // Move totals from source bucket to destination bucket
+          await this.updateInventoryStock(inventoryItem, Math.abs(transactionData.quantity), 'SUBTRACT');
+          await this.updateInventoryStock(
+            { ...inventoryItem, location_id: transactionData.toLocationId, tray_id: transactionData.toTrayId },
+            Math.abs(transactionData.quantity),
+            'ADD'
+          );
+
+          return transaction;
+        }
+
         // Calculate new balance
         const currentBalance = inventoryItem.quantity;
         const newBalance = currentBalance + transactionData.quantity; // quantity can be negative for outward
@@ -574,7 +606,7 @@ export class InventoryService {
         // Update inventory item quantity
         await prisma.inventoryItem.update({
           where: { id: transactionData.inventoryItemId },
-          data: { 
+          data: {
             quantity: newBalance,
             updatedAt: new Date(),
             updatedBy: transactionData.createdBy
@@ -582,7 +614,11 @@ export class InventoryService {
         });
 
         // Update stock summary
-        await this.updateInventoryStock(inventoryItem, transactionData.quantity, transactionData.quantity > 0 ? 'ADD' : 'SUBTRACT');
+        await this.updateInventoryStock(
+          inventoryItem,
+          transactionData.quantity,
+          transactionData.type === 'DAMAGE' ? 'DAMAGE' : (transactionData.quantity > 0 ? 'ADD' : 'SUBTRACT')
+        );
 
         return transaction;
       });
@@ -649,7 +685,10 @@ export class InventoryService {
       const totalPages = Math.ceil(total / limit);
 
       return {
-        stockItems,
+        stockItems: stockItems.map((s) => ({
+          ...s,
+          totalValue: (s.totalStock || 0) * (s.avgCostPrice || 0),
+        })),
         pagination: {
           currentPage: page,
           totalPages,
@@ -701,12 +740,16 @@ export class InventoryService {
           where: { id: inventoryItemId },
           data: {
             status: 'RESERVED',
+            quantity: inventoryItem.quantity - quantity,
             saleOrderId: saleOrderId,
             reservedDate: new Date(),
             updatedBy: userId,
             updatedAt: new Date()
           }
         });
+
+        // Update stock summary (move from available to reserved)
+        await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE');
 
         // Create transaction for reservation
         const transactionNo = await this.generateTransactionNumber();
@@ -790,35 +833,65 @@ export class InventoryService {
         where: stockKey
       });
 
+      if (!existingStock && (operation === 'RESERVE' || operation === 'UNRESERVE')) {
+        // A stock bucket should already exist from the original inward —
+        // do not fabricate one with reservedStock but zero totalStock.
+        console.error(
+          `updateInventoryStock: no existing InventoryStock bucket found for ${operation} operation`,
+          stockKey
+        );
+        return;
+      }
+
+      // Compute updateData (used only when existingStock is present; the
+      // create branch below handles the first-time bucket creation case)
+      const updateData = {};
       if (existingStock) {
-        // Update existing stock
-        const updateData = {};
         if (operation === 'ADD') {
-          updateData.totalStock = existingStock.totalStock + quantity;
-          updateData.availableStock = existingStock.availableStock + quantity;
+          const newQty = Math.abs(quantity);
+          const priorTotal = existingStock.totalStock;
+          const newAvgCost = inventoryItem.costPrice != null && priorTotal + newQty > 0
+            ? ((existingStock.avgCostPrice || 0) * priorTotal + inventoryItem.costPrice * newQty) / (priorTotal + newQty)
+            : existingStock.avgCostPrice;
+          updateData.totalStock = priorTotal + newQty;
+          updateData.availableStock = existingStock.availableStock + newQty;
+          updateData.avgCostPrice = newAvgCost;
+          if (inventoryItem.costPrice != null) updateData.lastCostPrice = inventoryItem.costPrice;
+          if (inventoryItem.sellingPrice != null) updateData.sellingPrice = inventoryItem.sellingPrice;
           updateData.lastInwardDate = new Date();
         } else if (operation === 'SUBTRACT') {
           updateData.totalStock = Math.max(0, existingStock.totalStock - Math.abs(quantity));
           updateData.availableStock = Math.max(0, existingStock.availableStock - Math.abs(quantity));
           updateData.lastOutwardDate = new Date();
+        } else if (operation === 'RESERVE') {
+          updateData.availableStock = Math.max(0, existingStock.availableStock - Math.abs(quantity));
+          updateData.reservedStock = existingStock.reservedStock + Math.abs(quantity);
+        } else if (operation === 'UNRESERVE') {
+          updateData.availableStock = existingStock.availableStock + Math.abs(quantity);
+          updateData.reservedStock = Math.max(0, existingStock.reservedStock - Math.abs(quantity));
+        } else if (operation === 'DAMAGE') {
+          updateData.totalStock = Math.max(0, existingStock.totalStock - Math.abs(quantity));
+          updateData.availableStock = Math.max(0, existingStock.availableStock - Math.abs(quantity));
+          updateData.damagedStock = existingStock.damagedStock + Math.abs(quantity);
         }
+      }
 
+      if (existingStock) {
         await prisma.inventoryStock.update({
           where: { id: existingStock.id },
-          data: updateData
+          data: updateData,
         });
       } else {
-        // Create new stock entry
         await prisma.inventoryStock.create({
           data: {
             ...stockKey,
-            totalStock: quantity,
-            availableStock: quantity,
+            totalStock: operation === 'ADD' ? Math.abs(quantity) : 0,
+            availableStock: operation === 'ADD' ? Math.abs(quantity) : 0,
             avgCostPrice: inventoryItem.costPrice,
             lastCostPrice: inventoryItem.costPrice,
             sellingPrice: inventoryItem.sellingPrice,
-            lastInwardDate: new Date()
-          }
+            lastInwardDate: new Date(),
+          },
         });
       }
     } catch (error) {
@@ -1080,7 +1153,7 @@ export class InventoryService {
         });
 
         return {
-          data: stocks,
+          data: stocks.map((s) => ({ ...s, totalValue: (s.totalStock || 0) * (s.avgCostPrice || 0) })),
           grouping: "location",
           total: count,
         };
@@ -1103,7 +1176,7 @@ export class InventoryService {
         });
 
         return {
-          data: stocks,
+          data: stocks.map((s) => ({ ...s, totalValue: (s.totalStock || 0) * (s.avgCostPrice || 0) })),
           grouping: "location_tray",
           total: count,
         };
@@ -1126,7 +1199,7 @@ export class InventoryService {
         });
 
         return {
-          data: stocks,
+          data: stocks.map((s) => ({ ...s, totalValue: (s.totalStock || 0) * (s.avgCostPrice || 0) })),
           grouping: "category",
           total: count,
         };
@@ -1149,7 +1222,7 @@ export class InventoryService {
         });
 
         return {
-          data: stocks,
+          data: stocks.map((s) => ({ ...s, totalValue: (s.totalStock || 0) * (s.avgCostPrice || 0) })),
           grouping: "lens",
           total: count,
         };
@@ -1247,9 +1320,9 @@ export class InventoryService {
         availableItems,
         reservedItems,
         damagedItems,
-        totalValue,
+        allStock,
         lowStockItems,
-        pendingInwards,
+        pendingReceipts,
       ] = await Promise.all([
         // Total items
         prisma.inventoryItem.count({
@@ -1279,42 +1352,32 @@ export class InventoryService {
             status: "DAMAGED",
           },
         }),
-        // Total inventory value
-        prisma.inventoryStock.aggregate({
-          where: { deleteStatus: false },
-          _sum: {
-            totalValue: true,
-          },
+        // Total inventory value (computed in JS - InventoryStock has no totalValue/deleteStatus columns)
+        prisma.inventoryStock.findMany({
+          select: { totalStock: true, avgCostPrice: true },
         }),
         // Low stock items (using the service method)
         this.getItemsBelowThreshold(),
         // Pending inwards (receipts not fully inwarded)
         prisma.purchaseOrderReceipt.findMany({
-          where: {
-            deleteStatus: false,
-            NOT: {
-              inwardedQty: { equals: prisma.raw(`"totalReceivedQty"`) },
-            },
-          },
+          where: { deleteStatus: false },
           include: {
-            purchaseOrder: {
-              select: { id: true, poNumber: true, vendor: true },
-            },
+            purchaseOrder: { select: { id: true, poNumber: true, vendor: true } },
           },
-          orderBy: { createdAt: "desc" },
-          take: 5,
+          orderBy: { createdAt: 'desc' },
         }),
       ]);
 
-      // Count actual pending inwards (inwardedQty < totalReceivedQty)
-      const pendingCount = await prisma.purchaseOrderReceipt.count({
-        where: {
-          deleteStatus: false,
-          totalReceivedQty: {
-            gt: prisma.raw(`"inwardedQty"`),
-          },
-        },
-      });
+      const totalValue = allStock.reduce(
+        (sum, s) => sum + (s.totalStock || 0) * (s.avgCostPrice || 0),
+        0
+      );
+
+      const pendingFiltered = pendingReceipts.filter(
+        (r) => (r.totalReceivedQty || 0) > (r.inwardedQty || 0)
+      );
+      const pendingCount = pendingFiltered.length;
+      const pendingInwardsList = pendingFiltered.slice(0, 5);
 
       return {
         totalItems,
@@ -1322,9 +1385,9 @@ export class InventoryService {
         reservedItems,
         damagedItems,
         lowStockItems: lowStockItems || [],
-        totalValue: totalValue._sum.totalValue || 0,
+        totalValue,
         pendingInwardsCount: pendingCount,
-        pendingInwardsList: pendingInwards || [],
+        pendingInwardsList: pendingInwardsList || [],
       };
     } catch (error) {
       console.error("Error getting inventory dashboard:", error);

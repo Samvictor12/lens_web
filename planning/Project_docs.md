@@ -42,3 +42,4 @@ This is an **index only**. Feature bodies live in `planning/features/{id}.md`. R
 | dashboard-sales-widgets | Real sales widgets on Dashboard | DONE | `planning/features/dashboard-sales-widgets.md` | 2026-06-21 |
 | production-quality-scanning | Barcode/QR scanning in Production and Quality modules | DONE | `planning/features/production-quality-scanning.md` | 2026-06-21 |
 | coa-hide-balance-values | Hide balance values on Chart of Accounts cards/masters | DONE | `planning/features/coa-hide-balance-values.md` | 2026-06-21 |
+| inventory-module-bugfixes | Fix dashboard crash, broken reserve/transfer flows, dead stock columns, missing validations | DONE | `planning/features/inventory-module-bugfixes.md` | 2026-06-24 |

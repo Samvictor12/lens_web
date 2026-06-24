@@ -1,14 +1,14 @@
 {
-  "active_feature_file": null,
+  "active_feature_file": "planning/features/inventory-module-bugfixes.md",
   "phase": "DONE",
-  "HUMAN_APPROVED": false,
+  "HUMAN_APPROVED": true,
   "state_tag": "IDLE",
   "last_agent": "orchestrator",
   "recent_log": [
-    "2026-06-23: Trivial bug fix — SaleOrderForm.jsx left-column \"Lens Price\" display input was bound to stale formData.lensPrice instead of effectiveBreakdown.lensPrice, so it didn't update when an Exchange Coating offer was applied even though \"Base Lens Price\" did. Changed display value to effectiveBreakdown?.lensPrice ?? formData.lensPrice (submit payload was already correct). KB-013 added.",
-    "2026-06-23: Trivial bug fix — saleOrderService.js createSaleOrder() wasn't saving rightEyeExtra/leftEyeExtra/tintingPrice on create (only update path saved them), causing Sale Order view-mode total to undercount vs the Calculate Price modal (640 vs 890). Added the 3 missing fields to the create payload. KB-012 added. Existing pre-fix orders are not backfilled.",
-    "2026-06-21: dashboard-sales-widgets DONE. KB-010 added. All 9 original backlog items now DONE: pnl-asset-liability-fix, vendor-payment-receipt-voucher, invoice-quick-close, dispatch-delivery-agent-filter, invoice-preview, expense-direct-indirect-categories, coa-hide-balance-values, production-quality-scanning, dashboard-sales-widgets.",
-    "2026-06-21: Nothing committed to git yet this session -- all 9 features' changes sit together uncommitted in the working tree. Two new Prisma migrations (vendor-payment-receipt-voucher, expense-direct-indirect-categories) not yet applied to any DB. Backlog empty, awaiting new work.",
-    "2026-06-21: Docker infra fix (not a feature, KB-011 added). Root docker-compose.yml was unbuildable (stale absolute dockerfile paths from another project, npm Ci typo, wrong env var names, missing root .dockerignore). Built a working dev stack in new Dev_lens/ folder (own .env + docker-compose.yml, ports 6001/6002/6013/6014); fixed Dockerfile.backend (npm ci) and Dockerfile.frontend (healthcheck IPv4 fix); applied all 30 Prisma migrations to the fresh Dev_lens postgres DB. All 4 containers (postgres, backend, frontend, pgadmin) confirmed healthy and serving. Root docker-compose.yml left as-is/legacy -- still broken, superseded by Dev_lens/."
+    "2026-06-24: inventory-module-bugfixes DONE (QA_PASS, independently re-verified). Shipped 7/9 bugs (3 critical: dashboard 500 fixed, reserve-for-sale now decrements stock, TRANSFER now relocates stock without corrupting qty; plus dead reservedStock/damagedStock/totalValue columns now live, avg cost recompute, price/date validations added). BUG-8 (stock race) downgraded to best-effort via contract revision 2 -- Prisma upsert can't target nullable compound-unique FKs, reverted to find-then-write; BUG-9 (inward queue perf) deferred. No migration. KB-014/KB-015 added. Dev_lens Docker stack still running with test data -- stop with docker compose down if not needed.",
+    "2026-06-24: inventory-module-bugfixes BUILD blocked then REVIEW_CONTRACT -- implementer found BUG-8's upsert() throws on null compound-key FKs (every seeded row). Planner-architect downgraded BUG-8, contract_version bumped to 2.",
+    "2026-06-24: inventory-module-bugfixes CONTRACT_COMPLETE (v1) -- planner-architect locked initial fix design across all 9 bugs, no migration needed.",
+    "2026-06-24: inventory-module-bugfixes approved by user, moving to CONTRACT phase.",
+    "2026-06-24: QA pass on Inventory module found and live-reproduced 9 bugs. Filed as inventory-module-bugfixes.md."
   ]
 }

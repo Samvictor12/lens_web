@@ -85,6 +85,22 @@ export const validateCreateInventoryItem = (data) => {
     }
   }
 
+  if (data.sellingPrice !== undefined && data.sellingPrice !== null && data.costPrice !== undefined) {
+    const sp = parseFloat(data.sellingPrice);
+    const cp = parseFloat(data.costPrice);
+    if (!isNaN(sp) && !isNaN(cp) && sp < cp) {
+      errors.push({ field: 'sellingPrice', message: 'sellingPrice must be greater than or equal to costPrice' });
+    }
+  }
+
+  if (data.expiryDate && data.manufactureDate) {
+    const expiry = new Date(data.expiryDate);
+    const manufacture = new Date(data.manufactureDate);
+    if (!isNaN(expiry.getTime()) && !isNaN(manufacture.getTime()) && expiry <= manufacture) {
+      errors.push({ field: 'expiryDate', message: 'expiryDate must be after manufactureDate' });
+    }
+  }
+
   // Optional ID validations
   const optionalIds = ['category_id', 'Type_id', 'coating_id', 'dia_id', 'fitting_id', 'tinting_id', 'location_id', 'tray_id', 'purchaseOrderId', 'vendorId'];
   optionalIds.forEach(field => {

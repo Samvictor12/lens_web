@@ -139,14 +139,18 @@ const InventoryMain = () => {
         const res = await inventoryService.getInventoryDashboard();
         if (res.success) setDashboardStats(res.data || {});
       } catch (error) {
-        console.error('Error loading dashboard stats:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to load dashboard stats',
+          variant: 'destructive',
+        });
       } finally {
         setDashboardLoading(false);
       }
     };
 
     loadDashboardStats();
-  }, [activeTab, refreshKey]);
+  }, [activeTab, refreshKey, toast]);
 
   const bumpRefreshKey = () => setRefreshKey((key) => key + 1);
 

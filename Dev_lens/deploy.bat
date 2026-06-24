@@ -223,33 +223,33 @@ goto options
 :CreateProdBuild
 echo.
 echo Creating production build and tar file...
-cd ../PROD_lens
+pushd ..\PROD_Lens
 docker-compose build
-docker save -o clair.tar $(docker-compose images -q)
+docker save -o clair.tar lens-dev-backend:latest lens-dev-frontend:latest
 
 if not exist "clair.tar" (
     echo.
     echo Production build failed! Please check the error messages above.
     pause
-    endlocal
+    popd
     goto options
 ) else (
     echo.
     echo Production build and tar file created successfully!
-    echo Location: PROD_lens\clair.tar
+    echo Location: PROD_Lens\clair.tar
 )
 
-echo Start le copied to remote server
+echo Tar file copied to remote server
 
-scp ./clair.tar root@187.127.182.76:~/Clair
+scp .\clair.tar root@187.127.182.76:~/Clair
 
 echo Tar file copied to remote server completed
 
-rm ./clair.tar
+del .\clair.tar
 
+popd
 echo.
 pause
-endlocal
 goto options
 
 :invalidBackupChoice
