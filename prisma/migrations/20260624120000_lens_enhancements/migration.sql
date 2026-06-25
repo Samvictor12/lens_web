@@ -20,6 +20,15 @@ CREATE UNIQUE INDEX "LensIndexMaster_index_name_key" ON "LensIndexMaster"("index
 ALTER TABLE "LensIndexMaster" ADD CONSTRAINT "LensIndexMaster_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "LensIndexMaster" ADD CONSTRAINT "LensIndexMaster_updatedBy_fkey" FOREIGN KEY ("updatedBy") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+-- Seed default system role and user if they don't exist
+INSERT INTO "Role" (id, name, "createdAt", "updatedAt")
+VALUES (1, 'System', NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO "User" (id, name, email, usercode, username, password, is_login, role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt")
+VALUES (1, 'System Admin', 'system@lensbilling.com', 'admin001', 'system', '$2b$10$tJ9f4n5D7lq2GvjVeeU2KeY54z1sR97y875v8w8N8Qv2u7Z8r7Z2.', true, 1, NULL, 1, true, false, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
 -- Seed default index values
 INSERT INTO "LensIndexMaster" ("index_name", "description", "activeStatus", "deleteStatus", "createdAt", "updatedAt", "createdBy")
 VALUES
@@ -29,6 +38,7 @@ VALUES
   ('1.67', 'High index 1.67', true, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1),
   ('1.74', 'Ultra high index 1.74', true, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
 ON CONFLICT ("index_name") DO NOTHING;
+
 
 -- AlterTable LensProductMaster
 ALTER TABLE "LensProductMaster" ADD COLUMN "index_id" INTEGER;
