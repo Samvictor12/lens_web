@@ -20,6 +20,8 @@ export const mapFromBackend = (data) => {
     materialName: data.material?.name || "",
     typeId: data.type_id,
     typeName: data.type?.name || "",
+    indexId: data.index_id,
+    indexName: data.index?.index_name || "",
     sphereMin: data.sphere_min,
     sphereMax: data.sphere_max,
     sphereExtraCharge: data.sphere_extra_charge || 0,
@@ -28,6 +30,7 @@ export const mapFromBackend = (data) => {
     cylinderExtraCharge: data.cylinder_extra_charge || 0,
     addMin: data.add_min,
     addMax: data.add_max,
+    addExtraCharge: data.add_extra_charge || 0,
     rangeText: data.range_text || "",
     minThresholdQty: data.minThresholdQty ?? "",
     maxThresholdQty: data.maxThresholdQty ?? "",
@@ -58,6 +61,7 @@ export const mapToBackend = (data) => {
     category_id: data.categoryId,
     material_id: data.materialId,
     type_id: data.typeId,
+    index_id: data.indexId || null,
     sphere_min: data.sphereMin ? parseFloat(data.sphereMin) : null,
     sphere_max: data.sphereMax ? parseFloat(data.sphereMax) : null,
     sphere_extra_charge: data.sphereExtraCharge ? parseFloat(data.sphereExtraCharge) : 0,
@@ -66,6 +70,7 @@ export const mapToBackend = (data) => {
     cylinder_extra_charge: data.cylinderExtraCharge ? parseFloat(data.cylinderExtraCharge) : 0,
     add_min: data.addMin ? parseFloat(data.addMin) : null,
     add_max: data.addMax ? parseFloat(data.addMax) : null,
+    add_extra_charge: data.addExtraCharge ? parseFloat(data.addExtraCharge) : 0,
     range_text: data.rangeText || "",
     minThresholdQty: data.minThresholdQty !== "" && data.minThresholdQty != null ? parseInt(data.minThresholdQty) : null,
     maxThresholdQty: data.maxThresholdQty !== "" && data.maxThresholdQty != null ? parseInt(data.maxThresholdQty) : null,
@@ -238,7 +243,7 @@ export const getCoatingDropdown = async () => {
 export const checkProductCodeUnique = async (productCode, excludeId = null) => {
   try {
     const response = await apiClient("get", "/v1/lens-products", { 
-      params: { search: productCode, limit: 10 } 
+      params: { exactCode: productCode, limit: 1 } 
     });
     
     const products = response.data || [];
@@ -249,6 +254,24 @@ export const checkProductCodeUnique = async (productCode, excludeId = null) => {
     return !duplicate;
   } catch (error) {
     console.error("Error checking product code uniqueness:", error);
-    return true; // Allow on error to not block user
+    return true;
+  }
+};
+
+export const checkProductNameUnique = async (lensName, excludeId = null) => {
+  try {
+    const response = await apiClient("get", "/v1/lens-products", {
+      params: { exactName: lensName, limit: 1 },
+    });
+
+    const products = response.data || [];
+    const duplicate = products.find(
+      (p) => p.lens_name === lensName && (!excludeId || p.id !== excludeId)
+    );
+
+    return !duplicate;
+  } catch (error) {
+    console.error("Error checking product name uniqueness:", error);
+    return true;
   }
 };

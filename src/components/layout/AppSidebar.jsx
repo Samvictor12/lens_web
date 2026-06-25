@@ -202,6 +202,11 @@ const masterItems = [
         icon: Award,
       },
       {
+        title: "Lens Indexes",
+        url: "/masters/lens-index",
+        icon: Grid,
+      },
+      {
         title: "Lens Types",
         url: "/masters/lens-type",
         icon: Grid,

@@ -200,11 +200,12 @@ export const getActiveOffers = async (req, res, next) => {
  */
 export const getApplicableOffers = async (req, res, next) => {
   try {
-    const { lens_id, coating_id } = req.query;
+    const { lens_id, coating_id, brand_id } = req.query;
     
     const offers = await lensOffersService.getApplicableOffers({
       lens_id,
       coating_id,
+      brand_id,
     });
     
     res.status(200).json({

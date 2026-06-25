@@ -152,7 +152,7 @@ export class LensPriceMasterService {
               id: true,
               lens_name: true,
               product_code: true,
-              index_value: true,
+              index_id: true,
               brand: { select: { id: true, name: true } },
               category: { select: { id: true, name: true } },
               material: { select: { id: true, name: true } },

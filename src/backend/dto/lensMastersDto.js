@@ -192,6 +192,58 @@ export const validateCreateLensType = validateCreateLensCategory;
 export const validateUpdateLensType = validateUpdateLensCategory;
 
 /**
+ * Validate Lens Index Create
+ */
+export const validateCreateLensIndex = (data) => {
+  const errors = [];
+
+  if (!data.index_name || data.index_name.trim() === '') {
+    errors.push({ field: 'index_name', message: 'Index name is required' });
+  } else if (!isValidLength(data.index_name, 1, 50)) {
+    errors.push({ field: 'index_name', message: 'Index name must be between 1 and 50 characters' });
+  }
+
+  if (data.description && !isValidLength(data.description, 0, 500)) {
+    errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (!data.createdBy || !isValidNumber(data.createdBy)) {
+    errors.push({ field: 'createdBy', message: 'Created by user ID is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: errors.length === 0 ? data : null,
+  };
+};
+
+/**
+ * Validate Lens Index Update
+ */
+export const validateUpdateLensIndex = (data) => {
+  const errors = [];
+
+  if (data.index_name && !isValidLength(data.index_name, 1, 50)) {
+    errors.push({ field: 'index_name', message: 'Index name must be between 1 and 50 characters' });
+  }
+
+  if (data.description && !isValidLength(data.description, 0, 500)) {
+    errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (!data.updatedBy || !isValidNumber(data.updatedBy)) {
+    errors.push({ field: 'updatedBy', message: 'Updated by user ID is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: errors.length === 0 ? data : null,
+  };
+};
+
+/**
  * Validate Lens Tinting Create - Same as Coating (has short_name)
  */
 export const validateCreateLensTinting = validateCreateLensCoating;
@@ -390,6 +442,14 @@ export const validateQueryParams = (query) => {
     }
   }
 
+  if (query.exactCode) {
+    validated.exactCode = String(query.exactCode).trim();
+  }
+
+  if (query.exactName) {
+    validated.exactName = String(query.exactName).trim();
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -413,8 +473,8 @@ export const validateCreateLensOffer = (data) => {
     errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
   }
 
-  if (!data.offerType || !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT', 'EXCHANGE_COATING_PRICE'].includes(data.offerType)) {
-    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, EXCHANGE_PRODUCT, or EXCHANGE_COATING_PRICE' });
+  if (!data.offerType || !['VALUE', 'PERCENTAGE', 'EXCHANGE_PRODUCT', 'EXCHANGE_COATING_PRICE', 'EXCHANGE_BRAND_PRICE', 'COATING_PROMOTION'].includes(data.offerType)) {
+    errors.push({ field: 'offerType', message: 'Offer type must be VALUE, PERCENTAGE, EXCHANGE_PRODUCT, EXCHANGE_COATING_PRICE, EXCHANGE_BRAND_PRICE, or COATING_PROMOTION' });
   }
 
   // Validate offer type specific fields
@@ -434,6 +494,27 @@ export const validateCreateLensOffer = (data) => {
   } else if (data.offerType === 'EXCHANGE_COATING_PRICE') {
     if (!data.exchange_coating_id || !isValidNumber(data.exchange_coating_id)) {
       errors.push({ field: 'exchange_coating_id', message: 'Exchange coating is required for EXCHANGE_COATING_PRICE type' });
+    }
+  } else if (data.offerType === 'EXCHANGE_BRAND_PRICE') {
+    if (!data.brand_id || !isValidNumber(data.brand_id)) {
+      errors.push({ field: 'brand_id', message: 'Brand is required for EXCHANGE_BRAND_PRICE type' });
+    }
+    if (!data.exchange_brand_id || !isValidNumber(data.exchange_brand_id)) {
+      errors.push({ field: 'exchange_brand_id', message: 'Exchange brand is required for EXCHANGE_BRAND_PRICE type' });
+    }
+  } else if (data.offerType === 'COATING_PROMOTION') {
+    const coatingIds = Array.isArray(data.coating_ids) ? data.coating_ids : [];
+    if (coatingIds.length === 0) {
+      errors.push({ field: 'coating_ids', message: 'At least one coating must be selected for COATING_PROMOTION type' });
+    }
+    const hasValue = data.discountValue && isValidNumber(data.discountValue) && data.discountValue > 0;
+    const hasPercentage = data.discountPercentage && isValidNumber(data.discountPercentage) &&
+      data.discountPercentage > 0 && data.discountPercentage <= 100;
+    if (!hasValue && !hasPercentage) {
+      errors.push({ field: 'discountValue', message: 'Either discount value or discount percentage is required for COATING_PROMOTION type' });
+    }
+    if (hasValue && hasPercentage) {
+      errors.push({ field: 'discountValue', message: 'Provide either discount value or discount percentage, not both' });
     }
   }
 

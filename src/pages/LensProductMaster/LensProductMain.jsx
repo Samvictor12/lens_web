@@ -424,7 +424,7 @@ export default function LensProductMain() {
       </Card>
 
       {/* Table View */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0">
         {groupBy ? (
           isLoading ? (
             <Card className="p-8 text-center">
