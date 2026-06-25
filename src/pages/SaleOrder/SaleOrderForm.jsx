@@ -457,9 +457,9 @@ export default function SaleOrderForm() {
         if (!formData.material_id) {
             newErrors.material_id = "Material is required";
         }
-        if (!formData.tinting_id) {
-            newErrors.tinting_id = "Tinting is required";
-        }
+        // if (!formData.tinting_id) {
+        //     newErrors.tinting_id = "Tinting is required";
+        // }
         if (!formData.coating_id) {
             newErrors.coating_id = "Coating is required";
         }
@@ -1143,7 +1143,7 @@ export default function SaleOrderForm() {
                     if (formData.leftEye && leftMatches.length > 0) {
                         initialSelections.leftEyeItemId = leftMatches[0].id;
                     }
-                    
+
                     setSelectedFifoItems(initialSelections);
                     setIsFifoModalOpen(true);
                 }
@@ -1228,7 +1228,7 @@ export default function SaleOrderForm() {
                 });
                 setFormData((prev) => ({ ...prev, status: "IN_PRODUCTION" }));
                 setIsFifoModalOpen(false);
-                
+
                 // Refresh order data
                 const refreshResponse = await getSaleOrderById(parseInt(id));
                 if (refreshResponse.success) {
@@ -1517,7 +1517,7 @@ export default function SaleOrderForm() {
                 return;
             }
             const cfgRes = await getPrinterConfigs();
-            const cfg    = cfgRes?.data?.find?.((c) => c.config_type === "BARCODE_LABEL");
+            const cfg = cfgRes?.data?.find?.((c) => c.config_type === "BARCODE_LABEL");
             if (!cfg?.printer_name) {
                 toast({
                     title: "No Printer Configured",
@@ -1526,15 +1526,15 @@ export default function SaleOrderForm() {
                 });
                 return;
             }
-            const orderId   = formData.id || formData.order_number || id;
+            const orderId = formData.id || formData.order_number || id;
             const orderCode = formData.order_number || `SO-${orderId}`;
-            const customer  = formData.customer_name || formData.customerName || "Order";
+            const customer = formData.customer_name || formData.customerName || "Order";
             await printBarcodeLabels({
-                printerName:   cfg.printer_name,
-                topLabel:      customer,
+                printerName: cfg.printer_name,
+                topLabel: customer,
                 barcodeSerials: [String(orderId)],
-                bottomLabels:  [orderCode],
-                labelWidth:    cfg.label_width ?? 180,
+                bottomLabels: [orderCode],
+                labelWidth: cfg.label_width ?? 180,
             });
             toast({ title: "Label Sent", description: `Label sent to ${cfg.printer_name}` });
         } catch (err) {
@@ -1630,7 +1630,7 @@ export default function SaleOrderForm() {
     // Add field is only relevant for Bifocal / Progressive lenses
     const selectedCategoryName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
     const showAddField = selectedCategoryName.includes("bifocal") || selectedCategoryName.includes("progressive");
-    console.log("Selected Category:", selectedCategoryName, "Show Add Field:", showAddField, "categories",categories.find((c) => c.id === formData.category_id));
+    console.log("Selected Category:", selectedCategoryName, "Show Add Field:", showAddField, "categories", categories.find((c) => c.id === formData.category_id));
 
     if (isLoading) {
         return (
@@ -1694,7 +1694,27 @@ export default function SaleOrderForm() {
                             {statusActionButton.label}
                         </Button>
                     )}
-
+                    {(mode !== "view" || isEditing) && (
+                        <Button
+                            type="submit"
+                            size="xs"
+                            className="h-8 gap-1.5"
+                            onClick={handleSubmit}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? (
+                                <>
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-3.5 w-3.5" />
+                                    {mode === "add" ? "Create Order" : "Update Order"}
+                                </>
+                            )}
+                        </Button>
+                    )}
                     {mode === "view" && (
                         <div className="relative" ref={viewDropdownRef}>
                             {/* <Button
@@ -1761,7 +1781,7 @@ export default function SaleOrderForm() {
                                     {mode === "view" && (
                                         <Button
                                             size="xs"
-                                            className="h-8 gap-1.5"
+                                            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-indigo-700 disabled:opacity-50"
                                             variant={isEditing ? "outline" : "default"}
                                             onClick={toggleEdit}
                                         >
@@ -1785,27 +1805,7 @@ export default function SaleOrderForm() {
 
 
 
-                    {(mode !== "view" || isEditing) && (
-                        <Button
-                            type="submit"
-                            size="xs"
-                            className="h-8 gap-1.5"
-                            onClick={handleSubmit}
-                            disabled={isSaving}
-                        >
-                            {isSaving ? (
-                                <>
-                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                    Saving...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="h-3.5 w-3.5" />
-                                    {mode === "add" ? "Create Order" : "Update Order"}
-                                </>
-                            )}
-                        </Button>
-                    )}
+
                     {(mode === "add") && (
                         <div className="relative" ref={addDropdownRef}>
                             <Button
@@ -2715,19 +2715,19 @@ export default function SaleOrderForm() {
                             Inventory Stock Pick (FIFO Allocation)
                         </DialogTitle>
                     </DialogHeader>
-                    
+
                     <div className="space-y-6 py-4">
                         <p className="text-sm text-slate-500">
                             Select the matching available lenses physically being taken from inventory to start production for Sale Order <strong className="text-slate-800">{formData.orderNo}</strong>.
                         </p>
-                        
+
                         {/* Right Eye Stock Section */}
                         {formData.rightEye && (
                             <div className="space-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h3 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
                                         <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">R</Badge>
-                                        Right Eye Specs: 
+                                        Right Eye Specs:
                                         <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600">
                                             SPH: {formData.rightSpherical} | CYL: {formData.rightCylindrical} {formData.rightAdd ? `| ADD: ${formData.rightAdd}` : ""}
                                         </span>
@@ -2760,14 +2760,14 @@ export default function SaleOrderForm() {
                                             </thead>
                                             <tbody className="divide-y">
                                                 {fifoMatches.rightEyeMatches.map((item, idx) => (
-                                                    <tr 
-                                                        key={item.id} 
+                                                    <tr
+                                                        key={item.id}
                                                         onClick={() => setSelectedFifoItems(prev => ({ ...prev, rightEyeItemId: item.id }))}
                                                         className={`hover:bg-slate-50/50 cursor-pointer ${selectedFifoItems.rightEyeItemId === item.id ? "bg-blue-50/30 font-medium" : ""}`}
                                                     >
                                                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                            <input 
-                                                                type="radio" 
+                                                            <input
+                                                                type="radio"
                                                                 name="rightEyeItem"
                                                                 checked={selectedFifoItems.rightEyeItemId === item.id}
                                                                 onChange={() => setSelectedFifoItems(prev => ({ ...prev, rightEyeItemId: item.id }))}
@@ -2811,7 +2811,7 @@ export default function SaleOrderForm() {
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h3 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
                                         <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-200">L</Badge>
-                                        Left Eye Specs: 
+                                        Left Eye Specs:
                                         <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600">
                                             SPH: {formData.leftSpherical} | CYL: {formData.leftCylindrical} {formData.leftAdd ? `| ADD: ${formData.leftAdd}` : ""}
                                         </span>
@@ -2844,14 +2844,14 @@ export default function SaleOrderForm() {
                                             </thead>
                                             <tbody className="divide-y">
                                                 {fifoMatches.leftEyeMatches.map((item, idx) => (
-                                                    <tr 
-                                                        key={item.id} 
+                                                    <tr
+                                                        key={item.id}
                                                         onClick={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
                                                         className={`hover:bg-slate-50/50 cursor-pointer ${selectedFifoItems.leftEyeItemId === item.id ? "bg-purple-50/30 font-medium" : ""}`}
                                                     >
                                                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                            <input 
-                                                                type="radio" 
+                                                            <input
+                                                                type="radio"
                                                                 name="leftEyeItem"
                                                                 checked={selectedFifoItems.leftEyeItemId === item.id}
                                                                 onChange={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
@@ -2889,20 +2889,20 @@ export default function SaleOrderForm() {
                             </div>
                         )}
                     </div>
-                    
+
                     <DialogFooter className="gap-2 sm:gap-0">
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             onClick={() => setIsFifoModalOpen(false)}
                             disabled={isSaving}
                         >
                             Cancel
                         </Button>
-                        <Button 
+                        <Button
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             disabled={
-                                isSaving || 
-                                (formData.rightEye && !selectedFifoItems.rightEyeItemId) || 
+                                isSaving ||
+                                (formData.rightEye && !selectedFifoItems.rightEyeItemId) ||
                                 (formData.leftEye && !selectedFifoItems.leftEyeItemId)
                             }
                             onClick={handleFifoConfirm}
