@@ -164,7 +164,7 @@ export default function LensCategories() {
             Manage lens category master data
           </p>
         </div>
-        <div className="flex gap-1.5">
+        {/*<div className="flex gap-1.5">
           <Button
             size="xs"
             className="gap-1.5 h-8"
@@ -173,7 +173,7 @@ export default function LensCategories() {
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Add Category</span>
           </Button>
-        </div>
+        </div>*/}
       </div>
 
       {/* Search and Filters */}

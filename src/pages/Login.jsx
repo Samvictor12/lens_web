@@ -113,7 +113,7 @@ export default function Login() {
               in the optical industry.
             </p>
             
-            <div className="grid grid-cols-2 gap-4 pt-4">
+            {/* <div className="grid grid-cols-2 gap-4 pt-4">
               <div className="p-4 rounded-lg bg-card border">
                 <div className="text-2xl font-bold text-primary">500+</div>
                 <div className="text-sm text-muted-foreground">Orders Managed</div>
@@ -122,14 +122,14 @@ export default function Login() {
                 <div className="text-2xl font-bold text-accent">50+</div>
                 <div className="text-sm text-muted-foreground">Active Customers</div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
         {/* Right Side - Login Form */}
         <Card className="w-full shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl">Welcome Back </CardTitle>
             <CardDescription>
               Sign in to access your dashboard
             </CardDescription>
@@ -167,7 +167,7 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 pt-6 border-t">
+            {/* <div className="mt-6 pt-6 border-t">
               <p className="text-sm font-medium text-muted-foreground mb-3">
                 Demo Credentials:
               </p>
@@ -189,7 +189,7 @@ export default function Login() {
               <p className="text-xs text-muted-foreground mt-2 text-center">
                 Password: <code className="bg-muted px-1 py-0.5 rounded">demo</code>
               </p>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
       </div>
