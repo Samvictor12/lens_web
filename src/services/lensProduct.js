@@ -247,9 +247,11 @@ export const checkProductCodeUnique = async (productCode, excludeId = null) => {
     });
     
     const products = response.data || [];
-    const duplicate = products.find(p => 
-      p.product_code === productCode && (!excludeId || p.id !== excludeId)
-    );
+    const duplicate = products.find((p) => {
+      if (p.product_code !== productCode) return false;
+      if (excludeId != null && String(p.id) === String(excludeId)) return false;
+      return true;
+    });
     
     return !duplicate;
   } catch (error) {
@@ -265,9 +267,11 @@ export const checkProductNameUnique = async (lensName, excludeId = null) => {
     });
 
     const products = response.data || [];
-    const duplicate = products.find(
-      (p) => p.lens_name === lensName && (!excludeId || p.id !== excludeId)
-    );
+    const duplicate = products.find((p) => {
+      if (p.lens_name !== lensName) return false;
+      if (excludeId != null && String(p.id) === String(excludeId)) return false;
+      return true;
+    });
 
     return !duplicate;
   } catch (error) {
