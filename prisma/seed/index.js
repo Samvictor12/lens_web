@@ -559,6 +559,57 @@ async function main() {
   ]);
   console.log('✅ Lens master data created\n');
 
+  // Create Lens Indexes
+  console.log('📐 Creating lens indexes...');
+  const lensIndexes = await Promise.all([
+    prisma.lensIndexMaster.create({
+      data: {
+        index_name: '1.56',
+        description: 'Standard index 1.56',
+        activeStatus: true,
+        deleteStatus: false,
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.lensIndexMaster.create({
+      data: {
+        index_name: '1.59',
+        description: 'Mid index 1.59',
+        activeStatus: true,
+        deleteStatus: false,
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.lensIndexMaster.create({
+      data: {
+        index_name: '1.61',
+        description: 'Mid-high index 1.61',
+        activeStatus: true,
+        deleteStatus: false,
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.lensIndexMaster.create({
+      data: {
+        index_name: '1.67',
+        description: 'High index 1.67',
+        activeStatus: true,
+        deleteStatus: false,
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.lensIndexMaster.create({
+      data: {
+        index_name: '1.74',
+        description: 'Ultra high index 1.74',
+        activeStatus: true,
+        deleteStatus: false,
+        createdBy: adminUser.id,
+      },
+    }),
+  ]);
+  console.log('✅ Lens indexes created\n');
+
   // Create Lens Products
   console.log('🔬 Creating lens products...');
   const lensProducts = await Promise.all([
@@ -570,7 +621,7 @@ async function main() {
         type_id: lensTypes[0].id,
         product_code: 'ESS-SV-001',
         lens_name: 'Essilor Single Vision Standard',
-        index_value: 156,
+        index_id: lensIndexes[0].id,
         sphere_min: -6.0,
         sphere_max: 4.0,
         cyl_min: -2.0,
@@ -588,7 +639,7 @@ async function main() {
         type_id: lensTypes[1].id,
         product_code: 'ZIS-PRG-001',
         lens_name: 'Zeiss Progressive Premium',
-        index_value: 167,
+        index_id: lensIndexes[3].id,
         sphere_min: -8.0,
         sphere_max: 6.0,
         cyl_min: -4.0,
@@ -608,7 +659,7 @@ async function main() {
         type_id: lensTypes[1].id,
         product_code: 'HOY-SV-002',
         lens_name: 'Hoya Single Vision Aspheric',
-        index_value: 159,
+        index_id: lensIndexes[1].id,
         sphere_min: -10.0,
         sphere_max: 8.0,
         cyl_min: -6.0,

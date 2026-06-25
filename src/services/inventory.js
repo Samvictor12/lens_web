@@ -28,6 +28,13 @@ export const createInventoryItem = async (itemData) => {
   return response;
 };
 
+export const bulkInwardFromGrid = async (payload) => {
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/bulk-inward`, {
+    data: payload,
+  });
+  return response;
+};
+
 export const updateInventoryItem = async (id, itemData) => {
   const response = await apiClient("put", `${INVENTORY_BASE_URL}/items/${id}`, {
     data: itemData,

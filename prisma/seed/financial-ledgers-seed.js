@@ -92,9 +92,9 @@ export async function seedFinancialLedgers(client = prisma) {
 
 async function main() {
   try {
-    const user = await prisma.user.findUnique({ where: { id: SYSTEM_USER_ID } });
+    const user = await prisma.user.findFirst({ where: { delete_status: false } });
     if (!user) {
-      throw new Error('System user (id=1) not found. Run `npm run db:seed` first.');
+      throw new Error('No active user found. Run `node prisma/seed/complete-seed.js` first.');
     }
     await seedFinancialLedgers();
     console.log('🎉 Financial ledgers seed complete.\n');

@@ -173,6 +173,12 @@ async function main() {
     });
 
     // Lens Product
+    const index156 = await prisma.lensIndexMaster.upsert({
+        where: { index_name: '1.56' },
+        update: {},
+        create: { index_name: '1.56', description: 'Standard index 1.56', activeStatus: true, deleteStatus: false, createdBy: adminUser.id },
+    });
+
     let lensProduct = await prisma.lensProductMaster.findFirst({ where: { product_code: 'ESS-SV-001', deleteStatus: false } });
     if (!lensProduct) {
         lensProduct = await prisma.lensProductMaster.create({
@@ -183,7 +189,7 @@ async function main() {
                 type_id:     lensType.id,
                 product_code: 'ESS-SV-001',
                 lens_name:   'Essilor Single Vision Standard',
-                index_value:  156,
+                index_id: index156.id,
                 sphere_min:  -6.0,
                 sphere_max:   4.0,
                 cyl_min:     -2.0,

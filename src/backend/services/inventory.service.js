@@ -994,7 +994,7 @@ export class InventoryService {
       ]);
 
       return {
-        lensProducts,
+        lensProducts: lensProducts.map((p) => ({ ...p, name: p.lens_name })),
         categories,
         lensTypes,
         coatings,
@@ -1505,6 +1505,183 @@ export class InventoryService {
         "GET_STOCK_VALUE_REPORT_ERROR"
       );
     }
+  }
+
+  parseBulkSelectionKey(key) {
+    const parts = key.split("_");
+    const sphIdx = parts.indexOf("sph");
+    const cylIdx = parts.indexOf("cyl");
+    const addIdx = parts.indexOf("add");
+    const lastPart = parts[parts.length - 1];
+    const eye = lastPart === "L" || lastPart === "R" ? lastPart : null;
+    return {
+      spherical: sphIdx !== -1 ? parts[sphIdx + 1] : "0",
+      cylindrical: cylIdx !== -1 ? parts[cylIdx + 1] : "0",
+      add: addIdx !== -1 ? parts[addIdx + 1] : null,
+      eye,
+    };
+  }
+
+  getBulkSelectionQty(val) {
+    if (typeof val === "object" && val !== null) {
+      if (val.quantity != null) return parseInt(val.quantity, 10) || 0;
+      return Object.values(val).reduce((s, v) => s + (parseInt(v, 10) || 0), 0);
+    }
+    return parseInt(val, 10) || 0;
+  }
+
+  /**
+   * Bulk inward stock from power grid (Initialize Stock)
+   * Supports multi-tray splits via `rows` payload.
+   */
+  async bulkInwardFromGrid(payload, userId) {
+    const {
+      location_id,
+      lens_id,
+      category_id,
+      Type_id,
+      coating_id,
+      costPrice = 0,
+      defaultDia = "70",
+      rows,
+      lensBulkSelection,
+      tray_id,
+    } = payload;
+
+    if (!location_id) throw new APIError("Location is required", 400, "LOCATION_REQUIRED");
+    if (!lens_id) throw new APIError("Lens product is required", 400, "LENS_REQUIRED");
+
+    const lens = await prisma.lensProductMaster.findUnique({
+      where: { id: parseInt(lens_id, 10), deleteStatus: false },
+    });
+    if (!lens) throw new APIError("Lens product not found", 404, "LENS_NOT_FOUND");
+
+    // Normalize legacy single-tray payload
+    let inwardRows = rows;
+    if (!inwardRows?.length && lensBulkSelection?.selections) {
+      inwardRows = Object.entries(lensBulkSelection.selections)
+        .map(([key, val]) => {
+          const qty = this.getBulkSelectionQty(val);
+          if (qty <= 0) return null;
+          const parsed = this.parseBulkSelectionKey(key);
+          return {
+            key,
+            ...parsed,
+            splits: [{ tray_id: tray_id ? parseInt(tray_id, 10) : null, qty }],
+          };
+        })
+        .filter(Boolean);
+    }
+
+    if (!inwardRows?.length) {
+      throw new APIError("Enter at least one quantity in the grid", 400, "NO_SELECTIONS");
+    }
+
+    // Validate tray capacity across entire batch
+    const trayAllocations = {};
+    for (const row of inwardRows) {
+      for (const split of row.splits || []) {
+        const qty = parseFloat(split.qty) || 0;
+        if (qty <= 0) continue;
+        if (!split.tray_id) {
+          throw new APIError("Tray is required for each split", 400, "TRAY_REQUIRED");
+        }
+        const tId = parseInt(split.tray_id, 10);
+        trayAllocations[tId] = (trayAllocations[tId] || 0) + qty;
+      }
+    }
+
+    for (const [trayIdStr, allocQty] of Object.entries(trayAllocations)) {
+      const occ = await this.getTrayOccupancy(parseInt(trayIdStr, 10));
+      if (!occ.capacity) {
+        throw new APIError(
+          `Tray "${occ.trayName}" has no capacity set. Update Tray Master.`,
+          400,
+          "TRAY_NO_CAPACITY"
+        );
+      }
+      if (allocQty > occ.availableQty + 0.001) {
+        throw new APIError(
+          `Tray "${occ.trayName}" only has ${occ.availableQty} available, but ${allocQty} allocated in this batch`,
+          400,
+          "TRAY_CAPACITY_EXCEEDED"
+        );
+      }
+    }
+
+    const dia = defaultDia || "70";
+    const itemsToCreate = [];
+
+    for (const row of inwardRows) {
+      for (const split of row.splits || []) {
+        const qty = parseFloat(split.qty) || 0;
+        if (qty <= 0) continue;
+
+        const { spherical, cylindrical, add, eye } = row.key
+          ? this.parseBulkSelectionKey(row.key)
+          : {
+              spherical: row.spherical ?? "0",
+              cylindrical: row.cylindrical ?? "0",
+              add: row.add ?? null,
+              eye: row.eye ?? null,
+            };
+
+        const base = {
+          lens_id: parseInt(lens_id, 10),
+          category_id: category_id ? parseInt(category_id, 10) : lens.category_id,
+          Type_id: Type_id ? parseInt(Type_id, 10) : lens.Type_id,
+          coating_id: coating_id ? parseInt(coating_id, 10) : null,
+          location_id: parseInt(location_id, 10),
+          tray_id: parseInt(split.tray_id, 10),
+          quantity: qty,
+          costPrice: parseFloat(costPrice) || 0,
+          status: "AVAILABLE",
+          createdBy: userId,
+        };
+
+        if (eye === "R" || eye === "L") {
+          itemsToCreate.push({
+            ...base,
+            rightEye: eye === "R",
+            leftEye: eye === "L",
+            rightSpherical: eye === "R" ? spherical : null,
+            rightCylindrical: eye === "R" ? cylindrical : null,
+            rightAdd: eye === "R" ? add : null,
+            rightDia: eye === "R" ? dia : null,
+            leftSpherical: eye === "L" ? spherical : null,
+            leftCylindrical: eye === "L" ? cylindrical : null,
+            leftAdd: eye === "L" ? add : null,
+            leftDia: eye === "L" ? dia : null,
+          });
+        } else {
+          itemsToCreate.push({
+            ...base,
+            rightEye: true,
+            leftEye: false,
+            rightSpherical: spherical,
+            rightCylindrical: cylindrical,
+            rightAdd: add,
+            rightDia: dia,
+          });
+        }
+      }
+    }
+
+    if (itemsToCreate.length === 0) {
+      throw new APIError("No valid quantities to inward", 400, "NO_VALID_QTY");
+    }
+
+    const createdIds = [];
+    for (const itemData of itemsToCreate) {
+      const result = await this.createInventoryItem(itemData);
+      createdIds.push(result.inventoryItem.id);
+    }
+
+    return {
+      createdCount: createdIds.length,
+      totalQuantity: itemsToCreate.reduce((s, i) => s + i.quantity, 0),
+      inventoryItemIds: createdIds,
+    };
   }
 }
 

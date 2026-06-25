@@ -28,9 +28,12 @@ import {
   RefreshCw,
   Download,
   Save,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { DEFAULT_GST_RATES } from "@/utils/gstRates";
 
 // ─────────────────────────────────────────────
 // Tab config
@@ -321,11 +324,19 @@ function CompanyTab() {
   const [form, setForm] = useState({
     companyName: "", gstin: "", logo: "", address: "",
     city: "", state: "", pincode: "", phone: "", email: "", website: "", tagline: "",
+    gstRates: DEFAULT_GST_RATES,
   });
   const logoInputRef = useRef(null);
 
   useEffect(() => {
-    if (company) setForm((prev) => ({ ...prev, ...company }));
+    if (company) {
+      const rates = company.customAttributes?.gstRates;
+      setForm((prev) => ({
+        ...prev,
+        ...company,
+        gstRates: Array.isArray(rates) && rates.length > 0 ? rates : DEFAULT_GST_RATES,
+      }));
+    }
   }, [company]);
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -358,7 +369,11 @@ function CompanyTab() {
     }
     setSaving(true);
     try {
-      const res = await updateCompanySettings(form);
+      const { gstRates, ...companyFields } = form;
+      const res = await updateCompanySettings({
+        ...companyFields,
+        customAttributes: { gstRates },
+      });
       if (res.success) {
         updateCompanyLocal(res.data);
         toast({ title: "Company details saved", description: "Changes will reflect across all reports." });
@@ -447,6 +462,73 @@ function CompanyTab() {
         <FieldRow label="Pincode">
           <Input value={form.pincode || ""} onChange={set("pincode")} placeholder="Pincode" />
         </FieldRow>
+      </div>
+
+      <div className="space-y-3 border rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">GST Rates (for Purchase Orders)</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1"
+            onClick={() =>
+              setForm((p) => ({
+                ...p,
+                gstRates: [...(p.gstRates || []), { label: "GST 0%", value: 0 }],
+              }))
+            }
+          >
+            <Plus className="h-3.5 w-3.5" /> Add rate
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {(form.gstRates || []).map((rate, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <Input
+                value={rate.label}
+                onChange={(e) => {
+                  const next = [...form.gstRates];
+                  next[idx] = { ...next[idx], label: e.target.value };
+                  setForm((p) => ({ ...p, gstRates: next }));
+                }}
+                placeholder="Label e.g. GST 18%"
+                className="flex-1 h-8 text-sm"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={rate.value}
+                onChange={(e) => {
+                  const next = [...form.gstRates];
+                  next[idx] = { ...next[idx], value: parseFloat(e.target.value) || 0 };
+                  setForm((p) => ({ ...p, gstRates: next }));
+                }}
+                className="w-24 h-8 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-destructive"
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    gstRates: p.gstRates.filter((_, i) => i !== idx),
+                  }))
+                }
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Used as dropdown options when receiving purchase orders. Include 0% if no tax applies.
+        </p>
       </div>
 
       <div className="flex justify-end pt-2">

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt, Tag as LabelIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { getActiveOffers } from "@/services/lensOffers";
+import { getApplicableOffers } from "@/services/lensOffers";
+import { apiClient } from "@/services/apiClient";
 import { printBarcodeLabels, getPrinterConfigs, checkPrintServiceHealth } from "@/services/printerConfig";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
@@ -22,6 +23,7 @@ import {
     createSaleOrder,
     getSaleOrderById,
     updateSaleOrder,
+    checkCustomerRef,
     updateSaleOrderStatus,
     getMatchingInventoryFIFO,
     closeAndCreateSaleOrder,
@@ -70,6 +72,8 @@ export default function SaleOrderForm() {
     const [priceBreakdown, setPriceBreakdown] = useState(null);
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
+    const [exchangeBrandPrice, setExchangeBrandPrice] = useState(null);
+    const [customerRefConflict, setCustomerRefConflict] = useState(null);
 
     // Print modal states
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -140,7 +144,6 @@ export default function SaleOrderForm() {
                 finalTotal: priceBreakdown.finalTotal - offerDiscount,
             };
         } else if (selectedOffer.offerType === "EXCHANGE_COATING_PRICE") {
-            // If exchange price not yet fetched, show base breakdown with offer label
             if (exchangeCoatingPrice === null) {
                 return { ...priceBreakdown, offerDiscount: 0, offerName: selectedOffer.offerName, offerType: "EXCHANGE_COATING_PRICE" };
             }
@@ -155,7 +158,6 @@ export default function SaleOrderForm() {
             const newFreeLensDeduction = formData.freeLens ? newLensPrice : 0;
             const newSubtotalAfterFree =
                 newSubtotal - newFreeLensDeduction - priceBreakdown.freeFittingDeduction;
-            // Apply customer discount only if withDiscount is enabled
             const discountPct = selectedOffer.withDiscount ? priceBreakdown.discountPercentage : 0;
             const discountAmt = (newSubtotalAfterFree * discountPct) / 100;
             return {
@@ -173,9 +175,92 @@ export default function SaleOrderForm() {
                 exchangeCoatingName: selectedOffer.exchangeCoating?.name,
                 finalTotal: newSubtotalAfterFree - discountAmt,
             };
+        } else if (selectedOffer.offerType === "EXCHANGE_PRODUCT") {
+            const eyesCount = (formData.rightEye ? 1 : 0) + (formData.leftEye ? 1 : 0);
+            const offerPrice = selectedOffer.offerPrice || 0;
+            const newLensPrice = eyesCount === 1 ? offerPrice / 2 : offerPrice;
+            const newBaseLensPrice =
+                newLensPrice +
+                priceBreakdown.extraCharges.total +
+                priceBreakdown.fittingPrice +
+                priceBreakdown.tintingPrice;
+            const newSubtotal = newBaseLensPrice + priceBreakdown.additionalPriceTotal;
+            const newFreeLensDeduction = formData.freeLens ? newLensPrice : 0;
+            const newSubtotalAfterFree =
+                newSubtotal - newFreeLensDeduction - priceBreakdown.freeFittingDeduction;
+            const discountAmt = (newSubtotalAfterFree * priceBreakdown.discountPercentage) / 100;
+            return {
+                ...priceBreakdown,
+                lensPrice: newLensPrice,
+                coatingPrice: offerPrice,
+                baseLensPrice: newBaseLensPrice,
+                subtotal: newSubtotal,
+                freeLensDeduction: newFreeLensDeduction,
+                discountAmount: discountAmt,
+                offerDiscount: 0,
+                offerName: selectedOffer.offerName,
+                offerType: "EXCHANGE_PRODUCT",
+                finalTotal: newSubtotalAfterFree - discountAmt,
+            };
+        } else if (selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") {
+            if (exchangeBrandPrice === null) {
+                return { ...priceBreakdown, offerDiscount: 0, offerName: selectedOffer.offerName, offerType: "EXCHANGE_BRAND_PRICE" };
+            }
+            const eyesCount = (formData.rightEye ? 1 : 0) + (formData.leftEye ? 1 : 0);
+            const newLensPrice = eyesCount === 1 ? exchangeBrandPrice / 2 : exchangeBrandPrice;
+            const newBaseLensPrice =
+                newLensPrice +
+                priceBreakdown.extraCharges.total +
+                priceBreakdown.fittingPrice +
+                priceBreakdown.tintingPrice;
+            const newSubtotal = newBaseLensPrice + priceBreakdown.additionalPriceTotal;
+            const newFreeLensDeduction = formData.freeLens ? newLensPrice : 0;
+            const newSubtotalAfterFree =
+                newSubtotal - newFreeLensDeduction - priceBreakdown.freeFittingDeduction;
+            const discountAmt = (newSubtotalAfterFree * priceBreakdown.discountPercentage) / 100;
+            return {
+                ...priceBreakdown,
+                lensPrice: newLensPrice,
+                coatingPrice: exchangeBrandPrice,
+                baseLensPrice: newBaseLensPrice,
+                subtotal: newSubtotal,
+                freeLensDeduction: newFreeLensDeduction,
+                discountAmount: discountAmt,
+                offerDiscount: 0,
+                offerName: selectedOffer.offerName,
+                offerType: "EXCHANGE_BRAND_PRICE",
+                exchangeBrandName: selectedOffer.exchangeBrand?.name,
+                finalTotal: newSubtotalAfterFree - discountAmt,
+            };
+        } else if (selectedOffer.offerType === "COATING_PROMOTION") {
+            const coatingIds = (selectedOffer.coating_ids || []).map((id) => parseInt(id));
+            if (!coatingIds.includes(parseInt(formData.coating_id))) {
+                return { ...priceBreakdown, offerDiscount: 0, offerName: selectedOffer.offerName, offerType: "COATING_PROMOTION" };
+            }
+            if (selectedOffer.discountPercentage) {
+                const offerDiscount = (subtotalAfterFreeItems * selectedOffer.discountPercentage) / 100;
+                return {
+                    ...priceBreakdown,
+                    discountPercentage: 0,
+                    discountAmount: 0,
+                    offerDiscount,
+                    offerName: selectedOffer.offerName,
+                    offerType: "COATING_PROMOTION",
+                    offerPercentage: selectedOffer.discountPercentage,
+                    finalTotal: subtotalAfterFreeItems - offerDiscount,
+                };
+            }
+            const offerDiscount = selectedOffer.discountValue || 0;
+            return {
+                ...priceBreakdown,
+                offerDiscount,
+                offerName: selectedOffer.offerName,
+                offerType: "COATING_PROMOTION",
+                finalTotal: priceBreakdown.finalTotal - offerDiscount,
+            };
         }
         return { ...priceBreakdown, offerDiscount: 0, offerName: null, offerType: null };
-    }, [priceBreakdown, formData.offer_id, activeOffers, exchangeCoatingPrice, formData.rightEye, formData.leftEye, formData.freeLens]);
+    }, [priceBreakdown, formData.offer_id, formData.coating_id, activeOffers, exchangeCoatingPrice, exchangeBrandPrice, formData.rightEye, formData.leftEye, formData.freeLens]);
 
     // Fetch master data for dropdowns
     useEffect(() => {
@@ -212,7 +297,95 @@ export default function SaleOrderForm() {
         } else {
             setExchangeCoatingPrice(null);
         }
-    }, [formData.offer_id, activeOffers, formData.lens_id, priceBreakdown]);
+    }, [formData.offer_id, activeOffers, formData.lens_id, formData.coating_id, priceBreakdown]);
+
+    useEffect(() => {
+        const selectedOffer = formData.offer_id
+            ? activeOffers.find((o) => o.id === formData.offer_id)
+            : null;
+
+        const fetchExchangeBrandPrice = async () => {
+            if (
+                selectedOffer?.offerType !== "EXCHANGE_BRAND_PRICE" ||
+                !formData.lens_id ||
+                !formData.coating_id ||
+                !selectedOffer.exchange_brand_id ||
+                !priceBreakdown
+            ) {
+                setExchangeBrandPrice(null);
+                return;
+            }
+
+            try {
+                const productRes = await getLensProductById(formData.lens_id);
+                const productCode = productRes.data?.product_code;
+                if (!productCode) {
+                    setExchangeBrandPrice(null);
+                    return;
+                }
+
+                const exchangeProductsRes = await apiClient("get", "/v1/lens-products", {
+                    params: {
+                        exactCode: productCode,
+                        brand_id: selectedOffer.exchange_brand_id,
+                        limit: 1,
+                    },
+                });
+                const exchangeProduct = exchangeProductsRes.data?.[0];
+                if (!exchangeProduct) {
+                    setExchangeBrandPrice(null);
+                    toast({
+                        title: "Exchange Product Not Found",
+                        description: `No product with code "${productCode}" found under exchange brand.`,
+                        variant: "destructive",
+                    });
+                    return;
+                }
+
+                const priceRes = await getLensPriceId(exchangeProduct.id, formData.coating_id);
+                if (priceRes.success && priceRes.data) {
+                    setExchangeBrandPrice(priceRes.data.price || 0);
+                } else {
+                    setExchangeBrandPrice(null);
+                }
+            } catch {
+                setExchangeBrandPrice(null);
+            }
+        };
+
+        fetchExchangeBrandPrice();
+    }, [formData.offer_id, activeOffers, formData.lens_id, formData.coating_id, priceBreakdown]);
+
+    useEffect(() => {
+        const loadApplicableOffers = async () => {
+            if (!formData.lens_id || !formData.coating_id) {
+                return;
+            }
+            try {
+                const productRes = await getLensProductById(formData.lens_id);
+                const brandId = productRes.data?.brand_id;
+                const offers = await getApplicableOffers(
+                    formData.lens_id,
+                    formData.coating_id,
+                    brandId
+                );
+                setActiveOffers((prev) => {
+                    const merged = [...(offers || [])];
+                    if (formData.offer_id) {
+                        const selected = prev.find((o) => o.id === formData.offer_id);
+                        if (selected && !merged.some((o) => o.id === selected.id)) {
+                            merged.push(selected);
+                        }
+                    }
+                    return merged;
+                });
+            } catch (error) {
+                console.error("Error loading applicable offers:", error);
+            }
+        };
+
+        loadApplicableOffers();
+    }, [formData.lens_id, formData.coating_id]);
 
     // Fetch filtered lens products when Type and Category are selected
     useEffect(() => {
@@ -293,9 +466,6 @@ export default function SaleOrderForm() {
                 getLensTintingsDropdown(),
                 getUsersDropdown(),
             ]);
-
-            const offersData = await getActiveOffers().catch(() => []);
-            setActiveOffers(offersData || []);
 
             if (customersRes.success) setCustomers(customersRes.data || []);
             if (lensProductsRes.success) setLensProducts(lensProductsRes.data || []);
@@ -430,8 +600,11 @@ export default function SaleOrderForm() {
         if (!formData.status) {
             newErrors.status = "Status is required";
         }
+        if (customerRefConflict) {
+            newErrors.customerRefNo = `Reference already used on order ${customerRefConflict.orderNo}`;
+        }
 
-        // Delivery schedule validation (should be after order date if provided)
+        // Delivery schedule validation
         if (formData.deliverySchedule && formData.orderDate) {
             const orderDate = new Date(formData.orderDate);
             const deliveryDate = new Date(formData.deliverySchedule);
@@ -626,6 +799,9 @@ export default function SaleOrderForm() {
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: "" }));
         }
+        if (name === "customerRefNo") {
+            setCustomerRefConflict(null);
+        }
 
         // Clear eye specs when eye is unchecked
         if (name === "rightEye" && !checked) {
@@ -648,6 +824,32 @@ export default function SaleOrderForm() {
                 leftAdd: "",
                 leftDia: "",
             }));
+        }
+    };
+
+    const handleCustomerRefBlur = async () => {
+        const ref = formData.customerRefNo?.trim();
+        if (!ref) {
+            setCustomerRefConflict(null);
+            return;
+        }
+        try {
+            const excludeId = mode !== "add" && id ? id : null;
+            const res = await checkCustomerRef(ref, excludeId);
+            if (res.success && !res.data.available) {
+                setCustomerRefConflict({
+                    orderNo: res.data.orderNo,
+                    existingOrderId: res.data.existingOrderId,
+                });
+                setErrors((prev) => ({
+                    ...prev,
+                    customerRefNo: `Reference already used on order ${res.data.orderNo}`,
+                }));
+            } else {
+                setCustomerRefConflict(null);
+            }
+        } catch {
+            // non-blocking
         }
     };
 
@@ -732,6 +934,50 @@ export default function SaleOrderForm() {
             }
             return;
         }
+        if (name === "rightEye") {
+            const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
+            const isSV = catName.includes("single") || catName.includes("reading");
+            setFormData((prev) => ({
+                ...prev,
+                rightEye: value,
+                ...(value
+                    ? {
+                        rightDia: prev.rightDia || "70",
+                        rightCylindrical: prev.rightCylindrical || (isSV ? "0" : prev.rightCylindrical),
+                    }
+                    : {
+                        rightSpherical: "",
+                        rightCylindrical: "",
+                        rightAxis: "",
+                        rightAdd: "",
+                        rightDia: "",
+                    }),
+            }));
+            if (errors.rightEye) setErrors((prev) => ({ ...prev, rightEye: "" }));
+            return;
+        }
+        if (name === "leftEye") {
+            const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
+            const isSV = catName.includes("single") || catName.includes("reading");
+            setFormData((prev) => ({
+                ...prev,
+                leftEye: value,
+                ...(value
+                    ? {
+                        leftDia: prev.leftDia || "70",
+                        leftCylindrical: prev.leftCylindrical || (isSV ? "0" : prev.leftCylindrical),
+                    }
+                    : {
+                        leftSpherical: "",
+                        leftCylindrical: "",
+                        leftAxis: "",
+                        leftAdd: "",
+                        leftDia: "",
+                    }),
+            }));
+            if (errors.leftEye) setErrors((prev) => ({ ...prev, leftEye: "" }));
+            return;
+        }
         setFormData((prev) => ({ ...prev, [name]: value }));
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -769,6 +1015,8 @@ export default function SaleOrderForm() {
                     leftSphere: 0,
                     rightCylinder: 0,
                     leftCylinder: 0,
+                    rightAdd: 0,
+                    leftAdd: 0,
                     total: 0
                 },
                 additionalPriceTotal: 0,
@@ -850,15 +1098,38 @@ export default function SaleOrderForm() {
                 }
             }
 
+            if (formData.rightEye && formData.rightAdd) {
+                const rightAdd = parseFloat(formData.rightAdd) || 0;
+                if ((lensProduct.add_max && rightAdd > lensProduct.add_max) ||
+                    (lensProduct.add_min && rightAdd < lensProduct.add_min)) {
+                    breakdown.extraCharges.rightAdd = (lensProduct.add_extra_charge || 0) / 2;
+                }
+            }
+
+            if (formData.leftEye && formData.leftAdd) {
+                const leftAdd = parseFloat(formData.leftAdd) || 0;
+                if ((lensProduct.add_max && leftAdd > lensProduct.add_max) ||
+                    (lensProduct.add_min && leftAdd < lensProduct.add_min)) {
+                    breakdown.extraCharges.leftAdd = (lensProduct.add_extra_charge || 0) / 2;
+                }
+            }
+
             breakdown.extraCharges.total =
                 breakdown.extraCharges.rightSphere +
                 breakdown.extraCharges.leftSphere +
                 breakdown.extraCharges.rightCylinder +
-                breakdown.extraCharges.leftCylinder;
+                breakdown.extraCharges.leftCylinder +
+                breakdown.extraCharges.rightAdd +
+                breakdown.extraCharges.leftAdd;
 
-            // LEFT SECTION: Split extra charges by eye
-            breakdown.rightEyeExtra = breakdown.extraCharges.rightSphere + breakdown.extraCharges.rightCylinder;
-            breakdown.leftEyeExtra = breakdown.extraCharges.leftSphere + breakdown.extraCharges.leftCylinder;
+            breakdown.rightEyeExtra =
+                breakdown.extraCharges.rightSphere +
+                breakdown.extraCharges.rightCylinder +
+                breakdown.extraCharges.rightAdd;
+            breakdown.leftEyeExtra =
+                breakdown.extraCharges.leftSphere +
+                breakdown.extraCharges.leftCylinder +
+                breakdown.extraCharges.leftAdd;
 
             // Step 4: Get tinting price (full price)
             if (formData.tinting_id) {
@@ -1930,9 +2201,27 @@ export default function SaleOrderForm() {
                             name="customerRefNo"
                             value={formData.customerRefNo}
                             onChange={handleChange}
+                            onBlur={handleCustomerRefBlur}
                             disabled={!isEditing}
                             placeholder="Optional customer reference"
+                            error={errors.customerRefNo}
                         />
+                        {customerRefConflict && (
+                            <Alert variant="destructive" className="py-2">
+                                <AlertDescription className="text-xs">
+                                    Customer reference already used on order{" "}
+                                    <button
+                                        type="button"
+                                        className="underline font-medium"
+                                        onClick={() =>
+                                            window.open(`/sales/orders/view/${customerRefConflict.existingOrderId}`, "_blank")
+                                        }
+                                    >
+                                        {customerRefConflict.orderNo} — click here to open
+                                    </button>
+                                </AlertDescription>
+                            </Alert>
+                        )}
                         <FormInput
                             singleLine={true} label="Item Ref No"
                             name="itemRefNo"

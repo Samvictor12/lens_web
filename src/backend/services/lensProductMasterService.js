@@ -30,6 +30,15 @@ class LensProductMasterService {
         throw new APIError("Material not found", 404, "MATERIAL_NOT_FOUND");
       if (!type) throw new APIError("Type not found", 404, "TYPE_NOT_FOUND");
 
+      if (productData.index_id) {
+        const indexRecord = await prisma.lensIndexMaster.findUnique({
+          where: { id: productData.index_id, deleteStatus: false },
+        });
+        if (!indexRecord) {
+          throw new APIError("Index not found", 404, "INDEX_NOT_FOUND");
+        }
+      }
+
       // Check for duplicate product code
       const duplicateProductCode = await prisma.lensProductMaster.findFirst({
         where: {
@@ -83,7 +92,8 @@ class LensProductMasterService {
           type_id: productData.type_id,
           product_code: productData.product_code,
           lens_name: productData.lens_name,
-          index_value: productData.index_value,
+          index_id: productData.index_id || null,
+          add_extra_charge: productData.add_extra_charge || 0,
           sphere_min: productData.sphere_min,
           sphere_max: productData.sphere_max,
           sphere_extra_charge: productData.sphere_extra_charge || 0,
@@ -116,6 +126,7 @@ class LensProductMasterService {
           category: { select: { id: true, name: true } },
           material: { select: { id: true, name: true } },
           type: { select: { id: true, name: true } },
+          index: { select: { id: true, index_name: true } },
           Usercreated: { select: { id: true, name: true } },
           lensPriceMasters: {
             where: { deleteStatus: false },
@@ -152,6 +163,8 @@ class LensProductMasterService {
         material_id,
         type_id,
         groupBy,
+        exactCode,
+        exactName,
       } = queryParams;
       console.log(
         "activeStatus,brand_id,category_id,material_id,type_id,groupBy",
@@ -165,7 +178,15 @@ class LensProductMasterService {
 
       const where = { deleteStatus: false };
 
-      if (search) {
+      if (exactCode) {
+        where.product_code = exactCode;
+      }
+
+      if (exactName) {
+        where.lens_name = exactName;
+      }
+
+      if (search && !exactCode && !exactName) {
         where.OR = [
           { lens_name: { contains: search, mode: "insensitive" } },
           { product_code: { contains: search, mode: "insensitive" } },
@@ -248,7 +269,7 @@ class LensProductMasterService {
       const sortFieldMap = {
         lensName: 'lens_name',
         productCode: 'product_code',
-        indexValue: 'index_value',
+        indexValue: 'index_id',
         rangeText: 'range_text',
         activeStatus: 'activeStatus',
         createdAt: 'createdAt',
@@ -284,6 +305,7 @@ class LensProductMasterService {
           category: { select: { id: true, name: true } },
           material: { select: { id: true, name: true } },
           type: { select: { id: true, name: true } },
+          index: { select: { id: true, index_name: true } },
           Usercreated: { select: { id: true, name: true } },
           Userupdated: { select: { id: true, name: true } },
           _count: { select: { lensPriceMasters: true } },
@@ -319,6 +341,7 @@ class LensProductMasterService {
           category: { select: { id: true, name: true, description: true } },
           material: { select: { id: true, name: true, description: true } },
           type: { select: { id: true, name: true, description: true } },
+          index: { select: { id: true, index_name: true, description: true } },
           Usercreated: { select: { id: true, name: true, email: true } },
           Userupdated: { select: { id: true, name: true, email: true } },
           lensPriceMasters: {
@@ -408,6 +431,15 @@ class LensProductMasterService {
         }
       }
 
+      if (updateData.index_id) {
+        const indexRecord = await prisma.lensIndexMaster.findUnique({
+          where: { id: updateData.index_id, deleteStatus: false },
+        });
+        if (!indexRecord) {
+          throw new APIError("Index not found", 404, "INDEX_NOT_FOUND");
+        }
+      }
+
       const updated = await prisma.lensProductMaster.update({
         where: { id },
         data: {
@@ -417,7 +449,8 @@ class LensProductMasterService {
           type_id: updateData.type_id,
           product_code: updateData.product_code,
           lens_name: updateData.lens_name,
-          index_value: updateData.index_value,
+          index_id: updateData.index_id !== undefined ? updateData.index_id : undefined,
+          add_extra_charge: updateData.add_extra_charge !== undefined ? updateData.add_extra_charge : undefined,
           sphere_min: updateData.sphere_min,
           sphere_max: updateData.sphere_max,
           sphere_extra_charge: updateData.sphere_extra_charge !== undefined ? updateData.sphere_extra_charge : undefined,

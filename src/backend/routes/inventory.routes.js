@@ -105,6 +105,10 @@ router.post('/items', (req, res, next) => {
   inventoryController.createInventoryItem(req, res, next);
 });
 
+router.post('/bulk-inward', (req, res, next) => {
+  inventoryController.bulkInwardFromGrid(req, res, next);
+});
+
 /**
  * @swagger
  * /api/inventory/items:

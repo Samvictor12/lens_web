@@ -19,6 +19,7 @@ import {
   defaultLensOffer,
   activeStatusOptions,
   offerTypeOptions,
+  coatingPromotionDiscountTypeOptions,
   offerTypeLabel,
   offerTypeBadgeVariant,
 } from "./LensOffers.constants";
@@ -37,6 +38,7 @@ export default function LensOffersForm() {
   // Dropdown options
   const [lensOptions, setLensOptions] = useState([]);
   const [coatingOptions, setCoatingOptions] = useState([]);
+  const [brandOptions, setBrandOptions] = useState([]);
   const [dropdownsLoading, setDropdownsLoading] = useState(false);
 
   // Load dropdowns
@@ -44,9 +46,10 @@ export default function LensOffersForm() {
     const loadDropdowns = async () => {
       try {
         setDropdownsLoading(true);
-        const [lensRes, coatingRes] = await Promise.all([
+        const [lensRes, coatingRes, brandRes] = await Promise.all([
           apiClient("get", "/v1/lens-products/dropdown"),
           apiClient("get", "/v1/lens-coatings/dropdown"),
+          apiClient("get", "/v1/lens-brands/dropdown"),
         ]);
         setLensOptions(
           (lensRes.data || []).map((l) => ({
@@ -58,6 +61,12 @@ export default function LensOffersForm() {
           (coatingRes.data || []).map((c) => ({
             id: c.id,
             name: c.name || c.label,
+          }))
+        );
+        setBrandOptions(
+          (brandRes.data || []).map((b) => ({
+            id: b.id,
+            name: b.label || b.name,
           }))
         );
       } catch (err) {
@@ -85,6 +94,10 @@ export default function LensOffersForm() {
             offerPrice: offer.offerPrice ?? "",
             lens_id: offer.lens_id ?? null,
             coating_id: offer.coating_id ?? null,
+            brand_id: offer.brand_id ?? null,
+            exchange_brand_id: offer.exchange_brand_id ?? null,
+            coating_ids: offer.coating_ids ?? [],
+            coatingPromotionDiscountType: offer.coatingPromotionDiscountType || "VALUE",
             exchange_coating_id: offer.exchange_coating_id ?? null,
             withDiscount: offer.withDiscount ?? false,
             startDate: offer.startDate || "",
@@ -135,6 +148,24 @@ export default function LensOffersForm() {
       if (!formData.exchange_coating_id) {
         newErrors.exchange_coating_id = "Exchange coating is required";
       }
+    } else if (formData.offerType === "EXCHANGE_BRAND_PRICE") {
+      if (!formData.brand_id) {
+        newErrors.brand_id = "Brand is required";
+      }
+      if (!formData.exchange_brand_id) {
+        newErrors.exchange_brand_id = "Exchange brand is required";
+      }
+    } else if (formData.offerType === "COATING_PROMOTION") {
+      if (!formData.coating_ids || formData.coating_ids.length === 0) {
+        newErrors.coating_ids = "Select at least one coating";
+      }
+      if (formData.coatingPromotionDiscountType === "VALUE") {
+        if (!formData.discountValue || parseFloat(formData.discountValue) <= 0) {
+          newErrors.discountValue = "Discount value must be greater than 0";
+        }
+      } else if (!formData.discountPercentage || parseFloat(formData.discountPercentage) <= 0 || parseFloat(formData.discountPercentage) > 100) {
+        newErrors.discountPercentage = "Discount percentage must be between 1 and 100";
+      }
     }
 
     if (!formData.startDate) {
@@ -179,6 +210,10 @@ export default function LensOffersForm() {
       discountPercentage: "",
       offerPrice: "",
       exchange_coating_id: null,
+      brand_id: null,
+      exchange_brand_id: null,
+      coating_ids: [],
+      coatingPromotionDiscountType: "VALUE",
       withDiscount: false,
     }));
     setErrors((prev) => ({
@@ -245,10 +280,31 @@ export default function LensOffersForm() {
   const isReadOnly = mode === "view" && !isEditing;
 
   // Determine which fields to show based on offer type
-  const showDiscountValue = formData.offerType === "VALUE";
-  const showDiscountPercentage = formData.offerType === "PERCENTAGE";
+  const showDiscountValue =
+    formData.offerType === "VALUE" ||
+    (formData.offerType === "COATING_PROMOTION" &&
+      formData.coatingPromotionDiscountType === "VALUE");
+  const showDiscountPercentage =
+    formData.offerType === "PERCENTAGE" ||
+    (formData.offerType === "COATING_PROMOTION" &&
+      formData.coatingPromotionDiscountType === "PERCENTAGE");
   const showAppliesTo = formData.offerType === "EXCHANGE_PRODUCT";
   const showExchangeCoating = formData.offerType === "EXCHANGE_COATING_PRICE";
+  const showExchangeBrand = formData.offerType === "EXCHANGE_BRAND_PRICE";
+  const showCoatingPromotion = formData.offerType === "COATING_PROMOTION";
+
+  const handleCoatingPromotionToggle = (coatingId) => {
+    setFormData((prev) => {
+      const current = prev.coating_ids || [];
+      const next = current.includes(coatingId)
+        ? current.filter((id) => id !== coatingId)
+        : [...current, coatingId];
+      return { ...prev, coating_ids: next };
+    });
+    if (errors.coating_ids) {
+      setErrors((prev) => ({ ...prev, coating_ids: "" }));
+    }
+  };
 
   return (
     <div className="p-2 sm:p-3 md:p-4 space-y-3 sm:space-y-4">
@@ -525,6 +581,84 @@ export default function LensOffersForm() {
                       {formData.withDiscount ? "Yes" : "No"}
                     </div>
                   )}
+                </>
+              )}
+
+              {showExchangeBrand && (
+                <>
+                  <FormSelect
+                    label="Brand"
+                    name="brand_id"
+                    options={brandOptions}
+                    value={formData.brand_id}
+                    onChange={(value) => handleSelectChange("brand_id", value)}
+                    placeholder={dropdownsLoading ? "Loading..." : "Select brand"}
+                    isSearchable={true}
+                    isClearable={false}
+                    disabled={isReadOnly || dropdownsLoading}
+                    required
+                    error={errors.brand_id}
+                    helperText="Offer applies when ordering products from this brand"
+                  />
+                  <FormSelect
+                    label="Exchange Brand"
+                    name="exchange_brand_id"
+                    options={brandOptions}
+                    value={formData.exchange_brand_id}
+                    onChange={(value) => handleSelectChange("exchange_brand_id", value)}
+                    placeholder={dropdownsLoading ? "Loading..." : "Select exchange brand"}
+                    isSearchable={true}
+                    isClearable={false}
+                    disabled={isReadOnly || dropdownsLoading}
+                    required
+                    error={errors.exchange_brand_id}
+                    helperText="Price will be taken from the same product code under this brand"
+                  />
+                </>
+              )}
+
+              {showCoatingPromotion && (
+                <>
+                  <FormSelect
+                    label="Discount Type"
+                    name="coatingPromotionDiscountType"
+                    options={coatingPromotionDiscountTypeOptions}
+                    value={formData.coatingPromotionDiscountType}
+                    onChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        coatingPromotionDiscountType: value,
+                        discountValue: "",
+                        discountPercentage: "",
+                      }))
+                    }
+                    disabled={isReadOnly}
+                    isSearchable={false}
+                    isClearable={false}
+                  />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Eligible Coatings</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {coatingOptions.map((coating) => (
+                        <label
+                          key={coating.id}
+                          className="flex items-center gap-2 p-2 border rounded-md cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={(formData.coating_ids || []).includes(coating.id)}
+                            onChange={() => handleCoatingPromotionToggle(coating.id)}
+                            disabled={isReadOnly}
+                            className="h-4 w-4"
+                          />
+                          <span className="text-sm">{coating.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.coating_ids && (
+                      <p className="text-xs text-destructive">{errors.coating_ids}</p>
+                    )}
+                  </div>
                 </>
               )}
             </CardContent>

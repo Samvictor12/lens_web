@@ -12,21 +12,45 @@ const mapToBackend = (data) => ({
   offerName: data.offerName,
   description: data.description || null,
   offerType: data.offerType,
-  discountValue: data.offerType === "VALUE" && data.discountValue !== ""
-    ? parseFloat(data.discountValue)
-    : null,
-  discountPercentage: data.offerType === "PERCENTAGE" && data.discountPercentage !== ""
-    ? parseFloat(data.discountPercentage)
-    : null,
-  offerPrice: data.offerType === "EXCHANGE_PRODUCT" && data.offerPrice !== ""
-    ? parseFloat(data.offerPrice)
-    : null,
+  discountValue:
+    (data.offerType === "VALUE" || data.offerType === "COATING_PROMOTION") &&
+    data.discountValue !== "" &&
+    data.coatingPromotionDiscountType !== "PERCENTAGE"
+      ? parseFloat(data.discountValue)
+      : null,
+  discountPercentage:
+    (data.offerType === "PERCENTAGE" ||
+      (data.offerType === "COATING_PROMOTION" &&
+        data.coatingPromotionDiscountType === "PERCENTAGE")) &&
+    data.discountPercentage !== ""
+      ? parseFloat(data.discountPercentage)
+      : null,
+  offerPrice:
+    data.offerType === "EXCHANGE_PRODUCT" && data.offerPrice !== ""
+      ? parseFloat(data.offerPrice)
+      : null,
   lens_id: data.lens_id ? parseInt(data.lens_id) : null,
   coating_id: data.coating_id ? parseInt(data.coating_id) : null,
-  exchange_coating_id: data.offerType === "EXCHANGE_COATING_PRICE" && data.exchange_coating_id
-    ? parseInt(data.exchange_coating_id)
-    : null,
-  withDiscount: data.offerType === "EXCHANGE_COATING_PRICE" ? (data.withDiscount ?? false) : false,
+  brand_id:
+    data.offerType === "EXCHANGE_BRAND_PRICE" && data.brand_id
+      ? parseInt(data.brand_id)
+      : data.brand_id
+        ? parseInt(data.brand_id)
+        : null,
+  exchange_brand_id:
+    data.offerType === "EXCHANGE_BRAND_PRICE" && data.exchange_brand_id
+      ? parseInt(data.exchange_brand_id)
+      : null,
+  coating_ids:
+    data.offerType === "COATING_PROMOTION" && Array.isArray(data.coating_ids)
+      ? data.coating_ids.map((id) => parseInt(id))
+      : null,
+  exchange_coating_id:
+    data.offerType === "EXCHANGE_COATING_PRICE" && data.exchange_coating_id
+      ? parseInt(data.exchange_coating_id)
+      : null,
+  withDiscount:
+    data.offerType === "EXCHANGE_COATING_PRICE" ? (data.withDiscount ?? false) : false,
   startDate: data.startDate,
   endDate: data.endDate,
   activeStatus: data.activeStatus ?? true,
@@ -47,6 +71,15 @@ const mapFromBackend = (data) => {
     offerPrice: data.offerPrice ?? "",
     lens_id: data.lens_id ?? null,
     coating_id: data.coating_id ?? null,
+    brand_id: data.brand_id ?? null,
+    exchange_brand_id: data.exchange_brand_id ?? null,
+    coating_ids: Array.isArray(data.coating_ids) ? data.coating_ids : [],
+    coatingPromotionDiscountType:
+      data.offerType === "COATING_PROMOTION" && data.discountPercentage
+        ? "PERCENTAGE"
+        : data.offerType === "COATING_PROMOTION" && data.discountValue
+          ? "VALUE"
+          : "VALUE",
     exchange_coating_id: data.exchange_coating_id ?? null,
     withDiscount: data.withDiscount ?? false,
     startDate: data.startDate ? data.startDate.split("T")[0] : "",
@@ -55,6 +88,8 @@ const mapFromBackend = (data) => {
     lensProduct: data.lensProduct || null,
     coating: data.coating || null,
     exchangeCoating: data.exchangeCoating || null,
+    brand: data.brand || null,
+    exchangeBrand: data.exchangeBrand || null,
     orderCount: data._count?.saleOrders || 0,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
@@ -122,9 +157,9 @@ export const getActiveOffers = async () => {
 /**
  * Get applicable offers based on lens and coating
  */
-export const getApplicableOffers = async (lens_id, coating_id) => {
+export const getApplicableOffers = async (lens_id, coating_id, brand_id) => {
   const response = await apiClient("get", "/v1/lens-offers/applicable", {
-    params: { lens_id, coating_id },
+    params: { lens_id, coating_id, brand_id },
   });
   return (response.data || []).map(mapFromBackend);
 };

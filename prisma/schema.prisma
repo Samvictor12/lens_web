@@ -74,6 +74,8 @@ model User {
   typeUserUpdate                LensTypeMaster[]       @relation("typeUserUpdate")
   productUserCreate             LensProductMaster[]    @relation("productUserCreate")
   productUserUpdate             LensProductMaster[]    @relation("productUserUpdate")
+  indexUserCreate               LensIndexMaster[]      @relation("indexUserCreate")
+  indexUserUpdate               LensIndexMaster[]      @relation("indexUserUpdate")
   priceUserCreate               LensPriceMaster[]      @relation("priceUserCreate")
   priceUserUpdate               LensPriceMaster[]      @relation("priceUserUpdate")
   businessCategoryUserCreate    businessCategory[]     @relation("businessCategoryUserCreate")
@@ -402,6 +404,23 @@ model LensBrandMaster {
   Usercreated        User                @relation("brandUserCreate", fields: [createdBy], references: [id])
   Userupdated        User?               @relation("brandUserUpdate", fields: [updatedBy], references: [id])
   lensProductMasters LensProductMaster[]
+  brandOffers        LensOffers[]        @relation("offerBrand")
+  exchangeBrandOffers LensOffers[]       @relation("offerExchangeBrand")
+}
+
+model LensIndexMaster {
+  id           Int                 @id @default(autoincrement())
+  index_name   String              @unique
+  description  String?
+  activeStatus Boolean             @default(true)
+  deleteStatus Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  createdBy    Int
+  updatedBy    Int?
+  Usercreated  User                @relation("indexUserCreate", fields: [createdBy], references: [id])
+  Userupdated  User?               @relation("indexUserUpdate", fields: [updatedBy], references: [id])
+  products     LensProductMaster[]
 }
 
 model LensTypeMaster {
@@ -432,7 +451,8 @@ model LensProductMaster {
   type_id               Int
   product_code          String
   lens_name             String
-  index_value           Int?
+  index_id              Int?
+  add_extra_charge      Float?             @default(0)
   sphere_min            Float?
   sphere_max            Float?
   sphere_extra_charge   Float?             @default(0) // Extra charge if sphere exceeds max
@@ -457,6 +477,7 @@ model LensProductMaster {
   category              LensCategoryMaster @relation(fields: [category_id], references: [id])
   material              LensMaterialMaster @relation(fields: [material_id], references: [id])
   type                  LensTypeMaster     @relation(fields: [type_id], references: [id])
+  index                 LensIndexMaster?   @relation(fields: [index_id], references: [id])
   Usercreated           User               @relation("productUserCreate", fields: [createdBy], references: [id])
   Userupdated           User?              @relation("productUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
@@ -497,6 +518,8 @@ enum OfferType {
   PERCENTAGE // Percentage discount (e.g., 20% off)
   EXCHANGE_PRODUCT // Replace original pricing with special offer price
   EXCHANGE_COATING_PRICE // Use a different coating's price instead of the selected coating's price
+  EXCHANGE_BRAND_PRICE // Bill using same product_code price under exchange brand
+  COATING_PROMOTION // Discount when selected coating is in coating_ids list
 }
 
 model LensOffers {
@@ -513,8 +536,11 @@ model LensOffers {
   withDiscount        Boolean @default(false) // Whether to apply customer discount (for EXCHANGE_COATING_PRICE type)
 
   // Filters - if null, applies to all
-  lens_id    Int? // Specific lens product (null = all lenses)
-  coating_id Int? // Specific coating (null = all coatings)
+  lens_id             Int? // Specific lens product (null = all lenses)
+  coating_id          Int? // Specific coating (null = all coatings)
+  brand_id            Int? // Brand filter (null = all brands)
+  exchange_brand_id   Int? // Exchange brand for EXCHANGE_BRAND_PRICE
+  coating_ids         Json? // Array of coating IDs for COATING_PROMOTION
 
   // Time period
   startDate DateTime // Offer valid from
@@ -534,6 +560,8 @@ model LensOffers {
   lensProduct     LensProductMaster? @relation(fields: [lens_id], references: [id])
   coating         LensCoatingMaster? @relation("lensOfferCoating", fields: [coating_id], references: [id])
   exchangeCoating LensCoatingMaster? @relation("lensOfferExchangeCoating", fields: [exchange_coating_id], references: [id])
+  brand           LensBrandMaster?   @relation("offerBrand", fields: [brand_id], references: [id])
+  exchangeBrand   LensBrandMaster?   @relation("offerExchangeBrand", fields: [exchange_brand_id], references: [id])
   createdByUser   User               @relation("lensOffersCreatedBy", fields: [createdBy], references: [id])
   updatedByUser   User?              @relation("lensOffersUpdatedBy", fields: [updatedBy], references: [id])
 
@@ -1519,7 +1547,8 @@ model CompanySettings {
   phone       String?
   email       String?
   website     String?
-  tagline     String?
+  tagline           String?
+  customAttributes  Json?
   updatedAt   DateTime @updatedAt
   updatedBy   Int?
   updatedByUser User?  @relation("companySettingsUpdatedBy", fields: [updatedBy], references: [id])

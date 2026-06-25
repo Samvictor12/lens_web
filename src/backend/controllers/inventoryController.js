@@ -50,6 +50,23 @@ export class InventoryController {
   }
 
   /**
+   * Bulk inward from power grid
+   * @route POST /api/inventory/bulk-inward
+   */
+  async bulkInwardFromGrid(req, res, next) {
+    try {
+      const result = await this.inventoryService.bulkInwardFromGrid(req.body, req.user.id);
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: `${result.createdCount} inventory item(s) created`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get paginated list of inventory items
    * @route GET /api/inventory/items
    */

@@ -668,6 +668,11 @@ router.get('/dropdown',
   controller.getDropdown.bind(controller)
 );
 
+router.get('/check-customer-ref',
+  authenticateToken,
+  controller.checkCustomerRef.bind(controller)
+);
+
 /**
  * @swagger
  * /api/sale-orders/stats:

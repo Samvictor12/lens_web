@@ -18,6 +18,7 @@ import {
   getCoatingDropdown,
   checkProductCodeUnique,
 } from "@/services/lensProduct";
+import { getLensIndexDropdown } from "@/services/lensIndex";
 import {
   defaultLensProduct,
   defaultPriceRow,
@@ -41,6 +42,12 @@ export default function LensProductForm() {
   const [materials, setMaterials] = useState([]);
   const [types, setTypes] = useState([]);
   const [coatings, setCoatings] = useState([]);
+  const [indexes, setIndexes] = useState([]);
+
+  const selectedCategoryName =
+    categories.find((c) => c.id === formData.categoryId)?.name || "";
+  const isSingleVision = selectedCategoryName === "Single Vision";
+  const showAdditionFields = Boolean(formData.categoryId && !isSingleVision);
 
   // Fetch dropdown data on mount
   useEffect(() => {
@@ -52,12 +59,14 @@ export default function LensProductForm() {
           materialsData,
           typesData,
           coatingsData,
+          indexesData,
         ] = await Promise.all([
           getBrandDropdown(),
           getCategoryDropdown(),
           getMaterialDropdown(),
           getTypeDropdown(),
           getCoatingDropdown(),
+          getLensIndexDropdown(),
         ]);
 
         setBrands(brandsData);
@@ -65,6 +74,7 @@ export default function LensProductForm() {
         setMaterials(materialsData);
         setTypes(typesData);
         setCoatings(coatingsData);
+        setIndexes(indexesData.data || []);
       } catch (error) {
         console.error("Error fetching dropdown data:", error);
         toast({
@@ -193,7 +203,7 @@ export default function LensProductForm() {
         newErrors.cylinderMax = "Cylinder max must be greater than min";
       }
     }
-    if (formData.addMin && formData.addMax) {
+    if (showAdditionFields && formData.addMin && formData.addMax) {
       if (parseFloat(formData.addMin) >= parseFloat(formData.addMax)) {
         newErrors.addMax = "Add max must be greater than min";
       }
@@ -201,11 +211,11 @@ export default function LensProductForm() {
 
     // Product code uniqueness
     if (formData.productCode?.trim()) {
-      const isUnique = await checkProductCodeUnique(
+      const isCodeUnique = await checkProductCodeUnique(
         formData.productCode.trim(),
         id
       );
-      if (!isUnique) {
+      if (!isCodeUnique) {
         newErrors.productCode = "Product code already exists";
       }
     }
@@ -561,7 +571,21 @@ export default function LensProductForm() {
                   placeholder="e.g., Progressive Blue Cut"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <FormSelect
+                label="Index"
+                name="indexId"
+                options={indexes.map((index) => ({
+                  id: index.id,
+                  name: index.label,
+                }))}
+                value={formData.indexId}
+                onChange={(value) => handleSelectChange("indexId", value)}
+                error={errors.indexId}
+                disabled={!isEditing}
+                placeholder="Select index"
+                isClearable={true}
+              />
+              <div className="grid md:grid-cols-3 grid-cols-2 gap-3">
                 <FormInput
                   label="Sphere Min"
                   name="sphereMin"
@@ -573,7 +597,7 @@ export default function LensProductForm() {
                   disabled={!isEditing}
                   // placeholder="-10.00"
                 />
-                <div className="grid grid-cols-2 gap-2">
+                {/* <div className="grid grid-cols-2 gap-2"> */}
                   <FormInput
                     label="Sphere Max"
                     name="sphereMax"
@@ -598,10 +622,10 @@ export default function LensProductForm() {
                     prefix="₹"
                     min="0"
                   />
-                </div>
+                {/* </div> */}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <FormInput
                   label="Cylinder Min"
                   name="cylinderMin"
@@ -613,7 +637,7 @@ export default function LensProductForm() {
                   disabled={!isEditing}
                   // placeholder="-6.00"
                 />
-                <div className="grid grid-cols-2 gap-2">
+                {/* <div className="grid grid-cols-2 gap-2"> */}
                   <FormInput
                     label="Cylinder Max"
                     name="cylinderMax"
@@ -638,33 +662,48 @@ export default function LensProductForm() {
                     prefix="₹"
                     min="0"
                   />
-                </div>
+                {/* </div> */}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormInput
-                  label="Add Min"
-                  name="addMin"
-                  type="number"
-                  step="0.25"
-                  value={formData.addMin}
-                  onChange={handleInputChange}
-                  error={errors.addMin}
-                  disabled={!isEditing}
-                  // placeholder="0.00"
-                />
-                <FormInput
-                  label="Add Max"
-                  name="addMax"
-                  type="number"
-                  step="0.25"
-                  value={formData.addMax}
-                  onChange={handleInputChange}
-                  error={errors.addMax}
-                  disabled={!isEditing}
-                  // placeholder="6.00"
-                />
-              </div>
+              {showAdditionFields && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <FormInput
+                      label="Add Min"
+                      name="addMin"
+                      type="number"
+                      step="0.25"
+                      value={formData.addMin}
+                      onChange={handleInputChange}
+                      error={errors.addMin}
+                      disabled={!isEditing}
+                    />
+                    <FormInput
+                      label="Add Max"
+                      name="addMax"
+                      type="number"
+                      step="0.25"
+                      value={formData.addMax}
+                      onChange={handleInputChange}
+                      error={errors.addMax}
+                      disabled={!isEditing}
+                    />
+                    <FormInput
+                      label="Add Extra Charge"
+                      name="addExtraCharge"
+                      type="number"
+                      step="0.01"
+                      value={formData.addExtraCharge}
+                      onChange={handleInputChange}
+                      error={errors.addExtraCharge}
+                      disabled={!isEditing}
+                      placeholder="0.00"
+                      prefix="₹"
+                      min="0"
+                    />
+                  </div>
+                </>
+              )}
 
               <FormInput
                 label="Range Text (Optional)"

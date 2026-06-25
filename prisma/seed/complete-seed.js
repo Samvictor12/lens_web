@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
+import { seedFinancialLedgers } from './financial-ledgers-seed.js';
 
 const prisma = new PrismaClient();
 
@@ -10,31 +11,50 @@ async function seedComplete() {
     // Step 1: Create Admin Role and System User
     console.log('👤 Creating system user...');
     
-    await prisma.$executeRaw`
-      INSERT INTO "Role" (id, name, "createdAt", "updatedAt")
-      VALUES (1, 'Admin', NOW(), NOW())
-      ON CONFLICT (id) DO UPDATE SET name = 'Admin'
-    `;
+    const adminRole = await prisma.role.upsert({
+      where: { name: 'Admin' },
+      update: {},
+      create: { name: 'Admin' },
+    });
 
     const hashedPassword = await bcrypt.hash('admin123', 10);
-    await prisma.$executeRaw`
-      INSERT INTO "User" (id, name, email, username, usercode, password, role_id, department_id, "createdBy", active_status, delete_status, "createdAt", "updatedAt", is_login)
-      VALUES (1, 'Admin User', 'admin@lensbilling.com', 'admin', 'ADM001', ${hashedPassword}, 1, NULL, 1, true, false, NOW(), NOW(), false)
-      ON CONFLICT (id) DO UPDATE SET 
-        name = 'Admin User',
-        email = 'admin@lensbilling.com',
-        password = ${hashedPassword}
-    `;
+    await prisma.user.upsert({
+      where: { email: 'admin@lensbilling.com' },
+      update: {
+        name: 'Admin User',
+        password: hashedPassword,
+        role_id: adminRole.id,
+      },
+      create: {
+        id: 1,
+        name: 'Admin User',
+        email: 'admin@lensbilling.com',
+        username: 'admin',
+        usercode: 'ADM001',
+        password: hashedPassword,
+        role_id: adminRole.id,
+        createdBy: 1,
+        active_status: true,
+        delete_status: false,
+      },
+    });
 
-    await prisma.$executeRaw`
-      INSERT INTO "DepartmentDetails" (id, department, active_status, delete_status, "createdAt", "updatedAt", "createdBy")
-      VALUES (1, 'Administration', true, false, NOW(), NOW(), 1)
-      ON CONFLICT (id) DO UPDATE SET department = 'Administration'
-    `;
+    await prisma.departmentDetails.upsert({
+      where: { id: 1 },
+      update: { department: 'Administration' },
+      create: {
+        id: 1,
+        department: 'Administration',
+        active_status: true,
+        delete_status: false,
+        createdBy: 1,
+      },
+    });
 
-    await prisma.$executeRaw`
-      UPDATE "User" SET department_id = 1 WHERE id = 1
-    `;
+    await prisma.user.updateMany({
+      where: { email: 'admin@lensbilling.com' },
+      data: { department_id: 1 },
+    });
 
     console.log('✅ System user created\n');
 
@@ -217,16 +237,20 @@ async function seedComplete() {
       });
     }
 
-    // Types
+    // Types — RX and STOCK only
     const lensTypes = [
-      { id: 1, name: 'Spherical', description: 'Standard spherical design' },
-      { id: 2, name: 'Aspheric', description: 'Flatter, thinner profile' }
+      { id: 1, name: 'RX', description: 'Prescription (made-to-order) lenses' },
+      { id: 2, name: 'STOCK', description: 'Ready-made stock lenses' }
     ];
 
     for (const type of lensTypes) {
       await prisma.lensTypeMaster.upsert({
         where: { name: type.name },
-        update: {},
+        update: {
+          description: type.description,
+          activeStatus: true,
+          deleteStatus: false,
+        },
         create: {
           name: type.name,
           description: type.description,
@@ -236,6 +260,12 @@ async function seedComplete() {
         }
       });
     }
+
+    // Deactivate legacy type names no longer in use
+    await prisma.lensTypeMaster.updateMany({
+      where: { name: { notIn: ['RX', 'STOCK'] } },
+      data: { deleteStatus: true, activeStatus: false },
+    });
 
     // Fittings
     const lensFittings = [
@@ -307,6 +337,34 @@ async function seedComplete() {
 
     console.log('✅ Lens master data created\n');
 
+    // Step 6.5: Create Lens Indexes
+    console.log('📐 Creating lens indexes...');
+    const lensIndexNames = [
+      { index_name: '1.56', description: 'Standard index 1.56' },
+      { index_name: '1.59', description: 'Mid index 1.59' },
+      { index_name: '1.61', description: 'Mid-high index 1.61' },
+      { index_name: '1.67', description: 'High index 1.67' },
+      { index_name: '1.74', description: 'Ultra high index 1.74' },
+    ];
+
+    for (const idx of lensIndexNames) {
+      await prisma.lensIndexMaster.upsert({
+        where: { index_name: idx.index_name },
+        update: {},
+        create: {
+          index_name: idx.index_name,
+          description: idx.description,
+          activeStatus: true,
+          deleteStatus: false,
+          createdBy: 1,
+        },
+      });
+    }
+
+    const index156 = await prisma.lensIndexMaster.findUnique({ where: { index_name: '1.56' } });
+    const index159 = await prisma.lensIndexMaster.findUnique({ where: { index_name: '1.59' } });
+    const index167 = await prisma.lensIndexMaster.findUnique({ where: { index_name: '1.67' } });
+
     // Step 7: Create Lens Products
     console.log('🔬 Creating lens products...');
     
@@ -322,17 +380,8 @@ async function seedComplete() {
     const polyMat = await prisma.lensMaterialMaster.findUnique({ where: { name: 'Polycarbonate' } });
     const highIndexMat = await prisma.lensMaterialMaster.findUnique({ where: { name: 'High Index 1.67' } });
     
-    const sphericalType = await prisma.lensTypeMaster.findUnique({ where: { name: 'Spherical' } });
-    const asphericType = await prisma.lensTypeMaster.findUnique({ where: { name: 'Aspheric' } });
-    
-    // Delete existing products to avoid duplicates
-    await prisma.lensProductMaster.deleteMany({
-      where: {
-        product_code: {
-          in: ['ESS-SV-001', 'ZIS-PRG-001', 'HOY-SV-002']
-        }
-      }
-    });
+    const rxType = await prisma.lensTypeMaster.findUnique({ where: { name: 'RX' } });
+    const stockType = await prisma.lensTypeMaster.findUnique({ where: { name: 'STOCK' } });
     
     const lensProducts = [
       {
@@ -340,9 +389,9 @@ async function seedComplete() {
         brand_id: essilorBrand.id,
         category_id: singleVisionCat.id,
         material_id: plasticMat.id,
-        type_id: sphericalType.id,
+        type_id: rxType.id,
         lens_name: 'Essilor Single Vision Standard',
-        index_value: 156,
+        index_id: index156.id,
         sphere_min: -6.0,
         sphere_max: 4.0,
         cyl_min: -2.0,
@@ -356,9 +405,9 @@ async function seedComplete() {
         brand_id: zeissBrand.id,
         category_id: progressiveCat.id,
         material_id: highIndexMat.id,
-        type_id: asphericType.id,
+        type_id: rxType.id,
         lens_name: 'Zeiss Progressive Premium',
-        index_value: 167,
+        index_id: index167.id,
         sphere_min: -8.0,
         sphere_max: 6.0,
         cyl_min: -4.0,
@@ -374,9 +423,9 @@ async function seedComplete() {
         brand_id: hoyaBrand.id,
         category_id: singleVisionCat.id,
         material_id: polyMat.id,
-        type_id: asphericType.id,
-        lens_name: 'Hoya Single Vision Aspheric',
-        index_value: 159,
+        type_id: stockType.id,
+        lens_name: 'Hoya Single Vision Stock',
+        index_id: index159.id,
         sphere_min: -10.0,
         sphere_max: 8.0,
         cyl_min: -6.0,
@@ -387,10 +436,20 @@ async function seedComplete() {
       }
     ];
 
-    await prisma.lensProductMaster.createMany({
-      data: lensProducts,
-      skipDuplicates: true
-    });
+    for (const product of lensProducts) {
+      const existing = await prisma.lensProductMaster.findFirst({
+        where: { product_code: product.product_code, deleteStatus: false },
+      });
+
+      if (existing) {
+        await prisma.lensProductMaster.update({
+          where: { id: existing.id },
+          data: { ...product, updatedBy: 1 },
+        });
+      } else {
+        await prisma.lensProductMaster.create({ data: product });
+      }
+    }
     
     console.log('✅ Lens products created\n');
 
@@ -442,6 +501,10 @@ async function seedComplete() {
 
     // Step 9: Create Vendors
     console.log('🏭 Creating vendors...');
+    const wholesaleCatForVendor = await prisma.businessCategory.findUnique({
+      where: { name: 'Wholesale' },
+    });
+
     const vendors = [
       {
         name: 'OptiLens Suppliers',
@@ -453,8 +516,8 @@ async function seedComplete() {
         city: 'Mumbai',
         state: 'Maharashtra',
         pincode: '400001',
-        category: 'Lens Supplier',
-        gstin: '27AAAAA0000A1Z5'
+        businessCategory_id: wholesaleCatForVendor?.id ?? null,
+        gstin: '27AAAAA0000A1Z5',
       },
       {
         name: 'Vision Care Products',
@@ -466,22 +529,34 @@ async function seedComplete() {
         city: 'Delhi',
         state: 'Delhi',
         pincode: '110001',
-        category: 'Eye Care Products',
-        gstin: '07BBBBB0000B2Z6'
-      }
+        businessCategory_id: wholesaleCatForVendor?.id ?? null,
+        gstin: '07BBBBB0000B2Z6',
+      },
     ];
 
     for (const vendor of vendors) {
       await prisma.vendor.upsert({
         where: { code: vendor.code },
-        update: {},
+        update: {
+          name: vendor.name,
+          shopname: vendor.shopname,
+          phone: vendor.phone,
+          email: vendor.email,
+          address: vendor.address,
+          city: vendor.city,
+          state: vendor.state,
+          pincode: vendor.pincode,
+          businessCategory_id: vendor.businessCategory_id,
+          gstin: vendor.gstin,
+          updatedBy: 1,
+        },
         create: {
           ...vendor,
           active_status: true,
           delete_status: false,
           createdBy: 1,
-          updatedBy: 1
-        }
+          updatedBy: 1,
+        },
       });
     }
     console.log('✅ Vendors created\n');
@@ -586,8 +661,8 @@ async function seedComplete() {
     const singleVisionCatRef = await prisma.lensCategoryMaster.findUnique({ where: { name: 'Single Vision' } });
     const progressiveCatRef = await prisma.lensCategoryMaster.findUnique({ where: { name: 'Progressive' } });
     
-    const sphericalTypeRef = await prisma.lensTypeMaster.findUnique({ where: { name: 'Spherical' } });
-    const asphericTypeRef = await prisma.lensTypeMaster.findUnique({ where: { name: 'Aspheric' } });
+    const rxTypeRef = await prisma.lensTypeMaster.findUnique({ where: { name: 'RX' } });
+    const stockTypeRef = await prisma.lensTypeMaster.findUnique({ where: { name: 'STOCK' } });
     
     const saleOrders = [
       {
@@ -600,7 +675,7 @@ async function seedComplete() {
         freeFitting: false,
         lens_id: lensProduct1Ref.id,
         category_id: singleVisionCatRef.id,
-        Type_id: sphericalTypeRef.id,
+        Type_id: rxTypeRef.id,
         coating_id: arCoatingRef.id,
         fitting_id: standardFitting.id,
         dia_id: dia70.id,
@@ -628,7 +703,7 @@ async function seedComplete() {
         freeFitting: true,
         lens_id: lensProduct2Ref.id,
         category_id: progressiveCatRef.id,
-        Type_id: asphericTypeRef.id,
+        Type_id: rxTypeRef.id,
         coating_id: blpCoatingRef.id,
         fitting_id: premiumFitting.id,
         dia_id: dia75.id,
@@ -657,7 +732,7 @@ async function seedComplete() {
         freeFitting: false,
         lens_id: lensProduct3Ref.id,
         category_id: singleVisionCatRef.id,
-        Type_id: asphericTypeRef.id,
+        Type_id: stockTypeRef.id,
         coating_id: blpCoatingRef.id,
         fitting_id: standardFitting.id,
         dia_id: dia65.id,
@@ -680,7 +755,7 @@ async function seedComplete() {
         freeFitting: false,
         lens_id: lensProduct1Ref.id,
         category_id: singleVisionCatRef.id,
-        Type_id: sphericalTypeRef.id,
+        Type_id: rxTypeRef.id,
         coating_id: arCoatingRef.id,
         rightEye: true,
         leftEye: true,
@@ -705,6 +780,37 @@ async function seedComplete() {
       });
     }
     console.log('✅ Sale orders created\n');
+
+    console.log('🏦 Seeding financial ledgers...');
+    await seedFinancialLedgers(prisma);
+    console.log('✅ Financial ledgers created\n');
+
+    console.log('⚙️  Seeding company settings...');
+    const defaultCustomAttributes = {
+      gstRates: [
+        { label: 'GST 0%', value: 0 },
+        { label: 'GST 5%', value: 5 },
+        { label: 'GST 12%', value: 12 },
+        { label: 'GST 18%', value: 18 },
+        { label: 'GST 28%', value: 28 },
+      ],
+    };
+    const existingCompany = await prisma.companySettings.findFirst();
+    if (existingCompany) {
+      await prisma.companySettings.update({
+        where: { id: existingCompany.id },
+        data: { customAttributes: defaultCustomAttributes },
+      });
+    } else {
+      await prisma.companySettings.create({
+        data: {
+          companyName: 'Lens Billing',
+          customAttributes: defaultCustomAttributes,
+          updatedBy: 1,
+        },
+      });
+    }
+    console.log('✅ Company settings created\n');
 
     console.log('═══════════════════════════════════════');
     console.log('🎉 Complete database seed successful!');

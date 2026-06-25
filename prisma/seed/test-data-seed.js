@@ -200,6 +200,17 @@ async function seedTestData() {
 
     console.log('✅ Lens master data created\n');
 
+    const index156 = await prisma.lensIndexMaster.upsert({
+      where: { index_name: '1.56' },
+      update: {},
+      create: { index_name: '1.56', description: 'Standard index 1.56', activeStatus: true, deleteStatus: false, createdBy: 1 },
+    });
+    const index167 = await prisma.lensIndexMaster.upsert({
+      where: { index_name: '1.67' },
+      update: {},
+      create: { index_name: '1.67', description: 'High index 1.67', activeStatus: true, deleteStatus: false, createdBy: 1 },
+    });
+
     // Step 5: Create Lens Products
     console.log('🔬 Creating lens products...');
     await prisma.lensProductMaster.createMany({
@@ -211,7 +222,7 @@ async function seedTestData() {
           type_id: lensTypes[0].id,
           product_code: 'ESS-SV-001',
           lens_name: 'Essilor Single Vision Standard',
-          index_value: 156,
+          index_id: index156.id,
           sphere_min: -6.0,
           sphere_max: 4.0,
           cyl_min: -2.0,
@@ -227,7 +238,7 @@ async function seedTestData() {
           type_id: lensTypes[1].id,
           product_code: 'ZIS-PRG-001',
           lens_name: 'Zeiss Progressive Premium',
-          index_value: 167,
+          index_id: index167.id,
           sphere_min: -8.0,
           sphere_max: 6.0,
           cyl_min: -4.0,

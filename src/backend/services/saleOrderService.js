@@ -45,6 +45,61 @@ export class SaleOrderService {
   }
 
   /**
+   * Ensure customer reference is globally unique (case-insensitive).
+   */
+  async assertUniqueCustomerRef(customerRefNo, excludeId = null) {
+    const ref = customerRefNo?.trim();
+    if (!ref) return;
+
+    const existing = await prisma.saleOrder.findFirst({
+      where: {
+        deleteStatus: false,
+        customerRefNo: { equals: ref, mode: 'insensitive' },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true, orderNo: true },
+    });
+
+    if (existing) {
+      throw new APIError(
+        `Customer reference already used on order ${existing.orderNo}`,
+        409,
+        'DUPLICATE_CUSTOMER_REF',
+        { existingOrderId: existing.id, orderNo: existing.orderNo }
+      );
+    }
+  }
+
+  /**
+   * Check customer reference availability (for async FE validation).
+   */
+  async checkCustomerRef(customerRefNo, excludeId = null) {
+    const ref = customerRefNo?.trim();
+    if (!ref) {
+      return { available: true, existingOrderId: null, orderNo: null };
+    }
+
+    const existing = await prisma.saleOrder.findFirst({
+      where: {
+        deleteStatus: false,
+        customerRefNo: { equals: ref, mode: 'insensitive' },
+        ...(excludeId ? { id: { not: parseInt(excludeId, 10) } } : {}),
+      },
+      select: { id: true, orderNo: true },
+    });
+
+    if (existing) {
+      return {
+        available: false,
+        existingOrderId: existing.id,
+        orderNo: existing.orderNo,
+      };
+    }
+
+    return { available: true, existingOrderId: null, orderNo: null };
+  }
+
+  /**
    * Create a new sale order
    * @param {Object} orderData - Sale order data
    * @param {number} userId - User creating the order
@@ -183,6 +238,8 @@ export class SaleOrderService {
           );
         }
       }
+
+      await this.assertUniqueCustomerRef(orderData.customerRefNo);
 
       // Generate order number
       const orderNo = await this.generateOrderNumber();
@@ -694,6 +751,10 @@ export class SaleOrderService {
             'OFFER_DISCOUNT_CONFLICT'
           );
         }
+      }
+
+      if (updateData.customerRefNo !== undefined) {
+        await this.assertUniqueCustomerRef(updateData.customerRefNo, id);
       }
 
       // Prepare update object

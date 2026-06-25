@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Package } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Package, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -32,12 +32,16 @@ import {
 } from "@/services/saleOrder";
 import { defaultPurchaseOrder, activeStatusOptions, statusOptions, purchaseTypeOptions, orderTypeOptions } from "./PurchaseOrder.constants";
 import BulkLensSelection from "./BulkLensSelection";
+import { useCompany } from "@/contexts/CompanyContext";
+import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
 
 export default function PurchaseOrderForm() {
   const navigate = useNavigate();
   const { mode, id } = useParams();
   const location = useLocation();
   const { toast } = useToast();
+  const { company } = useCompany();
+  const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
   const [isEditing, setIsEditing] = useState(mode === "add" || mode === "edit");
   const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState(defaultPurchaseOrder);
@@ -679,6 +683,13 @@ export default function PurchaseOrderForm() {
   };
 
   const isReadOnly = mode === "view" && !isEditing;
+  const lockSingleLensFields = formData.orderType === "Single" && mode !== "add";
+  const lensFieldsDisabled = isReadOnly || lockSingleLensFields;
+  const canReceivePo =
+    mode === "view" &&
+    !isEditing &&
+    formData.status === "DRAFT" &&
+    (formData.quantity || 0) > (formData.receivedQty || 0);
 
   // Render common purchase form fields
   // Basic form for bulk orders (without individual lens selection)
@@ -923,7 +934,7 @@ export default function PurchaseOrderForm() {
               placeholder="Search and select sale order..."
               isSearchable={true}
               isClearable={true}
-              disabled={isReadOnly || !!location.state?.fromSaleOrder}
+              disabled={isReadOnly || lockSingleLensFields || !!location.state?.fromSaleOrder}
               error={errors.saleOrderId}
               singleLine
             />
@@ -1163,7 +1174,7 @@ export default function PurchaseOrderForm() {
                     onCheckedChange={(checked) =>
                       setFormData((prev) => ({ ...prev, rightEye: checked }))
                     }
-                    disabled={isReadOnly}
+                    disabled={lensFieldsDisabled}
                   />
                   <label
                     htmlFor="rightEye"
@@ -1180,7 +1191,7 @@ export default function PurchaseOrderForm() {
                     onCheckedChange={(checked) =>
                       setFormData((prev) => ({ ...prev, leftEye: checked }))
                     }
-                    disabled={isReadOnly}
+                    disabled={lensFieldsDisabled}
                   />
                   <label
                     htmlFor="leftEye"
@@ -1210,14 +1221,14 @@ export default function PurchaseOrderForm() {
             <>
               <h4 className="text-sm font-medium text-muted-foreground">Right Eye</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <FormInput label="Spherical" name="rightSpherical" value={formData.rightSpherical} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Cylindrical" name="rightCylindrical" value={formData.rightCylindrical} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Axis" name="rightAxis" value={formData.rightAxis} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Add" name="rightAdd" value={formData.rightAdd} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Dia" name="rightDia" value={formData.rightDia} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Base" name="rightBase" value={formData.rightBase} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Base Size" name="rightBaseSize" value={formData.rightBaseSize} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Bled" name="rightBled" value={formData.rightBled} onChange={handleChange} disabled={isReadOnly} />
+                <FormInput label="Spherical" name="rightSpherical" value={formData.rightSpherical} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Cylindrical" name="rightCylindrical" value={formData.rightCylindrical} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Axis" name="rightAxis" value={formData.rightAxis} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Add" name="rightAdd" value={formData.rightAdd} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Dia" name="rightDia" value={formData.rightDia} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Base" name="rightBase" value={formData.rightBase} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Base Size" name="rightBaseSize" value={formData.rightBaseSize} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Bled" name="rightBled" value={formData.rightBled} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
               </div>
             </>
           )}
@@ -1226,14 +1237,14 @@ export default function PurchaseOrderForm() {
             <>
               <h4 className="text-sm font-medium text-muted-foreground">Left Eye</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <FormInput label="Spherical" name="leftSpherical" value={formData.leftSpherical} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Cylindrical" name="leftCylindrical" value={formData.leftCylindrical} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Axis" name="leftAxis" value={formData.leftAxis} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Add" name="leftAdd" value={formData.leftAdd} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Dia" name="leftDia" value={formData.leftDia} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Base" name="leftBase" value={formData.leftBase} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Base Size" name="leftBaseSize" value={formData.leftBaseSize} onChange={handleChange} disabled={isReadOnly} />
-                <FormInput label="Bled" name="leftBled" value={formData.leftBled} onChange={handleChange} disabled={isReadOnly} />
+                <FormInput label="Spherical" name="leftSpherical" value={formData.leftSpherical} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Cylindrical" name="leftCylindrical" value={formData.leftCylindrical} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Axis" name="leftAxis" value={formData.leftAxis} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Add" name="leftAdd" value={formData.leftAdd} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Dia" name="leftDia" value={formData.leftDia} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Base" name="leftBase" value={formData.leftBase} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Base Size" name="leftBaseSize" value={formData.leftBaseSize} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
+                <FormInput label="Bled" name="leftBled" value={formData.leftBled} onChange={handleChange} disabled={lensFieldsDisabled} clearZeroOnFocus />
               </div>
             </>
           )}
@@ -1277,58 +1288,19 @@ export default function PurchaseOrderForm() {
           />
         </div>
 
-        {/* Tax field with toggle */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Tax</Label>
-            <div className="flex rounded-md border overflow-hidden text-xs">
-              <button
-                type="button"
-                onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, taxType: "Amount" }))}
-                className={`px-2 py-0.5 transition-colors ${formData.taxType === "Amount"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-muted"
-                  } ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
-              >
-                ₹ Amount
-              </button>
-              <button
-                type="button"
-                onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, taxType: "Percent" }))}
-                className={`px-2 py-0.5 transition-colors ${formData.taxType === "Percent"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-muted"
-                  } ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
-              >
-                % Rate
-              </button>
-            </div>
-          </div>
-          {formData.taxType === "Percent" ? (
-            <FormInput
-              name="taxPercentage"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              value={formData.taxPercentage}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              suffix="%"
-            />
-          ) : (
-            <FormInput
-              name="taxAmount"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.taxAmount}
-              onChange={handleChange}
-              disabled={isReadOnly}
-              prefix="₹"
-            />
-          )}
-        </div>
+        {/* Tax — percentage dropdown from company settings */}
+        <FormSelect
+          label="GST / Tax"
+          name="taxPercentage"
+          options={gstRateOptions}
+          value={formData.taxPercentage != null ? String(formData.taxPercentage) : ""}
+          onChange={(value) => setFormData((prev) => ({ ...prev, taxType: "Percent", taxPercentage: value }))}
+          placeholder="Select GST rate"
+          isSearchable={false}
+          isClearable={true}
+          disabled={isReadOnly}
+          singleLine
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <FormInput
@@ -1496,6 +1468,18 @@ export default function PurchaseOrderForm() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Close
           </Button>
+          {mode === "view" && canReceivePo && (
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() => window.open(`/masters/purchase-orders/receive/${id}`, "_blank")}
+            >
+              <PackageCheck className="h-3.5 w-3.5" />
+              Receive PO
+            </Button>
+          )}
           {mode === "view" && (
             <Button
               size="xs"

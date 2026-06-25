@@ -2,6 +2,7 @@ import * as React from "react";
 import { Input } from "./input";
 import { Label } from "./label";
 import { cn } from "@/lib/utils";
+import { isZeroDisplayValue } from "@/utils/numericInput";
 
 const FormInput = React.forwardRef(
   (
@@ -17,6 +18,10 @@ const FormInput = React.forwardRef(
       showCharCount,
       maxLength,
       singleLine = false,
+      clearZeroOnFocus = false,
+      onFocus,
+      onChange,
+      value,
       ...props
     },
     ref
@@ -24,19 +29,24 @@ const FormInput = React.forwardRef(
     const inputId = props.id || props.name;
     const hasPrefix = !!prefix;
     const hasSuffix = !!suffix;
-    const currentLength = props.value?.toString().length || 0;
+    const currentLength = value?.toString().length || 0;
+
+    const handleFocus = (e) => {
+      if (clearZeroOnFocus && isZeroDisplayValue(value)) {
+        onChange?.({ ...e, target: { ...e.target, value: "" } });
+      }
+      onFocus?.(e);
+    };
 
     return (
       <div className={cn("space-y-1.5", containerClassName)}>
         <div className={`flex gap-2 ${singleLine ? "items-center" : "flex-col justify-between"}`}>
-          {/* Label */}
           {label && (
             <Label htmlFor={inputId} className="text-xs min-w-[60px] w-[180px]">
               {label} {required && <span className="text-destructive">*</span>}
             </Label>
           )}
 
-          {/* Input with optional prefix/suffix */}
           <div className="relative w-full">
             {prefix && (
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -48,6 +58,9 @@ const FormInput = React.forwardRef(
               id={inputId}
               autoComplete="off"
               maxLength={maxLength}
+              value={value}
+              onChange={onChange}
+              onFocus={handleFocus}
               className={cn(
                 " h-8 text-sm",
                 hasPrefix && "pl-12",

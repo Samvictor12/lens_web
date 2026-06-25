@@ -117,7 +117,7 @@ const InventoryForm = ({
   };
 
   const lensOptions = useMemo(
-    () => (dropdownData.lensProducts || []).map((lens) => ({ value: lens.id, label: lens.name })),
+    () => (dropdownData.lensProducts || []).map((lens) => ({ value: lens.id, label: lens.lens_name || lens.name })),
     [dropdownData.lensProducts]
   );
 
