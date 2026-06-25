@@ -188,6 +188,11 @@ const masterItems = [
         icon: Package,
       },
       {
+        title: "Lens Diameters",
+        url: "/masters/lens-dia",
+        icon: Circle,
+      },
+      {
         title: "Lens Coatings",
         url: "/masters/lens-coating",
         icon: Sparkles,
@@ -222,11 +227,7 @@ const masterItems = [
         url: "/masters/lens-fitting",
         icon: Wrench,
       },
-      {
-        title: "Lens Diameters",
-        url: "/masters/lens-dia",
-        icon: Circle,
-      },
+      
       {
         title: "Lens Offers",
         url: "/masters/lens-offers",

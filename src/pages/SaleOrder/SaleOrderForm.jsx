@@ -74,6 +74,7 @@ export default function SaleOrderForm() {
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
     const [exchangeBrandPrice, setExchangeBrandPrice] = useState(null);
+    const [lensProductIndexName, setLensProductIndexName] = useState("");
     const [customerRefStatus, setCustomerRefStatus] = useState(null);
     const [isCheckingCustomerRef, setIsCheckingCustomerRef] = useState(false);
 
@@ -829,7 +830,24 @@ export default function SaleOrderForm() {
         }
     };
 
-    // Auto-check customer ref uniqueness (debounced)
+    // Load lens index from selected product (display only — not stored on sale order)
+    useEffect(() => {
+        const loadLensIndex = async () => {
+            if (!formData.lens_id) {
+                setLensProductIndexName("");
+                return;
+            }
+            try {
+                const res = await getLensProductById(formData.lens_id);
+                const indexName = res.data?.index?.index_name || "";
+                setLensProductIndexName(indexName);
+            } catch {
+                setLensProductIndexName("");
+            }
+        };
+        loadLensIndex();
+    }, [formData.lens_id]);
+
     useEffect(() => {
         const ref = formData.customerRefNo?.trim();
         if (!ref || !formData.customerId) {
@@ -2651,9 +2669,11 @@ export default function SaleOrderForm() {
                                     // required
                                     error={errors.tinting_id}
                                 />
-                                <div className="md:col-span-2">
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <FormSelect
-                                        singleLine={true} label="Coating Name"
+                                        singleLine={true}
+                                        label="Coating Name"
                                         name="coating_id"
                                         options={filteredCoatings}
                                         value={formData.coating_id}
@@ -2667,8 +2687,18 @@ export default function SaleOrderForm() {
                                         disabled={mode !== "add" || !formData.lens_id || isLoadingCoatings}
                                         required
                                         error={errors.coating_id}
+                                        containerClassName="flex-1 min-w-0"
                                     />
-                                </div>
+                                    <FormInput
+                                        singleLine={true}
+                                        label="Index"
+                                        name="lensProductIndex"
+                                        value={lensProductIndexName}
+                                        disabled={true}
+                                        placeholder="—"
+                                        // containerClassName="w-[120px] shrink-0"
+                                    />
+                                
                             </div>
 
                         </CardContent>
