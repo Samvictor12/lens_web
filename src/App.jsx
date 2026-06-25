@@ -53,6 +53,8 @@ import LensOffersForm from "./pages/LensOffers/LensOffersForm";
 import LensProductMain from "./pages/LensProductMaster/LensProductMain";
 import LensProductForm from "./pages/LensProductMaster/LensProductForm";
 import LensFittingMain from "./pages/LensFittingMaster/LensFittingMain";
+import LensDiaMain from "./pages/LensDiaMaster/LensDiaMain";
+import LensDiaForm from "./pages/LensDiaMaster/LensDiaForm";
 import LensFittingForm from "./pages/LensFittingMaster/LensFittingForm";
 import LocationMain from "./pages/LocationMaster/LocationMain";
 import LocationForm from "./pages/LocationMaster/LocationForm";
@@ -216,6 +218,9 @@ const AppRoutes = () => (
       <Route path="/masters/lens-fitting" element={<ProtectedRoute><LensFittingMain /></ProtectedRoute>} />
       <Route path="/masters/lens-fitting/:mode" element={<ProtectedRoute><LensFittingForm /></ProtectedRoute>} />
       <Route path="/masters/lens-fitting/:mode/:id" element={<ProtectedRoute><LensFittingForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-dia" element={<ProtectedRoute><LensDiaMain /></ProtectedRoute>} />
+      <Route path="/masters/lens-dia/:mode" element={<ProtectedRoute><LensDiaForm /></ProtectedRoute>} />
+      <Route path="/masters/lens-dia/:mode/:id" element={<ProtectedRoute><LensDiaForm /></ProtectedRoute>} />
       <Route path="/masters/location" element={<ProtectedRoute><LocationMain /></ProtectedRoute>} />
       <Route path="/masters/location/:mode" element={<ProtectedRoute><LocationForm /></ProtectedRoute>} />
       <Route path="/masters/location/:mode/:id" element={<ProtectedRoute><LocationForm /></ProtectedRoute>} />

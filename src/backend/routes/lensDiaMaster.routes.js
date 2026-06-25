@@ -15,9 +15,9 @@ const controller = new LensDiaMasterController();
  *           type: integer
  *           description: Diameter ID
  *         name:
- *           type: string
- *           description: Diameter name
- *           example: "65mm"
+ *           type: integer
+ *           description: Diameter value (whole number)
+ *           example: 65
  *         short_name:
  *           type: string
  *           description: Short name/abbreviation
@@ -46,14 +46,10 @@ const controller = new LensDiaMasterController();
  *       type: object
  *       required:
  *         - name
- *         - short_name
  *       properties:
  *         name:
- *           type: string
- *           example: "70mm"
- *         short_name:
- *           type: string
- *           example: "70"
+ *           type: integer
+ *           example: 70
  *         description:
  *           type: string
  *           example: "Standard 70mm diameter lens"

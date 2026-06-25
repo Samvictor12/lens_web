@@ -46,6 +46,7 @@ export class SaleOrderService {
 
   /**
    * Ensure customer reference is globally unique (case-insensitive).
+   * @deprecated Submit-time check replaced by checkCustomerRef (per-customer fail / cross-customer warning).
    */
   async assertUniqueCustomerRef(customerRefNo, excludeId = null) {
     const ref = customerRefNo?.trim();
@@ -71,32 +72,64 @@ export class SaleOrderService {
   }
 
   /**
-   * Check customer reference availability (for async FE validation).
+   * Check customer reference for async FE validation.
+   * - pass: ref is unique (no other orders use it)
+   * - fail: same customer already has an order with this ref
+   * - warning: ref used by a different customer (submit still allowed)
    */
-  async checkCustomerRef(customerRefNo, excludeId = null) {
+  async checkCustomerRef(customerRefNo, customerId = null, excludeId = null) {
     const ref = customerRefNo?.trim();
     if (!ref) {
-      return { available: true, existingOrderId: null, orderNo: null };
+      return { status: 'pass', message: 'Reference is unique' };
     }
 
-    const existing = await prisma.saleOrder.findFirst({
+    const parsedCustomerId = customerId ? parseInt(customerId, 10) : null;
+    const excludeFilter = excludeId ? { id: { not: parseInt(excludeId, 10) } } : {};
+
+    const matches = await prisma.saleOrder.findMany({
       where: {
         deleteStatus: false,
         customerRefNo: { equals: ref, mode: 'insensitive' },
-        ...(excludeId ? { id: { not: parseInt(excludeId, 10) } } : {}),
+        ...excludeFilter,
       },
-      select: { id: true, orderNo: true },
+      select: {
+        id: true,
+        orderNo: true,
+        customerId: true,
+        customer: { select: { id: true, name: true, code: true } },
+        lensProduct: { select: { id: true, lens_name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     });
 
-    if (existing) {
-      return {
-        available: false,
-        existingOrderId: existing.id,
-        orderNo: existing.orderNo,
-      };
+    if (matches.length === 0) {
+      return { status: 'pass', message: 'Reference is unique' };
     }
 
-    return { available: true, existingOrderId: null, orderNo: null };
+    if (parsedCustomerId) {
+      const sameCustomerMatch = matches.find((m) => m.customerId === parsedCustomerId);
+      if (sameCustomerMatch) {
+        return {
+          status: 'fail',
+          message: 'Already same ref is used against this customer',
+          existingOrderId: sameCustomerMatch.id,
+          orderNo: sameCustomerMatch.orderNo,
+        };
+      }
+    }
+
+    return {
+      status: 'warning',
+      message: 'Reference is used by another customer',
+      conflicts: matches.map((m) => ({
+        orderId: m.id,
+        orderNo: m.orderNo,
+        customerId: m.customerId,
+        customerName: m.customer?.name || m.customer?.code || 'Unknown',
+        lensName: m.lensProduct?.lens_name || 'N/A',
+      })),
+    };
   }
 
   /**
@@ -239,7 +272,8 @@ export class SaleOrderService {
         }
       }
 
-      await this.assertUniqueCustomerRef(orderData.customerRefNo);
+      // Submit-time duplicate ref check handled on FE via checkCustomerRef API
+      // await this.assertUniqueCustomerRef(orderData.customerRefNo);
 
       // Generate order number
       const orderNo = await this.generateOrderNumber();
@@ -754,7 +788,8 @@ export class SaleOrderService {
       }
 
       if (updateData.customerRefNo !== undefined) {
-        await this.assertUniqueCustomerRef(updateData.customerRefNo, id);
+        // Submit-time duplicate ref check handled on FE via checkCustomerRef API
+        // await this.assertUniqueCustomerRef(updateData.customerRefNo, id);
       }
 
       // Prepare update object

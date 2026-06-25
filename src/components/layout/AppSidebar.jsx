@@ -30,6 +30,7 @@ import {
   TrendingDown,
   RefreshCw,
   Scale,
+  Circle,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { NavLink, useLocation } from "react-router-dom";
@@ -220,6 +221,11 @@ const masterItems = [
         title: "Lens Fittings",
         url: "/masters/lens-fitting",
         icon: Wrench,
+      },
+      {
+        title: "Lens Diameters",
+        url: "/masters/lens-dia",
+        icon: Circle,
       },
       {
         title: "Lens Offers",

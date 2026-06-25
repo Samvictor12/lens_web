@@ -1145,8 +1145,7 @@ export default function PurchaseOrderForm() {
               />
             )}
 
-            
-            {/* {!isBulk && (
+            {!isBulk && (
               <FormSelect
                 label="Dia (Optional)"
                 name="dia_id"
@@ -1156,9 +1155,9 @@ export default function PurchaseOrderForm() {
                 placeholder="Select dia"
                 isSearchable={true}
                 isClearable={true}
-                disabled={isReadOnly}
+                disabled={mode !== "add"}
               />
-            )} */}
+            )}
           </div>
 
           {/* Eye Selection */}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt, Tag as LabelIcon } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt, Tag as LabelIcon, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getApplicableOffers } from "@/services/lensOffers";
 import { apiClient } from "@/services/apiClient";
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { SaleOrderPrintModal } from "@/components/LensPrint/SaleOrderPrintModal";
 import { generatePONumber, createPurchaseOrder } from "@/services/purchaseOrder";
@@ -73,7 +74,8 @@ export default function SaleOrderForm() {
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
     const [exchangeBrandPrice, setExchangeBrandPrice] = useState(null);
-    const [customerRefConflict, setCustomerRefConflict] = useState(null);
+    const [customerRefStatus, setCustomerRefStatus] = useState(null);
+    const [isCheckingCustomerRef, setIsCheckingCustomerRef] = useState(false);
 
     // Print modal states
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -600,8 +602,8 @@ export default function SaleOrderForm() {
         if (!formData.status) {
             newErrors.status = "Status is required";
         }
-        if (customerRefConflict) {
-            newErrors.customerRefNo = `Reference already used on order ${customerRefConflict.orderNo}`;
+        if (customerRefStatus?.status === "fail") {
+            newErrors.customerRefNo = customerRefStatus.message || "Already same ref is used against this customer";
         }
 
         // Delivery schedule validation
@@ -800,7 +802,7 @@ export default function SaleOrderForm() {
             setErrors((prev) => ({ ...prev, [name]: "" }));
         }
         if (name === "customerRefNo") {
-            setCustomerRefConflict(null);
+            setCustomerRefStatus(null);
         }
 
         // Clear eye specs when eye is unchecked
@@ -827,30 +829,100 @@ export default function SaleOrderForm() {
         }
     };
 
-    const handleCustomerRefBlur = async () => {
+    // Auto-check customer ref uniqueness (debounced)
+    useEffect(() => {
         const ref = formData.customerRefNo?.trim();
-        if (!ref) {
-            setCustomerRefConflict(null);
+        if (!ref || !formData.customerId) {
+            setCustomerRefStatus(null);
+            setIsCheckingCustomerRef(false);
             return;
         }
-        try {
-            const excludeId = mode !== "add" && id ? id : null;
-            const res = await checkCustomerRef(ref, excludeId);
-            if (res.success && !res.data.available) {
-                setCustomerRefConflict({
-                    orderNo: res.data.orderNo,
-                    existingOrderId: res.data.existingOrderId,
-                });
-                setErrors((prev) => ({
-                    ...prev,
-                    customerRefNo: `Reference already used on order ${res.data.orderNo}`,
-                }));
-            } else {
-                setCustomerRefConflict(null);
+
+        setIsCheckingCustomerRef(true);
+        const timer = setTimeout(async () => {
+            try {
+                const excludeId = mode !== "add" && id ? id : null;
+                const res = await checkCustomerRef(ref, formData.customerId, excludeId);
+                if (res.success) {
+                    setCustomerRefStatus(res.data);
+                    setErrors((prev) => {
+                        if (res.data.status === "fail") {
+                            return {
+                                ...prev,
+                                customerRefNo: res.data.message || "Already same ref is used against this customer",
+                            };
+                        }
+                        if (prev.customerRefNo) {
+                            const { customerRefNo, ...rest } = prev;
+                            return rest;
+                        }
+                        return prev;
+                    });
+                }
+            } catch {
+                setCustomerRefStatus(null);
+            } finally {
+                setIsCheckingCustomerRef(false);
             }
-        } catch {
-            // non-blocking
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [formData.customerRefNo, formData.customerId, mode, id]);
+
+    const getCustomerRefStatusMessage = () => {
+        if (isCheckingCustomerRef) return "Checking reference…";
+        if (!formData.customerRefNo?.trim()) return "";
+        if (!formData.customerId) return "Select a customer to validate reference";
+        if (!customerRefStatus) return "";
+
+        if (customerRefStatus.status === "pass") {
+            return "Reference is unique";
         }
+        if (customerRefStatus.status === "fail") {
+            const orderHint = customerRefStatus.orderNo
+                ? ` (Order ${customerRefStatus.orderNo})`
+                : "";
+            return `Already same ref is used against this customer${orderHint}`;
+        }
+        if (customerRefStatus.status === "warning" && customerRefStatus.conflicts?.length) {
+            return customerRefStatus.conflicts
+                .map((c) => `${c.customerName} — ${c.lensName}`)
+                .join("\n");
+        }
+        return customerRefStatus.message || "";
+    };
+
+    const renderCustomerRefStatusIcon = () => {
+        if (!formData.customerRefNo?.trim()) return null;
+
+        let icon = null;
+        if (isCheckingCustomerRef) {
+            icon = <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+        } else if (!formData.customerId) {
+            return null;
+        } else if (customerRefStatus?.status === "pass") {
+            icon = <CheckCircle2 className="h-4 w-4 text-green-600" />;
+        } else if (customerRefStatus?.status === "fail") {
+            icon = <XCircle className="h-4 w-4 text-destructive" />;
+        } else if (customerRefStatus?.status === "warning") {
+            icon = <AlertTriangle className="h-4 w-4 text-amber-500" />;
+        }
+
+        if (!icon) return null;
+
+        const message = getCustomerRefStatusMessage();
+        if (!message) return <span className="inline-flex shrink-0 pt-1">{icon}</span>;
+
+        return (
+            <Tooltip open delayDuration={0}>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex shrink-0 cursor-pointer pt-1">{icon}</span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-xs">
+                    {message}
+                </TooltipContent>
+            </Tooltip>
+        );
     };
 
     const handleSelectChange = (name, value) => {
@@ -937,12 +1009,14 @@ export default function SaleOrderForm() {
         if (name === "rightEye") {
             const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
             const isSV = catName.includes("single") || catName.includes("reading");
+            const defaultDia = dias.find((d) => d.name === 70 || d.short_name === "70")?.short_name
+                || (dias[0]?.short_name ?? String(dias[0]?.name ?? ""));
             setFormData((prev) => ({
                 ...prev,
                 rightEye: value,
                 ...(value
                     ? {
-                        rightDia: prev.rightDia || "70",
+                        rightDia: prev.rightDia || defaultDia,
                         rightCylindrical: prev.rightCylindrical || (isSV ? "0" : prev.rightCylindrical),
                     }
                     : {
@@ -959,12 +1033,14 @@ export default function SaleOrderForm() {
         if (name === "leftEye") {
             const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
             const isSV = catName.includes("single") || catName.includes("reading");
+            const defaultDia = dias.find((d) => d.name === 70 || d.short_name === "70")?.short_name
+                || (dias[0]?.short_name ?? String(dias[0]?.name ?? ""));
             setFormData((prev) => ({
                 ...prev,
                 leftEye: value,
                 ...(value
                     ? {
-                        leftDia: prev.leftDia || "70",
+                        leftDia: prev.leftDia || defaultDia,
                         leftCylindrical: prev.leftCylindrical || (isSV ? "0" : prev.leftCylindrical),
                     }
                     : {
@@ -1898,6 +1974,64 @@ export default function SaleOrderForm() {
 
     // Eye spec gating: both Type and Category must be selected before entering eye data
     const eyeSpecReady = !!(formData.Type_id && formData.category_id);
+    const getDefaultDiaValue = () => {
+        const preferred = dias.find((d) => d.name === 70 || d.short_name === "70");
+        const fallback = dias[0];
+        const dia = preferred || fallback;
+        return dia ? (dia.short_name || String(dia.name)) : "";
+    };
+    const getDiaSelectValue = (diaValue) => {
+        if (!diaValue || dias.length === 0) return null;
+        const match = dias.find(
+            (d) => d.short_name === String(diaValue) || String(d.name) === String(diaValue)
+        );
+        return match?.id ?? null;
+    };
+    const handleEyeDiaChange = (eye, diaId) => {
+        const field = eye === "right" ? "rightDia" : "leftDia";
+        if (!diaId) {
+            setFormData((prev) => ({ ...prev, [field]: "", dia_id: null }));
+            return;
+        }
+        const selectedDia = dias.find((d) => d.id === diaId);
+        const diaValue = selectedDia?.short_name ?? (selectedDia?.name != null ? String(selectedDia.name) : "");
+        setFormData((prev) => ({ ...prev, [field]: diaValue, dia_id: null }));
+    };
+    const bothEyesDisabled = !(isEditing && formData.status === "DRAFT") || !eyeSpecReady;
+    const handleBothEyesChange = (checked) => {
+        if (bothEyesDisabled) return;
+        const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
+        const isSV = catName.includes("single") || catName.includes("reading");
+        const defaultDia = getDefaultDiaValue();
+        if (checked) {
+            setFormData((prev) => ({
+                ...prev,
+                rightEye: true,
+                leftEye: true,
+                rightDia: prev.rightDia || defaultDia,
+                leftDia: prev.leftDia || defaultDia,
+                rightCylindrical: prev.rightCylindrical || (isSV ? "0" : prev.rightCylindrical),
+                leftCylindrical: prev.leftCylindrical || (isSV ? "0" : prev.leftCylindrical),
+            }));
+        } else {
+            setFormData((prev) => ({
+                ...prev,
+                rightEye: false,
+                leftEye: false,
+                rightSpherical: "",
+                rightCylindrical: "",
+                rightAxis: "",
+                rightAdd: "",
+                rightDia: "",
+                leftSpherical: "",
+                leftCylindrical: "",
+                leftAxis: "",
+                leftAdd: "",
+                leftDia: "",
+            }));
+        }
+        if (errors.eyeSelection) setErrors((prev) => ({ ...prev, eyeSelection: "" }));
+    };
     // Add field is only relevant for Bifocal / Progressive lenses
     const selectedCategoryName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
     const showAddField = selectedCategoryName.includes("bifocal") || selectedCategoryName.includes("progressive");
@@ -2196,32 +2330,20 @@ export default function SaleOrderForm() {
                             rows={1}
                             placeholder="Enter any additional remarks"
                         />
-                        <FormInput
-                            singleLine={true} label="Customer Ref No"
-                            name="customerRefNo"
-                            value={formData.customerRefNo}
-                            onChange={handleChange}
-                            onBlur={handleCustomerRefBlur}
-                            disabled={!isEditing}
-                            placeholder="Optional customer reference"
-                            error={errors.customerRefNo}
-                        />
-                        {customerRefConflict && (
-                            <Alert variant="destructive" className="py-2">
-                                <AlertDescription className="text-xs">
-                                    Customer reference already used on order{" "}
-                                    <button
-                                        type="button"
-                                        className="underline font-medium"
-                                        onClick={() =>
-                                            window.open(`/sales/orders/view/${customerRefConflict.existingOrderId}`, "_blank")
-                                        }
-                                    >
-                                        {customerRefConflict.orderNo} — click here to open
-                                    </button>
-                                </AlertDescription>
-                            </Alert>
-                        )}
+                        <div className="flex gap-2 items-center">
+                            <FormInput
+                                singleLine={true}
+                                label="Customer Ref No"
+                                name="customerRefNo"
+                                value={formData.customerRefNo}
+                                onChange={handleChange}
+                                disabled={!isEditing}
+                                placeholder="Optional customer reference"
+                                error={errors.customerRefNo}
+                                containerClassName="flex-1 min-w-0"
+                            />
+                            {renderCustomerRefStatusIcon()}
+                        </div>
                         <FormInput
                             singleLine={true} label="Item Ref No"
                             name="itemRefNo"
@@ -2491,7 +2613,6 @@ export default function SaleOrderForm() {
 
                             {/* Row 2 */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
                                 {!formData.onlyLens && (
                                     <FormSelect
                                         singleLine={true} label="Fitting Type"
@@ -2554,10 +2675,30 @@ export default function SaleOrderForm() {
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base w-full">Eye Specifications</CardTitle>
+                        <CardHeader className="flex flex-row items-center justify-between gap-3">
+                            <div className="flex gap-2 items-center">
+                                <CardTitle className="text-base">Eye Specifications</CardTitle>
+                                <div
+                                    className={`inline-flex items-center gap-2 border border-border rounded-md px-2 py-1.5 bg-muted/50 ${
+                                        bothEyesDisabled
+                                            ? "opacity-50 cursor-not-allowed pointer-events-none"
+                                            : "cursor-pointer"
+                                    }`}
+                                >
+                                    <Checkbox
+                                        id="bothEyes"
+                                        name="bothEyes"
+                                        checked={formData.rightEye && formData.leftEye}
+                                        onCheckedChange={handleBothEyesChange}
+                                        disabled={bothEyesDisabled}
+                                    />
+                                    <Label htmlFor="bothEyes" className="text-xs font-normal cursor-pointer">
+                                        Both Eyes
+                                    </Label>
+                                </div>
+                            </div>
                             {isEditing && !eyeSpecReady && (
-                                <p className="text-xs text-amber-600 font-normal flex justify-start text-center mt-0.5 w-full">
+                                <p className="text-xs text-amber-600 font-normal text-right shrink-0">
                                     Select Type and Category first to enter eye specifications
                                 </p>
                             )}
@@ -2627,11 +2768,16 @@ export default function SaleOrderForm() {
                                                 error={errors.rightAdd}
                                             />
                                         )}
-                                        <FormInput
-                                            singleLine={true} label="Dia"
+                                        <FormSelect
+                                            singleLine={true}
+                                            label="Dia"
                                             name="rightDia"
-                                            value={formData.rightDia}
-                                            onChange={handleChange}
+                                            options={dias}
+                                            value={getDiaSelectValue(formData.rightDia)}
+                                            onChange={(value) => handleEyeDiaChange("right", value)}
+                                            placeholder="Select"
+                                            isSearchable={true}
+                                            isClearable={true}
                                             disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                         />
                                         {/* Base and bled fields removed */}
@@ -2700,11 +2846,16 @@ export default function SaleOrderForm() {
                                                 error={errors.leftAdd}
                                             />
                                         )}
-                                        <FormInput
-                                            singleLine={true} label="Dia"
+                                        <FormSelect
+                                            singleLine={true}
+                                            label="Dia"
                                             name="leftDia"
-                                            value={formData.leftDia}
-                                            onChange={handleChange}
+                                            options={dias}
+                                            value={getDiaSelectValue(formData.leftDia)}
+                                            onChange={(value) => handleEyeDiaChange("left", value)}
+                                            placeholder="Select"
+                                            isSearchable={true}
+                                            isClearable={true}
                                             disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                         />
                                         {/* Base and bled fields removed */}
