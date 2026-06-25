@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
+import { seedFinancialLedgers } from './financial-ledgers-seed.js';
 
 const prisma = new PrismaClient();
 
@@ -779,6 +780,37 @@ async function seedComplete() {
       });
     }
     console.log('✅ Sale orders created\n');
+
+    console.log('🏦 Seeding financial ledgers...');
+    await seedFinancialLedgers(prisma);
+    console.log('✅ Financial ledgers created\n');
+
+    console.log('⚙️  Seeding company settings...');
+    const defaultCustomAttributes = {
+      gstRates: [
+        { label: 'GST 0%', value: 0 },
+        { label: 'GST 5%', value: 5 },
+        { label: 'GST 12%', value: 12 },
+        { label: 'GST 18%', value: 18 },
+        { label: 'GST 28%', value: 28 },
+      ],
+    };
+    const existingCompany = await prisma.companySettings.findFirst();
+    if (existingCompany) {
+      await prisma.companySettings.update({
+        where: { id: existingCompany.id },
+        data: { customAttributes: defaultCustomAttributes },
+      });
+    } else {
+      await prisma.companySettings.create({
+        data: {
+          companyName: 'Lens Billing',
+          customAttributes: defaultCustomAttributes,
+          updatedBy: 1,
+        },
+      });
+    }
+    console.log('✅ Company settings created\n');
 
     console.log('═══════════════════════════════════════');
     console.log('🎉 Complete database seed successful!');

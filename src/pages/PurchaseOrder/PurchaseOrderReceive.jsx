@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
 import { getPurchaseOrderById, getPOReceipts, receivePurchaseOrder, updatePOReceipt, getPOReceiptLogs } from "@/services/purchaseOrder";
 import { FormSelect } from "@/components/ui/form-select";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
@@ -67,7 +68,8 @@ export default function PurchaseOrderReceive() {
   const { id, receiptId } = useParams();
   const isEditMode = Boolean(receiptId);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { company } = useCompany();
+  const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
 
   const [po, setPo] = useState(null);
   const [poVendor, setPoVendor] = useState(null);
@@ -80,8 +82,6 @@ export default function PurchaseOrderReceive() {
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
-  const [taxType, setTaxType] = useState("Amount"); // "Amount" | "Percent"
-  const [taxAmount, setTaxAmount] = useState("");
   const [taxPercentage, setTaxPercentage] = useState("");
 
   // Supplier invoice + delivery state
@@ -122,7 +122,6 @@ export default function PurchaseOrderReceive() {
         setReceiptsData(rcpData);
         // Pre-fill pricing from PO
         if (poData.unitPrice) setUnitPrice(poData.unitPrice);
-        if (poData.taxAmount && parseFloat(poData.taxAmount) > 0) setTaxAmount(poData.taxAmount);
         if (poData.supplierInvoiceNo) setSupplierInvoiceNo(poData.supplierInvoiceNo);
         if (poData.purchaseType) setPurchaseType(poData.purchaseType);
         if (poData.placeOfSupply) setPlaceOfSupply(poData.placeOfSupply);
@@ -143,8 +142,10 @@ export default function PurchaseOrderReceive() {
             setActualDeliveryDate(editReceipt.actualDeliveryDate.split("T")[0]);
           if (editReceipt.notes) setNotes(editReceipt.notes);
           if (editReceipt.unitPrice) setUnitPrice(String(editReceipt.unitPrice));
-          if (editReceipt.taxAmount && parseFloat(editReceipt.taxAmount) > 0)
-            setTaxAmount(String(editReceipt.taxAmount));
+          if (editReceipt.taxAmount != null && editReceipt.subtotal > 0) {
+            const pct = (parseFloat(editReceipt.taxAmount) / parseFloat(editReceipt.subtotal)) * 100;
+            if (!Number.isNaN(pct)) setTaxPercentage(String(Math.round(pct * 100) / 100));
+          }
           if (editReceipt.supplierInvoiceNo) setSupplierInvoiceNo(editReceipt.supplierInvoiceNo);
           if (editReceipt.purchaseType) setPurchaseType(editReceipt.purchaseType);
           if (editReceipt.placeOfSupply) setPlaceOfSupply(editReceipt.placeOfSupply);
@@ -232,12 +233,10 @@ export default function PurchaseOrderReceive() {
     const totalThisQty = rows.reduce((s, r) => s + (parseFloat(r.receivedQty) || 0), 0);
     const up = parseFloat(unitPrice) || 0;
     const subtotal = totalThisQty * up;
-    const taxValue = taxType === "Percent"
-      ? (subtotal * (parseFloat(taxPercentage) || 0)) / 100
-      : (parseFloat(taxAmount) || 0);
+    const taxValue = (subtotal * (parseFloat(taxPercentage) || 0)) / 100;
     const totalValue = subtotal + taxValue;
     return { totalThisQty, subtotal, taxValue, totalValue };
-  }, [rows, unitPrice, taxType, taxAmount, taxPercentage]);
+  }, [rows, unitPrice, taxPercentage]);
 
   // ── Validation ────────────────────────────────────────────────────────
   const validate = () => {
@@ -249,11 +248,7 @@ export default function PurchaseOrderReceive() {
       toast({ title: "Validation", description: "Actual Delivery Date is required.", variant: "destructive" });
       return false;
     }
-    const up = parseFloat(unitPrice) || 0;
-    if (up > 0 && taxValue <= 0) {
-      toast({ title: "Validation", description: "GST / Tax is required when unit price is entered.", variant: "destructive" });
-      return false;
-    }    for (const row of rows) {
+    for (const row of rows) {
       const qty = parseFloat(row.receivedQty) || 0;
       if (qty < 0) {
         toast({ title: "Validation", description: "Received qty cannot be negative.", variant: "destructive" });
@@ -268,9 +263,7 @@ export default function PurchaseOrderReceive() {
     if (!validate()) return;
 
     const up = parseFloat(unitPrice) || 0;
-    const computedTaxAmount = taxType === "Percent"
-      ? ((subtotal * (parseFloat(taxPercentage) || 0)) / 100)
-      : (parseFloat(taxAmount) || 0);
+    const computedTaxAmount = (subtotal * (parseFloat(taxPercentage) || 0)) / 100;
 
     const receivedItems = rows
       .filter((r) => parseFloat(r.receivedQty) > 0)
@@ -549,54 +542,21 @@ export default function PurchaseOrderReceive() {
                 disabled={isLocked}
                 prefix="₹"
                 singleLine
+                clearZeroOnFocus
               />
 
-              {/* Tax toggle */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">GST / Tax {parseFloat(unitPrice) > 0 && <span className="text-destructive">*</span>}</Label>
-                  <div className="flex rounded-md border overflow-hidden text-xs">
-                    <button
-                      type="button"
-                      onClick={() => !isLocked && setTaxType("Amount")}
-                      className={`px-2 py-0.5 transition-colors ${
-                        taxType === "Amount" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                      }`}
-                    >₹ Amount</button>
-                    <button
-                      type="button"
-                      onClick={() => !isLocked && setTaxType("Percent")}
-                      className={`px-2 py-0.5 transition-colors ${
-                        taxType === "Percent" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                      }`}
-                    >% Rate</button>
-                  </div>
-                </div>
-                {taxType === "Percent" ? (
-                  <FormInput
-                    name="taxPercentage"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={taxPercentage}
-                    onChange={(e) => setTaxPercentage(e.target.value)}
-                    disabled={isLocked}
-                    suffix="%"
-                  />
-                ) : (
-                  <FormInput
-                    name="taxAmount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={taxAmount}
-                    onChange={(e) => setTaxAmount(e.target.value)}
-                    disabled={isLocked}
-                    prefix="₹"
-                  />
-                )}
-              </div>
+              <FormSelect
+                label="GST / Tax"
+                name="taxPercentage"
+                options={gstRateOptions}
+                value={taxPercentage}
+                onChange={(value) => setTaxPercentage(value != null ? String(value) : "")}
+                placeholder="Select GST rate"
+                isSearchable={false}
+                isClearable={true}
+                disabled={isLocked}
+                singleLine
+              />
 
               {/* Computed summary — always visible */}
               <div className="border-t pt-2 space-y-1 text-xs">

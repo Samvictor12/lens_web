@@ -22,14 +22,16 @@ export default function BulkLensSelection({
   const lowerCat = (categoryName || "").toLowerCase();
   const isProgressive = lowerCat.includes("prog");
   const isBifocal = lowerCat.includes("bifocal") || lowerCat.includes("bi-focal");
+  const isSingleVision =
+    (lowerCat.includes("single") || lowerCat.includes("reading")) && !isProgressive && !isBifocal;
   // Only Progressive uses per-eye (R/L) grid; Single & Bifocal use single-eye grid
   const eyeMode = isProgressive ? "Both" : "Single";
 
   const defaultRanges = {
     sphFrom: 0,
     sphTo: 2,
-    cylFrom: 0,
-    cylTo: 2,
+    cylFrom: isSingleVision ? 0 : 0,
+    cylTo: isSingleVision ? 0 : 2,
     addFrom: "",
     addTo: "",
   };
@@ -59,8 +61,16 @@ export default function BulkLensSelection({
       setShowGrid(false);
       setSelections({});
       setSelectedCell(null);
+      setRanges({
+        sphFrom: 0,
+        sphTo: 2,
+        cylFrom: isSingleVision ? 0 : 0,
+        cylTo: isSingleVision ? 0 : 2,
+        addFrom: "",
+        addTo: "",
+      });
     }
-  }, [categoryName]);
+  }, [categoryName, isSingleVision]);
 
   // Generate 0.25-step range
   const generateRange = (from, to) => {

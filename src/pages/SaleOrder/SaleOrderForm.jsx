@@ -23,6 +23,7 @@ import {
     createSaleOrder,
     getSaleOrderById,
     updateSaleOrder,
+    checkCustomerRef,
     updateSaleOrderStatus,
     getMatchingInventoryFIFO,
     closeAndCreateSaleOrder,
@@ -72,6 +73,7 @@ export default function SaleOrderForm() {
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
     const [exchangeBrandPrice, setExchangeBrandPrice] = useState(null);
+    const [customerRefConflict, setCustomerRefConflict] = useState(null);
 
     // Print modal states
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -598,8 +600,11 @@ export default function SaleOrderForm() {
         if (!formData.status) {
             newErrors.status = "Status is required";
         }
+        if (customerRefConflict) {
+            newErrors.customerRefNo = `Reference already used on order ${customerRefConflict.orderNo}`;
+        }
 
-        // Delivery schedule validation (should be after order date if provided)
+        // Delivery schedule validation
         if (formData.deliverySchedule && formData.orderDate) {
             const orderDate = new Date(formData.orderDate);
             const deliveryDate = new Date(formData.deliverySchedule);
@@ -794,6 +799,9 @@ export default function SaleOrderForm() {
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: "" }));
         }
+        if (name === "customerRefNo") {
+            setCustomerRefConflict(null);
+        }
 
         // Clear eye specs when eye is unchecked
         if (name === "rightEye" && !checked) {
@@ -816,6 +824,32 @@ export default function SaleOrderForm() {
                 leftAdd: "",
                 leftDia: "",
             }));
+        }
+    };
+
+    const handleCustomerRefBlur = async () => {
+        const ref = formData.customerRefNo?.trim();
+        if (!ref) {
+            setCustomerRefConflict(null);
+            return;
+        }
+        try {
+            const excludeId = mode !== "add" && id ? id : null;
+            const res = await checkCustomerRef(ref, excludeId);
+            if (res.success && !res.data.available) {
+                setCustomerRefConflict({
+                    orderNo: res.data.orderNo,
+                    existingOrderId: res.data.existingOrderId,
+                });
+                setErrors((prev) => ({
+                    ...prev,
+                    customerRefNo: `Reference already used on order ${res.data.orderNo}`,
+                }));
+            } else {
+                setCustomerRefConflict(null);
+            }
+        } catch {
+            // non-blocking
         }
     };
 
@@ -898,6 +932,50 @@ export default function SaleOrderForm() {
                 setPriceBreakdown(null);
                 setFormData((prev) => ({ ...prev, onlyLens: false, offer_id: null }));
             }
+            return;
+        }
+        if (name === "rightEye") {
+            const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
+            const isSV = catName.includes("single") || catName.includes("reading");
+            setFormData((prev) => ({
+                ...prev,
+                rightEye: value,
+                ...(value
+                    ? {
+                        rightDia: prev.rightDia || "70",
+                        rightCylindrical: prev.rightCylindrical || (isSV ? "0" : prev.rightCylindrical),
+                    }
+                    : {
+                        rightSpherical: "",
+                        rightCylindrical: "",
+                        rightAxis: "",
+                        rightAdd: "",
+                        rightDia: "",
+                    }),
+            }));
+            if (errors.rightEye) setErrors((prev) => ({ ...prev, rightEye: "" }));
+            return;
+        }
+        if (name === "leftEye") {
+            const catName = (categories.find((c) => c.id === formData.category_id)?.label || "").toLowerCase();
+            const isSV = catName.includes("single") || catName.includes("reading");
+            setFormData((prev) => ({
+                ...prev,
+                leftEye: value,
+                ...(value
+                    ? {
+                        leftDia: prev.leftDia || "70",
+                        leftCylindrical: prev.leftCylindrical || (isSV ? "0" : prev.leftCylindrical),
+                    }
+                    : {
+                        leftSpherical: "",
+                        leftCylindrical: "",
+                        leftAxis: "",
+                        leftAdd: "",
+                        leftDia: "",
+                    }),
+            }));
+            if (errors.leftEye) setErrors((prev) => ({ ...prev, leftEye: "" }));
             return;
         }
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -2123,9 +2201,27 @@ export default function SaleOrderForm() {
                             name="customerRefNo"
                             value={formData.customerRefNo}
                             onChange={handleChange}
+                            onBlur={handleCustomerRefBlur}
                             disabled={!isEditing}
                             placeholder="Optional customer reference"
+                            error={errors.customerRefNo}
                         />
+                        {customerRefConflict && (
+                            <Alert variant="destructive" className="py-2">
+                                <AlertDescription className="text-xs">
+                                    Customer reference already used on order{" "}
+                                    <button
+                                        type="button"
+                                        className="underline font-medium"
+                                        onClick={() =>
+                                            window.open(`/sales/orders/view/${customerRefConflict.existingOrderId}`, "_blank")
+                                        }
+                                    >
+                                        {customerRefConflict.orderNo} — click here to open
+                                    </button>
+                                </AlertDescription>
+                            </Alert>
+                        )}
                         <FormInput
                             singleLine={true} label="Item Ref No"
                             name="itemRefNo"

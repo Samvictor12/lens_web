@@ -1547,7 +1547,8 @@ model CompanySettings {
   phone       String?
   email       String?
   website     String?
-  tagline     String?
+  tagline           String?
+  customAttributes  Json?
   updatedAt   DateTime @updatedAt
   updatedBy   Int?
   updatedByUser User?  @relation("companySettingsUpdatedBy", fields: [updatedBy], references: [id])

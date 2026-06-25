@@ -44,6 +44,19 @@ export const getSaleOrderById = async (id) => {
     }
 };
 
+export const checkCustomerRef = async (ref, excludeId = null) => {
+    try {
+        const params = { ref };
+        if (excludeId) params.excludeId = excludeId;
+        const response = await apiClient("get", "/sale-orders/check-customer-ref", { params });
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to check customer reference"
+        );
+    }
+};
+
 /**
  * Create new sale order
  */

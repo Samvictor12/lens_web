@@ -2,6 +2,25 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import bcrypt from 'bcrypt';
 
+const DEFAULT_GST_RATES = [
+  { label: 'GST 0%', value: 0 },
+  { label: 'GST 5%', value: 5 },
+  { label: 'GST 12%', value: 12 },
+  { label: 'GST 18%', value: 18 },
+  { label: 'GST 28%', value: 28 },
+];
+
+function normalizeGstRates(rates) {
+  if (!Array.isArray(rates)) return DEFAULT_GST_RATES;
+  const normalized = rates
+    .map((r) => ({
+      label: String(r?.label ?? '').trim() || `GST ${r?.value}%`,
+      value: parseFloat(r?.value),
+    }))
+    .filter((r) => !Number.isNaN(r.value));
+  return normalized.length > 0 ? normalized : DEFAULT_GST_RATES;
+}
+
 const MAX_LOGO_BYTES = 600 * 1024; // ~500 KB raw, ~600KB after base64 overhead
 
 /**
@@ -54,6 +73,23 @@ export class SettingsService {
       tagline:     data.tagline     ?? null,
       updatedBy:   userId,
     };
+
+    if (data.customAttributes !== undefined) {
+      const existingSettings = await prisma.companySettings.findFirst();
+      const existingAttrs = existingSettings?.customAttributes && typeof existingSettings.customAttributes === 'object'
+        ? existingSettings.customAttributes
+        : {};
+      const incoming = data.customAttributes && typeof data.customAttributes === 'object'
+        ? data.customAttributes
+        : {};
+      sanitized.customAttributes = {
+        ...existingAttrs,
+        ...incoming,
+        ...(incoming.gstRates !== undefined
+          ? { gstRates: normalizeGstRates(incoming.gstRates) }
+          : {}),
+      };
+    }
 
     // Remove undefined keys so Prisma doesn't null them out accidentally
     Object.keys(sanitized).forEach(k => sanitized[k] === undefined && delete sanitized[k]);

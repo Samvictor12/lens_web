@@ -38,7 +38,7 @@ const InventoryFilter = ({
   ];
 
   // Transform dropdown data for FormSelect
-  const lensProductOptions = dropdownData.lensProducts?.map(item => ({ id: item.id, name: item.name })) || [];
+  const lensProductOptions = dropdownData.lensProducts?.map(item => ({ id: item.id, name: item.lens_name || item.name })) || [];
   const categoryOptions = dropdownData.categories?.map(item => ({ id: item.id, name: item.name })) || [];
   const locationOptions = dropdownData.locations?.map(item => ({ id: item.id, name: item.name })) || [];
 

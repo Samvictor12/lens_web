@@ -80,6 +80,20 @@ export class SaleOrderController {
   }
 
   /**
+   * Check customer reference availability
+   * GET /api/sale-orders/check-customer-ref
+   */
+  async checkCustomerRef(req, res, next) {
+    try {
+      const { ref, excludeId } = req.query;
+      const result = await this.saleOrderService.checkCustomerRef(ref, excludeId);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get a single sale order by ID
    * GET /api/sale-orders/:id
    */
