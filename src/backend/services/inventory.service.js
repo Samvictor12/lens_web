@@ -473,7 +473,9 @@ export class InventoryService {
           where.transactionDate.gte = new Date(startDate);
         }
         if (endDate) {
-          where.transactionDate.lte = new Date(endDate);
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          where.transactionDate.lte = end;
         }
       }
 
@@ -1341,8 +1343,6 @@ export class InventoryService {
     try {
       const [
         productCountResult,
-        availableItems,
-        reservedItems,
         damagedItems,
         allStock,
         lowStockItems,
@@ -1353,22 +1353,6 @@ export class InventoryService {
           by: ['lens_id'],
           where: { deleteStatus: false, activeStatus: true },
         }),
-        // Available items
-        prisma.inventoryItem.count({
-          where: {
-            deleteStatus: false,
-            activeStatus: true,
-            status: "AVAILABLE",
-          },
-        }),
-        // Reserved items
-        prisma.inventoryItem.count({
-          where: {
-            deleteStatus: false,
-            activeStatus: true,
-            status: "RESERVED",
-          },
-        }),
         // Damaged items
         prisma.inventoryItem.count({
           where: {
@@ -1377,9 +1361,15 @@ export class InventoryService {
             status: "DAMAGED",
           },
         }),
-        // Total inventory value
+        // Total inventory value + Available/Reserved stock quantity — sourced from
+        // InventoryStock (bucket-level running totals correctly maintained by
+        // updateInventoryStock()'s ADD/SUBTRACT/RESERVE/UNRESERVE branches), NOT
+        // InventoryItem.quantity: a fully-RESERVED InventoryItem row has its own
+        // quantity zeroed by reserveInventoryForSale() in the same write that sets
+        // its status, so summing InventoryItem.quantity for RESERVED rows always
+        // returns ~0 regardless of how much stock is actually reserved.
         prisma.inventoryStock.findMany({
-          select: { totalStock: true, avgCostPrice: true },
+          select: { totalStock: true, avgCostPrice: true, availableStock: true, reservedStock: true },
         }),
         // Low stock items
         this.getItemsBelowThreshold(),
@@ -1394,6 +1384,8 @@ export class InventoryService {
       ]);
 
       const productCount = productCountResult.length;
+      const availableItems = allStock.reduce((sum, s) => sum + (s.availableStock || 0), 0);
+      const reservedItems = allStock.reduce((sum, s) => sum + (s.reservedStock || 0), 0);
 
       const totalValue = allStock.reduce(
         (sum, s) => sum + (s.totalStock || 0) * (s.avgCostPrice || 0),
@@ -1447,7 +1439,9 @@ export class InventoryService {
         dateFilter.gte = new Date(startDate);
       }
       if (endDate) {
-        dateFilter.lte = new Date(endDate);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.lte = end;
       }
 
       // Get inward and outward transactions
@@ -1513,7 +1507,9 @@ export class InventoryService {
         }
       });
 
-      // Group by date (YYYY-MM-DD) for trend
+      // Group by date (YYYY-MM-DD) for trend — quantity-based, not value-based
+      // (outward txn.quantity is stored negative, e.g. `quantity: -quantity` in
+      // reserveInventoryForSale, so Math.abs() it the same way the old ₹ sum did)
       const trendMap = {};
       transactions.forEach((txn) => {
         const dateKey = txn.transactionDate
@@ -1529,9 +1525,9 @@ export class InventoryService {
         }
 
         if (["INWARD_PO", "INWARD_DIRECT"].includes(txn.type)) {
-          trendMap[dateKey].inward += txn.totalValue || 0;
+          trendMap[dateKey].inward += txn.quantity || 0;
         } else {
-          trendMap[dateKey].outward += Math.abs(txn.totalValue || 0);
+          trendMap[dateKey].outward += Math.abs(txn.quantity || 0);
         }
       });
 

@@ -30,15 +30,24 @@ import { getStockValueReport, getTopLowSellingProducts } from "@/services/invent
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : d;
 
+// Local calendar date as YYYY-MM-DD — NOT toISOString().slice(0,10), which renders
+// in UTC and under-reports "today" by one day during the IST midnight-5:30AM window.
+const toLocalDateStr = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 const dateRangeToParams = (range, customFrom, customTo) => {
   const now = new Date();
   if (range === "7d") {
     const s = new Date(now); s.setDate(s.getDate() - 7);
-    return { startDate: s.toISOString().slice(0, 10), endDate: now.toISOString().slice(0, 10) };
+    return { startDate: toLocalDateStr(s), endDate: toLocalDateStr(now) };
   }
   if (range === "30d") {
     const s = new Date(now); s.setDate(s.getDate() - 30);
-    return { startDate: s.toISOString().slice(0, 10), endDate: now.toISOString().slice(0, 10) };
+    return { startDate: toLocalDateStr(s), endDate: toLocalDateStr(now) };
   }
   return { startDate: customFrom || "", endDate: customTo || "" };
 };
@@ -184,23 +193,23 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
   }, [salesDays]);
 
   const handleExportValueTrend = (type) => {
-    const title = `Inward vs Outward Value Trend (${valueRange === "7d" ? "Last 7 Days" : "Last 30 Days"})`;
-    
+    const title = `Inward vs Outward Quantity Trend (${valueRange === "7d" ? "Last 7 Days" : "Last 30 Days"})`;
+
     if (type === "excel") {
-      const headers = ["Date", "Inward Value (INR)", "Outward Value (INR)"];
+      const headers = ["Date", "Inward Qty", "Outward Qty"];
       const rows = valueData.map(row => [row.date, row.inward, row.outward]);
-      const csvContent = "data:text/csv;charset=utf-8," 
+      const csvContent = "data:text/csv;charset=utf-8,"
         + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `value_trend_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute("download", `quantity_trend_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } else if (type === "pdf") {
-      const headers = ["Date", "Inward Value", "Outward Value"];
-      const rows = valueData.map(row => [fmtDate(row.date), formatCurrency(row.inward), formatCurrency(row.outward)]);
+      const headers = ["Date", "Inward Qty", "Outward Qty"];
+      const rows = valueData.map(row => [fmtDate(row.date), row.inward, row.outward]);
       exportToPDF(title, headers, rows);
     }
   };
@@ -270,9 +279,9 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
         </Card>
       )}
 
-      {/* ── Inward / Outward Value Trend (2c) ─────────────────────────── */}
+      {/* ── Inward / Outward Quantity Trend (2c) ─────────────────────────── */}
       <Section
-        title="Inward / Outward Value Trend"
+        title="Inward / Outward Quantity Trend"
         icon={TrendingUp}
         iconClass="text-emerald-500"
         actions={
@@ -348,11 +357,11 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
               </defs>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => v.toFixed(1)} />
               <Tooltip content={<CUSTOM_TOOLTIP />} />
               <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="inward" name="Inward ₹" stroke="#10b981" fill="url(#inGrad)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="outward" name="Outward ₹" stroke="#ef4444" fill="url(#outGrad)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="inward" name="Inward Qty" stroke="#10b981" fill="url(#inGrad)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="outward" name="Outward Qty" stroke="#ef4444" fill="url(#outGrad)" strokeWidth={2} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         )}
