@@ -299,6 +299,15 @@ export const validateQueryParams = (params) => {
     }
   }
 
+  if (params.type && params.type !== 'all') {
+    const validTypes = ['INWARD_PO', 'INWARD_DIRECT', 'OUTWARD_SALE', 'OUTWARD_RETURN', 'TRANSFER', 'ADJUSTMENT', 'DAMAGE'];
+    if (!validTypes.includes(params.type)) {
+      errors.push({ field: 'type', message: `Type must be one of: ${validTypes.join(', ')}` });
+    } else {
+      data.type = params.type;
+    }
+  }
+
   // ID filters
   const idFields = ['lens_id', 'location_id', 'tray_id', 'vendor_id', 'category_id'];
   idFields.forEach(field => {

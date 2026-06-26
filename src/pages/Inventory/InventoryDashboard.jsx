@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Package, TrendingUp, Layers, AlertTriangle, Plus,
   BarChart2, RefreshCw, Download, ArrowUpRight, ArrowDownRight,
@@ -23,8 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatCurrency } from "./Inventory.constants";
 import InventoryInitializationForm from "./InventoryInitializationForm";
-import { getInventorySpecCountTrend, getStockValueReport, getTopLowSellingProducts } from "@/services/inventory";
-import { getLensTypesDropdown } from "@/services/saleOrder";
+import { getStockValueReport, getTopLowSellingProducts } from "@/services/inventory";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmtDate = (d) =>
@@ -146,13 +146,7 @@ function Section({ title, icon: Icon, iconClass, children, actions }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function InventoryDashboard({ stats = {}, isLoading = false, onRefresh = () => {} }) {
   const [showInitForm, setShowInitForm] = useState(false);
-
-  // Spec count trend state
-  const [specRange, setSpecRange] = useState("7d");
-  const [specLensType, setSpecLensType] = useState("all");
-  const [specData, setSpecData] = useState([]);
-  const [specLoading, setSpecLoading] = useState(false);
-  const [lensTypes, setLensTypes] = useState([]);
+  const navigate = useNavigate();
 
   // Value trend state
   const [valueRange, setValueRange] = useState("30d");
@@ -164,26 +158,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
   const [salesDays, setSalesDays] = useState("30");
   const [topLowData, setTopLowData] = useState({ top10: [], low10: [] });
   const [topLowLoading, setTopLowLoading] = useState(false);
-  const [salesView, setSalesView] = useState("top"); // "top" | "low"
-
-  // Load lens types for filter
-  useEffect(() => {
-    getLensTypesDropdown()
-      .then((res) => { if (res.success) setLensTypes(res.data || []); })
-      .catch(() => {});
-  }, []);
-
-  // Load spec count trend
-  const loadSpecTrend = useCallback(async () => {
-    setSpecLoading(true);
-    try {
-      const params = dateRangeToParams(specRange);
-      if (specLensType !== "all") params.lensTypeId = specLensType;
-      const res = await getInventorySpecCountTrend(params);
-      if (res.success) setSpecData(res.data?.trend || []);
-    } catch { /* silent */ }
-    finally { setSpecLoading(false); }
-  }, [specRange, specLensType]);
 
   // Load value trend
   const loadValueTrend = useCallback(async () => {
@@ -192,15 +166,7 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
       const params = dateRangeToParams(valueRange);
       const res = await getStockValueReport(params);
       if (res.success) {
-        // Convert grouped data → date-aggregated for chart
-        const byDate = {};
-        for (const row of res.data || []) {
-          const d = row.date ?? row.groupKey ?? "—";
-          if (!byDate[d]) byDate[d] = { date: d, inward: 0, outward: 0 };
-          byDate[d].inward += row.inwardValue || 0;
-          byDate[d].outward += row.outwardValue || 0;
-        }
-        setValueData(Object.values(byDate));
+        setValueData(res.trend || []);
         setValueSummary(res.summary || {});
       }
     } catch { /* silent */ }
@@ -216,29 +182,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     } catch { /* silent */ }
     finally { setTopLowLoading(false); }
   }, [salesDays]);
-
-  const handleExportSpecTrend = (type) => {
-    const lensTypeName = specLensType === "all" ? "All" : (lensTypes.find(t => String(t.id ?? t.value) === specLensType)?.name ?? "Filter");
-    const title = `Product Spec Inward Trend - ${lensTypeName} (${specRange === "7d" ? "Last 7 Days" : "Last 30 Days"})`;
-    
-    if (type === "excel") {
-      const headers = ["Date", "Spec Count"];
-      const rows = specData.map(row => [row.date, row.specCount]);
-      const csvContent = "data:text/csv;charset=utf-8," 
-        + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `spec_count_trend_${lensTypeName.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else if (type === "pdf") {
-      const headers = ["Date", "Spec Count"];
-      const rows = specData.map(row => [fmtDate(row.date), row.specCount]);
-      exportToPDF(title, headers, rows);
-    }
-  };
 
   const handleExportValueTrend = (type) => {
     const title = `Inward vs Outward Value Trend (${valueRange === "7d" ? "Last 7 Days" : "Last 30 Days"})`;
@@ -262,7 +205,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     }
   };
 
-  useEffect(() => { loadSpecTrend(); }, [loadSpecTrend]);
   useEffect(() => { loadValueTrend(); }, [loadValueTrend]);
   useEffect(() => { loadTopLow(); }, [loadTopLow]);
 
@@ -301,8 +243,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     },
   ];
 
-  const activeSalesList = salesView === "top" ? topLowData.top10 : topLowData.low10;
-
   return (
     <div className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
 
@@ -330,78 +270,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
         </Card>
       )}
 
-      {/* ── Spec Count Trend (2b) ───────────────────────────────────────── */}
-      <Section
-        title="Product Spec Count Trend"
-        icon={BarChart2}
-        iconClass="text-blue-500"
-        actions={
-          <>
-            <Select value={specLensType} onValueChange={setSpecLensType}>
-              <SelectTrigger className="h-7 text-xs w-36">
-                <Filter className="h-3 w-3 mr-1" />
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {lensTypes.map((t) => (
-                  <SelectItem key={t.id ?? t.value} value={String(t.id ?? t.value)}>
-                    {t.name ?? t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={specRange} onValueChange={setSpecRange}>
-              <SelectTrigger className="h-7 text-xs w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={loadSpecTrend}>
-              <RefreshCw className={`h-3.5 w-3.5 ${specLoading ? "animate-spin" : ""}`} />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={specData.length === 0}>
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExportSpecTrend("excel")}>
-                  Export to Excel
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportSpecTrend("pdf")}>
-                  Export to PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        }
-      >
-        {specLoading ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-            Loading chart...
-          </div>
-        ) : specData.length === 0 ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-            No inward transactions in this period
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={specData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip content={<CUSTOM_TOOLTIP />} />
-              <Bar dataKey="specCount" name="Specs inwarded" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </Section>
-
       {/* ── Inward / Outward Value Trend (2c) ─────────────────────────── */}
       <Section
         title="Inward / Outward Value Trend"
@@ -411,11 +279,17 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
           <>
             {valueSummary.totalInwardValue != null && (
               <div className="flex gap-3 text-xs mr-2">
-                <span className="flex items-center gap-1 text-green-600">
+                <span 
+                  className="flex items-center gap-1 text-green-600 cursor-pointer hover:underline"
+                  onClick={() => navigate('/inventory/transactions', { state: { filterType: 'INWARD_PO' } })}
+                >
                   <ArrowUpRight className="h-3 w-3" />
                   {formatCurrency(valueSummary.totalInwardValue)}
                 </span>
-                <span className="flex items-center gap-1 text-red-600">
+                <span 
+                  className="flex items-center gap-1 text-red-600 cursor-pointer hover:underline"
+                  onClick={() => navigate('/inventory/transactions', { state: { filterType: 'OUTWARD_SALE' } })}
+                >
                   <ArrowDownRight className="h-3 w-3" />
                   {formatCurrency(valueSummary.totalOutwardValue)}
                 </span>
@@ -484,81 +358,132 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
         )}
       </Section>
 
-      {/* ── Top 10 / Low 10 Selling Products (2d) ──────────────────────── */}
-      <Section
-        title={salesView === "top" ? "Top 10 Selling Products" : "Low 10 Selling Products"}
-        icon={salesView === "top" ? ArrowUpRight : ArrowDownRight}
-        iconClass={salesView === "top" ? "text-green-500" : "text-red-500"}
-        actions={
-          <>
-            <div className="flex border rounded-md overflow-hidden text-xs">
-              <button
-                className={`px-2 py-1 ${salesView === "top" ? "bg-primary text-primary-foreground" : "bg-muted/40"}`}
-                onClick={() => setSalesView("top")}
-              >
-                Top 10
-              </button>
-              <button
-                className={`px-2 py-1 ${salesView === "low" ? "bg-primary text-primary-foreground" : "bg-muted/40"}`}
-                onClick={() => setSalesView("low")}
-              >
-                Low 10
-              </button>
+      {/* ── Top & Low 10 Selling Products (Side-by-Side) ────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Top 10 Column */}
+        <Section
+          title="Top 10 Selling Products"
+          icon={ArrowUpRight}
+          iconClass="text-green-500"
+          actions={
+            <div className="flex items-center gap-2">
+              <Select value={salesDays} onValueChange={setSalesDays}>
+                <SelectTrigger className="h-7 text-xs w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">Last 30d</SelectItem>
+                  <SelectItem value="90">Last 90d</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={loadTopLow}>
+                <RefreshCw className={`h-3.5 w-3.5 ${topLowLoading ? "animate-spin" : ""}`} />
+              </Button>
             </div>
-            <Select value={salesDays} onValueChange={setSalesDays}>
-              <SelectTrigger className="h-7 text-xs w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">Last 30d</SelectItem>
-                <SelectItem value="90">Last 90d</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={loadTopLow}>
-              <RefreshCw className={`h-3.5 w-3.5 ${topLowLoading ? "animate-spin" : ""}`} />
-            </Button>
-          </>
-        }
-      >
-        {topLowLoading ? (
-          <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
-            Loading...
-          </div>
-        ) : activeSalesList.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground">
-            No sales data for this period
-          </div>
-        ) : (
-          <div className="space-y-1.5 max-h-72 overflow-y-auto">
-            {activeSalesList.map((prod, idx) => {
-              const maxUnits = activeSalesList[0]?.unitsSold || 1;
-              const pct = Math.round((prod.unitsSold / maxUnits) * 100);
-              return (
-                <div key={prod.lens_id} className="flex items-center gap-3 text-xs">
-                  <span className="w-5 text-muted-foreground font-mono text-right shrink-0">
-                    {idx + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{prod.lens_name}</p>
-                    {prod.product_code && (
-                      <p className="text-muted-foreground">{prod.product_code}</p>
-                    )}
-                    <div className="mt-0.5 w-full bg-muted rounded-full h-1">
-                      <div
-                        className={`h-full rounded-full ${salesView === "top" ? "bg-green-500" : "bg-red-400"}`}
-                        style={{ width: `${pct}%` }}
-                      />
+          }
+        >
+          {topLowLoading ? (
+            <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
+              Loading...
+            </div>
+          ) : topLowData.top10.length === 0 ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">
+              No sales data for this period
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {topLowData.top10.map((prod, idx) => {
+                const maxUnits = topLowData.top10[0]?.unitsSold || 1;
+                const pct = Math.round((prod.unitsSold / maxUnits) * 100);
+                return (
+                  <div key={prod.lens_id} className="flex items-center gap-3 text-xs">
+                    <span className="w-5 text-muted-foreground font-mono text-right shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{prod.lens_name}</p>
+                      {prod.product_code && (
+                        <p className="text-muted-foreground">{prod.product_code}</p>
+                      )}
+                      <div className="mt-0.5 w-full bg-muted rounded-full h-1">
+                        <div
+                          className="h-full rounded-full bg-green-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
+                    <Badge variant="outline" className="shrink-0 text-xs font-semibold">
+                      {prod.unitsSold} units
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="shrink-0 text-xs font-semibold">
-                    {prod.unitsSold} units
-                  </Badge>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
+        {/* Low 10 Column */}
+        <Section
+          title="Low 10 Selling Products"
+          icon={ArrowDownRight}
+          iconClass="text-red-500"
+          actions={
+            <div className="flex items-center gap-2">
+              <Select value={salesDays} onValueChange={setSalesDays}>
+                <SelectTrigger className="h-7 text-xs w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">Last 30d</SelectItem>
+                  <SelectItem value="90">Last 90d</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={loadTopLow}>
+                <RefreshCw className={`h-3.5 w-3.5 ${topLowLoading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          }
+        >
+          {topLowLoading ? (
+            <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
+              Loading...
+            </div>
+          ) : topLowData.low10.length === 0 ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">
+              No sales data for this period
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {topLowData.low10.map((prod, idx) => {
+                const maxUnits = topLowData.low10[0]?.unitsSold || 1;
+                const pct = Math.round((prod.unitsSold / maxUnits) * 100);
+                return (
+                  <div key={prod.lens_id} className="flex items-center gap-3 text-xs">
+                    <span className="w-5 text-muted-foreground font-mono text-right shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{prod.lens_name}</p>
+                      {prod.product_code && (
+                        <p className="text-muted-foreground">{prod.product_code}</p>
+                      )}
+                      <div className="mt-0.5 w-full bg-muted rounded-full h-1">
+                        <div
+                          className="h-full rounded-full bg-red-400"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-xs font-semibold">
+                      {prod.unitsSold} units
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+      </div>
 
       {/* ── Pending Inwards ─────────────────────────────────────────────── */}
       {(stats.pendingInwardsCount > 0 || stats.pendingInwardsList?.length > 0) && (

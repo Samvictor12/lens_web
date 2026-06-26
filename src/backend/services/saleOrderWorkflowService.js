@@ -290,13 +290,104 @@ export class SaleOrderWorkflowService {
       // (tx passed through as dbClient) so a failure on any item (e.g.
       // INSUFFICIENT_STOCK/ITEM_NOT_AVAILABLE) rolls back all earlier
       // reservations made in this call.
-      for (const inventoryItemId of inventoryItemIds) {
+      for (const itemId of inventoryItemIds) {
         try {
-          await inventoryService.reserveInventoryForSale(inventoryItemId, 1, so.id, userId, tx);
+          if (typeof itemId === 'string' && itemId.startsWith('rec_')) {
+            const receiptId = parseInt(itemId.replace('rec_', ''), 10);
+            
+            // 1. Fetch the PurchaseOrderReceipt and its purchaseOrder
+            const receipt = await tx.purchaseOrderReceipt.findUnique({
+              where: { id: receiptId },
+              include: { purchaseOrder: true },
+            });
+            if (!receipt) throw new APIError('Purchase order receipt not found', 404, 'RECEIPT_NOT_FOUND');
+            if (receipt.inwardedQty >= receipt.totalReceivedQty) {
+              throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
+            }
+
+            // 2. Find a location and tray to auto-inward into
+            const location = await tx.locationMaster.findFirst({ where: { deleteStatus: false } });
+            if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
+            const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
+            if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
+
+            // 3. Create the InventoryItem on the fly
+            const itemData = {
+              lens_id: so.lens_id,
+              category_id: so.category_id,
+              Type_id: so.Type_id,
+              coating_id: so.coating_id,
+              dia_id: so.dia_id,
+              fitting_id: so.fitting_id,
+              tinting_id: so.tinting_id,
+              location_id: location.id,
+              tray_id: tray.id,
+              quantity: 1, // we only issue 1 unit per eye
+              costPrice: receipt.unitPrice || 0,
+              batchNo: receipt.receiptNumber,
+              purchaseOrderId: receipt.purchaseOrderId,
+              purchaseReceiptId: receipt.id,
+              vendorId: receipt.purchaseOrder?.vendorId,
+              rightEye: so.rightEye,
+              leftEye: so.leftEye,
+              rightSpherical: so.rightSpherical,
+              rightCylindrical: so.rightCylindrical,
+              rightAdd: so.rightAdd,
+              leftSpherical: so.leftSpherical,
+              leftCylindrical: so.leftCylindrical,
+              leftAdd: so.leftAdd,
+              status: 'AVAILABLE',
+              createdBy: userId,
+            };
+            const item = await tx.inventoryItem.create({ data: itemData });
+
+            // 4. Record the inward transaction and update the stock summary
+            // bucket, mirroring InventoryService.createInventoryItem — without
+            // this, reserveInventoryForSale's RESERVE step below finds no
+            // matching stock bucket and silently no-ops the stock update.
+            const transactionNo = await inventoryService.generateTransactionNumber(tx);
+            await tx.inventoryTransaction.create({
+              data: {
+                transactionNo,
+                type: 'INWARD_PO',
+                inventoryItemId: item.id,
+                quantity: itemData.quantity,
+                balanceAfter: itemData.quantity,
+                unitPrice: itemData.costPrice,
+                totalValue: itemData.quantity * itemData.costPrice,
+                toLocationId: itemData.location_id,
+                toTrayId: itemData.tray_id,
+                purchaseOrderId: itemData.purchaseOrderId,
+                vendorId: itemData.vendorId,
+                batchNo: itemData.batchNo,
+                reason: 'Auto-inward from Inward Queue for Pre-QC issue',
+                createdBy: userId,
+              },
+            });
+            await inventoryService.updateInventoryStock(item, itemData.quantity, 'ADD', tx);
+
+            // 5. Update the receipt's inwardedQty
+            await tx.purchaseOrderReceipt.update({
+              where: { id: receipt.id },
+              data: {
+                inwardedQty: { increment: 1 },
+                updatedBy: userId,
+              },
+            });
+
+            // 6. Reserve this item for the sale order
+            await inventoryService.reserveInventoryForSale(item.id, 1, so.id, userId, tx);
+          } else {
+            // It's a standard inventory item
+            const inventoryItemId = typeof itemId === 'string' && itemId.startsWith('inv_')
+              ? parseInt(itemId.replace('inv_', ''), 10)
+              : parseInt(itemId, 10);
+            await inventoryService.reserveInventoryForSale(inventoryItemId, 1, so.id, userId, tx);
+          }
         } catch (err) {
           const reason = err?.message || 'Failed to reserve inventory item';
           throw new APIError(
-            `Could not reserve inventory item ${inventoryItemId}: ${reason}`,
+            `Could not reserve inventory item ${itemId}: ${reason}`,
             err?.statusCode || 400,
             err?.code || 'RESERVE_FAILED'
           );

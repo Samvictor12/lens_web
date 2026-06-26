@@ -442,6 +442,7 @@ export class InventoryController {
         success: true,
         data: report.data,
         summary: report.summary,
+        trend: report.trend,
       });
     } catch (error) {
       next(error);

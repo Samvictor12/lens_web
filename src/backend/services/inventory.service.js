@@ -1455,7 +1455,6 @@ export class InventoryService {
         where: {
           transactionDate: Object.keys(dateFilter).length > 0 ? dateFilter : undefined,
           type: { in: ["INWARD_PO", "INWARD_DIRECT", "OUTWARD_SALE", "OUTWARD_RETURN"] },
-          deleteStatus: false,
         },
         include: {
           inventoryItem: {
@@ -1514,6 +1513,30 @@ export class InventoryService {
         }
       });
 
+      // Group by date (YYYY-MM-DD) for trend
+      const trendMap = {};
+      transactions.forEach((txn) => {
+        const dateKey = txn.transactionDate
+          ? txn.transactionDate.toISOString().slice(0, 10)
+          : 'unknown';
+
+        if (!trendMap[dateKey]) {
+          trendMap[dateKey] = {
+            date: dateKey,
+            inward: 0,
+            outward: 0,
+          };
+        }
+
+        if (["INWARD_PO", "INWARD_DIRECT"].includes(txn.type)) {
+          trendMap[dateKey].inward += txn.totalValue || 0;
+        } else {
+          trendMap[dateKey].outward += Math.abs(txn.totalValue || 0);
+        }
+      });
+
+      const trend = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
+
       const data = Object.values(grouped);
 
       return {
@@ -1526,6 +1549,7 @@ export class InventoryService {
           groupBy,
         },
         data,
+        trend,
       };
     } catch (error) {
       console.error("Error getting stock value report:", error);
@@ -1722,7 +1746,6 @@ export class InventoryService {
   async getInventorySpecCountTrend({ startDate, endDate, lensTypeId } = {}) {
     try {
       const where = {
-        deleteStatus: false,
         type: { in: ['INWARD_PO', 'INWARD_DIRECT'] },
       };
       if (startDate || endDate) {
@@ -1790,7 +1813,6 @@ export class InventoryService {
 
       const txns = await prisma.inventoryTransaction.findMany({
         where: {
-          deleteStatus: false,
           type: 'OUTWARD_SALE',
           transactionDate: { gte: since },
         },

@@ -1,9 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "inventory-queue-filters-and-grouping",
+  "feature": null,
   "active_feature_file": "planning/feature.md",
   "phase": "DONE",
-  "state_tag": "COMPLETE",
+  "HUMAN_APPROVED": false,
+  "state_tag": "IDLE",
   "last_agent": "orchestrator",
-  "at": "2026-06-27T01:52:00Z"
+  "at": "2026-06-27T00:00:00Z"
 }
