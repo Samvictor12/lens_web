@@ -30,6 +30,7 @@ export default function CustomerForm() {
   const [businessCategories, setBusinessCategories] = useState([]);
   const [salesPersons, setSalesPersons] = useState([]);
   const [deliveryPersons, setDeliveryPersons] = useState([]);
+  const [ledgerInfo, setLedgerInfo] = useState(null);
 
   // Fetch business categories, sales persons and delivery persons on mount
   useEffect(() => {
@@ -98,6 +99,11 @@ export default function CustomerForm() {
             };
             setFormData(customerData);
             setOriginalData(customerData);
+            setLedgerInfo(
+              customer.ledgerCode
+                ? { code: customer.ledgerCode, balance: customer.ledgerBalance }
+                : null
+            );
           } else {
             toast({
               title: "Error",
@@ -697,6 +703,39 @@ export default function CustomerForm() {
               )}
             </CardContent>
           </Card>
+
+          {/* Ledger (read-only) — only meaningful once the customer exists */}
+          {mode !== "add" && id && ledgerInfo && (
+            <Card className="mt-3 sm:mt-4">
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-sm">Ledger</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormInput
+                    label="Ledger Code"
+                    name="ledgerCode"
+                    value={ledgerInfo.code || ""}
+                    onChange={() => {}}
+                    disabled
+                    readOnly
+                  />
+                  <FormInput
+                    label="Current Balance"
+                    name="ledgerBalance"
+                    value={
+                      ledgerInfo.balance !== null && ledgerInfo.balance !== undefined
+                        ? `₹${parseFloat(ledgerInfo.balance).toFixed(2)}`
+                        : ""
+                    }
+                    onChange={() => {}}
+                    disabled
+                    readOnly
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </form>
       )}
     </div>

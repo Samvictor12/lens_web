@@ -46,6 +46,22 @@ async function getLedger(tx, code) {
   return ledger;
 }
 
+// ── Vendor/customer-owned ledger lookup ──────────────────────────────────────
+
+async function getOwnedLedger(tx, owner, label) {
+  // owner = vendor or customer row (must include ledgerId)
+  if (!owner.ledgerId) {
+    throw new APIError(
+      `${label} ${owner.code || owner.id} has no ledger. Run backfill-vendor-customer-ledgers.js.`,
+      500,
+      'LEDGER_NOT_FOUND'
+    );
+  }
+  const ledger = await tx.ledger.findUnique({ where: { id: owner.ledgerId } });
+  if (!ledger) throw new APIError(`Ledger id ${owner.ledgerId} not found for ${label} ${owner.code || owner.id}`, 500, 'LEDGER_NOT_FOUND');
+  return ledger;
+}
+
 // ── Balance calculation (double-entry rules) ─────────────────────────────────
 
 function calculateNewBalance(ledgerType, currentBalance, entryType, amount) {
@@ -110,6 +126,14 @@ export async function postTransaction(tx, { transactionType, referenceType, refe
     if (!ledger) throw new APIError(`Ledger id ${entry.ledgerId} not found`, 500, 'LEDGER_NOT_FOUND');
     const newBalance = calculateNewBalance(ledger.ledgerType, ledger.currentBalance, entry.entryType, entry.amount);
     await tx.ledger.update({ where: { id: entry.ledgerId }, data: { currentBalance: newBalance } });
+
+    if (ledger.parentLedgerId) {
+      const parent = await tx.ledger.findUnique({ where: { id: ledger.parentLedgerId } });
+      if (parent) {
+        const parentNewBalance = calculateNewBalance(parent.ledgerType, parent.currentBalance, entry.entryType, entry.amount);
+        await tx.ledger.update({ where: { id: parent.id }, data: { currentBalance: parentNewBalance } });
+      }
+    }
   }
 
   return txn;
@@ -119,12 +143,12 @@ export async function postTransaction(tx, { transactionType, referenceType, refe
 
 /**
  * Auto-post on PO receipt save.
- * Dr Inventory (AC-1004), Dr GST Input (AC-1005 if tax > 0), Cr AP (AC-2001)
+ * Dr Inventory (AC-1004), Dr GST Input (AC-1005 if tax > 0), Cr vendor's AP ledger (child of AC-2001)
  */
-export async function postPurchaseReceipt(tx, { purchaseOrderId, poNumber, subtotal, taxAmount, totalValue }, userId) {
+export async function postPurchaseReceipt(tx, { purchaseOrderId, poNumber, subtotal, taxAmount, totalValue, vendor }, userId) {
   const [inventoryLedger, apLedger] = await Promise.all([
     getLedger(tx, 'AC-1004'),
-    getLedger(tx, 'AC-2001'),
+    getOwnedLedger(tx, vendor, 'Vendor'),
   ]);
 
   const entries = [
@@ -149,11 +173,11 @@ export async function postPurchaseReceipt(tx, { purchaseOrderId, poNumber, subto
 
 /**
  * Auto-post on Invoice creation.
- * Dr AR (AC-1003), Cr Sales Revenue (AC-3001), Cr GST Output (AC-2003 if tax > 0)
+ * Dr customer's AR ledger (child of AC-1003), Cr Sales Revenue (AC-3001), Cr GST Output (AC-2003 if tax > 0)
  */
-export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount }, userId) {
+export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer }, userId) {
   const [arLedger, salesLedger] = await Promise.all([
-    getLedger(tx, 'AC-1003'),
+    getOwnedLedger(tx, customer, 'Customer'),
     getLedger(tx, 'AC-3001'),
   ]);
 
@@ -181,12 +205,12 @@ export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAm
 
 /**
  * Auto-post on client payment received.
- * Dr Cash/Bank (bankLedgerId), Cr AR (AC-1003)
+ * Dr Cash/Bank (bankLedgerId), Cr customer's AR ledger (child of AC-1003)
  */
-export async function postClientPayment(tx, { invoiceId, invoiceNo, amount, bankLedgerId }, userId) {
+export async function postClientPayment(tx, { invoiceId, invoiceNo, amount, bankLedgerId, customer }, userId) {
   const [bankLedger, arLedger] = await Promise.all([
     tx.ledger.findUnique({ where: { id: bankLedgerId } }),
-    getLedger(tx, 'AC-1003'),
+    getOwnedLedger(tx, customer, 'Customer'),
   ]);
   if (!bankLedger) throw new APIError('Selected bank/cash ledger not found', 400, 'LEDGER_NOT_FOUND');
 
@@ -204,11 +228,11 @@ export async function postClientPayment(tx, { invoiceId, invoiceNo, amount, bank
 
 /**
  * Auto-post on vendor payment voucher.
- * Dr AP (AC-2001), Cr Cash/Bank (bankLedgerId)
+ * Dr vendor's AP ledger (child of AC-2001), Cr Cash/Bank (bankLedgerId)
  */
-export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmount, bankLedgerId }, userId) {
+export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmount, bankLedgerId, vendor }, userId) {
   const [apLedger, bankLedger] = await Promise.all([
-    getLedger(tx, 'AC-2001'),
+    getOwnedLedger(tx, vendor, 'Vendor'),
     tx.ledger.findUnique({ where: { id: bankLedgerId } }),
   ]);
   if (!bankLedger) throw new APIError('Selected bank/cash ledger not found', 400, 'LEDGER_NOT_FOUND');

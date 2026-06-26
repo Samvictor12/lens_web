@@ -206,12 +206,54 @@ describe('postTransaction()', () => {
     expect(result).toHaveProperty('transactionNumber');
     expect(result).toHaveProperty('entries');
   });
+
+  it('rolls up the parent ledger balance when the posted ledger has a parentLedgerId', async () => {
+    // Child = customer's AR sub-ledger (AC-1003-C1), parent = control AR ledger (AC-1003)
+    const parentArLedger = makeLedger({ id: 10, ledgerCode: 'AC-1003',   ledgerType: 'ASSET', currentBalance: 2000, parentLedgerId: null });
+    const childArLedger  = makeLedger({ id: 50, ledgerCode: 'AC-1003-C1', ledgerType: 'ASSET', currentBalance: 500,  parentLedgerId: 10 });
+    const salesLedger    = makeLedger({ id: 20, ledgerCode: 'AC-3001',   ledgerType: 'INCOME', currentBalance: 0,    parentLedgerId: null });
+
+    const rollupEntries = [
+      { ledgerId: 50, entryType: 'DEBIT',  amount: 5000 },
+      { ledgerId: 20, entryType: 'CREDIT', amount: 5000 },
+    ];
+
+    tx.financialTransaction.create.mockResolvedValue({
+      id: 3, transactionNumber: `TXN-${YEAR}-00001`, totalAmount: 5000,
+      entries: rollupEntries.map((e, i) => ({ ...e, id: i + 20 })),
+    });
+    tx.ledger.findUnique.mockImplementation(({ where: { id } }) => {
+      if (id === 50) return Promise.resolve(childArLedger);
+      if (id === 20) return Promise.resolve(salesLedger);
+      if (id === 10) return Promise.resolve(parentArLedger);
+      return Promise.resolve(null);
+    });
+
+    await postTransaction(tx, { transactionType: 'SALE' }, rollupEntries, USER_ID);
+
+    // Child AR (ASSET, DEBIT 5000): 500 + 5000 = 5500
+    expect(tx.ledger.update).toHaveBeenCalledWith({ where: { id: 50 }, data: { currentBalance: 5500 } });
+    // Parent AR (ASSET, same entryType/amount as child, per parent's own ledgerType): 2000 + 5000 = 7000
+    expect(tx.ledger.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { currentBalance: 7000 } });
+    // Sales ledger (INCOME, CREDIT 5000) has no parentLedgerId — only one update call for it
+    expect(tx.ledger.update).toHaveBeenCalledWith({ where: { id: 20 }, data: { currentBalance: 5000 } });
+    // Exactly 3 ledger.update calls total: child + parent rollup + unrelated sales entry
+    expect(tx.ledger.update).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not attempt a parent rollup when parentLedgerId is null', async () => {
+    await postTransaction(tx, { transactionType: 'SALE' }, entries, USER_ID);
+    // arLedger (id 10) and salesLedger (id 20) both have no parentLedgerId in this describe block's fixtures
+    expect(tx.ledger.update).toHaveBeenCalledTimes(2);
+  });
 });
 
 // ── postInvoice ───────────────────────────────────────────────────────────────
 
 describe('postInvoice()', () => {
   let tx;
+
+  const customer = { id: 1, code: 'CUST-001', ledgerId: 10 };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -230,7 +272,7 @@ describe('postInvoice()', () => {
 
     tx.ledger.findUnique.mockImplementation(({ where: { id } }) => {
       const map = {
-        10: makeLedger({ id: 10, ledgerType: 'ASSET',     currentBalance: 0 }),
+        10: makeLedger({ id: 10, ledgerCode: 'AC-1003-C1', ledgerType: 'ASSET',     currentBalance: 0 }),
         20: makeLedger({ id: 20, ledgerType: 'INCOME',    currentBalance: 0 }),
         30: makeLedger({ id: 30, ledgerType: 'LIABILITY', currentBalance: 0 }),
       };
@@ -244,7 +286,7 @@ describe('postInvoice()', () => {
   });
 
   it('creates SALE transaction with Dr AR, Cr Sales Revenue (no tax)', async () => {
-    await postInvoice(tx, { invoiceId: 1, invoiceNo: 'INV-001', totalAmount: 5000, taxAmount: 0 }, USER_ID);
+    await postInvoice(tx, { invoiceId: 1, invoiceNo: 'INV-001', totalAmount: 5000, taxAmount: 0, customer }, USER_ID);
     const call = tx.financialTransaction.create.mock.calls[0][0];
     expect(call.data.transactionType).toBe('SALE');
     const entriesCreated = call.data.entries.create;
@@ -258,7 +300,7 @@ describe('postInvoice()', () => {
   });
 
   it('splits GST into separate CREDIT entry when taxAmount > 0', async () => {
-    await postInvoice(tx, { invoiceId: 2, invoiceNo: 'INV-002', totalAmount: 5900, taxAmount: 900 }, USER_ID);
+    await postInvoice(tx, { invoiceId: 2, invoiceNo: 'INV-002', totalAmount: 5900, taxAmount: 900, customer }, USER_ID);
     const call = tx.financialTransaction.create.mock.calls[0][0];
     const entries = call.data.entries.create;
     expect(entries).toHaveLength(3);
@@ -276,7 +318,8 @@ describe('postInvoice()', () => {
 describe('postClientPayment()', () => {
   let tx;
   const bankLedger = makeLedger({ id: 5, ledgerType: 'ASSET', currentBalance: 10000, ledgerName: 'HDFC Bank' });
-  const arLedger   = makeLedger({ id: 10, ledgerCode: 'AC-1003', ledgerType: 'ASSET', currentBalance: 5000 });
+  const arLedger   = makeLedger({ id: 10, ledgerCode: 'AC-1003-C1', ledgerType: 'ASSET', currentBalance: 5000 });
+  const customer = { id: 1, code: 'CUST-001', ledgerId: 10 };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -299,7 +342,7 @@ describe('postClientPayment()', () => {
   });
 
   it('creates RECEIPT transaction Dr Bank, Cr AR', async () => {
-    await postClientPayment(tx, { invoiceId: 1, invoiceNo: 'INV-001', amount: 3000, bankLedgerId: 5 }, USER_ID);
+    await postClientPayment(tx, { invoiceId: 1, invoiceNo: 'INV-001', amount: 3000, bankLedgerId: 5, customer }, USER_ID);
     const call = tx.financialTransaction.create.mock.calls[0][0];
     expect(call.data.transactionType).toBe('RECEIPT');
     const entries = call.data.entries.create;
@@ -313,8 +356,11 @@ describe('postClientPayment()', () => {
   });
 
   it('throws if bankLedgerId not found', async () => {
-    tx.ledger.findUnique.mockResolvedValue(null);
-    await expect(postClientPayment(tx, { invoiceId: 1, invoiceNo: 'INV-001', amount: 3000, bankLedgerId: 999 }, USER_ID))
+    tx.ledger.findUnique.mockImplementation(({ where: { id } }) => {
+      if (id === 10) return Promise.resolve(arLedger);
+      return Promise.resolve(null);
+    });
+    await expect(postClientPayment(tx, { invoiceId: 1, invoiceNo: 'INV-001', amount: 3000, bankLedgerId: 999, customer }, USER_ID))
       .rejects.toThrow('Selected bank/cash ledger not found');
   });
 });
@@ -323,8 +369,9 @@ describe('postClientPayment()', () => {
 
 describe('postVendorPayment()', () => {
   let tx;
-  const apLedger   = makeLedger({ id: 40, ledgerCode: 'AC-2001', ledgerType: 'LIABILITY', currentBalance: 8000 });
+  const apLedger   = makeLedger({ id: 40, ledgerCode: 'AC-2001-V1', ledgerType: 'LIABILITY', currentBalance: 8000 });
   const bankLedger = makeLedger({ id: 5,  ledgerType: 'ASSET',   currentBalance: 10000, ledgerName: 'HDFC Bank' });
+  const vendor = { id: 1, code: 'VEND-001', ledgerId: 40 };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -347,7 +394,7 @@ describe('postVendorPayment()', () => {
   });
 
   it('creates PAYMENT transaction Dr AP, Cr Bank', async () => {
-    await postVendorPayment(tx, { voucherId: 1, voucherNumber: 'VPV-001', totalAmount: 5000, bankLedgerId: 5 }, USER_ID);
+    await postVendorPayment(tx, { voucherId: 1, voucherNumber: 'VPV-001', totalAmount: 5000, bankLedgerId: 5, vendor }, USER_ID);
     const call = tx.financialTransaction.create.mock.calls[0][0];
     expect(call.data.transactionType).toBe('PAYMENT');
     const entries = call.data.entries.create;
@@ -358,8 +405,11 @@ describe('postVendorPayment()', () => {
   });
 
   it('throws if bankLedgerId not found', async () => {
-    tx.ledger.findUnique.mockResolvedValue(null);
-    await expect(postVendorPayment(tx, { voucherId: 1, voucherNumber: 'VPV-001', totalAmount: 5000, bankLedgerId: 999 }, USER_ID))
+    tx.ledger.findUnique.mockImplementation(({ where: { id } }) => {
+      if (id === 40) return Promise.resolve(apLedger);
+      return Promise.resolve(null);
+    });
+    await expect(postVendorPayment(tx, { voucherId: 1, voucherNumber: 'VPV-001', totalAmount: 5000, bankLedgerId: 999, vendor }, USER_ID))
       .rejects.toThrow('Selected bank/cash ledger not found');
   });
 });

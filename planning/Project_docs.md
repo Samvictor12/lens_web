@@ -33,6 +33,7 @@ This is an **index only**. Feature bodies live in `planning/features/{id}.md`. R
 
 | ID | Title | Status | Feature File | Last Updated |
 |----|-------|--------|---------------|---------------|
+| vendor-customer-ledger | Per-vendor/customer subsidiary ledgers shown on Vendor & Customer forms | DONE | `planning/features/vendor-customer-ledger.md` | 2026-06-25 |
 | dispatch-delivery-agent-filter | Filter dispatches by delivery agent | DONE | `planning/features/dispatch-delivery-agent-filter.md` | 2026-06-21 |
 | invoice-preview | Invoice preview before finalizing/printing | DONE | `planning/features/invoice-preview.md` | 2026-06-21 |
 | vendor-payment-receipt-voucher | Printable receipt voucher to close vendor payments | DONE | `planning/features/vendor-payment-receipt-voucher.md` | 2026-06-21 |
@@ -42,3 +43,5 @@ This is an **index only**. Feature bodies live in `planning/features/{id}.md`. R
 | dashboard-sales-widgets | Real sales widgets on Dashboard | DONE | `planning/features/dashboard-sales-widgets.md` | 2026-06-21 |
 | production-quality-scanning | Barcode/QR scanning in Production and Quality modules | DONE | `planning/features/production-quality-scanning.md` | 2026-06-21 |
 | coa-hide-balance-values | Hide balance values on Chart of Accounts cards/masters | DONE | `planning/features/coa-hide-balance-values.md` | 2026-06-21 |
+| inventory-module-bugfixes | Fix dashboard crash, broken reserve/transfer flows, dead stock columns, missing validations | DONE | `planning/features/inventory-module-bugfixes.md` | 2026-06-24 |
+| docker-folder-consolidation | Move Dev_lens/PROD_Lens into Docker/dev, Docker/prod; add Docker/test; stop tracking .env secrets | DONE | `planning/features/docker-folder-consolidation.md` | 2026-06-26 |

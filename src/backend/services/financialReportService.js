@@ -258,7 +258,12 @@ export class FinancialReportService {
     const apLedger   = await prisma.ledger.findFirst({ where: { ledgerCode: 'AC-2001' } });
 
     const bankLedgers = await prisma.ledger.findMany({
-      where: { ledgerType: 'ASSET', delete_status: false, ledgerCode: { not: { in: ['AC-1003', 'AC-1004', 'AC-1005'] } } },
+      where: {
+        ledgerType: 'ASSET',
+        delete_status: false,
+        parentLedgerId: null,
+        ledgerCode: { not: { in: ['AC-1003', 'AC-1004', 'AC-1005'] } },
+      },
       select: { id: true, ledgerName: true, currentBalance: true },
     });
 

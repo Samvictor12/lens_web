@@ -1,0 +1,6 @@
+Form  Local to server
+scp -r D:\Personal\workspace\Lens_Project\Sources\lens_web\Docker\prod root@187.127.182.76:~/Clair
+scp  D:\Personal\workspace\Lens_Project\Sources\lens_web\Docker\prod\clair.tar root@187.127.182.76:~/Clair
+
+Form server to Local
+scp username@remote_host:/path/to/remote/file.txt /path/to/local/destination

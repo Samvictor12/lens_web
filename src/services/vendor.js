@@ -45,6 +45,8 @@ const mapFromBackend = (backendData) => {
     activeStatus: backendData.active_status !== undefined ? backendData.active_status : true,
     createdAt: backendData.createdAt,
     updatedAt: backendData.updatedAt,
+    ledgerCode: backendData.ledger?.ledgerCode || null,
+    ledgerBalance: backendData.ledger?.currentBalance ?? null,
   };
 };
 

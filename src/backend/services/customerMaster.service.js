@@ -43,47 +43,88 @@ export class CustomerMasterService {
         }
       }
 
-      // Create the customer master
-      const customerMaster = await prisma.customer.create({
-        data: {
-          name: customerData.name,
-          code: customerData.code,
-          shopname: customerData.shopname,
-          phone: customerData.phone,
-          alternatephone: customerData.alternatephone,
-          email: customerData.email,
-          address: customerData.address,
-          city: customerData.city,
-          state: customerData.state,
-          pincode: customerData.pincode,
-          businessCategory_id: customerData.businessCategory_id,
-          gstin: customerData.gstin,
-          credit_limit: customerData.credit_limit,
-          outstanding_credit: customerData.outstanding_credit,
-          sale_person_id: customerData.sale_person_id,
-          delivery_person_id: customerData.delivery_person_id,
-          active_status: customerData.active_status,
-          delete_status: customerData.delete_status || false,
-          notes: customerData.notes,
-          createdBy: customerData.createdBy,
-        },
-        include: {
-          usercreate: {
-            select: { id: true, name: true, email: true },
+      // Create the customer master + its subsidiary ledger atomically
+      const customerMaster = await prisma.$transaction(async (tx) => {
+        // 1. Create the customer row first (ledgerId not known yet)
+        const created = await tx.customer.create({
+          data: {
+            name: customerData.name,
+            code: customerData.code,
+            shopname: customerData.shopname,
+            phone: customerData.phone,
+            alternatephone: customerData.alternatephone,
+            email: customerData.email,
+            address: customerData.address,
+            city: customerData.city,
+            state: customerData.state,
+            pincode: customerData.pincode,
+            businessCategory_id: customerData.businessCategory_id,
+            gstin: customerData.gstin,
+            credit_limit: customerData.credit_limit,
+            outstanding_credit: customerData.outstanding_credit,
+            sale_person_id: customerData.sale_person_id,
+            delivery_person_id: customerData.delivery_person_id,
+            active_status: customerData.active_status,
+            delete_status: customerData.delete_status || false,
+            notes: customerData.notes,
+            createdBy: customerData.createdBy,
           },
-          userupdate: {
-            select: { id: true, name: true, email: true },
+        });
+
+        // 2. Resolve the parent control ledger (Accounts Receivable)
+        const parentLedger = await tx.ledger.findFirst({
+          where: { ledgerCode: 'AC-1003', delete_status: false },
+        });
+        if (!parentLedger) {
+          throw new APIError(
+            'System ledger AC-1003 not found. Run npm run db:seed:ledgers.',
+            500,
+            'LEDGER_NOT_FOUND'
+          );
+        }
+
+        // 3. Create the customer's own subsidiary ledger
+        const childLedger = await tx.ledger.create({
+          data: {
+            ledgerCode: `AC-1003-C${created.id}`,
+            ledgerName: `${created.name} (Customer AR)`.slice(0, 191),
+            ledgerType: 'ASSET',
+            parentLedgerId: parentLedger.id,
+            isSystemLedger: false,
+            openingBalance: 0,
+            currentBalance: 0,
+            createdBy: customerData.createdBy,
           },
-          category: {
-            select: { id: true, name: true },
+        });
+
+        // 4. Link the ledger back to the customer
+        await tx.customer.update({
+          where: { id: created.id },
+          data: { ledgerId: childLedger.id },
+        });
+
+        // 5. Re-fetch with all includes, including the new ledger
+        return tx.customer.findUnique({
+          where: { id: created.id },
+          include: {
+            usercreate: {
+              select: { id: true, name: true, email: true },
+            },
+            userupdate: {
+              select: { id: true, name: true, email: true },
+            },
+            category: {
+              select: { id: true, name: true },
+            },
+            salePerson: {
+              select: { id: true, name: true, usercode: true },
+            },
+            deliveryPerson: {
+              select: { id: true, name: true, usercode: true },
+            },
+            ledger: true,
           },
-          salePerson: {
-            select: { id: true, name: true, usercode: true },
-          },
-          deliveryPerson: {
-            select: { id: true, name: true, usercode: true },
-          },
-        },
+        });
       });
 
       return customerMaster;
@@ -250,6 +291,7 @@ export class CustomerMasterService {
               saleOrders: true,
             },
           },
+          ledger: { select: { id: true, ledgerCode: true, ledgerName: true, currentBalance: true } },
         },
       });
 
