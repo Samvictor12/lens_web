@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, AlertCircle } from 'lucide-react';
+import { Search, AlertCircle, SlidersHorizontal, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Refresh } from '@/components/ui/Refresh';
 import { useToast } from '@/hooks/use-toast';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   getInventorySoQueue,
   raisePoFromSo,
   issueSoToPreQc,
+  getCustomersDropdown,
+  getLensProductsDropdown,
 } from '@/services/saleOrder';
 import { statusColors } from '@/pages/SaleOrder/SaleOrder.constants';
 import { queueBadge } from '@/constants/saleOrderStatus';
@@ -21,9 +30,9 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
 
   return (
-    <div className="bg-white rounded-xl border p-4 space-y-3">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200">
       <div className="flex justify-between gap-2">
-        <span className="font-semibold">{order.orderNo}</span>
+        <span className="font-semibold text-foreground">{order.orderNo}</span>
         <Badge className={`${statusClass} text-xs border`}>
           {order.status?.replace(/_/g, ' ')}
         </Badge>
@@ -34,10 +43,13 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
         </Badge>
       )}
       <p className="text-sm text-muted-foreground truncate">
-        {order.customer?.name} · {order.procurementType || 'RX'}
+        {order.customer?.name} {order.customerRefNo ? `· Ref: ${order.customerRefNo}` : ''}
       </p>
-      <p className="text-sm truncate">{order.lensProduct?.lens_name || '—'}</p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex justify-between items-center text-xs text-muted-foreground">
+        <span>Procurement: {order.procurementType || 'RX'}</span>
+      </div>
+      <p className="text-sm font-medium truncate text-foreground">{order.lensProduct?.lens_name || '—'}</p>
+      <div className="flex flex-wrap gap-2 pt-1">
         <Button size="sm" onClick={() => onIssue(order)} disabled={busy}>
           Issue &amp; Pre-QC
         </Button>
@@ -67,25 +79,58 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [pickModalOrder, setPickModalOrder] = useState(null);
 
+  // Filters & Grouping state
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('all');
+  const [selectedProductId, setSelectedProductId] = useState('all');
+  const [filterCustomerRefNo, setFilterCustomerRefNo] = useState('');
+  const [filterOrderNo, setFilterOrderNo] = useState('');
+  const [groupBy, setGroupBy] = useState('none');
+  const [showFilters, setShowFilters] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
+
+  useEffect(() => {
+    async function loadDropdowns() {
+      try {
+        const [custRes, prodRes] = await Promise.all([
+          getCustomersDropdown(),
+          getLensProductsDropdown(),
+        ]);
+        if (custRes.success) setCustomers(custRes.data || []);
+        if (prodRes.success) setProducts(prodRes.data || []);
+      } catch (err) {
+        console.error('Failed to load filter dropdowns', err);
+      }
+    }
+    loadDropdowns();
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getInventorySoQueue({ search: search || undefined, limit: 100 });
+      const params = {
+        limit: 100,
+        search: search || undefined,
+        customerId: selectedCustomerId !== 'all' ? selectedCustomerId : undefined,
+        lensProductId: selectedProductId !== 'all' ? selectedProductId : undefined,
+        customerRefNo: filterCustomerRefNo || undefined,
+        orderNo: filterOrderNo || undefined,
+      };
+      const res = await getInventorySoQueue(params);
       if (res.success) setOrders(res.data || []);
     } catch (e) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  }, [search, toast]);
+  }, [search, selectedCustomerId, selectedProductId, filterCustomerRefNo, filterOrderNo, toast]);
 
   useEffect(() => {
     load();
   }, [load, refreshKey, localRefreshKey]);
 
   const handleIssueClick = (order) => {
-    // Open the Stock Pick modal first — the user must select actual
-    // InventoryItem(s) before the order can move to PRE_QC.
     setPickModalOrder(order);
   };
 
@@ -122,22 +167,160 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
     }
   };
 
+  const toggleGroup = (groupKey) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [groupKey]: prev[groupKey] === false ? true : false,
+    }));
+  };
+
+  const getGroupedOrders = () => {
+    if (groupBy === 'none') return null;
+
+    return orders.reduce((groups, order) => {
+      let key = 'Unknown';
+      if (groupBy === 'customer') {
+        key = order.customer ? `${order.customer.name} (${order.customer.code})` : 'Unknown Customer';
+      } else if (groupBy === 'product') {
+        key = order.lensProduct ? `${order.lensProduct.lens_name} (${order.lensProduct.product_code})` : 'Unknown Product';
+      }
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(order);
+      return groups;
+    }, {});
+  };
+
+  const groupedOrders = getGroupedOrders();
+
   return (
     <div className="flex flex-col h-full gap-2">
-      <Card className="p-1 flex-shrink-0">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="relative flex-1">
+      <Card className="p-1.5 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search order no..."
+              placeholder="Search by SO # or Ref #..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && load()}
-              className="pl-9 h-8 text-sm"
+              className="pl-9 h-8 text-sm bg-white dark:bg-slate-900"
             />
           </div>
-          <Refresh onClick={() => setLocalRefreshKey((k) => k + 1)} />
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`h-8 gap-1.5 text-xs bg-white dark:bg-slate-900 ${
+              showFilters ? 'bg-slate-100 dark:bg-slate-800 border-primary' : ''
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+            {(selectedCustomerId !== 'all' || selectedProductId !== 'all' || filterCustomerRefNo || filterOrderNo) && (
+              <Badge variant="secondary" className="ml-1 px-1 h-3.5 bg-primary text-primary-foreground text-[9px]">
+                Active
+              </Badge>
+            )}
+          </Button>
+
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>Group By:</span>
+            <Select value={groupBy} onValueChange={setGroupBy}>
+              <SelectTrigger className="w-[110px] h-8 text-xs bg-white dark:bg-slate-900 border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="customer">Customer</SelectItem>
+                <SelectItem value="product">Product</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Refresh onClick={() => setLocalRefreshKey((k) => k + 1)} className="h-8 w-8 bg-white dark:bg-slate-900" />
         </div>
+
+        {showFilters && (
+          <div className="border-t mt-2 pt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Customer</label>
+              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="All Customers" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  <SelectItem value="all">All Customers</SelectItem>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name} {c.code ? `(${c.code})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Lens Product</label>
+              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="All Products" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  <SelectItem value="all">All Products</SelectItem>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.label || p.lens_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Customer Ref No</label>
+              <Input
+                placeholder="Ref number..."
+                value={filterCustomerRefNo}
+                onChange={(e) => setFilterCustomerRefNo(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && load()}
+                className="h-8 text-xs bg-white dark:bg-slate-900"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SO Number</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="SO-XXXX..."
+                  value={filterOrderNo}
+                  onChange={(e) => setFilterOrderNo(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && load()}
+                  className="h-8 text-xs flex-1 bg-white dark:bg-slate-900"
+                />
+                {(selectedCustomerId !== 'all' || selectedProductId !== 'all' || filterCustomerRefNo || filterOrderNo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedCustomerId('all');
+                      setSelectedProductId('all');
+                      setFilterCustomerRefNo('');
+                      setFilterOrderNo('');
+                    }}
+                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    title="Clear all filters"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -152,7 +335,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
             <AlertCircle className="h-8 w-8" />
             No orders in queue
           </div>
-        ) : (
+        ) : groupBy === 'none' ? (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 p-1">
             {orders.map((o) => (
               <QueueCard
@@ -162,6 +345,43 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
                 onRaisePo={handleRaisePo}
                 busy={busy}
               />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4 p-1">
+            {Object.entries(groupedOrders).map(([key, groupOrders]) => (
+              <div key={key} className="space-y-2">
+                <div 
+                  onClick={() => toggleGroup(key)}
+                  className="bg-slate-50 dark:bg-slate-900 border px-4 py-2 flex justify-between items-center rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition duration-200"
+                >
+                  <div className="flex items-center gap-2">
+                    {expandedGroups[key] === false ? (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="font-semibold text-sm text-foreground">{key}</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs bg-slate-200/60 dark:bg-slate-850 text-muted-foreground">
+                    {groupOrders.length} {groupOrders.length === 1 ? 'order' : 'orders'}
+                  </Badge>
+                </div>
+                
+                {expandedGroups[key] !== false && (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 pl-2 transition-all">
+                    {groupOrders.map((o) => (
+                      <QueueCard
+                        key={o.id}
+                        order={o}
+                        onIssue={handleIssueClick}
+                        onRaisePo={handleRaisePo}
+                        busy={busy}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

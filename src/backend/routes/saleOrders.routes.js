@@ -763,6 +763,11 @@ router.get('/stats',
  *       403:
  *         description: Forbidden - Insufficient permissions
  */
+router.get('/inventory-queue',
+  authenticateToken,
+  controller.getInventoryQueue.bind(controller)
+);
+
 router.get('/:id',
   authenticateToken,
   // requireRole({ module: 'Sale Orders', actions: ['read'] }),
@@ -879,10 +884,6 @@ router.put('/:id',
  *       403:
  *         description: Forbidden - Insufficient permissions
  */
-router.get('/inventory-queue',
-  authenticateToken,
-  controller.getInventoryQueue.bind(controller)
-);
 
 router.get('/:id/status-log',
   authenticateToken,

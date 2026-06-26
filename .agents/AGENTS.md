@@ -22,9 +22,13 @@ Every user input that involves code changes, feature work, bug fixes, or archite
 
 ---
 
-## 1. Single Feature File
+## 1. Single Feature File & Lifecycle
 * All communication and planning must go through a single file: `planning/feature.md`.
 * Do NOT create individual feature files under `features/`.
+* **Deferred Clearing & Queue Check**:
+  * Do NOT immediately clear `planning/feature.md` when an active requirement is completed. Keep the completed specs in the file.
+  * Check if there are other Draft Requirements available. If so, inform the user about them. If the user replies with "start", clear `planning/feature.md` and start working on that requirement.
+  * When a new requirement comes in, first clear `planning/feature.md` and then write the new requirement.
 
 ## 2. Strict Role Boundaries
 * **Orchestrator:** Coordinates the process, reviews diffs, updates state, and updates documentation (`Project_doc.md`, `ARCHITECTURE.md`, `DATABASE_ERD.md`, `Modules/[ModuleName].md`). Never writes codebase code.

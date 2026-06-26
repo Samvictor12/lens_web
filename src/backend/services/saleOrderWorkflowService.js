@@ -42,16 +42,36 @@ function requiredPoQty(order) {
 }
 
 export class SaleOrderWorkflowService {
-  async getInventoryQueue({ page = 1, limit = 50, search } = {}) {
-    const skip = (page - 1) * limit;
+  async getInventoryQueue({ page = 1, limit = 50, search, customerId, lensProductId, customerRefNo, orderNo } = {}) {
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 50;
+    const skip = (parsedPage - 1) * parsedLimit;
     const where = {
       deleteStatus: false,
       status: { in: INVENTORY_QUEUE_STATUSES },
     };
+
+    if (customerId) {
+      where.customerId = parseInt(customerId, 10);
+    }
+
+    if (lensProductId) {
+      where.lens_id = parseInt(lensProductId, 10);
+    }
+
+    if (customerRefNo?.trim()) {
+      where.customerRefNo = { contains: customerRefNo.trim(), mode: 'insensitive' };
+    }
+
+    if (orderNo?.trim()) {
+      where.orderNo = { contains: orderNo.trim(), mode: 'insensitive' };
+    }
+
     if (search?.trim()) {
       where.OR = [
         { orderNo: { contains: search.trim(), mode: 'insensitive' } },
         { customerRefNo: { contains: search.trim(), mode: 'insensitive' } },
+        { customer: { name: { contains: search.trim(), mode: 'insensitive' } } },
       ];
     }
 
@@ -59,7 +79,7 @@ export class SaleOrderWorkflowService {
       prisma.saleOrder.findMany({
         where,
         skip,
-        take: limit,
+        take: parsedLimit,
         orderBy: { updatedAt: 'desc' },
         include: {
           customer: { select: { id: true, code: true, name: true } },
@@ -74,7 +94,7 @@ export class SaleOrderWorkflowService {
       prisma.saleOrder.count({ where }),
     ]);
 
-    return { data: orders, total, page, limit };
+    return { data: orders, total, page: parsedPage, limit: parsedLimit };
   }
 
   async raisePoFromSo(saleOrderId, userId, source = 'USER') {

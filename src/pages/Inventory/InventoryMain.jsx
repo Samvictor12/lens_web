@@ -80,7 +80,7 @@ const InventoryMain = () => {
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Inventory Management</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage inward queue, request queue, transactions, and stock levels
+            Manage inward queue, SO Request Query, transactions, and stock levels
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -101,7 +101,7 @@ const InventoryMain = () => {
         <TabsList className="grid w-full grid-cols-5 mb-4 flex-shrink-0">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="inward">Inward Queue</TabsTrigger>
-          <TabsTrigger value="requestQueue">Request Queue</TabsTrigger>
+          <TabsTrigger value="requestQueue">SO Request Query</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="stock">Stock Summary</TabsTrigger>
         </TabsList>

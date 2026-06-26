@@ -1,11 +1,9 @@
 {
   "v": "1.0.0",
-  "feature": "inventory-module-flow-gaps",
+  "feature": "inventory-queue-filters-and-grouping",
   "active_feature_file": "planning/feature.md",
-  "phase": "COMPLETED",
-  "HUMAN_APPROVED": true,
+  "phase": "DONE",
   "state_tag": "COMPLETE",
   "last_agent": "orchestrator",
-  "at": "2026-06-27T01:35:00Z",
-  "pass": "C"
+  "at": "2026-06-27T01:52:00Z"
 }
