@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { X, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { FormSelect } from "@/components/ui/form-select";
 
 /**
  * BulkLensSelection Component
@@ -19,11 +18,6 @@ export default function BulkLensSelection({
   disabled = false,
   categoryName = "",
   lensId = null,
-  coatings = [],
-  coatingId = null,
-  onCoatingChange = () => {},
-  defaultCostPrice = "",
-  trayOptions = [],
 }) {
   const lowerCat = (categoryName || "").toLowerCase();
   const isProgressive = lowerCat.includes("prog");
@@ -47,8 +41,6 @@ export default function BulkLensSelection({
   const [selectedCell, setSelectedCell] = useState(null);
   const [showGrid, setShowGrid] = useState(false);
   const [showLensWarning, setShowLensWarning] = useState(false);
-  const [showCoatingWarning, setShowCoatingWarning] = useState(false);
-  const [expandedCoatings, setExpandedCoatings] = useState({});
 
   // Initialise from existing value on mount only
   useEffect(() => {
@@ -129,6 +121,25 @@ export default function BulkLensSelection({
     return `sph_${sph}_${colPart}${eye ? `_${eye}` : ""}`;
   };
 
+  const getCellQuantity = (sph, colVal, eye = null) => {
+    const key = makeCellKey(sph, colVal, eye);
+    if (eyeMode === "Single") return selections[key]?.quantity || 0;
+    return selections[key]?.[eye] || 0;
+  };
+
+  const isCellSelected = (sph, colVal, eye = null) => {
+    if (!selectedCell) return false;
+    return (
+      selectedCell.sph === sph &&
+      selectedCell.colVal === colVal &&
+      selectedCell.eye === eye
+    );
+  };
+
+  const handleCellClick = (sph, colVal, eye = null) => {
+    setSelectedCell({ sph, colVal, eye, key: makeCellKey(sph, colVal, eye) });
+  };
+
   const handleQuantityChange = (quantity) => {
     if (!selectedCell) return;
     const newSelections = { ...selections };
@@ -136,23 +147,17 @@ export default function BulkLensSelection({
 
     if (quantity && parseFloat(quantity) > 0) {
       if (eyeMode === "Single") {
-        newSelections[key] = { ...newSelections[key], quantity: parseInt(quantity) };
+        newSelections[key] = { quantity: parseInt(quantity) };
       } else {
         if (!newSelections[key]) newSelections[key] = {};
-        else newSelections[key] = { ...newSelections[key] };
         if (eye) newSelections[key][eye] = parseInt(quantity);
       }
     } else {
       if (eyeMode === "Single") {
         delete newSelections[key];
       } else if (eye && newSelections[key]) {
-        const updated = { ...newSelections[key] };
-        delete updated[eye];
-        if (updated.R == null && updated.L == null) {
-          delete newSelections[key];
-        } else {
-          newSelections[key] = updated;
-        }
+        delete newSelections[key][eye];
+        if (Object.keys(newSelections[key]).length === 0) delete newSelections[key];
       }
     }
 
@@ -166,137 +171,129 @@ export default function BulkLensSelection({
     onChange({ ranges, selections: {} });
   };
 
-  /** Update the Tray or Price metadata for a generated spec row (auto-built list mode). */
-  const handleRowMetaChange = (key, field, val) => {
-    const newSelections = { ...selections };
-    if (!newSelections[key]) return;
-    newSelections[key] = { ...newSelections[key], [field]: val };
-    setSelections(newSelections);
-    notifyParent(newSelections);
-  };
-
-  // Auto-built Product Spec string, e.g. "Sph=-2|Cyl=0|Add=0"
-  const buildSpecLabel = (sph, colVal) => {
-    if (useAdd) return `Sph=${sph}|Cyl=0|Add=${colVal}`;
-    return `Sph=${sph}|Cyl=${colVal}|Add=0`;
-  };
-
-  const selectedCoating = coatings.find((c) => String(c.id) === String(coatingId));
-  const coatingLabel = selectedCoating?.name || selectedCoating?.label || "Selected Coating";
-
-  /** Build the flat list of generated spec rows for the expandable-by-Coating table.
-   *  Each row corresponds to one selection key (R/L progressive rows are separate rows). */
-  const buildSpecRows = () => {
+  // Unified grid renderer
+  const renderGrid = () => {
     const isBoth = eyeMode === "Both";
-    const rows = [];
-    for (const sph of sphValues) {
-      for (const col of colValues) {
-        if (isBoth) {
-          for (const eye of ["R", "L"]) {
-            const key = makeCellKey(sph, col, eye);
-            rows.push({
-              key,
-              sph,
-              colVal: col,
-              eye,
-              specLabel: `${buildSpecLabel(sph, col)}|Eye=${eye}`,
-            });
-          }
-        } else {
-          const key = makeCellKey(sph, col);
-          rows.push({ key, sph, colVal: col, eye: null, specLabel: buildSpecLabel(sph, col) });
-        }
-      }
-    }
-    return rows;
-  };
 
-  const specRows = showGrid ? buildSpecRows() : [];
-
-  const toggleCoatingExpanded = () => {
-    setExpandedCoatings((prev) => ({ ...prev, [coatingId]: !prev[coatingId] }));
-  };
-
-  // Render the expandable-by-Coating list: a single header for the form-level
-  // selected coating (coating is a single required selection, not a range),
-  // which expands to reveal the 4-column table (Spec / Qty / Tray / Price).
-  const renderCoatingExpandableList = () => {
-    const isExpanded = expandedCoatings[coatingId] !== false; // default expanded
     return (
-      <div className="border rounded-lg overflow-hidden">
-        <button
-          type="button"
-          onClick={toggleCoatingExpanded}
-          className="w-full flex items-center justify-between px-3 py-2 bg-gray-100 hover:bg-gray-200 text-left"
-        >
-          <span className="text-sm font-medium flex items-center gap-1.5">
-            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRightIcon className="h-3.5 w-3.5" />}
-            {coatingLabel}
-            <span className="text-xs text-muted-foreground font-normal">({specRows.length} spec{specRows.length !== 1 ? "s" : ""})</span>
-          </span>
-        </button>
-        {isExpanded && (
-          <div className="overflow-auto max-h-[480px]">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-gray-50 border-b">
-                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Product Spec</th>
-                  <th className="px-2 py-1.5 text-center font-medium text-muted-foreground w-20">Qty</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground w-48">Tray</th>
-                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground w-32">Price</th>
+      <div className="border border-gray-400 rounded-lg overflow-auto max-h-[500px] max-w-full">
+        <div className="flex flex-col min-w-max">
+          {/* Column label banner */}
+          <div className="h-8 bg-gray-100 border-b border-gray-300 flex sticky top-0 z-20">
+            <div className="w-20 border-r border-gray-300 bg-gray-100" />
+            <div className="flex-1 flex items-center justify-center">
+              <span className="text-xs font-medium text-blue-600">{colLabel}</span>
+            </div>
+          </div>
+
+          <div className="flex min-w-max">
+            {/* SPH vertical label */}
+            <div className="w-20 bg-gray-100 border-r border-gray-300 flex items-center justify-center flex-shrink-0 sticky left-0 z-[15]">
+              <span className="transform -rotate-90 text-xs font-medium text-blue-600 whitespace-nowrap">
+                SPH
+              </span>
+            </div>
+
+            <table className="border-collapse">
+              <thead>
+                {/* Column value headers */}
+                <tr>
+                  <th className="w-20 bg-gray-100 border-b border-r border-gray-300 p-2 text-xs font-medium sticky left-0 top-0 z-30" />
+                  {colValues.map((col) =>
+                    isBoth ? (
+                      <th
+                        key={col}
+                        colSpan={2}
+                        className="bg-gray-100 border-b border-r border-gray-300 p-2 text-xs font-medium text-center sticky top-0 z-20"
+                      >
+                        {col}
+                      </th>
+                    ) : (
+                      <th
+                        key={col}
+                        className="bg-gray-100 border-b border-r border-gray-300 p-1 text-xs font-medium text-center min-w-[40px] sticky top-0 z-20"
+                      >
+                        {col}
+                      </th>
+                    )
+                  )}
                 </tr>
+                {/* R / L sub-headers for Both mode (Progressive only) */}
+                {isBoth && (
+                  <tr>
+                    <th className="w-20 bg-gray-100 border-b border-r border-gray-300 p-1 sticky left-0 top-8 z-[25]" />
+                    {colValues.map((col, i) => (
+                      <React.Fragment key={`rl-${col}-${i}`}>
+                        <th className="bg-gray-50 border-b border-r border-gray-300 p-1 text-xs font-medium text-center min-w-[35px] sticky top-8 z-[15]">
+                          R
+                        </th>
+                        <th className="bg-gray-50 border-b border-r border-gray-300 p-1 text-xs font-medium text-center min-w-[35px] sticky top-8 z-[15]">
+                          L
+                        </th>
+                      </React.Fragment>
+                    ))}
+                  </tr>
+                )}
               </thead>
               <tbody>
-                {specRows.map((row) => {
-                  const sel = selections[row.key] || {};
-                  const qty = eyeMode === "Single" ? sel.quantity || "" : sel[row.eye] || "";
-                  return (
-                    <tr key={row.key} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className="px-2 py-1 font-mono">{row.specLabel}</td>
-                      <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={qty}
-                          onChange={(e) => {
-                            setSelectedCell({ sph: row.sph, colVal: row.colVal, eye: row.eye, key: row.key });
-                            handleQuantityChange(e.target.value);
-                          }}
-                          className="w-full h-7 text-xs text-center"
-                          placeholder="0"
-                          disabled={disabled}
-                        />
-                      </td>
-                      <td className="px-2 py-1">
-                        <FormSelect
-                          name={`tray_${row.key}`}
-                          value={sel.tray_id || null}
-                          onChange={(v) => handleRowMetaChange(row.key, "tray_id", v ? String(v) : "")}
-                          options={trayOptions}
-                          placeholder="Select tray"
-                          isClearable={false}
-                          disabled={disabled || !qty}
-                        />
-                      </td>
-                      <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={sel.costPrice ?? ""}
-                          onChange={(e) => handleRowMetaChange(row.key, "costPrice", e.target.value)}
-                          className="w-full h-7 text-xs"
-                          placeholder={`${defaultCostPrice || 0}`}
-                          disabled={disabled || !qty}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
+                {sphValues.map((sph) => (
+                  <tr key={sph}>
+                    <td className="bg-gray-100 border-r border-b border-gray-300 p-2 text-xs font-medium text-center sticky left-0 z-10">
+                      {sph}
+                    </td>
+                    {isBoth
+                      ? colValues.map((col) => (
+                          <React.Fragment key={`${sph}-${col}`}>
+                            {["R", "L"].map((eye) => (
+                              <td
+                                key={eye}
+                                className={`border-r border-b border-gray-300 p-0 text-center cursor-pointer ${
+                                  isCellSelected(sph, col, eye) ? "bg-blue-100" : "hover:bg-gray-50"
+                                }`}
+                                onClick={() => handleCellClick(sph, col, eye)}
+                              >
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={getCellQuantity(sph, col, eye) || ""}
+                                  onChange={(e) => handleQuantityChange(e.target.value)}
+                                  onFocus={() => handleCellClick(sph, col, eye)}
+                                  onBlur={() => setSelectedCell(null)}
+                                  className="w-[90%] h-[50%] text-xs text-center border-0 rounded-none focus:outline-none bg-transparent"
+                                  placeholder="0"
+                                  disabled={disabled}
+                                />
+                              </td>
+                            ))}
+                          </React.Fragment>
+                        ))
+                      : colValues.map((col) => (
+                          <td
+                            key={col}
+                            className={`border-r border-b border-gray-300 p-0 text-center cursor-pointer ${
+                              isCellSelected(sph, col) ? "bg-blue-100" : "hover:bg-gray-50"
+                            }`}
+                            onClick={() => handleCellClick(sph, col)}
+                          >
+                            <Input
+                              type="number"
+                              min="0"
+                              value={getCellQuantity(sph, col) || ""}
+                              onChange={(e) => handleQuantityChange(e.target.value)}
+                              onFocus={() => handleCellClick(sph, col)}
+                              onBlur={() => setSelectedCell(null)}
+                              className="w-full h-full text-xs text-center border-0 cursor-pointer rounded-none focus:outline-none bg-transparent"
+                              placeholder="0"
+                              disabled={disabled}
+                            />
+                          </td>
+                        ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -315,22 +312,6 @@ export default function BulkLensSelection({
             </p>
           ) : (
             <>
-              {/* Coating selection — required before grid generation */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="col-span-2">
-                  <Label className="text-xs">Coating *</Label>
-                  <FormSelect
-                    name="coating_id"
-                    value={coatingId || null}
-                    onChange={(v) => onCoatingChange(v ? String(v) : "")}
-                    options={coatings}
-                    placeholder="Select coating"
-                    isSearchable
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
               {/* Range inputs */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -423,13 +404,7 @@ export default function BulkLensSelection({
                         setTimeout(() => setShowLensWarning(false), 3000);
                         return;
                       }
-                      if (!coatingId) {
-                        setShowCoatingWarning(true);
-                        setTimeout(() => setShowCoatingWarning(false), 3000);
-                        return;
-                      }
                       setShowLensWarning(false);
-                      setShowCoatingWarning(false);
                       setShowGrid(true);
                     }}
                     disabled={disabled}
@@ -439,9 +414,6 @@ export default function BulkLensSelection({
                   </Button>
                   {showLensWarning && (
                     <p className="text-xs text-destructive">Please select a Lens Product first.</p>
-                  )}
-                  {showCoatingWarning && (
-                    <p className="text-xs text-destructive">Please select a Coating first.</p>
                   )}
                 </div>
                 <Button
@@ -460,15 +432,16 @@ export default function BulkLensSelection({
         </CardContent>
       </Card>
 
-      {/* Selection list — expandable by Coating, each coating expands into a
-          Product Spec / Qty / Tray / Price table */}
+      {/* Selection Grid */}
       {showGrid && categoryName && (
         <Card>
           <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-sm">Lens Selection — by Coating</CardTitle>
+            <CardTitle className="text-sm">Lens Selection Grid</CardTitle>
           </CardHeader>
           <CardContent className="p-3">
-            {renderCoatingExpandableList()}
+            <div className="max-h-[600px] overflow-auto border rounded">
+              <div className="p-3">{renderGrid()}</div>
+            </div>
           </CardContent>
         </Card>
       )}

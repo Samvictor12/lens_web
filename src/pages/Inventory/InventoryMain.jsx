@@ -16,7 +16,6 @@ import InventoryCard from './InventoryCard';
 import InventoryFilter from './InventoryFilter';
 import InventoryDashboard from './InventoryDashboard';
 import InventoryInwardQueueTab from './InventoryInwardQueueTab';
-import InventoryRequestQueueTab from './InventoryRequestQueueTab';
 import InventoryTransactionsTab from './InventoryTransactionsTab';
 import InventoryStockTab from './InventoryStockTab';
 import { useInventoryColumns } from './useInventoryColumns';
@@ -27,7 +26,6 @@ const tabRoutes = {
   dashboard: '/inventory/dashboard',
   items: '/inventory/items',
   inward: '/inventory/inward',
-  requestQueue: '/inventory/request-queue',
   transactions: '/inventory/transactions',
   stock: '/inventory/stock',
 };
@@ -35,7 +33,6 @@ const tabRoutes = {
 const getActiveTab = (pathname) => {
   if (pathname.startsWith('/inventory/dashboard')) return 'dashboard';
   if (pathname === '/inventory/inward') return 'inward';
-  if (pathname.startsWith('/inventory/request-queue')) return 'requestQueue';
   if (pathname.startsWith('/inventory/transactions')) return 'transactions';
   if (pathname.startsWith('/inventory/stock')) return 'stock';
   if (pathname.startsWith('/inventory/reports')) return 'dashboard';
@@ -238,11 +235,10 @@ const InventoryMain = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => navigate(tabRoutes[value])} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="grid w-full grid-cols-6 mb-4 flex-shrink-0">
+        <TabsList className="grid w-full grid-cols-5 mb-4 flex-shrink-0">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="items">Items</TabsTrigger>
           <TabsTrigger value="inward">Inward Queue</TabsTrigger>
-          <TabsTrigger value="requestQueue">Request Queue</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="stock">Stock Summary</TabsTrigger>
         </TabsList>
@@ -353,10 +349,6 @@ const InventoryMain = () => {
 
         <TabsContent value="inward" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryInwardQueueTab refreshKey={refreshKey} />
-        </TabsContent>
-
-        <TabsContent value="requestQueue" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <InventoryRequestQueueTab refreshKey={refreshKey} />
         </TabsContent>
 
         <TabsContent value="transactions" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">

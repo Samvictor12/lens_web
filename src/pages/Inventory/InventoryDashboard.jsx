@@ -5,9 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "./Inventory.constants";
 import InventoryInitializationForm from "./InventoryInitializationForm";
-import InventorySpecTrendChart from "./InventorySpecTrendChart";
-import InventoryValueTrendChart from "./InventoryValueTrendChart";
-import TopSellingWidget from "./TopSellingWidget";
 
 /**
  * Inventory Dashboard — standalone component for the Dashboard tab.
@@ -18,9 +15,8 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
   const [showInitForm, setShowInitForm] = useState(false);
   const statCards = [
     {
-      label: "Product Count",
-      value: stats.productCount ?? stats.totalItems ?? 0,
-      subtext: "distinct products",
+      label: "Total Items",
+      value: stats.totalItems ?? 0,
       icon: Package,
       className: "text-primary",
       iconClass: "text-primary",
@@ -28,7 +24,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     {
       label: "Available",
       value: stats.availableItems ?? 0,
-      subtext: "physical item count at full spec level",
       icon: TrendingUp,
       className: "text-green-600",
       iconClass: "text-green-500",
@@ -36,7 +31,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     {
       label: "Reserved",
       value: stats.reservedItems ?? 0,
-      subtext: "physical item count at full spec level",
       icon: Layers,
       className: "text-yellow-600",
       iconClass: "text-yellow-500",
@@ -54,7 +48,7 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     <div className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {statCards.map(({ label, value, subtext, icon: Icon, className, iconClass }) => (
+        {statCards.map(({ label, value, icon: Icon, className, iconClass }) => (
           <Card key={label}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -63,9 +57,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
                   <p className={`text-2xl font-bold ${className}`}>
                     {isLoading ? "—" : value}
                   </p>
-                  {subtext && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{subtext}</p>
-                  )}
                 </div>
                 <Icon className={`h-7 w-7 opacity-60 ${iconClass}`} />
               </div>
@@ -73,11 +64,6 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
           </Card>
         ))}
       </div>
-
-      {/* Analytics charts (Pass B) */}
-      <InventorySpecTrendChart />
-      <InventoryValueTrendChart />
-      <TopSellingWidget />
 
       {/* Total Value card */}
       {stats.totalValue != null && (

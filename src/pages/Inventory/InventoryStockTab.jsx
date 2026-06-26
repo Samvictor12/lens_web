@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { inventoryService } from "@/services/inventory";
 import { formatCurrency, formatDate } from "./Inventory.constants";
 import {
+  Search,
   Layers,
   ChevronDown,
   ChevronRight,
@@ -17,13 +18,7 @@ import {
   ChevronLeft,
   ChevronsLeft,
   ChevronsRight,
-  Download,
-  FileSpreadsheet,
-  Table2,
-  LayoutGrid,
 } from "lucide-react";
-import { exportTableCsv, exportTablePdf } from "./dashboardExportUtils";
-import { buildPivotFromItems, pivotToExportRows } from "./stockPivotUtils";
 
 /**
  * Enhanced Stock Summary tab with groupBy support and value columns.
@@ -38,15 +33,7 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
   const [totalCount, setTotalCount] = useState(0);
   const [groupBy, setGroupBy] = useState("location");
   const [sorting, setSorting] = useState([]);
-  const [viewMode, setViewMode] = useState("list"); // list | grid | pivot
-  const [productNameFilter, setProductNameFilter] = useState("");
-  const [locationNameFilter, setLocationNameFilter] = useState("");
-  const [filterTypeId, setFilterTypeId] = useState("");
-  const [filterCoatingId, setFilterCoatingId] = useState("");
-  const [filterSph, setFilterSph] = useState("");
-  const [filterCyl, setFilterCyl] = useState("");
-  const [filterAdd, setFilterAdd] = useState("");
-  const [showAttrFilters, setShowAttrFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState({});
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
 
@@ -58,57 +45,22 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     { id: "none", name: "No Grouping" },
   ];
 
-  // Grid / pivot shared dropdown state
-  const [dropdowns, setDropdowns] = useState({
-    lensProducts: [],
-    categories: [],
-    lensTypes: [],
-    coatings: [],
-    locations: [],
-  });
+  // Grid view states
+  const [showGridView, setShowGridView] = useState(false);
+  const [dropdowns, setDropdowns] = useState({ lensProducts: [], categories: [] });
   const [selectedLensId, setSelectedLensId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [gridItems, setGridItems] = useState([]);
   const [isGridLoading, setIsGridLoading] = useState(false);
   const [selectedCellInfo, setSelectedCellInfo] = useState(null);
 
-  const stockFilterParams = useMemo(
-    () => ({
-      productName: productNameFilter || undefined,
-      locationName: locationNameFilter || undefined,
-      Type_id: filterTypeId || undefined,
-      coating_id: filterCoatingId || undefined,
-      sph: filterSph || undefined,
-      cyl: filterCyl || undefined,
-      add: filterAdd || undefined,
-    }),
-    [
-      productNameFilter,
-      locationNameFilter,
-      filterTypeId,
-      filterCoatingId,
-      filterSph,
-      filterCyl,
-      filterAdd,
-    ]
-  );
-
   useEffect(() => {
-    if (viewMode !== "grid") {
+    if (!showGridView) {
       loadStockSummary();
     }
-  }, [
-    pageIndex,
-    pageSize,
-    refreshKey,
-    groupBy,
-    sorting,
-    viewMode,
-    localRefreshKey,
-    stockFilterParams,
-  ]);
+  }, [pageIndex, pageSize, refreshKey, groupBy, sorting, showGridView, searchQuery, localRefreshKey]);
 
-  // Load dropdown options
+  // Load dropdown options for Grid View
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
@@ -116,24 +68,22 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
         if (res.success && res.data) {
           setDropdowns({
             lensProducts: res.data.lensProducts || [],
-            categories: res.data.categories || [],
-            lensTypes: res.data.lensTypes || [],
-            coatings: res.data.coatings || [],
-            locations: res.data.locations || [],
+            categories: res.data.categories || []
           });
         }
       } catch (err) {
-        console.error("Failed to load dropdowns:", err);
+        console.error("Failed to load dropdowns for grid view:", err);
       }
     };
     fetchDropdowns();
   }, []);
 
+  // Load available items for grid when selection changes
   useEffect(() => {
-    if (viewMode === "grid" && selectedLensId) {
+    if (showGridView && selectedLensId) {
       loadGridItems();
     }
-  }, [selectedLensId, selectedCategoryId, viewMode, refreshKey, localRefreshKey]);
+  }, [selectedLensId, selectedCategoryId, showGridView, refreshKey, localRefreshKey]);
 
   const loadGridItems = async () => {
     try {
@@ -162,12 +112,11 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
   const loadStockSummary = async () => {
     try {
       setIsLoading(true);
-      const isPivot = viewMode === "pivot";
       const response = await inventoryService.getInventoryStockGrouped({
-        page: isPivot ? 1 : pageIndex + 1,
-        limit: isPivot ? 5000 : pageSize,
-        groupBy: isPivot ? "pivot" : groupBy === "none" ? null : groupBy,
-        ...stockFilterParams,
+        page: pageIndex + 1,
+        limit: pageSize,
+        groupBy: groupBy === "none" ? null : groupBy,
+        search: searchQuery,
       });
       if (response.success) {
         setStockSummary(response.data || []);
@@ -232,115 +181,6 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     });
     return Object.values(map);
   }, [stockSummary, groupBy]);
-
-  const pivotData = useMemo(() => {
-    if (viewMode !== "pivot" || !stockSummary.length) return null;
-    return buildPivotFromItems(stockSummary);
-  }, [stockSummary, viewMode]);
-
-  const hasExportableData = useMemo(() => {
-    if (viewMode === "pivot") return pivotData?.rows?.length > 0;
-    if (viewMode === "list") return stockSummary.length > 0;
-    return false;
-  }, [viewMode, pivotData, stockSummary]);
-
-  const handleExportPdf = () => {
-    if (viewMode === "pivot" && pivotData) {
-      const { columns, rows } = pivotToExportRows(pivotData);
-      exportTablePdf({
-        title: "Stock Summary — Pivot View",
-        columns,
-        rows,
-        filename: `stock-pivot-${new Date().toISOString().split("T")[0]}.pdf`,
-      });
-      return;
-    }
-    const columns = [
-      "Lens Product",
-      "Category",
-      "Location",
-      "Tray",
-      "Total",
-      "Available",
-      "Reserved",
-    ];
-    const rows = stockSummary.map((item) => [
-      item.lensProduct?.lens_name || "",
-      item.category?.name || "",
-      item.location?.name || "",
-      item.tray?.name || item.tray?.tray_name || "",
-      item.totalStock ?? 0,
-      item.availableStock ?? 0,
-      item.reservedStock ?? 0,
-    ]);
-    exportTablePdf({
-      title: "Stock Summary",
-      columns,
-      rows,
-      filename: `stock-summary-${new Date().toISOString().split("T")[0]}.pdf`,
-    });
-  };
-
-  const handleExportCsv = () => {
-    if (viewMode === "pivot" && pivotData) {
-      const { columns, rows } = pivotToExportRows(pivotData);
-      exportTableCsv({
-        columns,
-        rows,
-        filename: `stock-pivot-${new Date().toISOString().split("T")[0]}.csv`,
-      });
-      return;
-    }
-    exportTableCsv({
-      columns: ["Lens Product", "Location", "Tray", "Total Stock", "Available", "Reserved"],
-      rows: stockSummary.map((item) => [
-        item.lensProduct?.lens_name || "",
-        item.location?.name || "",
-        item.tray?.name || "",
-        item.totalStock ?? 0,
-        item.availableStock ?? 0,
-        item.reservedStock ?? 0,
-      ]),
-      filename: `stock-summary-${new Date().toISOString().split("T")[0]}.csv`,
-    });
-  };
-
-  const handleExportExcel = async () => {
-    try {
-      await inventoryService.exportInventoryStockGrouped({
-        groupBy: viewMode === "pivot" ? "pivot" : groupBy === "none" ? "location" : groupBy,
-        ...stockFilterParams,
-      });
-    } catch (err) {
-      toast({
-        title: "Export failed",
-        description: err?.message || "Could not export stock summary",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const lensTypeOptions = useMemo(
-    () => [
-      { value: "", label: "All types" },
-      ...dropdowns.lensTypes.map((t) => ({
-        value: String(t.id),
-        label: t.name,
-      })),
-    ],
-    [dropdowns.lensTypes]
-  );
-
-  const coatingOptions = useMemo(
-    () => [
-      { value: "", label: "All coatings" },
-      ...dropdowns.coatings.map((c) => ({
-        value: String(c.id),
-        label: c.name,
-      })),
-    ],
-    [dropdowns.coatings]
-  );
 
   // Define columns for standard Table component
   const columns = [
@@ -670,103 +510,6 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     );
   };
 
-  const renderPivotView = () => {
-    if (isLoading) {
-      return (
-        <Card className="p-8 text-center flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">Loading pivot table…</p>
-          </div>
-        </Card>
-      );
-    }
-
-    if (!pivotData || pivotData.rows.length === 0) {
-      return (
-        <Card className="p-8 text-center flex-1 flex items-center justify-center text-muted-foreground text-xs">
-          No stock data found matching the selected filters.
-        </Card>
-      );
-    }
-
-    const { rows, columns, locationGroups, truncated } = pivotData;
-
-    return (
-      <Card className="flex-1 min-h-0 p-3 flex flex-col gap-2">
-        {truncated && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-            Showing first {columns.length} tray columns — scroll horizontally for more.
-          </p>
-        )}
-        <div className="flex-1 overflow-auto border rounded-lg max-h-[520px]">
-          <table className="w-full border-collapse text-xs min-w-max">
-            <thead>
-              <tr className="bg-muted/60 border-b">
-                <th
-                  rowSpan={2}
-                  className="p-2 border-r font-semibold sticky left-0 z-20 bg-muted/80 min-w-[220px]"
-                >
-                  Product &amp; Attributes
-                </th>
-                {locationGroups.map((group) => (
-                  <th
-                    key={`loc-${group.location_id}`}
-                    colSpan={group.columns.length}
-                    className="p-2 border-r text-center font-semibold text-primary"
-                  >
-                    {group.locationName}
-                  </th>
-                ))}
-                <th
-                  rowSpan={2}
-                  className="p-2 font-semibold bg-muted/70 sticky right-0 z-20 min-w-[60px]"
-                >
-                  Total
-                </th>
-              </tr>
-              <tr className="bg-muted/40 border-b">
-                {columns.map((col) => (
-                  <th
-                    key={col.colKey}
-                    className="p-2 border-r text-center font-medium whitespace-nowrap min-w-[72px]"
-                  >
-                    {col.trayName}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.rowKey} className="border-b hover:bg-muted/10">
-                  <td className="p-2 border-r font-medium sticky left-0 z-10 bg-background max-w-[280px] truncate">
-                    {row.label}
-                  </td>
-                  {columns.map((col) => {
-                    const qty = row.cells[col.colKey] || 0;
-                    return (
-                      <td
-                        key={`${row.rowKey}-${col.colKey}`}
-                        className={`p-2 border-r text-center ${
-                          qty > 0 ? "font-semibold text-green-700" : "text-muted-foreground/40"
-                        }`}
-                      >
-                        {qty > 0 ? qty : "—"}
-                      </td>
-                    );
-                  })}
-                  <td className="p-2 text-center font-bold sticky right-0 z-10 bg-background">
-                    {row.total}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    );
-  };
-
   const renderPagination = () => {
     if (totalCount === 0) return null;
     const totalPages = Math.ceil(totalCount / pageSize);
@@ -853,121 +596,32 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Filters and toolbar */}
-      <Card className="p-2 flex-shrink-0 space-y-2">
-        {viewMode === "list" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            <Input
-              placeholder="Product name…"
-              value={productNameFilter}
-              onChange={(e) => {
-                setProductNameFilter(e.target.value);
-                setPageIndex(0);
-              }}
-              className="h-8 text-xs"
-            />
-            <Input
-              placeholder="Location name…"
-              value={locationNameFilter}
-              onChange={(e) => {
-                setLocationNameFilter(e.target.value);
-                setPageIndex(0);
-              }}
-              className="h-8 text-xs"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs justify-start"
-              onClick={() => setShowAttrFilters((v) => !v)}
-            >
-              {showAttrFilters ? "Hide" : "Show"} attribute filters
-              {showAttrFilters ? (
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 ml-1" />
-              )}
-            </Button>
-          </div>
-        )}
-
-        {(viewMode === "pivot" || (viewMode === "list" && showAttrFilters)) && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {viewMode === "pivot" && (
-              <>
-                <Input
-                  placeholder="Product name…"
-                  value={productNameFilter}
-                  onChange={(e) => setProductNameFilter(e.target.value)}
-                  className="h-8 text-xs"
-                />
-                <Input
-                  placeholder="Location name…"
-                  value={locationNameFilter}
-                  onChange={(e) => setLocationNameFilter(e.target.value)}
-                  className="h-8 text-xs"
-                />
-              </>
-            )}
-            <FormSelect
-              label="Type"
-              value={filterTypeId ?? ""}
-              onChange={(v) => {
-                setFilterTypeId(v ?? "");
-                setPageIndex(0);
-              }}
-              options={lensTypeOptions}
-              isSearchable={false}
-            />
-            <FormSelect
-              label="Coating"
-              value={filterCoatingId ?? ""}
-              onChange={(v) => {
-                setFilterCoatingId(v ?? "");
-                setPageIndex(0);
-              }}
-              options={coatingOptions}
-              isSearchable={false}
-            />
-            <Input
-              placeholder="Sph"
-              value={filterSph}
-              onChange={(e) => {
-                setFilterSph(e.target.value);
-                setPageIndex(0);
-              }}
-              className="h-8 text-xs"
-            />
-            <Input
-              placeholder="Cyl"
-              value={filterCyl}
-              onChange={(e) => {
-                setFilterCyl(e.target.value);
-                setPageIndex(0);
-              }}
-              className="h-8 text-xs"
-            />
-            <Input
-              placeholder="Add"
-              value={filterAdd}
-              onChange={(e) => {
-                setFilterAdd(e.target.value);
-                setPageIndex(0);
-              }}
-              className="h-8 text-xs"
-            />
-          </div>
-        )}
-
+      {/* Search and Grouping Card */}
+      <Card className="p-2 flex-shrink-0">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="flex items-center gap-2 flex-wrap flex-1">
-            {viewMode === "list" && (
+          {!showGridView && (
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search stock by product, code, category, or location..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPageIndex(0);
+                  setExpandedGroups({});
+                }}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            {!showGridView && (
               <>
                 <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                   Group by:
                 </span>
-                <div className="w-40">
+                <div className="w-40 mr-2">
                   <FormSelect
                     name="groupBy"
                     options={groupingOptions}
@@ -986,92 +640,27 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
             )}
             <Button
               type="button"
-              variant={viewMode === "list" ? "default" : "outline"}
+              variant={showGridView ? "default" : "outline"}
               size="xs"
               className="h-8 gap-1.5"
               onClick={() => {
-                setViewMode("list");
+                setShowGridView(!showGridView);
                 setSelectedCellInfo(null);
               }}
             >
-              <Table2 className="h-3.5 w-3.5" />
-              List
+              {showGridView ? "List View" : "Grid View"}
             </Button>
-            <Button
-              type="button"
-              variant={viewMode === "grid" ? "default" : "outline"}
-              size="xs"
-              className="h-8 gap-1.5"
-              onClick={() => {
-                setViewMode("grid");
-                setSelectedCellInfo(null);
-              }}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Grid
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === "pivot" ? "default" : "outline"}
-              size="xs"
-              className="h-8 gap-1.5"
-              onClick={() => {
-                setViewMode("pivot");
-                setSelectedCellInfo(null);
-                setPageIndex(0);
-              }}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              Pivot
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              className="h-8 gap-1"
-              disabled={!hasExportableData}
-              onClick={handleExportPdf}
-            >
-              <Download className="h-3.5 w-3.5" />
-              PDF
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              className="h-8 gap-1"
-              disabled={!hasExportableData}
-              onClick={handleExportCsv}
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              CSV
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              className="h-8 gap-1"
-              disabled={!hasExportableData}
-              onClick={handleExportExcel}
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              Excel
-            </Button>
-            <Refresh
-              onClick={() => {
-                setLocalRefreshKey((prev) => prev + 1);
-                setPageIndex(0);
-              }}
-            />
+            <Refresh onClick={() => {
+              setLocalRefreshKey(prev => prev + 1);
+              setPageIndex(0);
+            }} />
           </div>
         </div>
       </Card>
 
       {/* Data Display */}
-      {viewMode === "grid" ? (
+      {showGridView ? (
         renderGridView()
-      ) : viewMode === "pivot" ? (
-        renderPivotView()
       ) : groupBy !== "none" ? (
         isLoading ? (
           <Card className="p-8 text-center flex-1 flex items-center justify-center">

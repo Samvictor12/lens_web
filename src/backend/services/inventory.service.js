@@ -1,6 +1,5 @@
 import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
-import ExcelJS from "exceljs";
 
 /**
  * Inventory Service
@@ -717,61 +716,58 @@ export class InventoryService {
    * @param {number} userId - User ID
    * @returns {Promise<Object>} Updated inventory item
    */
-  async reserveInventoryForSale(inventoryItemId, quantity, saleOrderId, userId, dbClient) {
-    const run = async (client) => {
-      const inventoryItem = await client.inventoryItem.findUnique({
-        where: { id: inventoryItemId },
-      });
-
-      if (!inventoryItem) {
-        throw new APIError("Inventory item not found", 404, "INVENTORY_ITEM_NOT_FOUND");
-      }
-
-      if (inventoryItem.quantity < quantity) {
-        throw new APIError("Insufficient stock available", 400, "INSUFFICIENT_STOCK");
-      }
-
-      if (inventoryItem.status !== 'AVAILABLE') {
-        throw new APIError("Inventory item is not available for reservation", 400, "ITEM_NOT_AVAILABLE");
-      }
-
-      const remainingQty = inventoryItem.quantity - quantity;
-      const fullyConsumed = remainingQty <= 0.001;
-      const updatedItem = await client.inventoryItem.update({
-        where: { id: inventoryItemId },
-        data: {
-          status: fullyConsumed ? 'RESERVED' : 'AVAILABLE',
-          quantity: Math.max(0, remainingQty),
-          ...(fullyConsumed ? { saleOrderId, reservedDate: new Date() } : {}),
-          updatedBy: userId,
-          updatedAt: new Date(),
-        },
-      });
-
-      await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
-
-      const transactionNo = await this.generateTransactionNumber(client);
-      await client.inventoryTransaction.create({
-        data: {
-          transactionNo,
-          type: 'OUTWARD_SALE',
-          inventoryItemId,
-          quantity: -quantity,
-          balanceAfter: inventoryItem.quantity - quantity,
-          saleOrderId,
-          reason: 'Reserved for sale order',
-          createdBy: userId,
-        },
-      });
-
-      return updatedItem;
-    };
-
+  async reserveInventoryForSale(inventoryItemId, quantity, saleOrderId, userId) {
     try {
-      if (dbClient) {
-        return await run(dbClient);
-      }
-      return await prisma.$transaction((tx) => run(tx));
+      return await prisma.$transaction(async (prisma) => {
+        const inventoryItem = await prisma.inventoryItem.findUnique({
+          where: { id: inventoryItemId }
+        });
+
+        if (!inventoryItem) {
+          throw new APIError("Inventory item not found", 404, "INVENTORY_ITEM_NOT_FOUND");
+        }
+
+        if (inventoryItem.quantity < quantity) {
+          throw new APIError("Insufficient stock available", 400, "INSUFFICIENT_STOCK");
+        }
+
+        if (inventoryItem.status !== 'AVAILABLE') {
+          throw new APIError("Inventory item is not available for reservation", 400, "ITEM_NOT_AVAILABLE");
+        }
+
+        // Update inventory item status
+        const updatedItem = await prisma.inventoryItem.update({
+          where: { id: inventoryItemId },
+          data: {
+            status: 'RESERVED',
+            quantity: inventoryItem.quantity - quantity,
+            saleOrderId: saleOrderId,
+            reservedDate: new Date(),
+            updatedBy: userId,
+            updatedAt: new Date()
+          }
+        });
+
+        // Update stock summary (move from available to reserved)
+        await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE');
+
+        // Create transaction for reservation
+        const transactionNo = await this.generateTransactionNumber();
+        await prisma.inventoryTransaction.create({
+          data: {
+            transactionNo,
+            type: 'OUTWARD_SALE',
+            inventoryItemId: inventoryItemId,
+            quantity: -quantity,
+            balanceAfter: inventoryItem.quantity - quantity,
+            saleOrderId: saleOrderId,
+            reason: 'Reserved for sale order',
+            createdBy: userId
+          }
+        });
+
+        return updatedItem;
+      });
     } catch (error) {
       if (error instanceof APIError) throw error;
       console.error("Error reserving inventory:", error);
@@ -786,12 +782,13 @@ export class InventoryService {
   /**
    * Helper: Generate transaction number
    */
-  async generateTransactionNumber(dbClient = prisma) {
+  async generateTransactionNumber() {
     try {
       const year = new Date().getFullYear();
       const month = String(new Date().getMonth() + 1).padStart(2, "0");
 
-      const latestTransaction = await dbClient.inventoryTransaction.findFirst({
+      // Find the latest transaction number for current year-month
+      const latestTransaction = await prisma.inventoryTransaction.findFirst({
         where: {
           transactionNo: {
             startsWith: `IT-${year}-${month}-`,
@@ -821,7 +818,7 @@ export class InventoryService {
   /**
    * Helper: Update inventory stock summary
    */
-  async updateInventoryStock(inventoryItem, quantity, operation, dbClient = prisma) {
+  async updateInventoryStock(inventoryItem, quantity, operation) {
     try {
       const stockKey = {
         lens_id: inventoryItem.lens_id,
@@ -832,7 +829,7 @@ export class InventoryService {
         tray_id: inventoryItem.tray_id
       };
 
-      const existingStock = await dbClient.inventoryStock.findFirst({
+      const existingStock = await prisma.inventoryStock.findFirst({
         where: stockKey
       });
 
@@ -880,12 +877,12 @@ export class InventoryService {
       }
 
       if (existingStock) {
-        await dbClient.inventoryStock.update({
+        await prisma.inventoryStock.update({
           where: { id: existingStock.id },
           data: updateData,
         });
       } else {
-        await dbClient.inventoryStock.create({
+        await prisma.inventoryStock.create({
           data: {
             ...stockKey,
             totalStock: operation === 'ADD' ? Math.abs(quantity) : 0,
@@ -1084,111 +1081,6 @@ export class InventoryService {
   }
 
   /**
-   * Build AND-combined filters for stock summary / pivot queries (Pass C)
-   */
-  buildStockSummaryFilters(queryParams, { forItems = false } = {}) {
-    const {
-      search = "",
-      productName = "",
-      locationName = "",
-      Type_id,
-      coating_id,
-      sph,
-      cyl,
-      add,
-    } = queryParams;
-
-    const where = forItems
-      ? { deleteStatus: false, quantity: { gt: 0 } }
-      : { lensProduct: { deleteStatus: false } };
-
-    const and = [];
-
-    if (productName) {
-      and.push({
-        lensProduct: {
-          lens_name: { contains: productName, mode: "insensitive" },
-        },
-      });
-    }
-
-    if (locationName) {
-      and.push({
-        location: { name: { contains: locationName, mode: "insensitive" } },
-      });
-    }
-
-    if (Type_id) {
-      and.push({ Type_id: parseInt(Type_id, 10) });
-    }
-
-    if (coating_id) {
-      and.push({ coating_id: parseInt(coating_id, 10) });
-    }
-
-    if (forItems) {
-      if (sph) {
-        and.push({
-          OR: [
-            { rightSpherical: String(sph) },
-            { leftSpherical: String(sph) },
-          ],
-        });
-      }
-      if (cyl) {
-        and.push({
-          OR: [
-            { rightCylindrical: String(cyl) },
-            { leftCylindrical: String(cyl) },
-          ],
-        });
-      }
-      if (add) {
-        and.push({
-          OR: [{ rightAdd: String(add) }, { leftAdd: String(add) }],
-        });
-      }
-    }
-
-    if (search) {
-      and.push({
-        OR: [
-          {
-            lensProduct: {
-              lens_name: { contains: search, mode: "insensitive" },
-            },
-          },
-          {
-            lensProduct: {
-              product_code: { contains: search, mode: "insensitive" },
-            },
-          },
-          ...(forItems
-            ? []
-            : [
-                {
-                  category: {
-                    name: { contains: search, mode: "insensitive" },
-                  },
-                },
-                {
-                  location: {
-                    name: { contains: search, mode: "insensitive" },
-                  },
-                },
-              ]),
-        ],
-      });
-    }
-
-    if (and.length > 0) {
-      where.AND = and;
-    }
-
-    return where;
-  }
-
-  /**
    * Get inventory stock with grouping support
    * @param {Object} queryParams - Query parameters including groupBy
    * @returns {Promise<Object>} Grouped or flat stock data
@@ -1202,59 +1094,45 @@ export class InventoryService {
         location_id,
         tray_id,
         category_id,
-        groupBy = null,
+        groupBy = null, // 'location' or 'location_tray' or null
+        search = "",
       } = queryParams;
 
       const skip = (page - 1) * limit;
       const take = limit;
-
-      if (groupBy === "pivot") {
-        const pivotLimit = Math.min(parseInt(limit, 10) || 5000, 5000);
-        const itemWhere = this.buildStockSummaryFilters(queryParams, {
-          forItems: true,
-        });
-
-        if (lens_id) itemWhere.lens_id = lens_id;
-        if (location_id) itemWhere.location_id = location_id;
-        if (tray_id) itemWhere.tray_id = tray_id;
-        if (category_id) itemWhere.category_id = category_id;
-
-        const [items, total] = await Promise.all([
-          prisma.inventoryItem.findMany({
-            where: itemWhere,
-            take: pivotLimit,
-            orderBy: [{ lens_id: "asc" }, { location_id: "asc" }, { tray_id: "asc" }],
-            include: {
-              lensProduct: {
-                select: { id: true, lens_name: true, product_code: true },
-              },
-              category: { select: { id: true, name: true } },
-              lensType: { select: { id: true, name: true } },
-              coating: { select: { id: true, name: true } },
-              location: { select: { id: true, name: true } },
-              tray: { select: { id: true, name: true } },
-            },
-          }),
-          prisma.inventoryItem.count({ where: itemWhere }),
-        ]);
-
-        return {
-          data: items,
-          grouping: "pivot",
-          total,
-        };
-      }
-
+      
       const isGrouped = groupBy && groupBy !== "none";
-      const where = this.buildStockSummaryFilters(queryParams, { forItems: false });
-      if (!isGrouped) {
-        where.deleteStatus = false;
-      }
+      const where = isGrouped ? { lensProduct: { deleteStatus: false } } : { deleteStatus: false };
 
       if (lens_id) where.lens_id = lens_id;
       if (location_id) where.location_id = location_id;
       if (tray_id) where.tray_id = tray_id;
       if (category_id) where.category_id = category_id;
+
+      if (search) {
+        where.OR = [
+          {
+            lensProduct: {
+              lens_name: { contains: search, mode: "insensitive" }
+            }
+          },
+          {
+            lensProduct: {
+              product_code: { contains: search, mode: "insensitive" }
+            }
+          },
+          {
+            category: {
+              name: { contains: search, mode: "insensitive" }
+            }
+          },
+          {
+            location: {
+              name: { contains: search, mode: "insensitive" }
+            }
+          }
+        ];
+      }
 
       if (groupBy === "location") {
         // Group by location
@@ -1383,110 +1261,6 @@ export class InventoryService {
   }
 
   /**
-   * Export stock summary / pivot data to Excel (Pass C)
-   */
-  async exportInventoryStockGrouped(queryParams, res) {
-    const mode = queryParams.groupBy === "pivot" ? "pivot" : "stock";
-    const exportParams = {
-      ...queryParams,
-      page: 1,
-      limit: 5000,
-      groupBy: mode === "pivot" ? "pivot" : queryParams.groupBy || "location",
-    };
-
-    const result = await this.getInventoryStockWithGrouping(exportParams);
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet("Stock Summary");
-
-    if (mode === "pivot") {
-      const items = result.data || [];
-      const colKeys = new Map();
-      items.forEach((item) => {
-        const colKey = `${item.location?.name || "Unknown"} / ${item.tray?.name || "No Tray"}`;
-        colKeys.set(
-          `${item.location_id ?? "x"}|${item.tray_id ?? "x"}`,
-          colKey
-        );
-      });
-      const columns = Array.from(colKeys.entries()).sort((a, b) =>
-        a[1].localeCompare(b[1])
-      );
-
-      const header = ["Product & Attributes", ...columns.map((c) => c[1]), "Total"];
-      ws.addRow(header);
-
-      const rowAgg = {};
-      items.forEach((item) => {
-        const sph = item.rightSpherical || item.leftSpherical || "0";
-        const cyl = item.rightCylindrical || item.leftCylindrical || "0";
-        const addVal = item.rightAdd || item.leftAdd || "0";
-        const rowKey = `${item.lens_id}|${item.category_id ?? ""}|${item.Type_id ?? ""}|${item.coating_id ?? ""}|${sph}|${cyl}|${addVal}`;
-        const colKey = `${item.location_id ?? "x"}|${item.tray_id ?? "x"}`;
-        const label = [
-          item.lensProduct?.lens_name,
-          item.lensType?.name && `Type=${item.lensType.name}`,
-          `Sph=${sph}`,
-          `Cyl=${cyl}`,
-          `Add=${addVal}`,
-          item.coating?.name && `Coating=${item.coating.name}`,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-
-        if (!rowAgg[rowKey]) {
-          rowAgg[rowKey] = { label, cells: {}, total: 0 };
-        }
-        rowAgg[rowKey].cells[colKey] =
-          (rowAgg[rowKey].cells[colKey] || 0) + (item.quantity || 0);
-        rowAgg[rowKey].total += item.quantity || 0;
-      });
-
-      Object.values(rowAgg)
-        .sort((a, b) => a.label.localeCompare(b.label))
-        .forEach((row) => {
-          ws.addRow([
-            row.label,
-            ...columns.map(([key]) => row.cells[key] || 0),
-            row.total,
-          ]);
-        });
-    } else {
-      ws.addRow([
-        "Lens Product",
-        "Category",
-        "Location",
-        "Tray",
-        "Total Stock",
-        "Available",
-        "Reserved",
-        "Damaged",
-        "Total Value",
-      ]);
-      (result.data || []).forEach((row) => {
-        ws.addRow([
-          row.lensProduct?.lens_name || "",
-          row.category?.name || "",
-          row.location?.name || "",
-          row.tray?.name || "",
-          row.totalStock ?? 0,
-          row.availableStock ?? 0,
-          row.reservedStock ?? 0,
-          row.damagedStock ?? 0,
-          (row.totalStock || 0) * (row.avgCostPrice || 0),
-        ]);
-      });
-    }
-
-    const filename = `stock-summary-${new Date().toISOString().split("T")[0]}.xlsx`;
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    await wb.xlsx.write(res);
-  }
-
-  /**
    * Get items below low stock threshold
    * @returns {Promise<Array>} Items below minimum threshold
    */
@@ -1543,7 +1317,6 @@ export class InventoryService {
     try {
       const [
         totalItems,
-        productCountResult,
         availableItems,
         reservedItems,
         damagedItems,
@@ -1553,10 +1326,6 @@ export class InventoryService {
       ] = await Promise.all([
         // Total items
         prisma.inventoryItem.count({
-          where: { deleteStatus: false, activeStatus: true },
-        }),
-        prisma.inventoryItem.groupBy({
-          by: ["lens_id"],
           where: { deleteStatus: false, activeStatus: true },
         }),
         // Available items
@@ -1612,7 +1381,6 @@ export class InventoryService {
 
       return {
         totalItems,
-        productCount: productCountResult.length,
         availableItems,
         reservedItems,
         damagedItems,
@@ -1641,7 +1409,7 @@ export class InventoryService {
       const {
         startDate,
         endDate,
-        groupBy = "lens_id", // lens_id, category_id, location_id, date
+        groupBy = "lens_id", // lens_id, category_id, location_id
       } = queryParams;
 
       const dateFilter = {};
@@ -1649,18 +1417,16 @@ export class InventoryService {
         dateFilter.gte = new Date(startDate);
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        dateFilter.lte = end;
+        dateFilter.lte = new Date(endDate);
       }
 
-      const txnWhere = {
-        transactionDate: Object.keys(dateFilter).length > 0 ? dateFilter : undefined,
-        type: { in: ["INWARD_PO", "INWARD_DIRECT", "OUTWARD_SALE", "OUTWARD_RETURN"] },
-      };
-
+      // Get inward and outward transactions
       const transactions = await prisma.inventoryTransaction.findMany({
-        where: txnWhere,
+        where: {
+          transactionDate: Object.keys(dateFilter).length > 0 ? dateFilter : undefined,
+          type: { in: ["INWARD_PO", "INWARD_DIRECT", "OUTWARD_SALE", "OUTWARD_RETURN"] },
+          deleteStatus: false,
+        },
         include: {
           inventoryItem: {
             select: {
@@ -1678,43 +1444,7 @@ export class InventoryService {
         },
       });
 
-      if (groupBy === "date") {
-        const grouped = {};
-        let totalInwardValue = 0;
-        let totalOutwardValue = 0;
-
-        transactions.forEach((txn) => {
-          const dayKey = new Date(txn.transactionDate).toISOString().split("T")[0];
-          if (!grouped[dayKey]) {
-            grouped[dayKey] = { date: dayKey, inwardValue: 0, outwardValue: 0 };
-          }
-          if (["INWARD_PO", "INWARD_DIRECT"].includes(txn.type)) {
-            const val = txn.totalValue || 0;
-            grouped[dayKey].inwardValue += val;
-            totalInwardValue += val;
-          } else {
-            const val = Math.abs(txn.totalValue || 0);
-            grouped[dayKey].outwardValue += val;
-            totalOutwardValue += val;
-          }
-        });
-
-        const data = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
-
-        return {
-          summary: {
-            totalInwardValue,
-            totalOutwardValue,
-            netValue: totalInwardValue - totalOutwardValue,
-            startDate,
-            endDate,
-            groupBy: "date",
-          },
-          data,
-        };
-      }
-
-      // Group and aggregate by lens/category/location
+      // Group and aggregate
       const grouped = {};
       let totalInwardValue = 0;
       let totalOutwardValue = 0;
@@ -1775,135 +1505,6 @@ export class InventoryService {
         "GET_STOCK_VALUE_REPORT_ERROR"
       );
     }
-  }
-
-  /**
-   * Daily count of distinct product specs inwarded (Pass B — spec trend chart)
-   */
-  async getProductSpecTrend({ from, to, Type_id }) {
-    const fromDate = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const toDate = to ? new Date(to) : new Date();
-    toDate.setHours(23, 59, 59, 999);
-
-    if (toDate < fromDate) {
-      throw new APIError("End date must be on or after start date", 400, "INVALID_DATE_RANGE");
-    }
-
-    const itemFilter = Type_id ? { Type_id: parseInt(Type_id, 10) } : {};
-
-    const transactions = await prisma.inventoryTransaction.findMany({
-      where: {
-        type: { in: ["INWARD_PO", "INWARD_DIRECT"] },
-        transactionDate: { gte: fromDate, lte: toDate },
-        inventoryItem: itemFilter,
-      },
-      select: {
-        transactionDate: true,
-        inventoryItem: {
-          select: {
-            lens_id: true,
-            coating_id: true,
-            Type_id: true,
-            rightSpherical: true,
-            rightCylindrical: true,
-            rightAdd: true,
-            leftSpherical: true,
-            leftCylindrical: true,
-            leftAdd: true,
-          },
-        },
-      },
-    });
-
-    const daySpecs = {};
-    const allSpecs = new Set();
-
-    const specKey = (item) => {
-      const sph = item.rightSpherical || item.leftSpherical || "0";
-      const cyl = item.rightCylindrical || item.leftCylindrical || "0";
-      const add = item.rightAdd || item.leftAdd || "0";
-      return `${item.lens_id}|${item.coating_id ?? ""}|${sph}|${cyl}|${add}`;
-    };
-
-    transactions.forEach((txn) => {
-      const day = new Date(txn.transactionDate).toISOString().split("T")[0];
-      const key = specKey(txn.inventoryItem);
-      if (!daySpecs[day]) daySpecs[day] = new Set();
-      daySpecs[day].add(key);
-      allSpecs.add(key);
-    });
-
-    const data = Object.keys(daySpecs)
-      .sort()
-      .map((date) => ({ date, count: daySpecs[date].size }));
-
-    return {
-      data,
-      summary: {
-        totalSpecs: allSpecs.size,
-        dateRange: {
-          from: fromDate.toISOString().split("T")[0],
-          to: toDate.toISOString().split("T")[0],
-        },
-      },
-    };
-  }
-
-  /**
-   * Top / low selling products by outward sale quantity (Pass B)
-   */
-  async getTopSellingProducts({ direction = "top", limit = 10, days = 30 }) {
-    if (!["top", "low"].includes(direction)) {
-      throw new APIError("direction must be top or low", 400, "INVALID_DIRECTION");
-    }
-
-    const lookbackDays = parseInt(days, 10) || 30;
-    const take = Math.min(parseInt(limit, 10) || 10, 50);
-    const since = new Date();
-    since.setDate(since.getDate() - lookbackDays);
-    since.setHours(0, 0, 0, 0);
-
-    const transactions = await prisma.inventoryTransaction.findMany({
-      where: {
-        type: "OUTWARD_SALE",
-        transactionDate: { gte: since },
-      },
-      select: {
-        quantity: true,
-        inventoryItem: {
-          select: {
-            lens_id: true,
-            lensProduct: { select: { lens_name: true, product_code: true } },
-          },
-        },
-      },
-    });
-
-    const byLens = {};
-    transactions.forEach((txn) => {
-      const lid = txn.inventoryItem.lens_id;
-      if (!byLens[lid]) {
-        byLens[lid] = {
-          lens_id: lid,
-          lensName: txn.inventoryItem.lensProduct?.lens_name || `Lens #${lid}`,
-          unitsSold: 0,
-        };
-      }
-      byLens[lid].unitsSold += Math.abs(txn.quantity || 0);
-    });
-
-    let rows = Object.values(byLens);
-    if (direction === "low") {
-      rows = rows.filter((r) => r.unitsSold > 0).sort((a, b) => a.unitsSold - b.unitsSold);
-    } else {
-      rows = rows.sort((a, b) => b.unitsSold - a.unitsSold);
-    }
-
-    return {
-      data: rows.slice(0, take),
-      lookbackDays,
-      direction,
-    };
   }
 
   parseBulkSelectionKey(key) {

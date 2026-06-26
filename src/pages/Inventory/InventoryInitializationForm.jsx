@@ -16,7 +16,7 @@ import {
 } from "@/services/saleOrder";
 import BulkLensSelection from "@/pages/PurchaseOrder/BulkLensSelection";
 
-const emptySplit = () => ({ tray_id: "", qty: "", costPrice: "" });
+const emptySplit = () => ({ tray_id: "", qty: "" });
 
 const parseKey = (key) => {
   const parts = key.split("_");
@@ -36,8 +36,7 @@ const parseKey = (key) => {
 const getSelectionQty = (val) => {
   if (typeof val === "object" && val !== null) {
     if (val.quantity != null) return parseInt(val.quantity, 10) || 0;
-    // Only sum eye-keyed quantities (R/L) — tray_id/costPrice are metadata, not quantity.
-    return ["R", "L"].reduce((s, eye) => s + (parseInt(val[eye], 10) || 0), 0);
+    return Object.values(val).reduce((s, v) => s + (parseInt(v, 10) || 0), 0);
   }
   return parseInt(val, 10) || 0;
 };
@@ -63,13 +62,11 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   const [lensProducts, setLensProducts] = useState([]);
   const [lensCategories, setLensCategories] = useState([]);
   const [lensTypes, setLensTypes] = useState([]);
-  const [coatings, setCoatings] = useState([]);
 
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [Type_id, setTypeId] = useState("");
   const [category_id, setCategoryId] = useState("");
   const [lens_id, setLensId] = useState("");
-  const [coating_id, setCoatingId] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [lensBulkSelection, setLensBulkSelection] = useState(null);
 
@@ -83,7 +80,6 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
     setTypeId("");
     setCategoryId("");
     setLensId("");
-    setCoatingId("");
     setCostPrice("");
     setLensBulkSelection(null);
     setGridRows([]);
@@ -109,10 +105,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         getLensTypesDropdown(),
         getLensProductsDropdown(),
       ]);
-      if (invRes.success) {
-        setLocations(invRes.data?.locations || []);
-        setCoatings(invRes.data?.coatings || []);
-      }
+      if (invRes.success) setLocations(invRes.data?.locations || []);
       if (catRes.success) setLensCategories(catRes.data || []);
       if (typeRes.success) setLensTypes(typeRes.data || []);
       if (lensRes.success) setLensProducts(lensRes.data || []);
@@ -185,9 +178,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         const qty = getSelectionQty(val);
         if (qty <= 0) return null;
         const parsed = parseKey(key);
-        const tray_id = typeof val === "object" && val !== null ? val.tray_id || "" : "";
-        const rowCostPrice = typeof val === "object" && val !== null ? val.costPrice ?? "" : "";
-        return { key, qty, pending: qty, tray_id, costPrice: rowCostPrice, ...parsed };
+        return { key, qty, pending: qty, ...parsed };
       })
       .filter(Boolean);
   };
@@ -238,8 +229,8 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   };
 
   const validateStep2 = () => {
-    if (!Type_id || !category_id || !lens_id || !coating_id) {
-      toast({ title: "Error", description: "Select type, category, lens product, and coating", variant: "destructive" });
+    if (!Type_id || !category_id || !lens_id) {
+      toast({ title: "Error", description: "Select type, category, and lens product", variant: "destructive" });
       return false;
     }
     const rows = buildGridRowsFromSelection();
@@ -316,13 +307,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
       setGridRows(rows);
       const initialSplits = {};
       rows.forEach((row) => {
-        // Carry forward Tray/Price chosen in the Step 2 grid table, if any —
-        // user can still adjust/split further in Step 3.
-        initialSplits[row.key] = [{
-          tray_id: row.tray_id ? String(row.tray_id) : "",
-          qty: String(row.qty),
-          costPrice: row.costPrice ?? "",
-        }];
+        initialSplits[row.key] = [{ tray_id: "", qty: String(row.qty) }];
       });
       setRowSplits(initialSplits);
       await preloadTrayOccupancies(trays);
@@ -349,7 +334,6 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         .map((sp) => ({
           tray_id: parseInt(sp.tray_id, 10),
           qty: parseFloat(sp.qty),
-          ...(sp.costPrice !== "" && sp.costPrice != null ? { costPrice: parseFloat(sp.costPrice) } : {}),
         })),
     }));
 
@@ -360,7 +344,6 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         lens_id: parseInt(lens_id, 10),
         category_id: parseInt(category_id, 10),
         Type_id: parseInt(Type_id, 10),
-        coating_id: parseInt(coating_id, 10),
         costPrice: parseFloat(costPrice) || 0,
         defaultDia: "70",
         rows,
@@ -437,7 +420,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   name="Type_id"
                   options={lensTypes}
                   value={Type_id}
-                  onChange={(v) => { setTypeId(v); setCategoryId(""); setLensId(""); setCoatingId(""); setLensBulkSelection(null); }}
+                  onChange={(v) => { setTypeId(v); setCategoryId(""); setLensId(""); setLensBulkSelection(null); }}
                   placeholder="Select type"
                   isSearchable
                 />
@@ -446,7 +429,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   name="category_id"
                   options={lensCategories}
                   value={category_id}
-                  onChange={(v) => { setCategoryId(v); setLensId(""); setCoatingId(""); setLensBulkSelection(null); }}
+                  onChange={(v) => { setCategoryId(v); setLensId(""); setLensBulkSelection(null); }}
                   placeholder="Select category"
                   isSearchable
                   disabled={!Type_id}
@@ -456,7 +439,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   name="lens_id"
                   options={filteredProducts.map((p) => ({ id: p.id, name: p.lens_name || p.name }))}
                   value={lens_id}
-                  onChange={(v) => { setLensId(v); setCoatingId(""); setLensBulkSelection(null); }}
+                  onChange={(v) => { setLensId(v); setLensBulkSelection(null); }}
                   placeholder="Select product"
                   isSearchable
                   disabled={!category_id}
@@ -480,11 +463,6 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   onChange={setLensBulkSelection}
                   categoryName={categoryName}
                   lensId={lens_id}
-                  coatings={coatings}
-                  coatingId={coating_id}
-                  onCoatingChange={(v) => { setCoatingId(v); setLensBulkSelection(null); }}
-                  defaultCostPrice={costPrice}
-                  trayOptions={trayOptions}
                 />
               )}
             </div>
@@ -596,17 +574,6 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                                   onChange={(e) => updateSplit(row.key, splitIdx, "qty", e.target.value)}
                                   className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
                                   placeholder="Qty"
-                                />
-                              </div>
-                              <div className="w-28">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={split.costPrice ?? ""}
-                                  onChange={(e) => updateSplit(row.key, splitIdx, "costPrice", e.target.value)}
-                                  className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                  placeholder={`Price (${costPrice || 0})`}
                                 />
                               </div>
                               <Button
