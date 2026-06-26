@@ -80,6 +80,8 @@ export class InvoiceService {
       }
 
       const customerId = customerIds[0];
+      const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { id: true, code: true, ledgerId: true } });
+      if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
       // Calculate total from individual order amounts
       const totalAmount = orders.reduce((sum, o) => {
@@ -121,7 +123,7 @@ export class InvoiceService {
         });
 
         // Auto-post accounting entry
-        await postInvoice(tx, { invoiceId: created.id, invoiceNo, totalAmount: created.totalAmount, taxAmount }, userId);
+        await postInvoice(tx, { invoiceId: created.id, invoiceNo, totalAmount: created.totalAmount, taxAmount, customer }, userId);
 
         return created;
       });
@@ -222,7 +224,10 @@ export class InvoiceService {
     try {
       const invoice = await prisma.invoice.findUnique({
         where: { id: invoiceId },
-        include: { saleOrders: { select: { id: true } } },
+        include: {
+          saleOrders: { select: { id: true } },
+          customer: { select: { id: true, code: true, ledgerId: true } },
+        },
       });
 
       if (!invoice || invoice.deleteStatus) {
@@ -278,7 +283,7 @@ export class InvoiceService {
 
         // Auto-post accounting entry if bankLedgerId provided
         if (bankLedgerId) {
-          await postClientPayment(tx, { invoiceId, invoiceNo: invoice.invoiceNo, amount, bankLedgerId: parseInt(bankLedgerId) }, userId);
+          await postClientPayment(tx, { invoiceId, invoiceNo: invoice.invoiceNo, amount, bankLedgerId: parseInt(bankLedgerId), customer: invoice.customer }, userId);
         }
       });
 

@@ -124,6 +124,9 @@ export class VendorPaymentService {
     const pos = await prisma.purchaseOrder.findMany({ where: { id: { in: poIds }, vendorId: parseInt(vendorId) } });
     if (pos.length !== poIds.length) throw new APIError('One or more POs do not belong to this vendor', 400, 'INVALID_PO');
 
+    const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(vendorId) }, select: { id: true, code: true, ledgerId: true } });
+    if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
+
     const voucherNumber = await generateVoucherNumber();
 
     return prisma.$transaction(async (tx) => {
@@ -154,6 +157,7 @@ export class VendorPaymentService {
         voucherNumber,
         totalAmount,
         bankLedgerId: parseInt(bankLedgerId),
+        vendor,
       }, userId);
 
       return voucher;

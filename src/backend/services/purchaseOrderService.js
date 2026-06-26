@@ -1256,7 +1256,10 @@ class PurchaseOrderService {
     try {
       const po = await prisma.purchaseOrder.findUnique({
         where: { id: poId, deleteStatus: false },
-        include: { receipts: { where: { deleteStatus: false } } },
+        include: {
+          receipts: { where: { deleteStatus: false } },
+          vendor: { select: { id: true, code: true, ledgerId: true } },
+        },
       });
 
       if (!po) throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
@@ -1333,6 +1336,7 @@ class PurchaseOrderService {
           subtotal: subtotal || totalValue,
           taxAmount,
           totalValue,
+          vendor: po.vendor,
         }, receiptData.createdBy);
 
         return created;

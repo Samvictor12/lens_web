@@ -1,14 +1,14 @@
 {
-  "active_feature_file": "planning/features/inventory-module-bugfixes.md",
+  "active_feature_file": "planning/features/vendor-customer-ledger.md",
   "phase": "DONE",
   "HUMAN_APPROVED": true,
   "state_tag": "IDLE",
   "last_agent": "orchestrator",
   "recent_log": [
-    "2026-06-24: inventory-module-bugfixes DONE (QA_PASS, independently re-verified). Shipped 7/9 bugs (3 critical: dashboard 500 fixed, reserve-for-sale now decrements stock, TRANSFER now relocates stock without corrupting qty; plus dead reservedStock/damagedStock/totalValue columns now live, avg cost recompute, price/date validations added). BUG-8 (stock race) downgraded to best-effort via contract revision 2 -- Prisma upsert can't target nullable compound-unique FKs, reverted to find-then-write; BUG-9 (inward queue perf) deferred. No migration. KB-014/KB-015 added. Dev_lens Docker stack still running with test data -- stop with docker compose down if not needed.",
-    "2026-06-24: inventory-module-bugfixes BUILD blocked then REVIEW_CONTRACT -- implementer found BUG-8's upsert() throws on null compound-key FKs (every seeded row). Planner-architect downgraded BUG-8, contract_version bumped to 2.",
-    "2026-06-24: inventory-module-bugfixes CONTRACT_COMPLETE (v1) -- planner-architect locked initial fix design across all 9 bugs, no migration needed.",
-    "2026-06-24: inventory-module-bugfixes approved by user, moving to CONTRACT phase.",
-    "2026-06-24: QA pass on Inventory module found and live-reproduced 9 bugs. Filed as inventory-module-bugfixes.md."
+    "2026-06-25: vendor-customer-ledger DONE (QA PASS on retest, 47/47 tests). Vendor/Customer get an auto-created subsidiary ledger at create time, shown read-only on both forms; PO receipts/invoices/payments post to the specific vendor's/customer's ledger instead of the shared AC-2001/AC-1003, which stay live-synced as parent rollups. Fixed one QA-found regression (dashboard bankLedgers query leaking child ledgers) + closed a rollup test-coverage gap. Migration + backfill applied to dev DB. KB-016 added.",
+    "2026-06-25: vendor-customer-ledger rework done -- getSummary() bankLedgers query now excludes parentLedgerId-not-null ledgers; added 2 postTransaction() rollup tests (47/47 pass). Routed back to reviewer-qa for retest.",
+    "2026-06-25: vendor-customer-ledger QA FAIL (REWORK_BACKEND) -- financialReportService.js getSummary() bankLedgers query excludes AC-1003/1004/1005 by literal code but not new ASSET-type customer child ledgers.",
+    "2026-06-25: vendor-customer-ledger IMPLEMENTATION_COMPLETE -- migration applied, backfill run, getOwnedLedger() + parent-rollup wired into accountingService.js, Vendor/Customer forms show read-only Ledger card.",
+    "2026-06-25: PO receipt LEDGER_NOT_FOUND fixed by running npm run db:seed:ledgers (non-destructive)."
   ]
 }

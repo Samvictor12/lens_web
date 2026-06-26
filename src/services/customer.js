@@ -62,6 +62,8 @@ const mapFromBackend = (backendData) => {
         : true,
     createdAt: backendData.createdAt,
     updatedAt: backendData.updatedAt,
+    ledgerCode: backendData.ledger?.ledgerCode || null,
+    ledgerBalance: backendData.ledger?.currentBalance ?? null,
   };
 };
 

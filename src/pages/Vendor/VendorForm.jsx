@@ -27,6 +27,7 @@ export default function VendorForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [vendorCategories, setVendorCategories] = useState([]);
+  const [ledgerInfo, setLedgerInfo] = useState(null);
 
   // Fetch business categories on mount
   useEffect(() => {
@@ -77,6 +78,11 @@ export default function VendorForm() {
             };
             setFormData(vendorData);
             setOriginalData(vendorData);
+            setLedgerInfo(
+              vendor.ledgerCode
+                ? { code: vendor.ledgerCode, balance: vendor.ledgerBalance }
+                : null
+            );
           } else {
             toast({
               title: "Error",
@@ -606,6 +612,39 @@ export default function VendorForm() {
               )}
             </CardContent>
           </Card>
+
+          {/* Ledger (read-only) — only meaningful once the vendor exists */}
+          {mode !== "add" && id && ledgerInfo && (
+            <Card className="mt-3 sm:mt-4">
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-sm">Ledger</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormInput
+                    label="Ledger Code"
+                    name="ledgerCode"
+                    value={ledgerInfo.code || ""}
+                    onChange={() => {}}
+                    disabled
+                    readOnly
+                  />
+                  <FormInput
+                    label="Current Balance"
+                    name="ledgerBalance"
+                    value={
+                      ledgerInfo.balance !== null && ledgerInfo.balance !== undefined
+                        ? `₹${parseFloat(ledgerInfo.balance).toFixed(2)}`
+                        : ""
+                    }
+                    onChange={() => {}}
+                    disabled
+                    readOnly
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </form>
       )}
     </div>

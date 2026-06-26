@@ -33,6 +33,7 @@ This is an **index only**. Feature bodies live in `planning/features/{id}.md`. R
 
 | ID | Title | Status | Feature File | Last Updated |
 |----|-------|--------|---------------|---------------|
+| vendor-customer-ledger | Per-vendor/customer subsidiary ledgers shown on Vendor & Customer forms | DONE | `planning/features/vendor-customer-ledger.md` | 2026-06-25 |
 | dispatch-delivery-agent-filter | Filter dispatches by delivery agent | DONE | `planning/features/dispatch-delivery-agent-filter.md` | 2026-06-21 |
 | invoice-preview | Invoice preview before finalizing/printing | DONE | `planning/features/invoice-preview.md` | 2026-06-21 |
 | vendor-payment-receipt-voucher | Printable receipt voucher to close vendor payments | DONE | `planning/features/vendor-payment-receipt-voucher.md` | 2026-06-21 |

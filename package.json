@@ -21,6 +21,7 @@
     "postinstall": "prisma generate",
     "db:seed": "prisma db seed",
     "db:seed:ledgers": "node prisma/seed/financial-ledgers-seed.js",
+    "db:backfill:vendor-customer-ledgers": "node prisma/seed/backfill-vendor-customer-ledgers.js",
     "db:seed:accounting": "node prisma/seed/accounting-test-seed.js",
     "db:seed:modules": "node prisma/seed/all-modules-test-seed.js",
     "db:seed:dispatch": "node prisma/seed/dispatch-test-seed.js",

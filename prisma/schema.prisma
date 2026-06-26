@@ -231,6 +231,8 @@ model Customer {
   deliveryPerson      User?             @relation("customerDeliveryPerson", fields: [delivery_person_id], references: [id])
   usercreate          User              @relation("customerUserCreate", fields: [createdBy], references: [id])
   userupdate          User?             @relation("customerUserUpdate", fields: [updatedBy], references: [id])
+  ledgerId            Int?              @unique
+  ledger              Ledger?           @relation("customerLedger", fields: [ledgerId], references: [id])
   // Relationship Tables
   saleOrders          SaleOrder[]
   dispatchCopies      DispatchCopy[]
@@ -264,6 +266,8 @@ model Vendor {
   usercreate     User            @relation("vendorUserCreate", fields: [createdBy], references: [id])
   userupdate     User?           @relation("vendorUserUpdate", fields: [updatedBy], references: [id])
   category       businessCategory? @relation("vendorCategory", fields: [businessCategory_id], references: [id])
+  ledgerId       Int?            @unique
+  ledger         Ledger?         @relation("vendorLedger", fields: [ledgerId], references: [id])
   // Relationship Tables
   purchaseOrders        PurchaseOrder[]
   inventoryItems        InventoryItem[]
@@ -1372,6 +1376,8 @@ model Ledger {
   expenses              Expense[]                  @relation("expenseBankLedger")
   vpvBankLedger         VendorPaymentVoucher[]     @relation("vpvBankLedger")
   invoicePayments       Invoice[]                  @relation("invoicePaymentLedger")
+  vendor                Vendor?                    @relation("vendorLedger")
+  customer              Customer?                  @relation("customerLedger")
 
   @@index([ledgerType])
   @@index([parentLedgerId])

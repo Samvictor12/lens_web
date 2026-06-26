@@ -41,32 +41,73 @@ export class VendorMasterService {
         }
       }
 
-      // Create the vendor master
-      const vendorMaster = await prisma.vendor.create({
-        data: {
-          name: vendorData.name,
-          code: vendorData.code,
-          shopname: vendorData.shopname,
-          phone: vendorData.phone,
-          alternatephone: vendorData.alternatephone,
-          email: vendorData.email,
-          address: vendorData.address,
-          city: vendorData.city,
-          state: vendorData.state,
-          pincode: vendorData.pincode,
-          businessCategory_id: vendorData.businessCategory_id ?? null,
-          gstin: vendorData.gstin,
-          active_status: vendorData.active_status,
-          delete_status: vendorData.delete_status || false,
-          notes: vendorData.notes,
-          createdBy: vendorData.createdBy,
-          // updatedBy is optional - only set on updates, not on create
-        },
-        include: {
-          usercreate: { select: { id: true, name: true, email: true } },
-          userupdate: { select: { id: true, name: true, email: true } },
-          category: { select: { id: true, name: true } },
-        },
+      // Create the vendor master + its subsidiary ledger atomically
+      const vendorMaster = await prisma.$transaction(async (tx) => {
+        // 1. Create the vendor row first (ledgerId not known yet)
+        const created = await tx.vendor.create({
+          data: {
+            name: vendorData.name,
+            code: vendorData.code,
+            shopname: vendorData.shopname,
+            phone: vendorData.phone,
+            alternatephone: vendorData.alternatephone,
+            email: vendorData.email,
+            address: vendorData.address,
+            city: vendorData.city,
+            state: vendorData.state,
+            pincode: vendorData.pincode,
+            businessCategory_id: vendorData.businessCategory_id ?? null,
+            gstin: vendorData.gstin,
+            active_status: vendorData.active_status,
+            delete_status: vendorData.delete_status || false,
+            notes: vendorData.notes,
+            createdBy: vendorData.createdBy,
+            // updatedBy is optional - only set on updates, not on create
+          },
+        });
+
+        // 2. Resolve the parent control ledger (Accounts Payable)
+        const parentLedger = await tx.ledger.findFirst({
+          where: { ledgerCode: 'AC-2001', delete_status: false },
+        });
+        if (!parentLedger) {
+          throw new APIError(
+            'System ledger AC-2001 not found. Run npm run db:seed:ledgers.',
+            500,
+            'LEDGER_NOT_FOUND'
+          );
+        }
+
+        // 3. Create the vendor's own subsidiary ledger
+        const childLedger = await tx.ledger.create({
+          data: {
+            ledgerCode: `AC-2001-V${created.id}`,
+            ledgerName: `${created.name} (Vendor AP)`.slice(0, 191),
+            ledgerType: 'LIABILITY',
+            parentLedgerId: parentLedger.id,
+            isSystemLedger: false,
+            openingBalance: 0,
+            currentBalance: 0,
+            createdBy: vendorData.createdBy,
+          },
+        });
+
+        // 4. Link the ledger back to the vendor
+        await tx.vendor.update({
+          where: { id: created.id },
+          data: { ledgerId: childLedger.id },
+        });
+
+        // 5. Re-fetch with all includes, including the new ledger
+        return tx.vendor.findUnique({
+          where: { id: created.id },
+          include: {
+            usercreate: { select: { id: true, name: true, email: true } },
+            userupdate: { select: { id: true, name: true, email: true } },
+            category: { select: { id: true, name: true } },
+            ledger: true,
+          },
+        });
       });
 
       return vendorMaster;
@@ -205,6 +246,7 @@ export class VendorMasterService {
           userupdate: { select: { id: true, name: true, email: true } },
           category: { select: { id: true, name: true } },
           _count: { select: { purchaseOrders: true } },
+          ledger: { select: { id: true, ledgerCode: true, ledgerName: true, currentBalance: true } },
         },
       });
 
