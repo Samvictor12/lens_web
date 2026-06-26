@@ -64,6 +64,8 @@ import LogsViewer from "./pages/LogsViewer";
 import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
 import { ProductionOperatorList, ProductionOrderDetail } from "./pages/ProductionOperator";
 import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
+import { PreQcOperatorList, PreQcOrderDetail } from "./pages/PreQcOperator";
+import SoOrderQueue from "./pages/Inventory/SoOrderQueue";
 import NotFound from "./pages/NotFound";
 import CustomerPortalLogin from "./pages/CustomerPortal/CustomerPortalLogin";
 import CustomerPortalDashboard from "./pages/CustomerPortal/CustomerPortalDashboard";
@@ -152,6 +154,7 @@ const AppRoutes = () => (
       <Route path="/inventory/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/so-queue" element={<ProtectedRoute><SoOrderQueue /></ProtectedRoute>} />
       <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />      
       <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
@@ -162,7 +165,9 @@ const AppRoutes = () => (
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
       <Route path="/production/operator" element={<ProtectedRoute><ProductionOperatorList /></ProtectedRoute>} />
       <Route path="/production/operator/:id" element={<ProtectedRoute><ProductionOrderDetail /></ProtectedRoute>} />
-      <Route path="/quality/operator" element={<ProtectedRoute><QualityOperatorList /></ProtectedRoute>} />
+      <Route path="/pre-qc/operator" element={<ProtectedRoute><PreQcOperatorList /></ProtectedRoute>} />
+      <Route path="/pre-qc/operator/:id" element={<ProtectedRoute><PreQcOrderDetail /></ProtectedRoute>} />
+      <Route path="/quality/operator" element={<ProtectedRoute><QualityOperatorList title="Post-QC" /></ProtectedRoute>} />
       <Route path="/quality/operator/:id" element={<ProtectedRoute><QualityOrderDetail /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
 

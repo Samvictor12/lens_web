@@ -101,7 +101,7 @@ export default function ProductionOperatorList() {
         1,
         100,
         search,
-        { statuses: "CONFIRMED,IN_PRODUCTION,ON_HOLD" },
+        { statuses: "PRODUCTION_READY,IN_PRODUCTION,ON_HOLD" },
         "orderDate",
         "desc"
       );
@@ -130,7 +130,7 @@ export default function ProductionOperatorList() {
         1,
         1,
         scannedOrderNo,
-        { statuses: "CONFIRMED,IN_PRODUCTION,ON_HOLD" },
+        { statuses: "PRODUCTION_READY,IN_PRODUCTION,ON_HOLD" },
         "orderDate",
         "desc"
       );
@@ -188,7 +188,7 @@ export default function ProductionOperatorList() {
       {/* Status summary counts */}
       {!isLoading && orders.length > 0 && (
         <div className="flex gap-2 flex-wrap text-xs">
-          {["CONFIRMED", "IN_PRODUCTION", "ON_HOLD"].map((s) => {
+          {["PRODUCTION_READY", "IN_PRODUCTION", "ON_HOLD"].map((s) => {
             const count = orders.filter((o) => o.status === s).length;
             if (count === 0) return null;
             return (

@@ -20,6 +20,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useToast } from "@/hooks/use-toast";
 import { SaleOrderPrintModal } from "@/components/LensPrint/SaleOrderPrintModal";
 import { generatePONumber, createPurchaseOrder } from "@/services/purchaseOrder";
+import SaleOrderStatusBar from "@/components/sale-order/SaleOrderStatusBar";
+import { RESET_ELIGIBLE } from "@/constants/saleOrderStatus";
 import {
     createSaleOrder,
     getSaleOrderById,
@@ -28,6 +30,8 @@ import {
     updateSaleOrderStatus,
     getMatchingInventoryFIFO,
     closeAndCreateSaleOrder,
+    raisePoFromSo,
+    confirmSoReset,
     getCustomersDropdown,
     getLensProductsDropdown,
     getLensProductsFiltered,
@@ -2267,6 +2271,62 @@ export default function SaleOrderForm() {
                     )}
                 </div>
             </div>
+
+            {mode === "view" && formData.id && (
+                <div className="mb-4 space-y-2">
+                    <SaleOrderStatusBar
+                        orderId={formData.id}
+                        orderNo={formData.orderNo}
+                        status={formData.status}
+                        hasPoHistory={formData.hasLinkedPoEver || (formData.purchaseOrders?.length > 0)}
+                    />
+                    {RESET_ELIGIBLE.includes(formData.status) && (
+                        <Alert>
+                            <AlertDescription className="flex flex-wrap items-center gap-2">
+                                Order requires SO reset before re-processing.
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={async () => {
+                                        const remark = window.prompt("Reset remark (required):");
+                                        if (!remark?.trim()) return;
+                                        try {
+                                            const res = await confirmSoReset(formData.id, remark.trim());
+                                            if (res.success) {
+                                                toast({ title: "Reset to Draft" });
+                                                setFormData((p) => ({ ...p, status: "DRAFT" }));
+                                            }
+                                        } catch (e) {
+                                            toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+                                        }
+                                    }}
+                                >
+                                    Confirm reset → Draft
+                                </Button>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    {["DRAFT", "PO_CANCELLED"].includes(formData.status) && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={async () => {
+                                try {
+                                    const res = await raisePoFromSo(formData.id);
+                                    if (res.success) {
+                                        toast({ title: "PO raised", description: res.data.poNumber });
+                                        navigate(`/masters/purchase-orders/edit/${res.data.id}`);
+                                    }
+                                } catch (e) {
+                                    toast({ title: "Failed", description: e.message, variant: "destructive" });
+                                }
+                            }}
+                        >
+                            Raise PO
+                        </Button>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-col md:flex-row gap-4 h-full md:overflow-hidden">
                 {/* Block 1: Order Information */}

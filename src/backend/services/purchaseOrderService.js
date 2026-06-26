@@ -1165,6 +1165,10 @@ class PurchaseOrderService {
         throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
       }
 
+      if (existing.saleOrderId) {
+        throw new APIError("Cannot delete a purchase order linked to a sale order", 400, "PO_LINKED_TO_SO");
+      }
+
       const deletedPO = await prisma.purchaseOrder.update({
         where: { id },
         data: {
@@ -1283,11 +1287,13 @@ class PurchaseOrderService {
       );
       const newCumulativeReceived = prevReceivedQty + totalReceivedQty;
 
-      // Determine receipt status
-      const receiptStatus = newCumulativeReceived >= po.quantity ? "COMPLETE" : "PARTIAL";
-
-      // Any receipt sets PO to RECEIVED (partial or full)
-      const newPOStatus = "RECEIVED";
+      // Determine PO status from cumulative qty vs required (linked SO eyes or PO quantity)
+      const requiredQty = po.saleOrderId && po.rightEye && po.leftEye
+        ? 2
+        : (po.saleOrderId && (po.rightEye || po.leftEye) ? 1 : po.quantity);
+      const isFull = newCumulativeReceived >= requiredQty;
+      const receiptStatus = isFull ? "COMPLETE" : "PARTIAL";
+      const newPOStatus = isFull ? "RECEIVED" : "PO_PARTIAL_RECEIVED";
 
       const subtotal = parseFloat(receiptData.subtotal) || 0;
       const taxAmount = parseFloat(receiptData.taxAmount) || 0;
@@ -1337,6 +1343,18 @@ class PurchaseOrderService {
 
         return created;
       });
+
+      if (po.saleOrderId && newPOStatus === 'RECEIVED') {
+        const saleOrderWorkflowService = (await import('./saleOrderWorkflowService.js')).default;
+        await prisma.$transaction(async (tx) => {
+          await saleOrderWorkflowService.onPoReceiveUpdateSo(
+            poId,
+            newCumulativeReceived,
+            receiptData.createdBy,
+            tx
+          );
+        });
+      }
 
       // Step 2: Create audit log now that we have the receipt id
       await prisma.purchaseReceiptLog.create({

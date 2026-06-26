@@ -34,7 +34,11 @@ const isValidPositiveNumber = (num) => {
  * Validate sale order status
  */
 const isValidStatus = (status) => {
-  const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED', 'BILLED'];
+  const validStatuses = [
+    'DRAFT', 'PO_RAISED', 'PO_RECEIVED', 'PO_CANCELLED', 'PRE_QC', 'PRE_QC_REJECTED', 'PRE_QC_SCRAPPED',
+    'PRODUCTION_READY', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'POST_QC_REJECTED', 'POST_QC_SCRAPPED',
+    'READY_FOR_DISPATCH', 'DISPATCHED', 'DELIVERED', 'INVOICED', 'COMPLETED',
+  ];
   return validStatuses.includes(status);
 };
 

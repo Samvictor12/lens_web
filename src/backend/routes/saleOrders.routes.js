@@ -879,6 +879,36 @@ router.put('/:id',
  *       403:
  *         description: Forbidden - Insufficient permissions
  */
+router.get('/inventory-queue',
+  authenticateToken,
+  controller.getInventoryQueue.bind(controller)
+);
+
+router.get('/:id/status-log',
+  authenticateToken,
+  controller.getStatusLog.bind(controller)
+);
+
+router.post('/:id/raise-po',
+  authenticateToken,
+  controller.raisePo.bind(controller)
+);
+
+router.post('/:id/link-po',
+  authenticateToken,
+  controller.linkPo.bind(controller)
+);
+
+router.post('/:id/confirm-reset',
+  authenticateToken,
+  controller.confirmReset.bind(controller)
+);
+
+router.post('/:id/issue-to-pre-qc',
+  authenticateToken,
+  controller.issueToPreQc.bind(controller)
+);
+
 router.get('/:id/fifo-matches',
   authenticateToken,
   controller.getFifoMatches.bind(controller)

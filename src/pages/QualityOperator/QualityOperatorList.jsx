@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getSaleOrders } from "@/services/saleOrder";
 import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
 
-function OrderCard({ order, onClick }) {
+function OrderCard({ order, onClick, statusLabel }) {
   const statusClass = statusColors[order.status] || "bg-gray-100 text-gray-800 border-gray-200";
 
   return (
@@ -25,7 +25,7 @@ function OrderCard({ order, onClick }) {
           {order.urgentOrder && (
             <Badge className="bg-red-100 text-red-700 border-red-200 text-xs px-1.5 py-0">Urgent</Badge>
           )}
-          <Badge className={`${statusClass} text-xs border px-2 py-0`}>Awaiting QC</Badge>
+          <Badge className={`${statusClass} text-xs border px-2 py-0`}>{statusLabel}</Badge>
         </div>
       </div>
 
@@ -73,7 +73,11 @@ function LoadingCards() {
   );
 }
 
-export default function QualityOperatorList() {
+export default function QualityOperatorList({
+  statusFilter = "AWAITING_QUALITY",
+  title = "Post-QC",
+  basePath = "/quality/operator",
+}) {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,7 +93,7 @@ export default function QualityOperatorList() {
         1,
         100,
         search,
-        { statuses: "AWAITING_QUALITY" },
+        { statuses: statusFilter },
         "orderDate",
         "desc"
       );
@@ -118,7 +122,7 @@ export default function QualityOperatorList() {
         1,
         1,
         scannedOrderNo,
-        { statuses: "AWAITING_QUALITY" },
+        { statuses: statusFilter },
         "orderDate",
         "desc"
       );
@@ -128,7 +132,7 @@ export default function QualityOperatorList() {
         results.length === 1 &&
         results[0].orderNo === scannedOrderNo
       ) {
-        navigate(`/quality/operator/${results[0].id}`);
+        navigate(`${basePath}/${results[0].id}`);
         return;
       }
     } catch {
@@ -142,7 +146,7 @@ export default function QualityOperatorList() {
     <div className="w-full p-3 sm:p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Quality Check</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">{title}</h1>
         <Button
           variant="ghost"
           size="icon"
@@ -198,7 +202,8 @@ export default function QualityOperatorList() {
             <OrderCard
               key={order.id}
               order={order}
-              onClick={() => navigate(`/quality/operator/${order.id}`)}
+              statusLabel={title}
+              onClick={() => navigate(`${basePath}/${order.id}`)}
             />
           ))}
         </div>

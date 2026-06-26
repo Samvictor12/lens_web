@@ -167,6 +167,11 @@ router.put(
   purchaseOrderController.updatePurchaseOrder.bind(purchaseOrderController)
 );
 
+router.post(
+  "/:id/cancel",
+  purchaseOrderController.cancelPurchaseOrder.bind(purchaseOrderController)
+);
+
 /**
  * @route   DELETE /api/purchase-orders/:id
  * @desc    Delete purchase order (soft delete)

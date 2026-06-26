@@ -369,7 +369,7 @@ export async function seedAccountingTestData(client = prisma) {
         notes: 'Partial payment — test seed',
       },
     });
-    await client.saleOrder.update({ where: { id: invSO2.id }, data: { status: 'BILLED' } });
+    await client.saleOrder.update({ where: { id: invSO2.id }, data: { status: 'INVOICED' } });
     console.log('   ✅ TEST-INV-2026-002 issued + partial payment GL posted');
   } else {
     console.log('   ⏭️  TEST-INV-2026-002 already exists');

@@ -120,6 +120,56 @@ export const updateSaleOrderStatus = async (id, status, remark = undefined, inve
     }
 };
 
+export const getStatusLog = async (id) => {
+    try {
+        return await apiClient("get", `/sale-orders/${id}/status-log`);
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to fetch status log");
+    }
+};
+
+export const raisePoFromSo = async (id, source = "USER") => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/raise-po`, { data: { source } });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to raise PO");
+    }
+};
+
+export const linkPoToSo = async (id, poId) => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/link-po`, { data: { poId } });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to link PO");
+    }
+};
+
+export const confirmSoReset = async (id, remark) => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/confirm-reset`, { data: { remark } });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to reset sale order");
+    }
+};
+
+export const getInventorySoQueue = async (params = {}) => {
+    try {
+        return await apiClient("get", "/sale-orders/inventory-queue", { params });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to fetch inventory queue");
+    }
+};
+
+export const issueSoToPreQc = async (id, inventoryItemIds = []) => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/issue-to-pre-qc`, {
+            data: { inventoryItemIds },
+        });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to issue to Pre-QC");
+    }
+};
+
 /**
  * Get matching available inventory items on a FIFO basis for a sale order
  */

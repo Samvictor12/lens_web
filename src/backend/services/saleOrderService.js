@@ -7,6 +7,8 @@ import {
   logNotFoundError,
   logBusinessError 
 } from '../utils/errorLogger.js';
+import saleOrderStatusService from './saleOrderStatusService.js';
+import { isSoLocked, SALE_ORDER_STATUSES } from '../constants/saleOrderStatus.js';
 
 /**
  * Sale Order Service
@@ -279,11 +281,13 @@ export class SaleOrderService {
       const orderNo = await this.generateOrderNumber();
 
       // Create the sale order
-      const saleOrder = await prisma.saleOrder.create({
+      const saleOrder = await prisma.$transaction(async (tx) => {
+        const created = await tx.saleOrder.create({
         data: {
           orderNo,
           customerId: orderData.customerId,
           status: orderData.status || 'DRAFT',
+          procurementType: orderData.procurementType || 'RX',
           
           // Basic order information
           customerRefNo: orderData.customerRefNo,
@@ -401,6 +405,9 @@ export class SaleOrderService {
             }
           }
         }
+      });
+        await saleOrderStatusService.logCreation(tx, created.id, userId);
+        return created;
       });
 
       // ✅ LOG THE CREATE OPERATION
@@ -898,266 +905,50 @@ export class SaleOrderService {
    */
   async updateStatus(id, status, userId, req = null, remark = undefined, inventoryItemIds = undefined) {
     try {
-      // Helper function to generate transaction numbers transactionally
-      const generateInventoryTransactionNo = async (tx) => {
-        const year = new Date().getFullYear();
-        const month = String(new Date().getMonth() + 1).padStart(2, "0");
+      if (!SALE_ORDER_STATUSES.includes(status)) {
+        throw new APIError(`Invalid status. Must be one of: ${SALE_ORDER_STATUSES.join(', ')}`, 400, 'INVALID_STATUS');
+      }
 
-        const latestTransaction = await tx.inventoryTransaction.findFirst({
-          where: {
-            transactionNo: {
-              startsWith: `IT-${year}-${month}-`,
-            },
-          },
-          orderBy: { transactionNo: "desc" },
-          select: { transactionNo: true },
-        });
-
-        let sequence = 1;
-        if (latestTransaction) {
-          const parts = latestTransaction.transactionNo.split("-");
-          sequence = parseInt(parts[3]) + 1;
-        }
-
-        return `IT-${year}-${month}-${String(sequence).padStart(3, "0")}`;
+      const sourceByStatus = {
+        PRODUCTION_READY: 'PRE_QC',
+        IN_PRODUCTION: 'PRODUCTION',
+        ON_HOLD: 'PRODUCTION',
+        AWAITING_QUALITY: 'PRODUCTION',
+        READY_FOR_DISPATCH: 'POST_QC',
+        PRE_QC_REJECTED: 'PRE_QC',
+        PRE_QC_SCRAPPED: 'PRE_QC',
+        POST_QC_REJECTED: 'POST_QC',
+        POST_QC_SCRAPPED: 'POST_QC',
+        DISPATCHED: 'DISPATCH',
+        DELIVERED: 'DISPATCH',
+        INVOICED: 'BILLING',
+        COMPLETED: 'BILLING',
       };
 
-      const updated = await prisma.$transaction(async (tx) => {
-        const existing = await tx.saleOrder.findUnique({
-          where: { id },
-          include: {
-            customer: true
-          }
-        });
+      const existing = await prisma.saleOrder.findUnique({ where: { id, deleteStatus: false } });
+      if (!existing) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
 
-        if (!existing || existing.deleteStatus) {
-          throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
-        }
+      const updated = await saleOrderStatusService.transition({
+        saleOrderId: id,
+        toStatus: status,
+        userId,
+        remark,
+        source: sourceByStatus[status] || 'USER',
+      });
 
-        // Validate status
-        const validStatuses = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'READY_FOR_DISPATCH', 'DELIVERED', 'BILLED'];
-        if (!validStatuses.includes(status)) {
-          throw new APIError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400, 'INVALID_STATUS');
-        }
-
-        let targetStatus = status;
-
-        // A. FIFO Pick-to-Production
-        if (status === 'IN_PRODUCTION') {
-          if (!inventoryItemIds || !Array.isArray(inventoryItemIds) || inventoryItemIds.length === 0) {
-            throw new APIError('Inventory items must be selected to move to production', 400, 'INVENTORY_REQUIRED');
-          }
-
-          // Fetch the inventory items
-          const items = await tx.inventoryItem.findMany({
-            where: { id: { in: inventoryItemIds }, deleteStatus: false }
-          });
-
-          if (items.length !== inventoryItemIds.length) {
-            throw new APIError('One or more selected inventory items could not be found', 404, 'INVENTORY_NOT_FOUND');
-          }
-
-          if (items.some(item => item.status !== 'AVAILABLE')) {
-            throw new APIError('One or more selected inventory items are not available', 400, 'INVENTORY_NOT_AVAILABLE');
-          }
-
-          // Verify exact match
-          if (existing.rightEye) {
-            const rightMatch = items.find(item => 
-              item.lens_id === existing.lens_id &&
-              item.rightSpherical === existing.rightSpherical &&
-              item.rightCylindrical === existing.rightCylindrical &&
-              (!existing.rightAdd || item.rightAdd === existing.rightAdd)
-            );
-            if (!rightMatch) {
-              throw new APIError('No matching inventory item found for Right Eye specifications', 400, 'RIGHT_EYE_SPEC_MISMATCH');
-            }
-          }
-
-          if (existing.leftEye) {
-            const leftMatch = items.find(item => 
-              item.lens_id === existing.lens_id &&
-              item.leftSpherical === existing.leftSpherical &&
-              item.leftCylindrical === existing.leftCylindrical &&
-              (!existing.leftAdd || item.leftAdd === existing.leftAdd)
-            );
-            if (!leftMatch) {
-              throw new APIError('No matching inventory item found for Left Eye specifications', 400, 'LEFT_EYE_SPEC_MISMATCH');
-            }
-          }
-
-          // Deduct stock for each selected item
-          for (const item of items) {
-            const transactionNo = await generateInventoryTransactionNo(tx);
-
-            // Log OUTWARD_SALE transaction
-            await tx.inventoryTransaction.create({
-              data: {
-                transactionNo,
-                type: 'OUTWARD_SALE',
-                inventoryItemId: item.id,
-                quantity: -item.quantity,
-                balanceAfter: 0,
-                unitPrice: item.costPrice,
-                totalValue: item.quantity * item.costPrice,
-                saleOrderId: id,
-                reason: `Picked for Sale Order ${existing.orderNo}`,
-                createdBy: userId
-              }
-            });
-
-            // Update item quantity to 0 and status to IN_PRODUCTION
-            await tx.inventoryItem.update({
-              where: { id: item.id },
-              data: {
-                quantity: 0,
-                status: 'IN_PRODUCTION',
-                saleOrderId: id,
-                reservedDate: new Date(),
-                updatedBy: userId
-              }
-            });
-
-            // Update stock levels
-            const stockKey = {
-              lens_id: item.lens_id,
-              category_id: item.category_id,
-              Type_id: item.Type_id,
-              coating_id: item.coating_id,
-              location_id: item.location_id,
-              tray_id: item.tray_id
-            };
-
-            const existingStock = await tx.inventoryStock.findFirst({
-              where: stockKey
-            });
-
-            if (existingStock) {
-              await tx.inventoryStock.update({
-                where: { id: existingStock.id },
-                data: {
-                  totalStock: Math.max(0, existingStock.totalStock - item.quantity),
-                  availableStock: Math.max(0, existingStock.availableStock - item.quantity),
-                  lastOutwardDate: new Date()
-                }
-              });
-            }
-          }
-        }
-
-        // B. QC Damage Rejection
-        if (status === 'ON_HOLD') {
-          const pickedItems = await tx.inventoryItem.findMany({
-            where: { saleOrderId: id, status: 'IN_PRODUCTION', deleteStatus: false }
-          });
-
-          if (pickedItems.length > 0) {
-            for (const item of pickedItems) {
-              const transactionNo = await generateInventoryTransactionNo(tx);
-
-              // Log DAMAGE transaction
-              await tx.inventoryTransaction.create({
-                data: {
-                  transactionNo,
-                  type: 'DAMAGE',
-                  inventoryItemId: item.id,
-                  quantity: 0, // already deducted, but we log the damage transaction
-                  balanceAfter: 0,
-                  unitPrice: item.costPrice,
-                  totalValue: 0,
-                  saleOrderId: id,
-                  reason: remark || 'QC Rejection / Lens Damaged in Production',
-                  createdBy: userId
-                }
-              });
-
-              // Transition item to DAMAGED
-              await tx.inventoryItem.update({
-                where: { id: item.id },
-                data: {
-                  status: 'DAMAGED',
-                  updatedBy: userId
-                }
-              });
-
-              // Update stock summary
-              const stockKey = {
-                lens_id: item.lens_id,
-                category_id: item.category_id,
-                Type_id: item.Type_id,
-                coating_id: item.coating_id,
-                location_id: item.location_id,
-                tray_id: item.tray_id
-              };
-
-              const existingStock = await tx.inventoryStock.findFirst({
-                where: stockKey
-              });
-
-              // Get original quantity from OUTWARD_SALE transaction
-              const outwardTx = await tx.inventoryTransaction.findFirst({
-                where: { inventoryItemId: item.id, type: 'OUTWARD_SALE', saleOrderId: id }
-              });
-              const originalQty = outwardTx ? Math.abs(outwardTx.quantity) : 1.0;
-
-              if (existingStock) {
-                await tx.inventoryStock.update({
-                  where: { id: existingStock.id },
-                  data: {
-                    damagedStock: existingStock.damagedStock + originalQty
-                  }
-                });
-              }
-            }
-
-            // Reset the order status to CONFIRMED so they can pick new stock
-            targetStatus = 'CONFIRMED';
-          }
-        }
-
-        // Update the Sale Order status
-        const updatedOrder = await tx.saleOrder.update({
-          where: { id },
-          data: {
-            status: targetStatus,
-            updatedBy: userId,
-            ...(remark !== undefined && { remark })
-          },
-          include: {
-            customer: {
-              select: {
-                id: true,
-                code: true,
-                name: true
-              }
-            },
-            updatedByUser: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          }
-        });
-
-        // ✅ LOG THE STATUS UPDATE
-        await logUpdate({
-          userId,
-          entity: 'SaleOrder',
-          entityId: updatedOrder.id,
-          oldValues: { status: existing.status },
-          newValues: { status: updatedOrder.status },
-          req,
-          metadata: {
-            orderNo: updatedOrder.orderNo,
-            customerName: updatedOrder.customer?.name,
-            oldStatus: existing.status,
-            newStatus: updatedOrder.status,
-            operation: 'Sale order status updated'
-          }
-        });
-
-        return updatedOrder;
+      await logUpdate({
+        userId,
+        entity: 'SaleOrder',
+        entityId: updated.id,
+        oldValues: { status: existing.status },
+        newValues: { status: updated.status },
+        req,
+        metadata: {
+          orderNo: updated.orderNo,
+          oldStatus: existing.status,
+          newStatus: updated.status,
+          operation: 'Sale order status updated',
+        },
       });
 
       return updated;
@@ -1168,12 +959,8 @@ export class SaleOrderService {
         error,
         userId,
         req,
-        metadata: {
-          operation: 'updateStatus',
-          saleOrderId: id,
-          newStatus: status
-        }
-      }).catch(err => console.error('Error log failed:', err));
+        metadata: { operation: 'updateStatus', saleOrderId: id, newStatus: status },
+      }).catch((err) => console.error('Error log failed:', err));
 
       console.error('Error updating order status:', error);
       throw new APIError('Failed to update order status', 500, 'UPDATE_STATUS_ERROR');

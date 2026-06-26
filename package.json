@@ -26,7 +26,11 @@
     "db:seed:dispatch": "node prisma/seed/dispatch-test-seed.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:accounting": "vitest run src/backend/__tests__/accounting"
+    "test:accounting": "vitest run src/backend/__tests__/accounting",
+    "test:so:p1": "node scripts/test-so-workflow-phase1.js",
+    "test:so:p2": "node scripts/test-so-workflow-phase2.js",
+    "test:so:integration": "node scripts/test-so-workflow-integration.js",
+    "seed:so-workflow": "node scripts/seed-so-workflow-basics.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

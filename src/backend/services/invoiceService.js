@@ -268,11 +268,11 @@ export class InvoiceService {
           data: { paidAmount: newPaidAmount, status: newInvoiceStatus, updatedBy: userId },
         });
 
-        // If fully paid → mark all linked sale orders as BILLED
+        // If fully paid → mark all linked sale orders as COMPLETED
         if (isFullyPaid && saleOrderIds.length) {
           await tx.saleOrder.updateMany({
             where: { id: { in: saleOrderIds } },
-            data: { status: 'BILLED', updatedBy: userId },
+            data: { status: 'COMPLETED', updatedBy: userId },
           });
         }
 
@@ -372,9 +372,18 @@ export class InvoiceService {
         throw new APIError(`Invoice is already ${invoice.status}`, 400, 'INVALID_STATUS_TRANSITION');
       }
 
-      const updated = await prisma.invoice.update({
-        where: { id: invoiceId },
-        data: { status: 'ISSUED', updatedBy: userId },
+      const updated = await prisma.$transaction(async (tx) => {
+        const issued = await tx.invoice.update({
+          where: { id: invoiceId },
+          data: { status: 'ISSUED', updatedBy: userId },
+        });
+
+        await tx.saleOrder.updateMany({
+          where: { invoiceId, deleteStatus: false },
+          data: { status: 'INVOICED', updatedBy: userId },
+        });
+
+        return issued;
       });
 
       await logUpdate({

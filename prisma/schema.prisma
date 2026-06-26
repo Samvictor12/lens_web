@@ -93,6 +93,7 @@ model User {
   saleOrderCreatedBy            SaleOrder[]            @relation("saleOrderCreatedBy")
   saleOrderUpdatedBy            SaleOrder[]            @relation("saleOrderUpdatedBy")
   saleOrderAssignedPerson       SaleOrder[]            @relation("saleOrderAssignedPerson")
+  saleOrderStatusLogs           SaleOrderStatusLog[]   @relation("saleOrderStatusLogUser")
   locationUserCreate            LocationMaster[]       @relation("locationUserCreate")
   locationUserUpdate            LocationMaster[]       @relation("locationUserUpdate")
   trayUserCreate                TrayMaster[]           @relation("trayUserCreate")
@@ -569,18 +570,42 @@ model LensOffers {
   saleOrders SaleOrder[]
 }
 
+enum ProcurementType {
+  RX
+  STOCK
+}
+
 enum SaleOrderStatus {
   DRAFT
-  CONFIRMED
+  PO_RAISED
+  PO_RECEIVED
+  PO_CANCELLED
+  PRE_QC
+  PRE_QC_REJECTED
+  PRE_QC_SCRAPPED
+  PRODUCTION_READY
   IN_PRODUCTION
   ON_HOLD
   AWAITING_QUALITY
+  POST_QC_REJECTED
+  POST_QC_SCRAPPED
   READY_FOR_DISPATCH
+  DISPATCHED
   DELIVERED
-  BILLED
-  CLOSED
-  PROCESSING
-  PENDING
+  INVOICED
+  COMPLETED
+}
+
+enum SaleOrderStatusSource {
+  USER
+  SYSTEM
+  INVENTORY
+  PO
+  PRE_QC
+  POST_QC
+  PRODUCTION
+  DISPATCH
+  BILLING
 }
 
 model SaleOrderItem {
@@ -650,6 +675,7 @@ model Payment {
 
 enum POStatus {
   DRAFT
+  PO_PARTIAL_RECEIVED
   RECEIVED
   INVOICE_RECEIVED
   CLOSED
@@ -899,6 +925,8 @@ model SaleOrder {
   customerId        Int
   customer          Customer            @relation(fields: [customerId], references: [id])
   status            SaleOrderStatus     @default(DRAFT)
+  procurementType   ProcurementType     @default(RX)
+  hasLinkedPoEver   Boolean             @default(false)
   // Basic order information
   customerRefNo     String? // Customer reference number
   orderDate         DateTime            @default(now())
@@ -988,12 +1016,32 @@ model SaleOrder {
   parentId              Int?
   parent                SaleOrder?             @relation("SaleOrderChildren", fields: [parentId], references: [id])
   children              SaleOrder[]            @relation("SaleOrderChildren")
+  statusLogs            SaleOrderStatusLog[]
+}
+
+model SaleOrderStatusLog {
+  id            Int                   @id @default(autoincrement())
+  saleOrderId   Int
+  saleOrder     SaleOrder             @relation(fields: [saleOrderId], references: [id], onDelete: Cascade)
+  fromStatus    String?
+  toStatus      String
+  remark        String?
+  source        SaleOrderStatusSource @default(SYSTEM)
+  referenceType String?
+  referenceId   Int?
+  createdBy     Int?
+  createdByUser User?                 @relation("saleOrderStatusLogUser", fields: [createdBy], references: [id])
+  createdAt     DateTime              @default(now())
+
+  @@index([saleOrderId])
+  @@index([createdAt])
 }
 
 model LocationMaster {
   id                        Int                    @id @default(autoincrement())
   name                      String
   description               String?
+  isVirtual                 Boolean                @default(false)
   activeStatus              Boolean                @default(true)
   deleteStatus              Boolean                @default(false)
   createdAt                 DateTime               @default(now())

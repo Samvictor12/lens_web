@@ -844,7 +844,7 @@ async function main() {
         orderNo: 'SO-2024-001',
         customerId: customers[0].id,
         customerRefNo: 'CUST-REF-001',
-        status: 'CONFIRMED',
+        status: 'PRODUCTION_READY',
         type: 'Standard',
         lens_id: lensProducts[0].id,
         category_id: lensCategories[0].id,

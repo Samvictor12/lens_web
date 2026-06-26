@@ -487,6 +487,19 @@ class PurchaseOrderController {
       if (!res.headersSent) next(error);
     }
   }
+
+  async cancelPurchaseOrder(req, res, next) {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+      const { default: saleOrderWorkflowService } = await import('../services/saleOrderWorkflowService.js');
+      const po = await saleOrderWorkflowService.cancelLinkedPo(parseInt(id), userId, req.body?.remark);
+      res.status(200).json({ success: true, message: 'Purchase order cancelled', data: po });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new PurchaseOrderController();

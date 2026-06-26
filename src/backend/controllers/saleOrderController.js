@@ -1,4 +1,6 @@
 import SaleOrderService from '../services/saleOrderService.js';
+import saleOrderStatusService from '../services/saleOrderStatusService.js';
+import saleOrderWorkflowService from '../services/saleOrderWorkflowService.js';
 import {
   validateCreateSaleOrder,
   validateUpdateSaleOrder,
@@ -404,6 +406,89 @@ export class SaleOrderController {
         message: 'Sale order closed and new order created successfully',
         data: result
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getStatusLog(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const data = await saleOrderStatusService.getStatusLog(validation.data);
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async raisePo(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const userId = req.user?.id || 1;
+      const source = req.body?.source === 'INVENTORY' ? 'INVENTORY' : 'USER';
+      const po = await saleOrderWorkflowService.raisePoFromSo(validation.data, userId, source);
+      res.status(201).json({ success: true, message: 'PO raised', data: po });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async linkPo(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const poId = parseInt(req.body?.poId, 10);
+      if (!poId) return res.status(400).json({ success: false, message: 'poId is required' });
+      const userId = req.user?.id || 1;
+      const po = await saleOrderWorkflowService.linkPoToSo(validation.data, poId, userId);
+      res.status(200).json({ success: true, message: 'PO linked', data: po });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async confirmReset(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const userId = req.user?.id || 1;
+      const order = await saleOrderStatusService.confirmReset(validation.data, userId, req.body?.remark, req);
+      res.status(200).json({ success: true, message: 'Sale order reset to Draft', data: order });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getInventoryQueue(req, res, next) {
+    try {
+      const result = await saleOrderWorkflowService.getInventoryQueue(req.query);
+      res.status(200).json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async issueToPreQc(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const userId = req.user?.id || 1;
+      const order = await saleOrderWorkflowService.issueToPreQc(validation.data, userId, {
+        inventoryItemIds: req.body?.inventoryItemIds,
+      });
+      res.status(200).json({ success: true, message: 'Issued to Pre-QC', data: order });
     } catch (error) {
       next(error);
     }

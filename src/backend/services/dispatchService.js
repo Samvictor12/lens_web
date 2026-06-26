@@ -284,6 +284,7 @@ export const updateDispatchStatus = async (dispatchId, action, signature, userId
   switch (action) {
     case 'PICKUP':
       newDispatchStatus = 'IN_TRANSIT';
+      newSaleOrderStatus = 'DISPATCHED';
       newSaleOrderDispatchStatus = 'In Transit';
       break;
     case 'DELIVERED':

@@ -669,7 +669,7 @@ async function seedComplete() {
         orderNo: 'SO-2024-001',
         customerId: customer1.id,
         customerRefNo: 'CUST-REF-001',
-        status: 'CONFIRMED',
+        status: 'PRODUCTION_READY',
         type: 'Standard',
         urgentOrder: true,
         freeFitting: false,

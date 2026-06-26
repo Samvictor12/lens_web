@@ -106,7 +106,7 @@ function PrescriptionTable({ order }) {
   );
 }
 
-export default function QualityOrderDetail() {
+export default function QualityOrderDetail({ mode = "post", listPath = "/quality/operator" }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -139,13 +139,15 @@ export default function QualityOrderDetail() {
   }, [id]);
 
   const handleApprove = async () => {
-    if (!window.confirm("Approve this order? It will move to Ready for Dispatch.")) return;
+    const nextStatus = mode === "pre" ? "PRODUCTION_READY" : "READY_FOR_DISPATCH";
+    const msg = mode === "pre" ? "Move to Production Ready?" : "Approve — Ready for Dispatch?";
+    if (!window.confirm(msg)) return;
     setIsUpdating(true);
     try {
-      const response = await updateSaleOrderStatus(id, "READY_FOR_DISPATCH");
+      const response = await updateSaleOrderStatus(id, nextStatus);
       if (response.success) {
-        toast({ title: "Order approved — Ready for Dispatch" });
-        navigate("/quality/operator");
+        toast({ title: mode === "pre" ? "Pre-QC passed" : "Post-QC approved" });
+        navigate(listPath);
       }
     } catch (err) {
       toast({
@@ -158,15 +160,15 @@ export default function QualityOrderDetail() {
     }
   };
 
-  const handleRejectConfirm = async () => {
+  const handleReject = async (rejectStatus) => {
     if (!rejectRemark.trim()) return;
     setIsUpdating(true);
     setRejectDialogOpen(false);
     try {
-      const response = await updateSaleOrderStatus(id, "ON_HOLD", rejectRemark.trim());
+      const response = await updateSaleOrderStatus(id, rejectStatus, rejectRemark.trim());
       if (response.success) {
-        toast({ title: "Order rejected — logged damage and reset to Confirmed" });
-        navigate("/quality/operator");
+        toast({ title: "Rejected — awaiting SO reset" });
+        navigate(listPath);
       }
     } catch (err) {
       toast({
@@ -211,7 +213,10 @@ export default function QualityOrderDetail() {
   if (!order) return null;
 
   const statusClass = statusColors[order.status] || "bg-gray-100 text-gray-800 border-gray-200";
-  const isQCPending = order.status === "AWAITING_QUALITY";
+  const isQCPending =
+    order.status === (mode === "pre" ? "PRE_QC" : "AWAITING_QUALITY");
+  const rejectInventoryStatus = mode === "pre" ? "PRE_QC_REJECTED" : "POST_QC_REJECTED";
+  const rejectScrapStatus = mode === "pre" ? "PRE_QC_SCRAPPED" : "POST_QC_SCRAPPED";
 
   return (
     <div className="max-w-4xl mx-auto pb-24">
@@ -354,9 +359,7 @@ export default function QualityOrderDetail() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-gray-500">
-              This order will be sent back to{" "}
-              <span className="font-medium text-yellow-700">In Production</span>. Provide a reason
-              below.
+              Choose reject type. SO person must confirm reset to Draft before re-processing.
             </p>
             <Textarea
               placeholder="Enter rejection reason…"
@@ -377,11 +380,19 @@ export default function QualityOrderDetail() {
               Cancel
             </Button>
             <Button
+              variant="outline"
+              className="border-amber-500 text-amber-700"
+              disabled={!rejectRemark.trim()}
+              onClick={() => handleReject(rejectInventoryStatus)}
+            >
+              Reject → Inventory
+            </Button>
+            <Button
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={!rejectRemark.trim()}
-              onClick={handleRejectConfirm}
+              onClick={() => handleReject(rejectScrapStatus)}
             >
-              Confirm Reject
+              Reject → Scrap
             </Button>
           </DialogFooter>
         </DialogContent>
