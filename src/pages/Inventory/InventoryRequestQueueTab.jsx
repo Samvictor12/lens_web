@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Search, RefreshCw, Package, AlertCircle } from "lucide-react";
+import { Search, AlertCircle } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Refresh } from "@/components/ui/Refresh";
 import { useToast } from "@/hooks/use-toast";
 import {
   getInventorySoQueue,
@@ -13,6 +14,7 @@ import {
 } from "@/services/saleOrder";
 import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
 import { queueBadge } from "@/constants/saleOrderStatus";
+import StockPickModal from "./StockPickModal";
 
 function QueueCard({ order, onIssue, onRaisePo, busy }) {
   const badge = queueBadge(order.status);
@@ -36,7 +38,7 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
       </p>
       <p className="text-sm truncate">{order.lensProduct?.lens_name || "—"}</p>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => onIssue(order.id)} disabled={busy}>
+        <Button size="sm" onClick={() => onIssue(order)} disabled={busy}>
           Issue & Pre-QC
         </Button>
         {["DRAFT", "PO_CANCELLED"].includes(order.status) && (
@@ -56,13 +58,23 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
   );
 }
 
-export default function SoOrderQueue() {
+/**
+ * InventoryRequestQueueTab
+ * Ported from the standalone SoOrderQueue.jsx page into a Tab component
+ * (matching the InventoryInwardQueueTab `{ refreshKey = 0 }` prop pattern),
+ * so the Request Queue lives inside Inventory's tab bar instead of its own route.
+ *
+ * "Issue & Pre-QC" now opens a Stock Pick modal (FIFO allocation) first, so the
+ * user selects actual InventoryItem(s) before the SO transitions to PRE_QC.
+ */
+export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const [pickModalOrder, setPickModalOrder] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,14 +90,20 @@ export default function SoOrderQueue() {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey, localRefreshKey]);
 
-  const handleIssue = async (id) => {
+  const handleIssueClick = (order) => {
+    setPickModalOrder(order);
+  };
+
+  const handlePickConfirm = async (itemIds) => {
+    if (!pickModalOrder) return;
     setBusy(true);
     try {
-      const res = await issueSoToPreQc(id);
+      const res = await issueSoToPreQc(pickModalOrder.id, itemIds);
       if (res.success) {
         toast({ title: "Issued to Pre-QC" });
+        setPickModalOrder(null);
         load();
       }
     } catch (e) {
@@ -112,57 +130,56 @@ export default function SoOrderQueue() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            SO Order Queue
-          </h1>
-          <p className="text-sm text-muted-foreground">Inventory — issue stock or raise PO</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={load}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh
-        </Button>
-      </div>
-
-      <div className="flex gap-2 max-w-md">
-        <Input
-          placeholder="Search order no…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && load()}
-        />
-        <Button variant="secondary" onClick={load}>
-          <Search className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {loading ? (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
-          <AlertCircle className="h-8 w-8" />
-          No orders in queue
-        </div>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {orders.map((o) => (
-            <QueueCard
-              key={o.id}
-              order={o}
-              onIssue={handleIssue}
-              onRaisePo={handleRaisePo}
-              busy={busy}
+    <div className="flex flex-col h-full gap-2">
+      <Card className="p-1 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search order no…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && load()}
+              className="pl-9 h-8 text-sm"
             />
-          ))}
+          </div>
+          <Refresh onClick={() => setLocalRefreshKey((prev) => prev + 1)} />
         </div>
-      )}
+      </Card>
+
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {loading ? (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-40 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
+            <AlertCircle className="h-8 w-8" />
+            No orders in queue
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {orders.map((o) => (
+              <QueueCard
+                key={o.id}
+                order={o}
+                onIssue={handleIssueClick}
+                onRaisePo={handleRaisePo}
+                busy={busy}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <StockPickModal
+        isOpen={Boolean(pickModalOrder)}
+        saleOrder={pickModalOrder}
+        onConfirm={handlePickConfirm}
+        onCancel={() => setPickModalOrder(null)}
+      />
     </div>
   );
 }

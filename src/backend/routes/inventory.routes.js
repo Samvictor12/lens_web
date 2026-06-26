@@ -473,6 +473,14 @@ router.get('/dashboard', (req, res, next) => {
   inventoryController.getInventoryDashboard(req, res, next);
 });
 
+router.get('/dashboard/spec-trend', (req, res, next) => {
+  inventoryController.getProductSpecTrend(req, res, next);
+});
+
+router.get('/dashboard/top-selling', (req, res, next) => {
+  inventoryController.getTopSellingProducts(req, res, next);
+});
+
 /**
  * @swagger
  * /api/inventory/tray-occupancy/{trayId}:
@@ -514,6 +522,10 @@ router.get('/stock-grouped', (req, res, next) => {
   inventoryController.getInventoryStockGrouped(req, res, next);
 });
 
+router.get('/stock-grouped/export', (req, res, next) => {
+  inventoryController.exportInventoryStockGrouped(req, res, next);
+});
+
 /**
  * @swagger
  * /api/inventory/low-stock-items:
@@ -549,7 +561,7 @@ router.get('/low-stock-items', (req, res, next) => {
  *         in: query
  *         schema:
  *           type: string
- *           enum: [lens_id, category_id, location_id]
+ *           enum: [lens_id, category_id, location_id, date]
  *     responses:
  *       200:
  *         description: Stock value report

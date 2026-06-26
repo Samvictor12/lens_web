@@ -268,6 +268,24 @@ export default function POInwardToInventory() {
     return trayOptionsByLocation[parseInt(locationId)] || [];
   };
 
+  /** Sum qty already allocated to `trayId` across all rows/splits in the
+   *  current unsaved form, excluding the cell currently being rendered
+   *  (identified by `excludeRowKey`/`excludeSplitIdx`). Pure client-side
+   *  derived value — no fetch involved. */
+  const siblingAllocatedQty = useCallback((trayId, excludeRowKey, excludeSplitIdx) => {
+    if (!trayId) return 0;
+    let sum = 0;
+    for (const [rowKey, splits] of Object.entries(rowSplits)) {
+      (splits || []).forEach((sp, idx) => {
+        if (rowKey === excludeRowKey && idx === excludeSplitIdx) return;
+        if (parseInt(sp.tray_id) === trayId) {
+          sum += parseFloat(sp.qty) || 0;
+        }
+      });
+    }
+    return sum;
+  }, [rowSplits]);
+
   const locationOptions = locations.map((loc) => ({
     value: loc.id,
     label: loc.name,
@@ -711,10 +729,22 @@ export default function POInwardToInventory() {
                               const showTrayWarning = showSubmitWarnings && !split.tray_id;
                               const isTrayLoading = Boolean(globalLocationId) && Boolean(loadingTrayLocations[parseInt(globalLocationId)]);
                               const selectedTrayOccupancy = split.tray_id ? trayOccupancyData[parseInt(split.tray_id)] : null;
-                              
+
+                              // Live-derived effective availability: DB-truth availableQty minus
+                              // qty already allocated to this tray by sibling rows/splits in the
+                              // current unsaved batch (excluding this cell itself).
+                              const tIdForBadge = split.tray_id ? parseInt(split.tray_id) : null;
+                              const siblingQty = tIdForBadge ? siblingAllocatedQty(tIdForBadge, row.key, splitIdx) : 0;
+                              const effectiveAvailable = selectedTrayOccupancy
+                                ? Math.max(0, (selectedTrayOccupancy.availableQty || 0) - siblingQty)
+                                : null;
+                              const effectivePercentUsed = selectedTrayOccupancy && selectedTrayOccupancy.capacity
+                                ? Math.min(100, ((selectedTrayOccupancy.currentQty + siblingQty) / selectedTrayOccupancy.capacity) * 100)
+                                : (selectedTrayOccupancy ? (selectedTrayOccupancy.percentUsed || 0) : 0);
+
                               // Calculate percent used and color
-                              const percentUsed = selectedTrayOccupancy ? (selectedTrayOccupancy.percentUsed || 0) : 0;
-                              const occupancyColor = 
+                              const percentUsed = effectivePercentUsed;
+                              const occupancyColor =
                                 percentUsed >= 90 ? "bg-red-100 text-red-800" :
                                 percentUsed >= 70 ? "bg-orange-100 text-orange-800" :
                                 "bg-green-100 text-green-800";
@@ -745,7 +775,9 @@ export default function POInwardToInventory() {
                                             />
                                           </div>
                                           <div className={`text-[10px] px-1.5 py-0.5 rounded ${occupancyColor} text-center`}>
-                                            {selectedTrayOccupancy.currentQty}/{selectedTrayOccupancy.capacity} ({selectedTrayOccupancy.availableQty} available)
+                                            {effectiveAvailable <= 0
+                                              ? `Tray Full — ${selectedTrayOccupancy.capacity}/${selectedTrayOccupancy.capacity}`
+                                              : `${selectedTrayOccupancy.currentQty}/${selectedTrayOccupancy.capacity} (${effectiveAvailable} available)`}
                                           </div>
                                         </div>
                                       )}

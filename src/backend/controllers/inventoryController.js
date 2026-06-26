@@ -332,6 +332,29 @@ export class InventoryController {
   }
 
   /**
+   * Export stock grouped / pivot data
+   * @route GET /api/inventory/stock-grouped/export
+   */
+  async exportInventoryStockGrouped(req, res, next) {
+    try {
+      const queryParams = {
+        groupBy: req.query.groupBy || "pivot",
+        search: req.query.search || "",
+        productName: req.query.productName || "",
+        locationName: req.query.locationName || "",
+        Type_id: req.query.Type_id || req.query.typeId || null,
+        coating_id: req.query.coating_id || req.query.coatingId || null,
+        sph: req.query.sph || "",
+        cyl: req.query.cyl || "",
+        add: req.query.add || "",
+      };
+      await this.inventoryService.exportInventoryStockGrouped(queryParams, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get inventory dashboard statistics
    * @route GET /api/inventory/dashboard
    */
@@ -385,6 +408,13 @@ export class InventoryController {
           : null,
         groupBy: req.query.groupBy || null,
         search: req.query.search || "",
+        productName: req.query.productName || "",
+        locationName: req.query.locationName || "",
+        Type_id: req.query.Type_id || req.query.typeId || null,
+        coating_id: req.query.coating_id || req.query.coatingId || null,
+        sph: req.query.sph || "",
+        cyl: req.query.cyl || "",
+        add: req.query.add || "",
       };
 
       const result = await this.inventoryService.getInventoryStockWithGrouping(
@@ -443,6 +473,40 @@ export class InventoryController {
         data: report.data,
         summary: report.summary,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Product spec inward trend for dashboard chart
+   * @route GET /api/inventory/dashboard/spec-trend
+   */
+  async getProductSpecTrend(req, res, next) {
+    try {
+      const result = await this.inventoryService.getProductSpecTrend({
+        from: req.query.from,
+        to: req.query.to,
+        Type_id: req.query.lensTypeId || req.query.Type_id,
+      });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Top / low selling products widget
+   * @route GET /api/inventory/dashboard/top-selling
+   */
+  async getTopSellingProducts(req, res, next) {
+    try {
+      const result = await this.inventoryService.getTopSellingProducts({
+        direction: req.query.direction || "top",
+        limit: req.query.limit || 10,
+        days: req.query.days || 30,
+      });
+      res.json({ success: true, ...result });
     } catch (error) {
       next(error);
     }

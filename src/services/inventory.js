@@ -124,6 +124,42 @@ export const getStockValueReport = async (params = {}) => {
   return response;
 };
 
+export const getProductSpecTrend = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dashboard/spec-trend`, {
+    params,
+  });
+  return response;
+};
+
+export const getTopSellingProducts = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dashboard/top-selling`, {
+    params,
+  });
+  return response;
+};
+
+export const exportInventoryStockGrouped = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/stock-grouped/export`, {
+    params,
+    responseType: "blob",
+  });
+  const blob = new Blob([response], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute(
+    "download",
+    `stock-summary-${new Date().toISOString().split("T")[0]}.xlsx`
+  );
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+  return { success: true };
+};
+
 export const inventoryService = {
   getInventoryItems,
   getInventoryInwardQueue,
@@ -142,4 +178,7 @@ export const inventoryService = {
   getInventoryStockGrouped,
   getLowStockItems,
   getStockValueReport,
+  getProductSpecTrend,
+  getTopSellingProducts,
+  exportInventoryStockGrouped,
 };

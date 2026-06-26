@@ -2,6 +2,9 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
 import { INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
+import InventoryService from './inventory.service.js';
+
+const inventoryService = new InventoryService();
 
 const ACTIVE_PO_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
@@ -262,12 +265,15 @@ export class SaleOrderWorkflowService {
         throw new APIError('Both RE and LE inventory items required', 400, 'BOTH_EYES_REQUIRED');
       }
 
-      // Mark linked inventory items to SO (stub: full FIFO in inventory phase)
-      if (inventoryItemIds.length > 0) {
-        await tx.inventoryItem.updateMany({
-          where: { id: { in: inventoryItemIds }, deleteStatus: false },
-          data: { saleOrderId: so.id, status: 'IN_PRODUCTION', updatedBy: userId },
-        });
+      // Reserve the selected inventory item(s) against this sale order via the
+      // one correct allocation path (sets RESERVED status, decrements quantity,
+      // updates InventoryStock buckets, logs an OUTWARD_SALE transaction).
+      // One physical piece is reserved per selected item — the user picks exactly
+      // one InventoryItem per required eye (mirroring the FIFO pick UI convention).
+      // Runs inside this same `tx` so any INSUFFICIENT_STOCK/ITEM_NOT_AVAILABLE
+      // failure rolls back the whole transaction, including earlier reservations.
+      for (const inventoryItemId of inventoryItemIds) {
+        await inventoryService.reserveInventoryForSale(inventoryItemId, 1, so.id, userId, tx);
       }
 
       return saleOrderStatusService.transition({
