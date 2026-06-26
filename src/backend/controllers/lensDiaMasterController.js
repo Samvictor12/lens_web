@@ -14,21 +14,21 @@ export class LensDiaMasterController {
    */
   async create(req, res, next) {
     try {
-      const { name, short_name, description, activeStatus } = req.body;
+      const { name, description, activeStatus } = req.body;
 
-      // Validation
-      if (!name || !short_name) {
+      const parsedName = Number(name);
+      if (!Number.isFinite(parsedName) || !Number.isInteger(parsedName) || parsedName <= 0) {
         return res.status(400).json({
           success: false,
-          message: 'Name and short name are required'
+          message: 'Diameter must be a positive whole number'
         });
       }
 
       const userId = req.user?.id || 1; // Default to 1 if no auth
 
       const diaData = {
-        name: name.trim(),
-        short_name: short_name.trim(),
+        name: parsedName,
+        short_name: String(parsedName),
         description: description?.trim(),
         activeStatus,
         createdBy: userId
@@ -115,16 +115,22 @@ export class LensDiaMasterController {
         });
       }
 
-      const { name, short_name, description, activeStatus } = req.body;
+      const { name, description, activeStatus } = req.body;
       const userId = req.user?.id || 1;
 
-      const updateData = {
-        name: name?.trim(),
-        short_name: short_name?.trim(),
-        description: description?.trim(),
-        activeStatus,
-        updatedBy: userId
-      };
+      const updateData = { description: description?.trim(), activeStatus, updatedBy: userId };
+
+      if (name !== undefined) {
+        const parsedName = Number(name);
+        if (!Number.isFinite(parsedName) || !Number.isInteger(parsedName) || parsedName <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Diameter must be a positive whole number'
+          });
+        }
+        updateData.name = parsedName;
+        updateData.short_name = String(parsedName);
+      }
 
       const updated = await lensDiaService.updateLensDia(diaId, updateData);
 

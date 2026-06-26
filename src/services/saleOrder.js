@@ -44,9 +44,10 @@ export const getSaleOrderById = async (id) => {
     }
 };
 
-export const checkCustomerRef = async (ref, excludeId = null) => {
+export const checkCustomerRef = async (ref, customerId = null, excludeId = null) => {
     try {
         const params = { ref };
+        if (customerId) params.customerId = customerId;
         if (excludeId) params.excludeId = excludeId;
         const response = await apiClient("get", "/sale-orders/check-customer-ref", { params });
         return response;

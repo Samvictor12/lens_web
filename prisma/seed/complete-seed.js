@@ -291,9 +291,9 @@ async function seedComplete() {
 
     // Diameters
     const lensDias = [
-      { id: 1, name: '65mm', short_name: '65', description: 'Small diameter' },
-      { id: 2, name: '70mm', short_name: '70', description: 'Standard diameter' },
-      { id: 3, name: '75mm', short_name: '75', description: 'Large diameter' }
+      { name: 65, short_name: '65', description: 'Small diameter' },
+      { name: 70, short_name: '70', description: 'Standard diameter' },
+      { name: 75, short_name: '75', description: 'Large diameter' }
     ];
 
     for (const dia of lensDias) {
@@ -642,9 +642,9 @@ async function seedComplete() {
     const standardFitting = await prisma.lensFittingMaster.findUnique({ where: { name: 'Standard Fitting' } });
     const premiumFitting = await prisma.lensFittingMaster.findUnique({ where: { name: 'Premium Fitting' } });
     
-    const dia65 = await prisma.lensDiaMaster.findUnique({ where: { name: '65mm' } });
-    const dia70 = await prisma.lensDiaMaster.findUnique({ where: { name: '70mm' } });
-    const dia75 = await prisma.lensDiaMaster.findUnique({ where: { name: '75mm' } });
+    const dia65 = await prisma.lensDiaMaster.findUnique({ where: { name: 65 } });
+    const dia70 = await prisma.lensDiaMaster.findUnique({ where: { name: 70 } });
+    const dia75 = await prisma.lensDiaMaster.findUnique({ where: { name: 75 } });
     
     const clearTint = await prisma.lensTintingMaster.findUnique({ where: { name: 'Clear' } });
     const lightGrayTint = await prisma.lensTintingMaster.findUnique({ where: { name: 'Light Gray' } });

@@ -357,7 +357,7 @@ model LensFittingMaster {
 
 model LensDiaMaster {
   id             Int             @id @default(autoincrement())
-  name           String          @unique
+  name           Int             @unique
   short_name     String
   description    String?
   activeStatus   Boolean         @default(true)

@@ -64,10 +64,11 @@ export class LensDiaMasterService {
       
       const where = { deleteStatus: false };
       
-      // Search across name, short_name, and description
+      // Search by diameter number, short_name, or description
       if (search) {
+        const searchNum = parseInt(search, 10);
         where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
+          ...(!isNaN(searchNum) ? [{ name: searchNum }] : []),
           { short_name: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } }
         ];
@@ -236,7 +237,7 @@ export class LensDiaMasterService {
 
       return dias.map(d => ({
         id: d.id,
-        label: `${d.name} (${d.short_name})`,
+        label: String(d.name),
         value: d.id,
         name: d.name,
         short_name: d.short_name,

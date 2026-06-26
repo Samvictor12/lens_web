@@ -154,9 +154,9 @@ async function seedTestData() {
 
     const lensDias = await Promise.all([
       prisma.lensDiaMaster.upsert({
-        where: { name: '70mm' },
+        where: { name: 70 },
         update: {},
-        create: { name: '70mm', short_name: '70', description: 'Standard diameter', activeStatus: true, deleteStatus: false, createdBy: 1 }
+        create: { name: 70, short_name: '70', description: 'Standard diameter', activeStatus: true, deleteStatus: false, createdBy: 1 }
       }),
     ]);
 

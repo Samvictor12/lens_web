@@ -284,8 +284,8 @@ export function SaleOrderPrintModal({
                     <strong>${saleOrder?.lensProduct?.lens_name || "Prescription Lens"}</strong>
                     <div style="font-size: 10px; color: #666; margin-top: 3px;">
                       Coating: ${getCoatingName(saleOrder?.coating_id)}
-                      ${saleOrder?.fittingName ? ` | Fitting: ${saleOrder.fittingName}` : ""}
-                      ${saleOrder?.diaName ? ` | Dia: ${saleOrder.diaName}` : ""}
+                      ${saleOrder?.fittingName || saleOrder?.fitting?.name ? ` | Fitting: ${saleOrder.fittingName || saleOrder.fitting?.name}` : ""}
+                      ${(saleOrder?.diaName ?? saleOrder?.dia?.name) != null ? ` | Dia: ${saleOrder.diaName ?? saleOrder.dia?.name}` : ""}
                     </div>
                   </td>
                   <td>

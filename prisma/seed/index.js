@@ -495,7 +495,7 @@ async function main() {
   const lensDias = await Promise.all([
     prisma.lensDiaMaster.create({
       data: {
-        name: '65mm',
+        name: 65,
         short_name: '65',
         description: 'Small diameter',
         activeStatus: true,
@@ -505,7 +505,7 @@ async function main() {
     }),
     prisma.lensDiaMaster.create({
       data: {
-        name: '70mm',
+        name: 70,
         short_name: '70',
         description: 'Standard diameter',
         activeStatus: true,
@@ -515,7 +515,7 @@ async function main() {
     }),
     prisma.lensDiaMaster.create({
       data: {
-        name: '75mm',
+        name: 75,
         short_name: '75',
         description: 'Large diameter',
         activeStatus: true,
