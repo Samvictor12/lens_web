@@ -26,3 +26,6 @@ dist-ssr
 *.sw?
 
 /generated/prisma
+
+# Build/deploy artifacts (too large for git, not source)
+PROD_Lens/*.tar
