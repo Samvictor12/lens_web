@@ -1598,7 +1598,11 @@ export class InventoryService {
       tray_id,
     } = payload;
 
-    if (!location_id) throw new APIError("Location is required", 400, "LOCATION_REQUIRED");
+    const hasGlobalLocation = !!location_id;
+    const hasPerSplitLocation = rows?.every(r => r.splits?.every(sp => sp.location_id));
+    if (!hasGlobalLocation && !hasPerSplitLocation) {
+      throw new APIError("Location is required", 400, "LOCATION_REQUIRED");
+    }
     if (!lens_id) throw new APIError("Lens product is required", 400, "LENS_REQUIRED");
 
     const lens = await prisma.lensProductMaster.findUnique({
@@ -1681,7 +1685,7 @@ export class InventoryService {
           category_id: category_id ? parseInt(category_id, 10) : lens.category_id,
           Type_id: Type_id ? parseInt(Type_id, 10) : lens.Type_id,
           coating_id: coating_id ? parseInt(coating_id, 10) : null,
-          location_id: parseInt(location_id, 10),
+          location_id: split.location_id ? parseInt(split.location_id, 10) : parseInt(location_id, 10),
           tray_id: parseInt(split.tray_id, 10),
           quantity: qty,
           costPrice: parseFloat(split.costPrice ?? costPrice) || 0,
@@ -1697,11 +1701,9 @@ export class InventoryService {
             rightSpherical: eye === "R" ? spherical : null,
             rightCylindrical: eye === "R" ? cylindrical : null,
             rightAdd: eye === "R" ? add : null,
-            rightDia: eye === "R" ? dia : null,
             leftSpherical: eye === "L" ? spherical : null,
             leftCylindrical: eye === "L" ? cylindrical : null,
             leftAdd: eye === "L" ? add : null,
-            leftDia: eye === "L" ? dia : null,
           });
         } else {
           itemsToCreate.push({
@@ -1711,7 +1713,6 @@ export class InventoryService {
             rightSpherical: spherical,
             rightCylindrical: cylindrical,
             rightAdd: add,
-            rightDia: dia,
           });
         }
       }
