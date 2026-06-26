@@ -1,17 +1,17 @@
 #!/bin/bash
 # Lens PROD Docker Deployment & Backup Script (Linux)
-# Run this script from inside the PROD_Lens folder.
+# Run this script from inside the Docker/prod folder.
 
 set -e
 
 if [ ! -f .env ]; then
-    echo "Error: .env file not found in PROD_Lens!"
+    echo "Error: .env file not found in Docker/prod!"
     echo "Please create .env with the required environment variables."
     exit 1
 fi
 
 backup_dir="backups"
-container="lens_dev_postgres"
+container="lens_prod_postgres"
 db_name="lens_project_db"
 db_user="postgres"
 

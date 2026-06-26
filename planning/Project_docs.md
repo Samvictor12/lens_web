@@ -44,3 +44,4 @@ This is an **index only**. Feature bodies live in `planning/features/{id}.md`. R
 | production-quality-scanning | Barcode/QR scanning in Production and Quality modules | DONE | `planning/features/production-quality-scanning.md` | 2026-06-21 |
 | coa-hide-balance-values | Hide balance values on Chart of Accounts cards/masters | DONE | `planning/features/coa-hide-balance-values.md` | 2026-06-21 |
 | inventory-module-bugfixes | Fix dashboard crash, broken reserve/transfer flows, dead stock columns, missing validations | DONE | `planning/features/inventory-module-bugfixes.md` | 2026-06-24 |
+| docker-folder-consolidation | Move Dev_lens/PROD_Lens into Docker/dev, Docker/prod; add Docker/test; stop tracking .env secrets | DONE | `planning/features/docker-folder-consolidation.md` | 2026-06-26 |

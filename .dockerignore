@@ -5,7 +5,9 @@ dist-ssr
 *.local
 .vscode
 .idea
-Dev_lens
+Docker/dev
+Docker/prod
+Docker/test
 pgadmin_data
 postgres_data
 *.log

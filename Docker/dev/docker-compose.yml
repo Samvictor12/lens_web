@@ -23,7 +23,7 @@ services:
 
   backend:
     build:
-      context: ..
+      context: ../..
       dockerfile: Dockerfile.backend
     container_name: lens_dev_backend
     image: lens-dev-backend:latest
@@ -49,7 +49,7 @@ services:
 
   frontend:
     build:
-      context: ..
+      context: ../..
       dockerfile: Dockerfile.frontend
       args:
         VITE_BACKEND_URL: ${VITE_BACKEND_URL}

@@ -28,4 +28,9 @@ dist-ssr
 /generated/prisma
 
 # Build/deploy artifacts (too large for git, not source)
-PROD_Lens/*.tar
+*.tar
+
+# Docker env files with real secrets (per-environment, not the unrelated root .env files)
+Docker/dev/.env
+Docker/prod/.env
+Docker/test/.env
