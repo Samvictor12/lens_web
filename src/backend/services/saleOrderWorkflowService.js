@@ -2,6 +2,9 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
 import { INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
+import InventoryService from './inventory.service.js';
+
+const inventoryService = new InventoryService();
 
 const ACTIVE_PO_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
@@ -262,12 +265,22 @@ export class SaleOrderWorkflowService {
         throw new APIError('Both RE and LE inventory items required', 400, 'BOTH_EYES_REQUIRED');
       }
 
-      // Mark linked inventory items to SO (stub: full FIFO in inventory phase)
-      if (inventoryItemIds.length > 0) {
-        await tx.inventoryItem.updateMany({
-          where: { id: { in: inventoryItemIds }, deleteStatus: false },
-          data: { saleOrderId: so.id, status: 'IN_PRODUCTION', updatedBy: userId },
-        });
+      // Reserve each selected inventory item (1 unit per eye) via the shared,
+      // quantity-aware reservation path. Runs inside this same transaction
+      // (tx passed through as dbClient) so a failure on any item (e.g.
+      // INSUFFICIENT_STOCK/ITEM_NOT_AVAILABLE) rolls back all earlier
+      // reservations made in this call.
+      for (const inventoryItemId of inventoryItemIds) {
+        try {
+          await inventoryService.reserveInventoryForSale(inventoryItemId, 1, so.id, userId, tx);
+        } catch (err) {
+          const reason = err?.message || 'Failed to reserve inventory item';
+          throw new APIError(
+            `Could not reserve inventory item ${inventoryItemId}: ${reason}`,
+            err?.statusCode || 400,
+            err?.code || 'RESERVE_FAILED'
+          );
+        }
       }
 
       return saleOrderStatusService.transition({

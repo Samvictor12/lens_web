@@ -268,6 +268,25 @@ export default function POInwardToInventory() {
     return trayOptionsByLocation[parseInt(locationId)] || [];
   };
 
+  /**
+   * Sum of qty already allocated to `trayId` across all rows/splits in the
+   * current unsaved form, excluding the cell currently being rendered
+   * (identified by rowKey + splitIdx). Pure client-side, no fetch.
+   */
+  const siblingAllocatedQty = useCallback((trayId, excludeRowKey, excludeSplitIdx) => {
+    if (!trayId) return 0;
+    let total = 0;
+    for (const [key, splits] of Object.entries(rowSplits)) {
+      (splits || []).forEach((sp, idx) => {
+        if (key === excludeRowKey && idx === excludeSplitIdx) return;
+        if (sp.tray_id && parseInt(sp.tray_id) === trayId) {
+          total += parseFloat(sp.qty) || 0;
+        }
+      });
+    }
+    return total;
+  }, [rowSplits]);
+
   const locationOptions = locations.map((loc) => ({
     value: loc.id,
     label: loc.name,
@@ -711,10 +730,28 @@ export default function POInwardToInventory() {
                               const showTrayWarning = showSubmitWarnings && !split.tray_id;
                               const isTrayLoading = Boolean(globalLocationId) && Boolean(loadingTrayLocations[parseInt(globalLocationId)]);
                               const selectedTrayOccupancy = split.tray_id ? trayOccupancyData[parseInt(split.tray_id)] : null;
-                              
+
+                              // Error handling (1b): if occupancy hasn't loaded yet, fall back to
+                              // showing only the DB-fetched value with no sibling-deduction.
+                              const tIdForBadge = split.tray_id ? parseInt(split.tray_id) : null;
+                              const siblingQty = selectedTrayOccupancy
+                                ? siblingAllocatedQty(tIdForBadge, row.key, splitIdx)
+                                : 0;
+                              const effectiveAvailable = selectedTrayOccupancy
+                                ? Math.max(0, selectedTrayOccupancy.availableQty - siblingQty)
+                                : 0;
+                              const effectiveCurrentQty = selectedTrayOccupancy
+                                ? Math.min(selectedTrayOccupancy.capacity, selectedTrayOccupancy.currentQty + siblingQty)
+                                : 0;
+                              const effectivePercentUsed = selectedTrayOccupancy && selectedTrayOccupancy.capacity > 0
+                                ? (effectiveCurrentQty / selectedTrayOccupancy.capacity) * 100
+                                : 0;
+                              const isTrayFull = selectedTrayOccupancy && effectiveAvailable <= 0;
+
                               // Calculate percent used and color
-                              const percentUsed = selectedTrayOccupancy ? (selectedTrayOccupancy.percentUsed || 0) : 0;
-                              const occupancyColor = 
+                              const percentUsed = selectedTrayOccupancy ? effectivePercentUsed : 0;
+                              const occupancyColor =
+                                isTrayFull ? "bg-red-100 text-red-800" :
                                 percentUsed >= 90 ? "bg-red-100 text-red-800" :
                                 percentUsed >= 70 ? "bg-orange-100 text-orange-800" :
                                 "bg-green-100 text-green-800";
@@ -740,12 +777,14 @@ export default function POInwardToInventory() {
                                         <div className="flex flex-col gap-1">
                                           <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                             <div
-                                              className={`h-full ${percentUsed >= 90 ? "bg-red-500" : percentUsed >= 70 ? "bg-orange-500" : "bg-green-500"}`}
+                                              className={`h-full ${isTrayFull ? "bg-red-500" : percentUsed >= 90 ? "bg-red-500" : percentUsed >= 70 ? "bg-orange-500" : "bg-green-500"}`}
                                               style={{ width: `${Math.min(percentUsed, 100)}%` }}
                                             />
                                           </div>
                                           <div className={`text-[10px] px-1.5 py-0.5 rounded ${occupancyColor} text-center`}>
-                                            {selectedTrayOccupancy.currentQty}/{selectedTrayOccupancy.capacity} ({selectedTrayOccupancy.availableQty} available)
+                                            {isTrayFull
+                                              ? `Tray Full — ${selectedTrayOccupancy.capacity}/${selectedTrayOccupancy.capacity}`
+                                              : `${effectiveCurrentQty}/${selectedTrayOccupancy.capacity} (${effectiveAvailable} available)`}
                                           </div>
                                         </div>
                                       )}

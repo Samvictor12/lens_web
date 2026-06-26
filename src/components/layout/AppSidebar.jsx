@@ -74,11 +74,6 @@ const navItems = [
     // allowedRoles: ["admin", "inventory"],
   },
   {
-    title: "SO Order Queue",
-    url: "/inventory/so-queue",
-    icon: Package,
-  },
-  {
     title: "Purchase Orders",
     url: "/masters/purchase-orders",
     icon: Receipt,

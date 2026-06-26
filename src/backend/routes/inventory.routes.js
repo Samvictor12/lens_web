@@ -558,4 +558,16 @@ router.get('/reports/value', (req, res, next) => {
   inventoryController.getStockValueReport(req, res, next);
 });
 
+router.get('/reports/spec-trend', (req, res, next) => {
+  inventoryController.getInventorySpecCountTrend(req, res, next);
+});
+
+router.get('/reports/top-low-selling', (req, res, next) => {
+  inventoryController.getTopLowSellingProducts(req, res, next);
+});
+
+router.get('/reports/stock-pivot', (req, res, next) => {
+  inventoryController.getInventoryStockPivot(req, res, next);
+});
+
 export default router;

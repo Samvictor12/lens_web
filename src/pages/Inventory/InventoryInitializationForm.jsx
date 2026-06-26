@@ -16,7 +16,7 @@ import {
 } from "@/services/saleOrder";
 import BulkLensSelection from "@/pages/PurchaseOrder/BulkLensSelection";
 
-const emptySplit = () => ({ tray_id: "", qty: "" });
+const emptySplit = () => ({ tray_id: "", qty: "", costPrice: "" });
 
 const parseKey = (key) => {
   const parts = key.split("_");
@@ -62,11 +62,13 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   const [lensProducts, setLensProducts] = useState([]);
   const [lensCategories, setLensCategories] = useState([]);
   const [lensTypes, setLensTypes] = useState([]);
+  const [coatings, setCoatings] = useState([]);
 
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [Type_id, setTypeId] = useState("");
   const [category_id, setCategoryId] = useState("");
   const [lens_id, setLensId] = useState("");
+  const [coating_id, setCoatingId] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [lensBulkSelection, setLensBulkSelection] = useState(null);
 
@@ -80,6 +82,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
     setTypeId("");
     setCategoryId("");
     setLensId("");
+    setCoatingId("");
     setCostPrice("");
     setLensBulkSelection(null);
     setGridRows([]);
@@ -105,7 +108,10 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         getLensTypesDropdown(),
         getLensProductsDropdown(),
       ]);
-      if (invRes.success) setLocations(invRes.data?.locations || []);
+      if (invRes.success) {
+        setLocations(invRes.data?.locations || []);
+        setCoatings(invRes.data?.coatings || []);
+      }
       if (catRes.success) setLensCategories(catRes.data || []);
       if (typeRes.success) setLensTypes(typeRes.data || []);
       if (lensRes.success) setLensProducts(lensRes.data || []);
@@ -207,14 +213,43 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   };
 
   const updateSplit = (key, idx, field, value) => {
-    setRowSplits((prev) => ({
-      ...prev,
-      [key]: (prev[key] || []).map((sp, i) => (i === idx ? { ...sp, [field]: value } : sp)),
-    }));
-    if (field === "tray_id" && value) {
-      fetchTrayOccupancy(parseInt(value, 10));
-    }
+    setRowSplits((prev) => {
+      const currentSplits = prev[key] || [];
+      const newSplits = currentSplits.map((sp, i) => (i === idx ? { ...sp, [field]: value } : sp));
+
+      // When tray_id is being set, auto-fill Qty = available gap and Price = global costPrice
+      if (field === "tray_id" && value) {
+        const tId = parseInt(value, 10);
+        const occ = trayOccupancyData[tId];
+        if (occ && occ.availableQty != null) {
+          // Compute sibling allocations: sum qty from other splits in ALL rows that also use this tray
+          let siblingQty = 0;
+          for (const [rowKey, rowSplitList] of Object.entries(prev)) {
+            for (let si = 0; si < rowSplitList.length; si++) {
+              // Exclude the current cell being edited
+              if (rowKey === key && si === idx) continue;
+              if (parseInt(rowSplitList[si].tray_id, 10) === tId) {
+                siblingQty += parseFloat(rowSplitList[si].qty) || 0;
+              }
+            }
+          }
+          const availableGap = Math.max(0, occ.availableQty - siblingQty);
+          newSplits[idx] = {
+            ...newSplits[idx],
+            // Auto-fill qty with available gap; keep existing if user already typed
+            qty: newSplits[idx].qty === "" || newSplits[idx].qty === "0" ? String(availableGap) : newSplits[idx].qty,
+            // Auto-fill costPrice with global cost price if not yet set by user
+            costPrice: newSplits[idx].costPrice === "" ? costPrice : newSplits[idx].costPrice,
+          };
+        }
+        // Trigger tray occupancy fetch (cached, safe to call again)
+        fetchTrayOccupancy(tId);
+      }
+
+      return { ...prev, [key]: newSplits };
+    });
   };
+
 
   const validateStep1 = () => {
     if (!selectedLocationId) {
@@ -231,6 +266,10 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   const validateStep2 = () => {
     if (!Type_id || !category_id || !lens_id) {
       toast({ title: "Error", description: "Select type, category, and lens product", variant: "destructive" });
+      return false;
+    }
+    if (!coating_id) {
+      toast({ title: "Error", description: "Select a coating", variant: "destructive" });
       return false;
     }
     const rows = buildGridRowsFromSelection();
@@ -307,7 +346,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
       setGridRows(rows);
       const initialSplits = {};
       rows.forEach((row) => {
-        initialSplits[row.key] = [{ tray_id: "", qty: String(row.qty) }];
+        initialSplits[row.key] = [{ tray_id: "", qty: String(row.qty), costPrice: "" }];
       });
       setRowSplits(initialSplits);
       await preloadTrayOccupancies(trays);
@@ -334,6 +373,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         .map((sp) => ({
           tray_id: parseInt(sp.tray_id, 10),
           qty: parseFloat(sp.qty),
+          ...(sp.costPrice !== "" && sp.costPrice != null ? { costPrice: parseFloat(sp.costPrice) } : {}),
         })),
     }));
 
@@ -344,6 +384,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         lens_id: parseInt(lens_id, 10),
         category_id: parseInt(category_id, 10),
         Type_id: parseInt(Type_id, 10),
+        coating_id: coating_id ? parseInt(coating_id, 10) : null,
         costPrice: parseFloat(costPrice) || 0,
         defaultDia: "70",
         rows,
@@ -439,7 +480,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   name="lens_id"
                   options={filteredProducts.map((p) => ({ id: p.id, name: p.lens_name || p.name }))}
                   value={lens_id}
-                  onChange={(v) => { setLensId(v); setLensBulkSelection(null); }}
+                  onChange={(v) => { setLensId(v); setCoatingId(""); setLensBulkSelection(null); }}
                   placeholder="Select product"
                   isSearchable
                   disabled={!category_id}
@@ -463,6 +504,9 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   onChange={setLensBulkSelection}
                   categoryName={categoryName}
                   lensId={lens_id}
+                  coatings={coatings}
+                  coatingId={coating_id}
+                  onCoatingChange={setCoatingId}
                 />
               )}
             </div>
@@ -574,6 +618,17 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                                   onChange={(e) => updateSplit(row.key, splitIdx, "qty", e.target.value)}
                                   className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
                                   placeholder="Qty"
+                                />
+                              </div>
+                              <div className="w-28">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={split.costPrice ?? ""}
+                                  onChange={(e) => updateSplit(row.key, splitIdx, "costPrice", e.target.value)}
+                                  className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                  placeholder={`Price (${costPrice || 0})`}
                                 />
                               </div>
                               <Button

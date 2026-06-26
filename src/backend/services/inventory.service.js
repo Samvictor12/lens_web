@@ -714,12 +714,16 @@ export class InventoryService {
    * @param {number} quantity - Quantity to reserve
    * @param {number} saleOrderId - Sale order ID
    * @param {number} userId - User ID
+   * @param {object} [dbClient=prisma] - Prisma client or transaction handle to use.
+   *   When omitted, a new internal `prisma.$transaction` is opened so the call is
+   *   atomic on its own. When a caller passes its own transaction's `tx`, this
+   *   function's writes participate in that outer transaction instead.
    * @returns {Promise<Object>} Updated inventory item
    */
-  async reserveInventoryForSale(inventoryItemId, quantity, saleOrderId, userId) {
+  async reserveInventoryForSale(inventoryItemId, quantity, saleOrderId, userId, dbClient = prisma) {
     try {
-      return await prisma.$transaction(async (prisma) => {
-        const inventoryItem = await prisma.inventoryItem.findUnique({
+      const runner = async (client) => {
+        const inventoryItem = await client.inventoryItem.findUnique({
           where: { id: inventoryItemId }
         });
 
@@ -735,31 +739,42 @@ export class InventoryService {
           throw new APIError("Inventory item is not available for reservation", 400, "ITEM_NOT_AVAILABLE");
         }
 
+        // Quantity-aware status flip: a row's full quantity should only be
+        // marked RESERVED (with saleOrderId/reservedDate set) once it is fully
+        // consumed. Partial consumption keeps the row AVAILABLE with the
+        // remaining quantity decremented, so it stays visible to FIFO matching.
+        const remainingQty = inventoryItem.quantity - quantity;
+        const fullyConsumed = remainingQty <= 0.001;
+
+        const updateData = {
+          status: fullyConsumed ? 'RESERVED' : 'AVAILABLE',
+          quantity: Math.max(0, remainingQty),
+          updatedBy: userId,
+          updatedAt: new Date()
+        };
+        if (fullyConsumed) {
+          updateData.saleOrderId = saleOrderId;
+          updateData.reservedDate = new Date();
+        }
+
         // Update inventory item status
-        const updatedItem = await prisma.inventoryItem.update({
+        const updatedItem = await client.inventoryItem.update({
           where: { id: inventoryItemId },
-          data: {
-            status: 'RESERVED',
-            quantity: inventoryItem.quantity - quantity,
-            saleOrderId: saleOrderId,
-            reservedDate: new Date(),
-            updatedBy: userId,
-            updatedAt: new Date()
-          }
+          data: updateData
         });
 
         // Update stock summary (move from available to reserved)
-        await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE');
+        await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
 
         // Create transaction for reservation
-        const transactionNo = await this.generateTransactionNumber();
-        await prisma.inventoryTransaction.create({
+        const transactionNo = await this.generateTransactionNumber(client);
+        await client.inventoryTransaction.create({
           data: {
             transactionNo,
             type: 'OUTWARD_SALE',
             inventoryItemId: inventoryItemId,
             quantity: -quantity,
-            balanceAfter: inventoryItem.quantity - quantity,
+            balanceAfter: Math.max(0, remainingQty),
             saleOrderId: saleOrderId,
             reason: 'Reserved for sale order',
             createdBy: userId
@@ -767,7 +782,14 @@ export class InventoryService {
         });
 
         return updatedItem;
-      });
+      };
+
+      // If no explicit dbClient was passed, open our own transaction so this
+      // call remains atomic in isolation (preserves prior default behavior).
+      if (dbClient === prisma) {
+        return await prisma.$transaction((tx) => runner(tx));
+      }
+      return await runner(dbClient);
     } catch (error) {
       if (error instanceof APIError) throw error;
       console.error("Error reserving inventory:", error);
@@ -781,14 +803,15 @@ export class InventoryService {
 
   /**
    * Helper: Generate transaction number
+   * @param {object} [dbClient=prisma] - Prisma client or transaction handle to use.
    */
-  async generateTransactionNumber() {
+  async generateTransactionNumber(dbClient = prisma) {
     try {
       const year = new Date().getFullYear();
       const month = String(new Date().getMonth() + 1).padStart(2, "0");
 
       // Find the latest transaction number for current year-month
-      const latestTransaction = await prisma.inventoryTransaction.findFirst({
+      const latestTransaction = await dbClient.inventoryTransaction.findFirst({
         where: {
           transactionNo: {
             startsWith: `IT-${year}-${month}-`,
@@ -817,8 +840,9 @@ export class InventoryService {
 
   /**
    * Helper: Update inventory stock summary
+   * @param {object} [dbClient=prisma] - Prisma client or transaction handle to use.
    */
-  async updateInventoryStock(inventoryItem, quantity, operation) {
+  async updateInventoryStock(inventoryItem, quantity, operation, dbClient = prisma) {
     try {
       const stockKey = {
         lens_id: inventoryItem.lens_id,
@@ -829,7 +853,7 @@ export class InventoryService {
         tray_id: inventoryItem.tray_id
       };
 
-      const existingStock = await prisma.inventoryStock.findFirst({
+      const existingStock = await dbClient.inventoryStock.findFirst({
         where: stockKey
       });
 
@@ -877,12 +901,12 @@ export class InventoryService {
       }
 
       if (existingStock) {
-        await prisma.inventoryStock.update({
+        await dbClient.inventoryStock.update({
           where: { id: existingStock.id },
           data: updateData,
         });
       } else {
-        await prisma.inventoryStock.create({
+        await dbClient.inventoryStock.create({
           data: {
             ...stockKey,
             totalStock: operation === 'ADD' ? Math.abs(quantity) : 0,
@@ -1316,7 +1340,7 @@ export class InventoryService {
   async getInventoryDashboardEnhanced() {
     try {
       const [
-        totalItems,
+        productCountResult,
         availableItems,
         reservedItems,
         damagedItems,
@@ -1324,8 +1348,9 @@ export class InventoryService {
         lowStockItems,
         pendingReceipts,
       ] = await Promise.all([
-        // Total items
-        prisma.inventoryItem.count({
+        // Product count: distinct lens products (not raw item count)
+        prisma.inventoryItem.groupBy({
+          by: ['lens_id'],
           where: { deleteStatus: false, activeStatus: true },
         }),
         // Available items
@@ -1352,13 +1377,13 @@ export class InventoryService {
             status: "DAMAGED",
           },
         }),
-        // Total inventory value (computed in JS - InventoryStock has no totalValue/deleteStatus columns)
+        // Total inventory value
         prisma.inventoryStock.findMany({
           select: { totalStock: true, avgCostPrice: true },
         }),
-        // Low stock items (using the service method)
+        // Low stock items
         this.getItemsBelowThreshold(),
-        // Pending inwards (receipts not fully inwarded)
+        // Pending inwards
         prisma.purchaseOrderReceipt.findMany({
           where: { deleteStatus: false },
           include: {
@@ -1367,6 +1392,8 @@ export class InventoryService {
           orderBy: { createdAt: 'desc' },
         }),
       ]);
+
+      const productCount = productCountResult.length;
 
       const totalValue = allStock.reduce(
         (sum, s) => sum + (s.totalStock || 0) * (s.avgCostPrice || 0),
@@ -1380,7 +1407,9 @@ export class InventoryService {
       const pendingInwardsList = pendingFiltered.slice(0, 5);
 
       return {
-        totalItems,
+        productCount,
+        // Keep legacy name for backward compat so existing dashboard cards don't break
+        totalItems: productCount,
         availableItems,
         reservedItems,
         damagedItems,
@@ -1398,6 +1427,7 @@ export class InventoryService {
       );
     }
   }
+
 
   /**
    * Get stock value report by date range
@@ -1634,7 +1664,7 @@ export class InventoryService {
           location_id: parseInt(location_id, 10),
           tray_id: parseInt(split.tray_id, 10),
           quantity: qty,
-          costPrice: parseFloat(costPrice) || 0,
+          costPrice: parseFloat(split.costPrice ?? costPrice) || 0,
           status: "AVAILABLE",
           createdBy: userId,
         };
@@ -1682,6 +1712,295 @@ export class InventoryService {
       totalQuantity: itemsToCreate.reduce((s, i) => s + i.quantity, 0),
       inventoryItemIds: createdIds,
     };
+  }
+
+  /**
+   * Product spec count trend — daily count of distinct (lens_id, coating_id, Sph, Cyl, Add)
+   * combinations inwarded within the date range.
+   * @param {Object} params - { startDate, endDate, lensTypeId }
+   */
+  async getInventorySpecCountTrend({ startDate, endDate, lensTypeId } = {}) {
+    try {
+      const where = {
+        deleteStatus: false,
+        type: { in: ['INWARD_PO', 'INWARD_DIRECT'] },
+      };
+      if (startDate || endDate) {
+        where.transactionDate = {};
+        if (startDate) where.transactionDate.gte = new Date(startDate);
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          where.transactionDate.lte = end;
+        }
+      }
+      if (lensTypeId) {
+        where.inventoryItem = { lensType: { id: parseInt(lensTypeId, 10) } };
+      }
+
+      const txns = await prisma.inventoryTransaction.findMany({
+        where,
+        select: {
+          transactionDate: true,
+          inventoryItem: {
+            select: {
+              lens_id: true,
+              coating_id: true,
+              rightSpherical: true,
+              rightCylindrical: true,
+              rightAdd: true,
+              lensType: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { transactionDate: 'asc' },
+      });
+
+      // Group by date (YYYY-MM-DD) then count distinct spec signatures per day
+      const byDate = {};
+      for (const txn of txns) {
+        const dateKey = txn.transactionDate
+          ? txn.transactionDate.toISOString().slice(0, 10)
+          : 'unknown';
+        if (!byDate[dateKey]) byDate[dateKey] = new Set();
+        const item = txn.inventoryItem;
+        const sig = `${item.lens_id}|${item.coating_id ?? 'none'}|${item.rightSpherical ?? ''}|${item.rightCylindrical ?? ''}|${item.rightAdd ?? ''}`;
+        byDate[dateKey].add(sig);
+      }
+
+      const trend = Object.entries(byDate)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, specs]) => ({ date, specCount: specs.size }));
+
+      return { trend };
+    } catch (error) {
+      console.error('Error getting spec count trend:', error);
+      throw new APIError('Failed to get spec count trend', 500, 'SPEC_TREND_ERROR');
+    }
+  }
+
+  /**
+   * Top 10 and Low 10 selling products by OUTWARD_SALE transaction volume.
+   * @param {Object} params - { days: 30 | 90 }
+   */
+  async getTopLowSellingProducts({ days = 30 } = {}) {
+    try {
+      const since = new Date();
+      since.setDate(since.getDate() - parseInt(days, 10));
+
+      const txns = await prisma.inventoryTransaction.findMany({
+        where: {
+          deleteStatus: false,
+          type: 'OUTWARD_SALE',
+          transactionDate: { gte: since },
+        },
+        select: {
+          quantity: true,
+          inventoryItem: {
+            select: {
+              lens_id: true,
+              lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+            },
+          },
+        },
+      });
+
+      // Aggregate by lens_id
+      const byProduct = {};
+      for (const txn of txns) {
+        const id = txn.inventoryItem?.lens_id;
+        if (!id) continue;
+        if (!byProduct[id]) {
+          byProduct[id] = {
+            lens_id: id,
+            lens_name: txn.inventoryItem.lensProduct?.lens_name ?? `Lens #${id}`,
+            product_code: txn.inventoryItem.lensProduct?.product_code ?? '',
+            unitsSold: 0,
+          };
+        }
+        byProduct[id].unitsSold += Math.abs(txn.quantity || 0);
+      }
+
+      const sorted = Object.values(byProduct).sort((a, b) => b.unitsSold - a.unitsSold);
+      const top10 = sorted.slice(0, 10);
+      const low10 = [...sorted].sort((a, b) => a.unitsSold - b.unitsSold).slice(0, 10);
+
+      return { top10, low10, days };
+    } catch (error) {
+      console.error('Error getting top/low selling products:', error);
+      throw new APIError('Failed to get top/low selling products', 500, 'TOP_LOW_SELLING_ERROR');
+    }
+  }
+
+  /**
+   * Get inventory stock pivot representation
+   * @param {Object} queryParams - Filters: lens_id, category_id, Type_id, coating_id, location_id, search, sph, cyl, add
+   */
+  async getInventoryStockPivot(queryParams = {}) {
+    try {
+      const {
+        lens_id,
+        category_id,
+        Type_id,
+        coating_id,
+        location_id,
+        search,
+        sph,
+        cyl,
+        add,
+      } = queryParams;
+
+      const where = {
+        deleteStatus: false,
+        activeStatus: true,
+      };
+
+      const andClauses = [];
+
+      if (lens_id) andClauses.push({ lens_id: parseInt(lens_id, 10) });
+      if (category_id) andClauses.push({ category_id: parseInt(category_id, 10) });
+      if (Type_id) andClauses.push({ Type_id: parseInt(Type_id, 10) });
+      if (coating_id) andClauses.push({ coating_id: parseInt(coating_id, 10) });
+      if (location_id) andClauses.push({ location_id: parseInt(location_id, 10) });
+
+      if (sph) {
+        andClauses.push({
+          OR: [
+            { rightSpherical: String(sph) },
+            { leftSpherical: String(sph) }
+          ]
+        });
+      }
+      if (cyl) {
+        andClauses.push({
+          OR: [
+            { rightCylindrical: String(cyl) },
+            { leftCylindrical: String(cyl) }
+          ]
+        });
+      }
+      if (add) {
+        andClauses.push({
+          OR: [
+            { rightAdd: String(add) },
+            { leftAdd: String(add) }
+          ]
+        });
+      }
+
+      if (search) {
+        andClauses.push({
+          OR: [
+            { lensProduct: { lens_name: { contains: search, mode: 'insensitive' } } },
+            { lensProduct: { product_code: { contains: search, mode: 'insensitive' } } },
+            { location: { name: { contains: search, mode: 'insensitive' } } },
+            { tray: { name: { contains: search, mode: 'insensitive' } } }
+          ]
+        });
+      }
+
+      if (andClauses.length > 0) {
+        where.AND = andClauses;
+      }
+
+      const items = await prisma.inventoryItem.findMany({
+        where,
+        select: {
+          id: true,
+          quantity: true,
+          status: true,
+          rightSpherical: true,
+          rightCylindrical: true,
+          rightAdd: true,
+          leftSpherical: true,
+          leftCylindrical: true,
+          leftAdd: true,
+          lens_id: true,
+          lensProduct: {
+            select: { id: true, lens_name: true, product_code: true }
+          },
+          category: { select: { id: true, name: true } },
+          lensType: { select: { id: true, name: true } },
+          coating: { select: { id: true, name: true } },
+          location_id: true,
+          location: { select: { id: true, name: true } },
+          tray_id: true,
+          tray: { select: { id: true, name: true, capacity: true } }
+        }
+      });
+
+      const locationsMap = {};
+      const productMap = {};
+
+      for (const item of items) {
+        const locId = item.location_id;
+        const trayId = item.tray_id;
+
+        if (locId && item.location) {
+          if (!locationsMap[locId]) {
+            locationsMap[locId] = {
+              id: locId,
+              name: item.location.name,
+              trays: {}
+            };
+          }
+          if (trayId && item.tray) {
+            locationsMap[locId].trays[trayId] = {
+              id: trayId,
+              name: item.tray.name,
+              capacity: item.tray.capacity || 0
+            };
+          }
+        }
+
+        const sphVal = item.rightSpherical || item.leftSpherical || '0';
+        const cylVal = item.rightCylindrical || item.leftCylindrical || '0';
+        const addVal = item.rightAdd || item.leftAdd || '0';
+        
+        const prodKey = `${item.lens_id}|${item.lensType?.id ?? '0'}|${sphVal}|${cylVal}|${addVal}|${item.coating_id ?? '0'}`;
+
+        if (!productMap[prodKey]) {
+          productMap[prodKey] = {
+            key: prodKey,
+            lensProduct: item.lensProduct,
+            lensType: item.lensType,
+            coating: item.coating,
+            sph: sphVal,
+            cyl: cylVal,
+            add: addVal,
+            trays: {},
+            totalQty: 0
+          };
+        }
+
+        if (trayId) {
+          productMap[prodKey].trays[trayId] = (productMap[prodKey].trays[trayId] || 0) + item.quantity;
+          productMap[prodKey].totalQty += item.quantity;
+        }
+      }
+
+      const locationsList = Object.values(locationsMap).map(loc => ({
+        id: loc.id,
+        name: loc.name,
+        trays: Object.values(loc.trays).sort((a, b) => a.name.localeCompare(b.name))
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      const productsList = Object.values(productMap).sort((a, b) => {
+        const nameA = a.lensProduct?.lens_name || '';
+        const nameB = b.lensProduct?.lens_name || '';
+        const comp = nameA.localeCompare(nameB);
+        if (comp !== 0) return comp;
+        return parseFloat(a.sph) - parseFloat(b.sph);
+      });
+
+      return {
+        products: productsList,
+        locations: locationsList
+      };
+    } catch (error) {
+      console.error('Error compiling stock pivot:', error);
+      throw new APIError('Failed to get stock pivot data', 500, 'STOCK_PIVOT_ERROR');
+    }
   }
 }
 
