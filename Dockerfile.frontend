@@ -16,6 +16,9 @@ ENV VITE_WEB_API_URL=${VITE_WEB_API_URL}
 # Copy package files
 COPY package*.json ./
 
+# Copy Prisma schema (required by the postinstall "prisma generate" hook)
+COPY prisma ./prisma/
+
 # Install dependencies
 RUN npm ci --legacy-peer-deps
 
