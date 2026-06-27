@@ -6,6 +6,9 @@ export class ExpenseController {
   async listCategories(req, res, next) {
     try { res.json({ success: true, data: await service.listCategories() }); } catch (e) { next(e); }
   }
+  async getCategoryById(req, res, next) {
+    try { res.json({ success: true, data: await service.getCategoryById(parseInt(req.params.id)) }); } catch (e) { next(e); }
+  }
   async createCategory(req, res, next) {
     try { res.status(201).json({ success: true, data: await service.createCategory(req.body, req.user.id), message: 'Category created' }); } catch (e) { next(e); }
   }

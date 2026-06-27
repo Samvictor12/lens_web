@@ -8,9 +8,16 @@ export function isZeroDisplayValue(value) {
 }
 
 export function clearZeroOnFocusHandler(value, onChange) {
-  return () => {
+  return (e) => {
     if (isZeroDisplayValue(value)) {
-      onChange?.({ target: { value: "" } });
+      onChange?.({
+        ...e,
+        target: {
+          name: e.target.name,
+          value: "",
+          type: e.target.type,
+        },
+      });
     }
   };
 }

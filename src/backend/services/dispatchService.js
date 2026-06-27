@@ -1,6 +1,9 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 
+/** Sale orders in the dispatch pipeline (not yet delivered) */
+const DISPATCH_PIPELINE_STATUSES = ['READY_FOR_DISPATCH', 'DISPATCHED'];
+
 // ─── Shared includes ─────────────────────────────────────────────────────────
 
 const SALE_ORDER_INCLUDE = {
@@ -61,8 +64,8 @@ export const getDispatchDashboard = async (userId, roleName) => {
     ? { deliveryPersonId: userId }
     : {};
 
-  const [readyCount, inTransitCount, totalPending, recentDispatches] = await Promise.all([
-    // Ready for dispatch (sale orders not yet linked to any dispatch copy)
+  const [readyCount, inTransitCount, deliveredCount, totalPending, recentDispatches] = await Promise.all([
+    // Ready for dispatch (not yet picked up)
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
@@ -74,11 +77,15 @@ export const getDispatchDashboard = async (userId, roleName) => {
     prisma.dispatchCopy.count({
       where: { status: 'IN_TRANSIT', ...deliveryPersonFilter },
     }),
-    // All pending (READY_FOR_DISPATCH sale orders + IN_TRANSIT dispatches)
+    // Delivered dispatch copies
+    prisma.dispatchCopy.count({
+      where: { status: 'DELIVERED', ...deliveryPersonFilter },
+    }),
+    // Active dispatch workload (awaiting pickup or out for delivery)
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
-        status: { in: ['READY_FOR_DISPATCH', 'PROCESSING', 'PENDING'] },
+        status: { in: DISPATCH_PIPELINE_STATUSES },
         ...(isDeliveryPerson(roleName) ? { assignedPerson_id: userId } : {}),
       },
     }),
@@ -91,7 +98,7 @@ export const getDispatchDashboard = async (userId, roleName) => {
     }),
   ]);
 
-  return { readyCount, inTransitCount, totalPending, recentDispatches };
+  return { readyCount, inTransitCount, deliveredCount, totalPending, recentDispatches };
 };
 
 // ─── Ready for Dispatch (Sale Orders) ────────────────────────────────────────

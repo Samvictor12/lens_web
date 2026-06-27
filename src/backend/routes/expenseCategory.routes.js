@@ -7,6 +7,7 @@ const ctrl = new ExpenseController();
 const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
 router.get('/', ...guard, ctrl.listCategories.bind(ctrl));
+router.get('/:id', ...guard, ctrl.getCategoryById.bind(ctrl));
 router.post('/', ...guard, ctrl.createCategory.bind(ctrl));
 router.put('/:id', ...guard, ctrl.updateCategory.bind(ctrl));
 router.delete('/:id', ...guard, ctrl.deleteCategory.bind(ctrl));

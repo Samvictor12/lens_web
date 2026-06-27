@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 
-const CONFIG_TYPES = ['BARCODE_LABEL', 'SALE_ORDER', 'DISPATCH_NOTE'];
+const CONFIG_TYPES = ['AUTHENTICITY_CARD', 'BARCODE_LABEL', 'SALE_ORDER', 'DISPATCH_NOTE'];
+const LEGACY_TYPE_MAP = { LENS_SPECIFICATION: 'AUTHENTICITY_CARD' };
 
 export class PrinterConfigService {
 
@@ -8,15 +9,17 @@ export class PrinterConfigService {
     const rows = await prisma.printerConfig.findMany({
       orderBy: { config_type: 'asc' },
     });
-    // Always return all three types — fill missing ones with defaults
+    // Always return all types — fill missing ones with defaults; merge legacy keys
     return CONFIG_TYPES.map((type) => {
-      const found = rows.find((r) => r.config_type === type);
+      const found = rows.find((r) => r.config_type === type)
+        ?? rows.find((r) => LEGACY_TYPE_MAP[r.config_type] === type);
       return found ?? { config_type: type, printer_name: null, paper_size: null, label_width: null, label_height: null, extra_config: null };
     });
   }
 
   async upsert(data, userId) {
-    const { config_type, printer_name, paper_size, label_width, label_height, extra_config } = data;
+    let { config_type, printer_name, paper_size, label_width, label_height, extra_config } = data;
+    if (LEGACY_TYPE_MAP[config_type]) config_type = LEGACY_TYPE_MAP[config_type];
     if (!CONFIG_TYPES.includes(config_type)) {
       const { APIError } = await import('../middleware/errorHandler.js');
       throw new APIError(`Invalid config_type. Must be one of: ${CONFIG_TYPES.join(', ')}`, 400, 'INVALID_TYPE');

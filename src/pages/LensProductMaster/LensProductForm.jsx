@@ -595,6 +595,7 @@ export default function LensProductForm() {
                   onChange={handleInputChange}
                   error={errors.sphereMin}
                   disabled={!isEditing}
+                  clearZeroOnFocus
                   // placeholder="-10.00"
                 />
                 {/* <div className="grid grid-cols-2 gap-2"> */}
@@ -607,6 +608,7 @@ export default function LensProductForm() {
                     onChange={handleInputChange}
                     error={errors.sphereMax}
                     disabled={!isEditing}
+                    clearZeroOnFocus
                     // placeholder="+10.00"
                   />
                   <FormInput
@@ -621,6 +623,7 @@ export default function LensProductForm() {
                     placeholder="0.00"
                     prefix="₹"
                     min="0"
+                    clearZeroOnFocus
                   />
                 {/* </div> */}
               </div>
@@ -635,6 +638,7 @@ export default function LensProductForm() {
                   onChange={handleInputChange}
                   error={errors.cylinderMin}
                   disabled={!isEditing}
+                  clearZeroOnFocus
                   // placeholder="-6.00"
                 />
                 {/* <div className="grid grid-cols-2 gap-2"> */}
@@ -647,6 +651,7 @@ export default function LensProductForm() {
                     onChange={handleInputChange}
                     error={errors.cylinderMax}
                     disabled={!isEditing}
+                    clearZeroOnFocus
                     // placeholder="0.00"
                   />
                   <FormInput
@@ -661,6 +666,7 @@ export default function LensProductForm() {
                     placeholder="0.00"
                     prefix="₹"
                     min="0"
+                    clearZeroOnFocus
                   />
                 {/* </div> */}
               </div>
@@ -677,6 +683,7 @@ export default function LensProductForm() {
                       onChange={handleInputChange}
                       error={errors.addMin}
                       disabled={!isEditing}
+                      clearZeroOnFocus
                     />
                     <FormInput
                       label="Add Max"
@@ -687,6 +694,7 @@ export default function LensProductForm() {
                       onChange={handleInputChange}
                       error={errors.addMax}
                       disabled={!isEditing}
+                      clearZeroOnFocus
                     />
                     <FormInput
                       label="Add Extra Charge"
@@ -700,6 +708,7 @@ export default function LensProductForm() {
                       placeholder="0.00"
                       prefix="₹"
                       min="0"
+                      clearZeroOnFocus
                     />
                   </div>
                 </>
@@ -734,6 +743,7 @@ export default function LensProductForm() {
                   error={errors.minThresholdQty}
                   disabled={!isEditing}
                   placeholder="e.g., 10"
+                  clearZeroOnFocus
                 />
                 <FormInput
                   label="Max Threshold Qty"
@@ -746,6 +756,7 @@ export default function LensProductForm() {
                   error={errors.maxThresholdQty}
                   disabled={!isEditing}
                   placeholder="e.g., 100"
+                  clearZeroOnFocus
                 />
               </div>
             </CardContent>
@@ -829,6 +840,7 @@ export default function LensProductForm() {
                         required
                         disabled={!isEditing}
                         placeholder="0.00"
+                        clearZeroOnFocus
                       />
                     </div>
                     {isEditing && (

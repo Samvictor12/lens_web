@@ -9,26 +9,65 @@ export class ExpenseService {
   async listCategories() {
     return prisma.expenseCategory.findMany({
       where: { delete_status: false },
-      include: { ledger: { select: { id: true, ledgerCode: true, ledgerName: true } } },
+      include: {
+        ledger: { select: { id: true, ledgerCode: true, ledgerName: true } },
+        _count: {
+          select: { expenses: { where: { delete_status: false } } },
+        },
+      },
       orderBy: { name: 'asc' },
     });
   }
 
-  async createCategory({ name, ledger_id, expenseType }, userId) {
+  async getCategoryById(id) {
+    const cat = await prisma.expenseCategory.findFirst({
+      where: { id, delete_status: false },
+      include: {
+        ledger: { select: { id: true, ledgerCode: true, ledgerName: true, currentBalance: true } },
+        _count: {
+          select: { expenses: { where: { delete_status: false } } },
+        },
+      },
+    });
+    if (!cat) throw new APIError('Category not found', 404, 'NOT_FOUND');
+    return cat;
+  }
+
+  async createCategory({ name, ledger_id, expenseType, active_status }, userId) {
     if (!name) throw new APIError('Category name is required', 400, 'VALIDATION_ERROR');
     const exists = await prisma.expenseCategory.findFirst({ where: { name } });
     if (exists) throw new APIError('Category already exists', 409, 'DUPLICATE');
     return prisma.expenseCategory.create({
-      data: { name, ledger_id: ledger_id || null, expenseType: expenseType || 'INDIRECT', createdBy: userId },
+      data: {
+        name,
+        ledger_id: ledger_id || null,
+        expenseType: expenseType || 'INDIRECT',
+        active_status: active_status !== undefined ? active_status : true,
+        createdBy: userId,
+      },
+      include: {
+        ledger: { select: { id: true, ledgerCode: true, ledgerName: true } },
+        _count: { select: { expenses: { where: { delete_status: false } } } },
+      },
     });
   }
 
-  async updateCategory(id, { name, ledger_id, expenseType }, userId) {
+  async updateCategory(id, { name, ledger_id, expenseType, active_status }, userId) {
     const cat = await prisma.expenseCategory.findFirst({ where: { id, delete_status: false } });
     if (!cat) throw new APIError('Category not found', 404, 'NOT_FOUND');
     return prisma.expenseCategory.update({
       where: { id },
-      data: { ...(name && { name }), ...(ledger_id !== undefined && { ledger_id: ledger_id || null }), ...(expenseType && { expenseType }), updatedBy: userId },
+      data: {
+        ...(name && { name }),
+        ...(ledger_id !== undefined && { ledger_id: ledger_id || null }),
+        ...(expenseType && { expenseType }),
+        ...(active_status !== undefined && { active_status }),
+        updatedBy: userId,
+      },
+      include: {
+        ledger: { select: { id: true, ledgerCode: true, ledgerName: true } },
+        _count: { select: { expenses: { where: { delete_status: false } } } },
+      },
     });
   }
 

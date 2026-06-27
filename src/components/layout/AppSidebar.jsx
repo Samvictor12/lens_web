@@ -183,6 +183,17 @@ const masterItems = [
     icon: Package,
     // allowedRoles: ["admin", "inventory"],
     subItems: [
+      
+      {
+        title: "Lens Indexes",
+        url: "/masters/lens-index",
+        icon: Grid,
+      },
+      {
+        title: "Lens Diameters",
+        url: "/masters/lens-dia",
+        icon: Circle,
+      },
       {
         title: "Lens Categories",
         url: "/masters/lens-category",
@@ -192,11 +203,6 @@ const masterItems = [
         title: "Lens Materials",
         url: "/masters/lens-material",
         icon: Package,
-      },
-      {
-        title: "Lens Diameters",
-        url: "/masters/lens-dia",
-        icon: Circle,
       },
       {
         title: "Lens Coatings",
@@ -209,15 +215,16 @@ const masterItems = [
         icon: Sparkles,
       },
       {
+        title: "Lens Fittings",
+        url: "/masters/lens-fitting",
+        icon: Wrench,
+      },
+      {
         title: "Lens Brands",
         url: "/masters/lens-brand",
         icon: Award,
       },
-      {
-        title: "Lens Indexes",
-        url: "/masters/lens-index",
-        icon: Grid,
-      },
+      
       {
         title: "Lens Types",
         url: "/masters/lens-type",
@@ -228,11 +235,7 @@ const masterItems = [
         url: "/masters/lens-product",
         icon: Package,
       },
-      {
-        title: "Lens Fittings",
-        url: "/masters/lens-fitting",
-        icon: Wrench,
-      },
+      
       
       {
         title: "Lens Offers",
@@ -265,12 +268,12 @@ const masterItems = [
     icon: Tag,
     // allowedRoles: ["admin", "sales"],
   },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    // allowedRoles: ["admin"],
-  },
+  // {
+  //   title: "Settings",
+  //   url: "/settings",
+  //   icon: Settings,
+  //   // allowedRoles: ["admin"],
+  // },
 ];
 
 export const AppSidebar = () => {

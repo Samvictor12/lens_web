@@ -1,82 +1,75 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Tag, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 /**
- * Custom hook that returns the table column configuration for expense categories.
- * @param {Function} onEdit - Called with the category object to edit
- * @param {Function} onDelete - Called with the category object to delete
- * @returns {Array} Column definitions for the smart Table component
+ * Custom hook that returns the table columns configuration for the expense category list
+ * @param {Function} navigate - React Router navigate function
+ * @param {Function} onDelete - Delete handler function
+ * @returns {Array} Array of column definitions
  */
-export const useExpenseCategoryColumns = (onEdit, onDelete) => {
+export const useExpenseCategoryColumns = (navigate, onDelete) => {
   return [
     {
       accessorKey: "name",
       header: "Category Name",
       sortable: true,
-      cell: (cat) => (
-        <span className="font-medium text-xs">{cat.name}</span>
-      ),
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
-      sortable: false,
-      cell: (cat) => (
-        <span className="text-xs text-muted-foreground">
-          {cat.description || "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "ledger",
-      header: "Linked Ledger",
-      sortable: false,
-      cell: (cat) =>
-        cat.ledger ? (
-          <span className="text-xs font-mono">
-            {cat.ledger.ledgerCode} — {cat.ledger.ledgerName}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        ),
-    },
-    {
-      accessorKey: "expenseType",
-      header: "Classification",
-      sortable: false,
-      cell: (cat) => (
-        <Badge
-          variant="outline"
-          className={
-            cat.expenseType === "DIRECT"
-              ? "text-xs font-normal bg-blue-100 text-blue-700 border-blue-300"
-              : "text-xs font-normal bg-gray-100 text-gray-700 border-gray-300"
-          }
+      cell: (category) => (
+        <a
+          href={`/masters/expense-categories/view/${category.id}`}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(`/masters/expense-categories/view/${category.id}`);
+          }}
+          className="flex items-center gap-1.5 hover:underline cursor-pointer"
         >
-          {cat.expenseType === "DIRECT" ? "Direct" : "Indirect"}
+          <Tag className="h-3 w-3 text-muted-foreground" />
+          <div className="font-medium text-xs text-primary">{category.name}</div>
+        </a>
+      ),
+    },
+    {
+      accessorKey: "active_status",
+      header: "Status",
+      sortable: true,
+      cell: (category) => (
+        <Badge
+          variant={category.active_status ? "success" : "secondary"}
+          className="text-xs"
+        >
+          {category.active_status ? "Active" : "Inactive"}
         </Badge>
       ),
     },
     {
-      accessorKey: "id",
+      accessorKey: "expenses",
+      header: "Expenses",
+      sortable: false,
+      cell: (category) => (
+        <span className="text-xs">{category._count?.expenses || 0}</span>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      sortable: true,
+      cell: (category) => (
+        <span className="text-xs">
+          {new Date(category.createdAt).toLocaleDateString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "actions",
       header: "Actions",
-      align: "right",
-      cell: (cat) => (
-        <div className="flex gap-1 justify-end">
+      sortable: false,
+      cell: (category) => (
+        <div className="flex gap-1">
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => onEdit(cat)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-red-500 hover:text-red-700"
-            onClick={() => onDelete(cat)}
+            size="xs"
+            className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => onDelete(category)}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

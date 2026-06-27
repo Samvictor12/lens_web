@@ -16,6 +16,7 @@ import { saleOrderFilters } from "./SaleOrder.constants";
 import { useSaleOrderColumns } from "./useSaleOrderColumns";
 import SaleOrderFilter from "./SaleOrderFilter";
 import { Refresh } from "@/components/ui/Refresh";
+import SaleOrderStatusLogDialog from "@/components/sale-order/SaleOrderStatusLogDialog";
 
 export default function SaleOrderMain() {
   const navigate = useNavigate();
@@ -47,6 +48,11 @@ export default function SaleOrderMain() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [statusLogOrder, setStatusLogOrder] = useState(null);
+
+  const handleStatusClick = (order) => {
+    setStatusLogOrder(order);
+  };
 
   // Handle delete order click
   const handleDeleteClick = (order) => {
@@ -55,7 +61,7 @@ export default function SaleOrderMain() {
   };
 
   // Get table columns with delete handler
-  const columns = useSaleOrderColumns(navigate, handleDeleteClick);
+  const columns = useSaleOrderColumns(navigate, handleDeleteClick, handleStatusClick);
 
   // Fetch customers for filter dropdown
   useEffect(() => {
@@ -265,6 +271,13 @@ export default function SaleOrderMain() {
             : "Are you sure you want to delete this sale order?"
         }
         isDeleting={isDeleting}
+      />
+
+      <SaleOrderStatusLogDialog
+        open={Boolean(statusLogOrder)}
+        onOpenChange={(open) => !open && setStatusLogOrder(null)}
+        orderId={statusLogOrder?.id}
+        orderNo={statusLogOrder?.orderNo}
       />
     </div>
   );

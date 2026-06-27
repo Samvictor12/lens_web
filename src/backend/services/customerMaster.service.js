@@ -703,7 +703,17 @@ export class CustomerMasterService {
         where: {
           customerId: id,
           deleteStatus: false,
-          status: { in: ["CONFIRMED", "IN_PRODUCTION", "AWAITING_QUALITY", "READY_FOR_DISPATCH", "DELIVERED"] },
+          status: {
+            in: [
+              'PRODUCTION_READY',
+              'IN_PRODUCTION',
+              'ON_HOLD',
+              'AWAITING_QUALITY',
+              'READY_FOR_DISPATCH',
+              'DISPATCHED',
+              'DELIVERED',
+            ],
+          },
         },
         select: {
           id: true, orderNo: true, status: true, orderDate: true,

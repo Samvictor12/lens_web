@@ -138,12 +138,14 @@ flowchart TD
 - [x] 🟢 Dispatch pickup → `DISPATCHED`
 - [x] 🟢 Invoice issue → `INVOICED`; full pay → `COMPLETED`
 
-## Phase 8 — Verification 🟢 — ⏳ PENDING DB MIGRATE
+## Phase 8 — Verification 🟢 — ✅ DONE
 
 - [x] 🟢 `npm run build` passes
-- [x] 🟢 `npm run test:so:p2` passes
-- [ ] `npm run db:deploy` then `npm run test:so:p1`
-- [ ] `npm run test:so:integration` (full workflow dummy data)
+- [x] 🟢 `npm run test:so:p2` passes (24/24)
+- [x] 🟢 `npm run test:so:p1` passes (5/5)
+- [x] 🟢 `npm run test:so:integration` passes (full workflow)
+- [x] 🟢 `npm run test:api:smoke` passes (27/27 with auth)
+- [x] 🟢 Customer/vendor `ledgerId` patch + backfill in seed
 
 ---
 
@@ -178,7 +180,13 @@ flowchart TD
 
 ```bash
 npm run db:generate
-npm run db:deploy   # after truncate / fresh DB
-node prisma/seed/complete-seed.js
+node prisma/seed/complete-seed.js   # includes patch + ledger backfill
+npm run seed:so-workflow            # virtual location for Pre-QC
+npm run test:so:p1
+npm run test:so:p2
+npm run test:so:integration
+npm run test:api:smoke              # needs dev:server running
 npm run dev:all
 ```
+
+> **Note:** If DB was created via seed (no `_prisma_migrations`), use `npm run db:patch` and `npm run db:backfill:vendor-customer-ledgers` instead of `db:deploy`.

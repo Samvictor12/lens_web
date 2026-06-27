@@ -430,9 +430,13 @@ export class SaleOrderController {
       if (!validation.isValid) {
         return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
       }
-      const userId = req.user?.id || 1;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
       const source = req.body?.source === 'INVENTORY' ? 'INVENTORY' : 'USER';
-      const po = await saleOrderWorkflowService.raisePoFromSo(validation.data, userId, source);
+      const vendorId = req.body?.vendorId;
+      const po = await saleOrderWorkflowService.raisePoFromSo(validation.data, userId, { source, vendorId });
       res.status(201).json({ success: true, message: 'PO raised', data: po });
     } catch (error) {
       next(error);
@@ -489,6 +493,27 @@ export class SaleOrderController {
         inventoryItemIds: req.body?.inventoryItemIds,
       });
       res.status(200).json({ success: true, message: 'Issued to Pre-QC', data: order });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelSaleOrder(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+      const order = await saleOrderWorkflowService.cancelSaleOrder(
+        validation.data,
+        userId,
+        req.body?.remark
+      );
+      res.status(200).json({ success: true, message: 'Sale order cancelled', data: order });
     } catch (error) {
       next(error);
     }

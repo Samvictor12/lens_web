@@ -33,7 +33,14 @@ const FormInput = React.forwardRef(
 
     const handleFocus = (e) => {
       if (clearZeroOnFocus && isZeroDisplayValue(value)) {
-        onChange?.({ ...e, target: { ...e.target, value: "" } });
+        onChange?.({
+          ...e,
+          target: {
+            name: e.target.name,
+            value: "",
+            type: e.target.type,
+          },
+        });
       }
       onFocus?.(e);
     };

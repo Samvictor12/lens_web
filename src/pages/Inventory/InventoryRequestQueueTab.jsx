@@ -1,29 +1,66 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Search, AlertCircle, SlidersHorizontal, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Search, AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Refresh } from '@/components/ui/Refresh';
+import { FormSelect } from '@/components/ui/form-select';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   getInventorySoQueue,
-  raisePoFromSo,
   issueSoToPreQc,
-  getCustomersDropdown,
-  getLensProductsDropdown,
+  raisePoFromSo,
 } from '@/services/saleOrder';
 import { statusColors } from '@/pages/SaleOrder/SaleOrder.constants';
 import { queueBadge } from '@/constants/saleOrderStatus';
+import {
+  soRequestQueueFilters,
+  soRequestQueueGroupingOptions,
+  procurementBadgeStyles,
+} from './InventoryRequestQueue.constants';
+import InventoryRequestQueueFilter from './InventoryRequestQueueFilter';
+import RaisePoModal from '@/components/sale-order/RaisePoModal';
 import StockPickModal from './StockPickModal';
+
+function buildOrderSummary(order) {
+  return {
+    orderNo: order.orderNo,
+    customerName: order.customer?.name,
+    customerRefNo: order.customerRefNo,
+    lensProductName: order.lensProduct?.lens_name,
+    categoryName: order.category?.name || order.lensCategory?.name,
+    typeName: order.lensType?.name || order.type?.name,
+    coatingName: order.coating?.name,
+    status: order.status,
+    procurementType: order.procurementType || 'RX',
+    rightEye: order.rightEye,
+    leftEye: order.leftEye,
+    rightSpherical: order.rightSpherical,
+    rightCylindrical: order.rightCylindrical,
+    rightAxis: order.rightAxis,
+    rightAdd: order.rightAdd,
+    rightDia: order.rightDia,
+    leftSpherical: order.leftSpherical,
+    leftCylindrical: order.leftCylindrical,
+    leftAxis: order.leftAxis,
+    leftAdd: order.leftAdd,
+    leftDia: order.leftDia,
+  };
+}
+
+function ProcurementBadge({ type }) {
+  const procurementType = type || 'RX';
+  const style =
+    procurementBadgeStyles[procurementType] || procurementBadgeStyles.RX;
+
+  return (
+    <Badge variant="outline" className={`text-xs border ${style}`}>
+      {procurementType}
+    </Badge>
+  );
+}
 
 function QueueCard({ order, onIssue, onRaisePo, busy }) {
   const badge = queueBadge(order.status);
@@ -45,8 +82,9 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
       <p className="text-sm text-muted-foreground truncate">
         {order.customer?.name} {order.customerRefNo ? `· Ref: ${order.customerRefNo}` : ''}
       </p>
-      <div className="flex justify-between items-center text-xs text-muted-foreground">
-        <span>Procurement: {order.procurementType || 'RX'}</span>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>Procurement:</span>
+        <ProcurementBadge type={order.procurementType} />
       </div>
       <p className="text-sm font-medium truncate text-foreground">{order.lensProduct?.lens_name || '—'}</p>
       <div className="flex flex-wrap gap-2 pt-1">
@@ -54,7 +92,7 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
           Issue &amp; Pre-QC
         </Button>
         {['DRAFT', 'PO_CANCELLED'].includes(order.status) && (
-          <Button size="sm" variant="outline" onClick={() => onRaisePo(order.id)} disabled={busy}>
+          <Button size="sm" variant="outline" onClick={() => onRaisePo(order)} disabled={busy}>
             Raise PO
           </Button>
         )}
@@ -78,33 +116,19 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   const [search, setSearch] = useState('');
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [pickModalOrder, setPickModalOrder] = useState(null);
+  const [raisePoOrder, setRaisePoOrder] = useState(null);
 
-  // Filters & Grouping state
-  const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('all');
-  const [selectedProductId, setSelectedProductId] = useState('all');
-  const [filterCustomerRefNo, setFilterCustomerRefNo] = useState('');
-  const [filterOrderNo, setFilterOrderNo] = useState('');
-  const [groupBy, setGroupBy] = useState('none');
-  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState(soRequestQueueFilters);
+  const [tempFilters, setTempFilters] = useState(soRequestQueueFilters);
+  const [showFilterDialog, setShowFilterDialog] = useState(false);
+  const [groupBy, setGroupBy] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState({});
 
-  useEffect(() => {
-    async function loadDropdowns() {
-      try {
-        const [custRes, prodRes] = await Promise.all([
-          getCustomersDropdown(),
-          getLensProductsDropdown(),
-        ]);
-        if (custRes.success) setCustomers(custRes.data || []);
-        if (prodRes.success) setProducts(prodRes.data || []);
-      } catch (err) {
-        console.error('Failed to load filter dropdowns', err);
-      }
-    }
-    loadDropdowns();
-  }, []);
+  const hasActiveFilters =
+    filters.customerId != null ||
+    filters.lensProductId != null ||
+    Boolean(filters.customerRefNo?.trim()) ||
+    Boolean(filters.orderNo?.trim());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,10 +136,10 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
       const params = {
         limit: 100,
         search: search || undefined,
-        customerId: selectedCustomerId !== 'all' ? selectedCustomerId : undefined,
-        lensProductId: selectedProductId !== 'all' ? selectedProductId : undefined,
-        customerRefNo: filterCustomerRefNo || undefined,
-        orderNo: filterOrderNo || undefined,
+        customerId: filters.customerId || undefined,
+        lensProductId: filters.lensProductId || undefined,
+        customerRefNo: filters.customerRefNo?.trim() || undefined,
+        orderNo: filters.orderNo?.trim() || undefined,
       };
       const res = await getInventorySoQueue(params);
       if (res.success) setOrders(res.data || []);
@@ -124,11 +148,36 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
     } finally {
       setLoading(false);
     }
-  }, [search, selectedCustomerId, selectedProductId, filterCustomerRefNo, filterOrderNo, toast]);
+  }, [search, filters, toast]);
 
   useEffect(() => {
     load();
   }, [load, refreshKey, localRefreshKey]);
+
+  const handleRefresh = () => {
+    setLocalRefreshKey((k) => k + 1);
+    toast({
+      title: 'Refreshed',
+      description: 'SO Request Queue has been refreshed.',
+    });
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(tempFilters);
+    setShowFilterDialog(false);
+  };
+
+  const handleClearFilters = () => {
+    const cleared = { ...soRequestQueueFilters };
+    setFilters(cleared);
+    setTempFilters(cleared);
+    setShowFilterDialog(false);
+  };
+
+  const handleCancelFilters = () => {
+    setTempFilters(filters);
+    setShowFilterDialog(false);
+  };
 
   const handleIssueClick = (order) => {
     setPickModalOrder(order);
@@ -151,17 +200,23 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
     }
   };
 
-  const handleRaisePo = async (id) => {
+  const handleRaisePoClick = (order) => {
+    setRaisePoOrder(order);
+  };
+
+  const handleRaisePoConfirm = async (vendorId) => {
+    if (!raisePoOrder) return;
     setBusy(true);
     try {
-      const res = await raisePoFromSo(id, 'INVENTORY');
+      const res = await raisePoFromSo(raisePoOrder.id, { vendorId, source: 'INVENTORY' });
       if (res.success) {
         toast({ title: 'PO raised', description: res.data?.poNumber });
-        window.open(`/masters/purchase-orders/edit/${res.data.id}`, '_blank');
+        setRaisePoOrder(null);
         load();
       }
     } catch (e) {
       toast({ title: 'Raise PO failed', description: e.message, variant: 'destructive' });
+      setRaisePoOrder(null);
     } finally {
       setBusy(false);
     }
@@ -175,7 +230,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   };
 
   const getGroupedOrders = () => {
-    if (groupBy === 'none') return null;
+    if (!groupBy) return null;
 
     return orders.reduce((groups, order) => {
       let key = 'Unknown';
@@ -197,130 +252,62 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
 
   return (
     <div className="flex flex-col h-full gap-2">
-      <Card className="p-1.5 flex-shrink-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+      <Card className="p-1 sm:p-1 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Search by SO # or Ref #..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && load()}
-              className="pl-9 h-8 text-sm bg-white dark:bg-slate-900"
+              className="pl-8 h-8 text-xs"
             />
           </div>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`h-8 gap-1.5 text-xs bg-white dark:bg-slate-900 ${
-              showFilters ? 'bg-slate-100 dark:bg-slate-800 border-primary' : ''
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {(selectedCustomerId !== 'all' || selectedProductId !== 'all' || filterCustomerRefNo || filterOrderNo) && (
-              <Badge variant="secondary" className="ml-1 px-1 h-3.5 bg-primary text-primary-foreground text-[9px]">
-                Active
-              </Badge>
-            )}
-          </Button>
 
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>Group By:</span>
-            <Select value={groupBy} onValueChange={setGroupBy}>
-              <SelectTrigger className="w-[110px] h-8 text-xs bg-white dark:bg-slate-900 border">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="customer">Customer</SelectItem>
-                <SelectItem value="product">Product</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Refresh onClick={() => setLocalRefreshKey((k) => k + 1)} className="h-8 w-8 bg-white dark:bg-slate-900" />
-        </div>
-
-        {showFilters && (
-          <div className="border-t mt-2 pt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Customer</label>
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="All Customers" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  <SelectItem value="all">All Customers</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name} {c.code ? `(${c.code})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Lens Product</label>
-              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="All Products" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  <SelectItem value="all">All Products</SelectItem>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.label || p.lens_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Customer Ref No</label>
-              <Input
-                placeholder="Ref number..."
-                value={filterCustomerRefNo}
-                onChange={(e) => setFilterCustomerRefNo(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && load()}
-                className="h-8 text-xs bg-white dark:bg-slate-900"
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+              Group by:
+            </span>
+            <div className="w-40">
+              <FormSelect
+                name="groupBy"
+                options={soRequestQueueGroupingOptions}
+                value={groupBy}
+                onChange={(value) => {
+                  setGroupBy(value);
+                  setExpandedGroups({});
+                }}
+                placeholder="None"
+                isSearchable={false}
+                isClearable={false}
               />
             </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SO Number</label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="SO-XXXX..."
-                  value={filterOrderNo}
-                  onChange={(e) => setFilterOrderNo(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && load()}
-                  className="h-8 text-xs flex-1 bg-white dark:bg-slate-900"
-                />
-                {(selectedCustomerId !== 'all' || selectedProductId !== 'all' || filterCustomerRefNo || filterOrderNo) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedCustomerId('all');
-                      setSelectedProductId('all');
-                      setFilterCustomerRefNo('');
-                      setFilterOrderNo('');
-                    }}
-                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    title="Clear all filters"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            </div>
           </div>
-        )}
+
+          <InventoryRequestQueueFilter
+            open={showFilterDialog}
+            onOpenChange={setShowFilterDialog}
+            filters={tempFilters}
+            onFilterChange={setTempFilters}
+            onApply={handleApplyFilters}
+            onCancel={handleCancelFilters}
+            hasActiveFilters={hasActiveFilters}
+          />
+
+          <Refresh onClick={handleRefresh} />
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="h-8 px-2"
+              onClick={handleClearFilters}
+            >
+              <X className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline ml-1">Clear</span>
+            </Button>
+          )}
+        </div>
       </Card>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -335,14 +322,14 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
             <AlertCircle className="h-8 w-8" />
             No orders in queue
           </div>
-        ) : groupBy === 'none' ? (
+        ) : !groupBy ? (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 p-1">
             {orders.map((o) => (
               <QueueCard
                 key={o.id}
                 order={o}
                 onIssue={handleIssueClick}
-                onRaisePo={handleRaisePo}
+                onRaisePo={handleRaisePoClick}
                 busy={busy}
               />
             ))}
@@ -351,7 +338,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
           <div className="space-y-4 p-1">
             {Object.entries(groupedOrders).map(([key, groupOrders]) => (
               <div key={key} className="space-y-2">
-                <div 
+                <div
                   onClick={() => toggleGroup(key)}
                   className="bg-slate-50 dark:bg-slate-900 border px-4 py-2 flex justify-between items-center rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition duration-200"
                 >
@@ -367,7 +354,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
                     {groupOrders.length} {groupOrders.length === 1 ? 'order' : 'orders'}
                   </Badge>
                 </div>
-                
+
                 {expandedGroups[key] !== false && (
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 pl-2 transition-all">
                     {groupOrders.map((o) => (
@@ -375,7 +362,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
                         key={o.id}
                         order={o}
                         onIssue={handleIssueClick}
-                        onRaisePo={handleRaisePo}
+                        onRaisePo={handleRaisePoClick}
                         busy={busy}
                       />
                     ))}
@@ -386,6 +373,17 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
           </div>
         )}
       </div>
+
+      {raisePoOrder && (
+        <RaisePoModal
+          open={Boolean(raisePoOrder)}
+          onOpenChange={(open) => !open && setRaisePoOrder(null)}
+          summary={buildOrderSummary(raisePoOrder)}
+          onConfirm={handleRaisePoConfirm}
+          loading={busy}
+          mode="raise"
+        />
+      )}
 
       {pickModalOrder && (
         <StockPickModal

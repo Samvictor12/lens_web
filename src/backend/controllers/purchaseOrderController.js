@@ -167,18 +167,18 @@ class PurchaseOrderController {
   async deletePurchaseOrder(req, res, next) {
     try {
       const { id } = req.params;
-      const { updatedBy } = req.body;
+      const userId = req.user?.id;
 
-      if (!updatedBy) {
-        return res.status(400).json({
+      if (!userId) {
+        return res.status(401).json({
           success: false,
-          message: "Updated by user ID is required",
+          message: "Unauthorized",
         });
       }
 
       await purchaseOrderService.deletePurchaseOrder(
         parseInt(id),
-        parseInt(updatedBy),
+        parseInt(userId),
       );
 
       res.status(200).json({

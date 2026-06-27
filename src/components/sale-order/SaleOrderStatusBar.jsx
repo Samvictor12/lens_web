@@ -17,7 +17,7 @@ export default function SaleOrderStatusBar({ orderId, orderNo, status, hasPoHist
     return true;
   });
 
-  const rejectStatuses = ["PO_CANCELLED", "PRE_QC_REJECTED", "POST_QC_REJECTED", "PRE_QC_SCRAPPED", "POST_QC_SCRAPPED"];
+  const rejectStatuses = ["PO_CANCELLED", "PRE_QC_REJECTED", "POST_QC_REJECTED", "PRE_QC_SCRAPPED", "POST_QC_SCRAPPED", "CANCELLED"];
   const currentIndex = steps.indexOf(status);
   const isReject = rejectStatuses.includes(status);
 
