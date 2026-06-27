@@ -118,7 +118,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
   ];
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden gap-3">
       {/* Search Bar */}
       <Card className="p-2 flex-shrink-0">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -144,7 +144,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
       </Card>
 
       {/* Data Display */}
-      {/* <Card className="flex-1 min-h-0"> */}
+      <div className="flex-1 min-h-0">
       <Table
         columns={columns}
         data={transactions}
@@ -161,7 +161,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
         loading={isLoading}
         emptyMessage="No transactions found"
       />
-      {/* </Card> */}
+      </div>
     </div>
   );
 }

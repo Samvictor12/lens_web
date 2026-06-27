@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import { seedFinancialLedgers } from './financial-ledgers-seed.js';
+import { backfillVendorCustomerLedgers } from './backfill-vendor-customer-ledgers.js';
+import { patchMissingDbColumns } from '../../scripts/patch-missing-db-columns.js';
 
 const prisma = new PrismaClient();
 
@@ -810,6 +812,11 @@ async function seedComplete() {
     console.log('🏦 Seeding financial ledgers...');
     await seedFinancialLedgers(prisma);
     console.log('✅ Financial ledgers created\n');
+
+    console.log('🔧 Patching schema + linking customer/vendor ledgers...');
+    await patchMissingDbColumns(prisma);
+    await backfillVendorCustomerLedgers(prisma);
+    console.log('✅ Customer/vendor ledger links ready\n');
 
     console.log('⚙️  Seeding company settings...');
     const defaultCustomAttributes = {

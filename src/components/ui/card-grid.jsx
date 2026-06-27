@@ -95,14 +95,14 @@ export function CardGrid({
 
   // With pagination
   return (
-    <div className="flex flex-col h-full gap-3">
-      <div className="flex-1 overflow-auto">
+    <div className="flex flex-col h-full min-h-0 gap-3">
+      <div className="flex-1 min-h-0 overflow-auto">
         {renderContent()}
       </div>
 
-      {/* Pagination Controls */}
+      {/* Pagination — pinned below scroll area */}
       {totalCount > 0 && (
-        <div className="flex items-center justify-between px-2 pt-2 border-t bg-background rounded-md flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center justify-between px-2 py-3 border-t bg-background rounded-md">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>
               Showing {startIndex} to {endIndex} of {totalCount} results

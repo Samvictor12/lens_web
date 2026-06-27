@@ -143,9 +143,9 @@ export function DataTable({
   };
 
   return (
-    <div className="flex flex-col h-[88vh]">
-      {/* Table Container */}
-      <div className="flex-1 rounded-md border overflow-hidden">
+    <div className="flex flex-col h-full min-h-0">
+      {/* Table Container — scrollable body */}
+      <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
         <div className="relative h-full overflow-auto">
           <Table className="min-w-full border-collapse">
             <TableHeader className="sticky top-0 bg-background z-10 border-b">
@@ -219,9 +219,9 @@ export function DataTable({
         </div>
       </div>
 
-      {/* Pagination - Sticky at bottom */}
+      {/* Pagination — pinned below scroll area */}
       {showPagination && totalCount > 0 && (
-        <div className="flex items-center justify-between px-2 py-3 border-t bg-background">
+        <div className="flex flex-shrink-0 items-center justify-between px-2 py-3 border-t bg-background">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>
               Showing {startIndex} to {endIndex} of {totalCount} results

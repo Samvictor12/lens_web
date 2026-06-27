@@ -95,7 +95,14 @@ export class BusinessCategoryService {
         take,
         orderBy: {
           [sortBy]: sortOrder
-        }
+        },
+        include: {
+          _count: {
+            select: {
+              customers: { where: { delete_status: false } },
+            },
+          },
+        },
       });
 
       return {
@@ -124,9 +131,11 @@ export class BusinessCategoryService {
         where: { id: parseInt(id) },
         include: {
           _count: {
-            select: { customers: true }
-          }
-        }
+            select: {
+              customers: { where: { delete_status: false } },
+            },
+          },
+        },
       });
 
       if (!category || category.delete_status) {

@@ -31,7 +31,9 @@
     "test:so:p1": "node scripts/test-so-workflow-phase1.js",
     "test:so:p2": "node scripts/test-so-workflow-phase2.js",
     "test:so:integration": "node scripts/test-so-workflow-integration.js",
-    "seed:so-workflow": "node scripts/seed-so-workflow-basics.js"
+    "seed:so-workflow": "node scripts/seed-so-workflow-basics.js",
+    "db:patch": "node scripts/patch-missing-db-columns.js",
+    "test:api:smoke": "node scripts/smoke-test-apis.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
