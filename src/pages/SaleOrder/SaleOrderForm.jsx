@@ -180,12 +180,15 @@ export default function SaleOrderForm() {
                 offerName: selectedOffer.offerName,
                 offerType: "EXCHANGE_COATING_PRICE",
                 exchangeCoatingName: selectedOffer.exchangeCoating?.name,
+                exchangeLensName: selectedOffer.exchangeLensProduct?.lens_name,
                 finalTotal: newSubtotalAfterFree - discountAmt,
             };
         } else if (selectedOffer.offerType === "EXCHANGE_PRODUCT") {
+            if (exchangeCoatingPrice === null) {
+                return { ...priceBreakdown, offerDiscount: 0, offerName: selectedOffer.offerName, offerType: "EXCHANGE_PRODUCT" };
+            }
             const eyesCount = (formData.rightEye ? 1 : 0) + (formData.leftEye ? 1 : 0);
-            const offerPrice = selectedOffer.offerPrice || 0;
-            const newLensPrice = eyesCount === 1 ? offerPrice / 2 : offerPrice;
+            const newLensPrice = eyesCount === 1 ? exchangeCoatingPrice / 2 : exchangeCoatingPrice;
             const newBaseLensPrice =
                 newLensPrice +
                 priceBreakdown.extraCharges.total +
@@ -199,7 +202,7 @@ export default function SaleOrderForm() {
             return {
                 ...priceBreakdown,
                 lensPrice: newLensPrice,
-                coatingPrice: offerPrice,
+                coatingPrice: exchangeCoatingPrice,
                 baseLensPrice: newBaseLensPrice,
                 subtotal: newSubtotal,
                 freeLensDeduction: newFreeLensDeduction,
@@ -207,6 +210,7 @@ export default function SaleOrderForm() {
                 offerDiscount: 0,
                 offerName: selectedOffer.offerName,
                 offerType: "EXCHANGE_PRODUCT",
+                exchangeLensName: selectedOffer.exchangeLensProduct?.lens_name,
                 finalTotal: newSubtotalAfterFree - discountAmt,
             };
         } else if (selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") {
@@ -282,20 +286,25 @@ export default function SaleOrderForm() {
             : null;
 
         if (
-            selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" &&
-            formData.lens_id &&
-            selectedOffer.exchange_coating_id &&
+            (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" || selectedOffer?.offerType === "EXCHANGE_PRODUCT") &&
             priceBreakdown
         ) {
-            getLensPriceId(formData.lens_id, selectedOffer.exchange_coating_id)
+            const targetLensId = selectedOffer.exchange_lens_id || formData.lens_id;
+            const targetCoatingId = selectedOffer.offerType === "EXCHANGE_COATING_PRICE"
+                ? selectedOffer.exchange_coating_id
+                : formData.coating_id;
+
+            if (!targetLensId || !targetCoatingId) return;
+
+            getLensPriceId(targetLensId, targetCoatingId)
                 .then((res) => {
                     if (res.success && res.data) {
                         setExchangeCoatingPrice(res.data.price || 0);
                     } else {
                         setExchangeCoatingPrice(null);
                         toast({
-                            title: "Exchange Coating Price Not Found",
-                            description: `No price is configured for lens + exchange coating "${selectedOffer.exchangeCoating?.name || ''}". Please check the price master.`,
+                            title: "Exchange Price Not Found",
+                            description: `No price is configured for exchange lens "${selectedOffer.exchangeLensProduct?.lens_name || 'selected lens'}" + coating "${selectedOffer.exchangeCoating?.name || 'selected coating'}". Please check the price master.`,
                             variant: "destructive",
                         });
                     }
@@ -393,6 +402,13 @@ export default function SaleOrderForm() {
 
         loadApplicableOffers();
     }, [formData.lens_id, formData.coating_id]);
+
+    // Auto-calculate price when selected offer changes
+    useEffect(() => {
+        if (priceBreakdown && formData.customerId && formData.lens_id && formData.coating_id) {
+            handleCalculatePrice();
+        }
+    }, [formData.offer_id]);
 
     // Fetch filtered lens products when Type and Category are selected
     useEffect(() => {
@@ -1139,19 +1155,66 @@ export default function SaleOrderForm() {
             const lensProduct = lensProductResponse.data;
 
             // Step 2: Get coating price from LensPriceMaster
+            const selectedOffer = formData.offer_id
+                ? activeOffers.find((o) => o.id === formData.offer_id)
+                : null;
+
+            let targetLensId = formData.lens_id;
+            let targetCoatingId = formData.coating_id;
+
+            if (selectedOffer) {
+                if (selectedOffer.offerType === "EXCHANGE_COATING_PRICE") {
+                    targetLensId = selectedOffer.exchange_lens_id || formData.lens_id;
+                    targetCoatingId = selectedOffer.exchange_coating_id || formData.coating_id;
+                } else if (selectedOffer.offerType === "EXCHANGE_PRODUCT") {
+                    targetLensId = selectedOffer.exchange_lens_id || formData.lens_id;
+                } else if (selectedOffer.offerType === "EXCHANGE_BRAND_PRICE" && selectedOffer.exchange_brand_id) {
+                    try {
+                        const productCode = lensProduct?.product_code;
+                        if (productCode) {
+                            const exchangeProductsRes = await apiClient("get", "/v1/lens-products", {
+                                params: {
+                                    exactCode: productCode,
+                                    brand_id: selectedOffer.exchange_brand_id,
+                                    limit: 1,
+                                },
+                            });
+                            const exchangeProduct = exchangeProductsRes.data?.[0];
+                            if (exchangeProduct) {
+                                targetLensId = exchangeProduct.id;
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Error resolving exchange brand product:", err);
+                    }
+                }
+            }
+
             const lensPriceResponse = await getLensPriceId(
-                formData.lens_id,
-                formData.coating_id
+                targetLensId,
+                targetCoatingId
             );
             if (!lensPriceResponse.success || !lensPriceResponse.data) {
                 toast({
                     title: "Price Not Found",
-                    description: "No price configured for this lens and coating combination.",
+                    description: "No price configured for the lens and coating combination.",
                     variant: "destructive",
                 });
                 return;
             }
             const fullCoatingPrice = lensPriceResponse.data.price || 0;
+
+            // Update exchange price states so display/calculation aligns reactively
+            if (selectedOffer) {
+                if (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || selectedOffer.offerType === "EXCHANGE_PRODUCT") {
+                    setExchangeCoatingPrice(fullCoatingPrice);
+                } else if (selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") {
+                    setExchangeBrandPrice(fullCoatingPrice);
+                }
+            } else {
+                setExchangeCoatingPrice(null);
+                setExchangeBrandPrice(null);
+            }
 
             // Calculate number of eyes selected
             const eyesCount = (formData.rightEye ? 1 : 0) + (formData.leftEye ? 1 : 0);
@@ -1375,7 +1438,7 @@ export default function SaleOrderForm() {
             setIsSaving(true);
 
             // Build the payload: if a PERCENTAGE offer is applied, zero out the category discount;
-            // if EXCHANGE_COATING_PRICE, use the effective (exchange) lensPrice and discount
+            // for exchange offers, use the effective (exchange) lensPrice and discount
             const selectedOffer = formData.offer_id
                 ? activeOffers.find((o) => o.id === formData.offer_id)
                 : null;
@@ -1383,7 +1446,11 @@ export default function SaleOrderForm() {
                 ...formData,
                 discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
             };
-            if (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" && effectiveBreakdown) {
+            if (selectedOffer && 
+                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || 
+                 selectedOffer.offerType === "EXCHANGE_PRODUCT" || 
+                 selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") && 
+                effectiveBreakdown) {
                 submitData = {
                     ...submitData,
                     lensPrice: effectiveBreakdown.lensPrice,
@@ -1671,7 +1738,11 @@ export default function SaleOrderForm() {
                 ...formData,
                 discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
             };
-            if (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" && effectiveBreakdown) {
+            if (selectedOffer && 
+                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || 
+                 selectedOffer.offerType === "EXCHANGE_PRODUCT" || 
+                 selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") && 
+                effectiveBreakdown) {
                 submitData = {
                     ...submitData,
                     lensPrice: effectiveBreakdown.lensPrice,
@@ -1789,10 +1860,21 @@ export default function SaleOrderForm() {
             const selectedOffer = formData.offer_id
                 ? activeOffers.find((o) => o.id === formData.offer_id)
                 : null;
-            const submitData = {
+            let submitData = {
                 ...formData,
                 discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
             };
+            if (selectedOffer && 
+                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || 
+                 selectedOffer.offerType === "EXCHANGE_PRODUCT" || 
+                 selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") && 
+                effectiveBreakdown) {
+                submitData = {
+                    ...submitData,
+                    lensPrice: effectiveBreakdown.lensPrice,
+                    discount: effectiveBreakdown.discountPercentage,
+                };
+            }
 
             let savedOrder = null;
 
@@ -2491,9 +2573,11 @@ export default function SaleOrderForm() {
                                                 <div className="text-muted-foreground mt-0.5">
                                                     {selectedOffer.offerType === "VALUE" && `₹${selectedOffer.discountValue} off`}
                                                     {selectedOffer.offerType === "PERCENTAGE" && `${selectedOffer.discountPercentage}% off`}
-                                                    {selectedOffer.offerType === "EXCHANGE_PRODUCT" && "Exchange product"}
+                                                    {selectedOffer.offerType === "EXCHANGE_PRODUCT" && (
+                                                         `Exchange price using product: ${selectedOffer.exchangeLensProduct?.lens_name || ''}`
+                                                     )}
                                                     {selectedOffer.offerType === "EXCHANGE_COATING_PRICE" && (
-                                                        `Exchange coating price${selectedOffer.withDiscount ? " + discount" : ""}`
+                                                        `Exchange price using: ${selectedOffer.exchangeLensProduct?.lens_name || ''} + ${selectedOffer.exchangeCoating?.name || ''}${selectedOffer.withDiscount ? " + discount" : ""}`
                                                     )}
                                                     {" · Ends "}
                                                     {new Date(selectedOffer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
@@ -2580,10 +2664,12 @@ export default function SaleOrderForm() {
                                                     <div className="text-muted-foreground mt-0.5">
                                                         {offer.offerType === "VALUE" && `₹${offer.discountValue} off`}
                                                         {offer.offerType === "PERCENTAGE" && `${offer.discountPercentage}% off`}
-                                                        {offer.offerType === "EXCHANGE_PRODUCT" && "Exchange product"}
-                                                        {offer.offerType === "EXCHANGE_COATING_PRICE" && (
-                                                            `Exchange coating${offer.withDiscount ? " + discount" : ""}`
-                                                        )}
+                                                        {offer.offerType === "EXCHANGE_PRODUCT" && (
+                                                             `Exchange price using product: ${offer.exchangeLensProduct?.lens_name || ''}`
+                                                         )}
+                                                         {offer.offerType === "EXCHANGE_COATING_PRICE" && (
+                                                             `Exchange price using: ${offer.exchangeLensProduct?.lens_name || ''} + ${offer.exchangeCoating?.name || ''}${offer.withDiscount ? " + discount" : ""}`
+                                                         )}
                                                         {" · Ends "}
                                                         {new Date(offer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                                                     </div>
@@ -2999,6 +3085,18 @@ export default function SaleOrderForm() {
                                             value={effectiveBreakdown?.lensPrice ?? formData.lensPrice}
                                             onChange={handleChange}
                                             disabled={true}
+                                            helperText={(() => {
+                                                if (!formData.offer_id) return null;
+                                                const offer = activeOffers.find(o => o.id === formData.offer_id);
+                                                if (!offer) return null;
+                                                if (offer.offerType === "EXCHANGE_COATING_PRICE") {
+                                                    return `Exchange Price using: ${offer.exchangeLensProduct?.lens_name || ""} + ${offer.exchangeCoating?.name || ""}`;
+                                                }
+                                                if (offer.offerType === "EXCHANGE_PRODUCT") {
+                                                    return `Exchange Price using product: ${offer.exchangeLensProduct?.lens_name || ""}`;
+                                                }
+                                                return null;
+                                            })()}
                                         />
                                     )}
                                     {formData.rightEyeExtra > 0 && (

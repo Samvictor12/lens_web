@@ -492,7 +492,8 @@ model LensProductMaster {
   inventoryItems        InventoryItem[]
   inventoryStock        InventoryStock[]
   inventoryAlerts       InventoryAlert[]
-  lensOffers            LensOffers[] // Offers specific to this lens product
+  lensOffers            LensOffers[]       @relation("lensOfferProduct") // Offers specific to this lens product
+  exchangeLensOffers    LensOffers[]       @relation("lensOfferExchangeLens") // Offers that exchange TO this lens product
 }
 
 model LensPriceMaster {
@@ -538,6 +539,7 @@ model LensOffers {
   discountPercentage  Float? // Percentage discount (for PERCENTAGE type)
   offerPrice          Float? // Replacement price (for EXCHANGE_PRODUCT type)
   exchange_coating_id Int? // Exchange coating whose price replaces selected coating (for EXCHANGE_COATING_PRICE type)
+  exchange_lens_id    Int? // Exchange lens product whose price replaces selected product (for EXCHANGE_COATING_PRICE type)
   withDiscount        Boolean @default(false) // Whether to apply customer discount (for EXCHANGE_COATING_PRICE type)
 
   // Filters - if null, applies to all
@@ -562,13 +564,14 @@ model LensOffers {
   updatedBy Int?
 
   // Relationships
-  lensProduct     LensProductMaster? @relation(fields: [lens_id], references: [id])
-  coating         LensCoatingMaster? @relation("lensOfferCoating", fields: [coating_id], references: [id])
-  exchangeCoating LensCoatingMaster? @relation("lensOfferExchangeCoating", fields: [exchange_coating_id], references: [id])
-  brand           LensBrandMaster?   @relation("offerBrand", fields: [brand_id], references: [id])
-  exchangeBrand   LensBrandMaster?   @relation("offerExchangeBrand", fields: [exchange_brand_id], references: [id])
-  createdByUser   User               @relation("lensOffersCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser   User?              @relation("lensOffersUpdatedBy", fields: [updatedBy], references: [id])
+  lensProduct         LensProductMaster? @relation("lensOfferProduct", fields: [lens_id], references: [id])
+  exchangeLensProduct LensProductMaster? @relation("lensOfferExchangeLens", fields: [exchange_lens_id], references: [id])
+  coating             LensCoatingMaster? @relation("lensOfferCoating", fields: [coating_id], references: [id])
+  exchangeCoating     LensCoatingMaster? @relation("lensOfferExchangeCoating", fields: [exchange_coating_id], references: [id])
+  brand               LensBrandMaster?   @relation("offerBrand", fields: [brand_id], references: [id])
+  exchangeBrand       LensBrandMaster?   @relation("offerExchangeBrand", fields: [exchange_brand_id], references: [id])
+  createdByUser       User               @relation("lensOffersCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser       User?              @relation("lensOffersUpdatedBy", fields: [updatedBy], references: [id])
 
   // Relationship Tables
   saleOrders SaleOrder[]

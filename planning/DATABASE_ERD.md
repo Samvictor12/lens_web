@@ -63,6 +63,25 @@ erDiagram
         String status
         Int createdBy FK
     }
+
+    LENS_PRODUCT_MASTER ||--o{ LENS_OFFERS : "promotes / exchanges"
+    LENS_COATING_MASTER ||--o{ LENS_OFFERS : "promotes / exchanges"
+    LENS_OFFERS ||--o{ SALE_ORDER : "applies discount"
+
+    LENS_OFFERS {
+        Int id PK
+        String offerName
+        String offerType
+        Int lens_id FK "nullable filter"
+        Int coating_id FK "nullable filter"
+        Int exchange_lens_id FK "nullable target"
+        Int exchange_coating_id FK "nullable target"
+        Float discountValue
+        Float discountPercentage
+        Float offerPrice
+        Boolean withDiscount
+    }
+```
 ```
 
 ---

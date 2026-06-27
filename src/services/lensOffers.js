@@ -25,10 +25,7 @@ const mapToBackend = (data) => ({
     data.discountPercentage !== ""
       ? parseFloat(data.discountPercentage)
       : null,
-  offerPrice:
-    data.offerType === "EXCHANGE_PRODUCT" && data.offerPrice !== ""
-      ? parseFloat(data.offerPrice)
-      : null,
+  offerPrice: null,
   lens_id: data.lens_id ? parseInt(data.lens_id) : null,
   coating_id: data.coating_id ? parseInt(data.coating_id) : null,
   brand_id:
@@ -48,6 +45,10 @@ const mapToBackend = (data) => ({
   exchange_coating_id:
     data.offerType === "EXCHANGE_COATING_PRICE" && data.exchange_coating_id
       ? parseInt(data.exchange_coating_id)
+      : null,
+  exchange_lens_id:
+    (data.offerType === "EXCHANGE_COATING_PRICE" || data.offerType === "EXCHANGE_PRODUCT") && data.exchange_lens_id
+      ? parseInt(data.exchange_lens_id)
       : null,
   withDiscount:
     data.offerType === "EXCHANGE_COATING_PRICE" ? (data.withDiscount ?? false) : false,
@@ -81,11 +82,13 @@ const mapFromBackend = (data) => {
           ? "VALUE"
           : "VALUE",
     exchange_coating_id: data.exchange_coating_id ?? null,
+    exchange_lens_id: data.exchange_lens_id ?? null,
     withDiscount: data.withDiscount ?? false,
     startDate: data.startDate ? data.startDate.split("T")[0] : "",
     endDate: data.endDate ? data.endDate.split("T")[0] : "",
     activeStatus: data.activeStatus ?? true,
     lensProduct: data.lensProduct || null,
+    exchangeLensProduct: data.exchangeLensProduct || null,
     coating: data.coating || null,
     exchangeCoating: data.exchangeCoating || null,
     brand: data.brand || null,

@@ -40,6 +40,10 @@ export default function LensOffersForm() {
   const [coatingOptions, setCoatingOptions] = useState([]);
   const [brandOptions, setBrandOptions] = useState([]);
   const [dropdownsLoading, setDropdownsLoading] = useState(false);
+  const [exchangeCoatingOptions, setExchangeCoatingOptions] = useState([]);
+  const [loadingExchangeCoatings, setLoadingExchangeCoatings] = useState(false);
+  const [appliesToCoatingOptions, setAppliesToCoatingOptions] = useState([]);
+  const [loadingAppliesToCoatings, setLoadingAppliesToCoatings] = useState(false);
 
   // Load dropdowns
   useEffect(() => {
@@ -57,12 +61,13 @@ export default function LensOffersForm() {
             name: l.lens_name || l.label || l.name,
           }))
         );
-        setCoatingOptions(
-          (coatingRes.data || []).map((c) => ({
-            id: c.id,
-            name: c.name || c.label,
-          }))
-        );
+        const mappedCoatings = (coatingRes.data || []).map((c) => ({
+          id: c.id,
+          name: c.name || c.label,
+        }));
+        setCoatingOptions(mappedCoatings);
+        setExchangeCoatingOptions(mappedCoatings);
+        setAppliesToCoatingOptions(mappedCoatings);
         setBrandOptions(
           (brandRes.data || []).map((b) => ({
             id: b.id,
@@ -71,6 +76,11 @@ export default function LensOffersForm() {
         );
       } catch (err) {
         console.error("Error loading dropdowns:", err);
+        toast({
+          title: "Error",
+          description: err.message || "Failed to load dropdown options",
+          variant: "destructive",
+        });
       } finally {
         setDropdownsLoading(false);
       }
@@ -99,6 +109,7 @@ export default function LensOffersForm() {
             coating_ids: offer.coating_ids ?? [],
             coatingPromotionDiscountType: offer.coatingPromotionDiscountType || "VALUE",
             exchange_coating_id: offer.exchange_coating_id ?? null,
+            exchange_lens_id: offer.exchange_lens_id ?? null,
             withDiscount: offer.withDiscount ?? false,
             startDate: offer.startDate || "",
             endDate: offer.endDate || "",
@@ -122,6 +133,69 @@ export default function LensOffersForm() {
     fetchOffer();
   }, [id, mode, navigate]);
 
+  // Fetch coatings for Exchange Product
+  useEffect(() => {
+    const fetchExchangeCoatings = async () => {
+      if (formData.exchange_lens_id) {
+        try {
+          setLoadingExchangeCoatings(true);
+          const response = await apiClient("get", `/v1/lens-coatings/by-lens-product?lens_id=${formData.exchange_lens_id}`);
+          if (response && response.success) {
+            const mapped = (response.data || []).map((c) => ({
+              id: c.id,
+              name: c.name || c.label,
+            }));
+            setExchangeCoatingOptions(mapped);
+            
+            // If currently selected exchange coating is not in the list, reset it
+            if (formData.exchange_coating_id && !mapped.some(c => c.id === formData.exchange_coating_id)) {
+              setFormData(prev => ({ ...prev, exchange_coating_id: null }));
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching coatings for exchange product:", err);
+        } finally {
+          setLoadingExchangeCoatings(false);
+        }
+      } else {
+        setExchangeCoatingOptions([]);
+      }
+    };
+    fetchExchangeCoatings();
+  }, [formData.exchange_lens_id]);
+
+  // Fetch coatings for Applies To Product
+  useEffect(() => {
+    const fetchAppliesToCoatings = async () => {
+      if (formData.lens_id) {
+        try {
+          setLoadingAppliesToCoatings(true);
+          const response = await apiClient("get", `/v1/lens-coatings/by-lens-product?lens_id=${formData.lens_id}`);
+          if (response && response.success) {
+            const mapped = (response.data || []).map((c) => ({
+              id: c.id,
+              name: c.name || c.label,
+            }));
+            setAppliesToCoatingOptions(mapped);
+            
+            // If currently selected coating is not in the list, reset it
+            if (formData.coating_id && !mapped.some(c => c.id === formData.coating_id)) {
+              setFormData(prev => ({ ...prev, coating_id: null }));
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching coatings for applies-to product:", err);
+        } finally {
+          setLoadingAppliesToCoatings(false);
+        }
+      } else {
+        // Fallback to all coatings if no specific product is selected
+        setAppliesToCoatingOptions(coatingOptions);
+      }
+    };
+    fetchAppliesToCoatings();
+  }, [formData.lens_id, coatingOptions]);
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -143,8 +217,22 @@ export default function LensOffersForm() {
         newErrors.discountPercentage = "Discount percentage must be between 1 and 100";
       }
     } else if (formData.offerType === "EXCHANGE_PRODUCT") {
-      // No price field — product price comes from the selected lens+coating
+      if (!formData.lens_id) {
+        newErrors.lens_id = "Lens product is required for exchange offers";
+      }
+      if (!formData.exchange_lens_id) {
+        newErrors.exchange_lens_id = "Exchange lens product is required";
+      }
     } else if (formData.offerType === "EXCHANGE_COATING_PRICE") {
+      if (!formData.lens_id) {
+        newErrors.lens_id = "Lens product is required for exchange offers";
+      }
+      if (!formData.coating_id) {
+        newErrors.coating_id = "Coating is required for exchange offers";
+      }
+      if (!formData.exchange_lens_id) {
+        newErrors.exchange_lens_id = "Exchange lens product is required";
+      }
       if (!formData.exchange_coating_id) {
         newErrors.exchange_coating_id = "Exchange coating is required";
       }
@@ -210,6 +298,7 @@ export default function LensOffersForm() {
       discountPercentage: "",
       offerPrice: "",
       exchange_coating_id: null,
+      exchange_lens_id: null,
       brand_id: null,
       exchange_brand_id: null,
       coating_ids: [],
@@ -288,7 +377,8 @@ export default function LensOffersForm() {
     formData.offerType === "PERCENTAGE" ||
     (formData.offerType === "COATING_PROMOTION" &&
       formData.coatingPromotionDiscountType === "PERCENTAGE");
-  const showAppliesTo = formData.offerType === "EXCHANGE_PRODUCT";
+  const showAppliesTo = formData.offerType === "EXCHANGE_PRODUCT" || formData.offerType === "EXCHANGE_COATING_PRICE";
+  const showExchangeProduct = formData.offerType === "EXCHANGE_COATING_PRICE" || formData.offerType === "EXCHANGE_PRODUCT";
   const showExchangeCoating = formData.offerType === "EXCHANGE_COATING_PRICE";
   const showExchangeBrand = formData.offerType === "EXCHANGE_BRAND_PRICE";
   const showCoatingPromotion = formData.offerType === "COATING_PROMOTION";
@@ -506,34 +596,56 @@ export default function LensOffersForm() {
                 />
               )}
 
-              {/* EXCHANGE_PRODUCT: no price field — price is derived from the selected lens+coating product */}
+              {/* EXCHANGE_PRODUCT: alert and Exchange Product selector */}
               {formData.offerType === "EXCHANGE_PRODUCT" && !isReadOnly && (
                 <Alert className="bg-primary/5 border-primary/20">
                   <AlertDescription className="text-xs">
-                    For <strong>Exchange Product</strong> offers, select the Lens and Coating below.
-                    When that combination is chosen in a Sale Order, its price will be used as the offer price.
+                    For <strong>Exchange Product</strong> offers, the system will use the price of the exchange product configured below.
                   </AlertDescription>
                 </Alert>
+              )}
+
+              {showExchangeProduct && (
+                <FormSelect
+                  label="Exchange Product"
+                  name="exchange_lens_id"
+                  options={lensOptions}
+                  value={formData.exchange_lens_id}
+                  onChange={(value) => handleSelectChange("exchange_lens_id", value)}
+                  placeholder={dropdownsLoading ? "Loading..." : "Select exchange product"}
+                  isSearchable={true}
+                  isClearable={false}
+                  disabled={isReadOnly || dropdownsLoading}
+                  required
+                  error={errors.exchange_lens_id}
+                  helperText={
+                    !errors.exchange_lens_id &&
+                    "The product whose price will be used instead of the selected product in the sale order"
+                  }
+                />
               )}
 
               {/* EXCHANGE_COATING_PRICE: select exchange coating + withDiscount toggle */}
               {showExchangeCoating && (
                 <>
+
                   <FormSelect
                     label="Exchange Coating"
                     name="exchange_coating_id"
-                    options={coatingOptions}
+                    options={exchangeCoatingOptions}
                     value={formData.exchange_coating_id}
                     onChange={(value) => handleSelectChange("exchange_coating_id", value)}
-                    placeholder={dropdownsLoading ? "Loading..." : "Select exchange coating"}
+                    placeholder={loadingExchangeCoatings ? "Loading..." : "Select exchange coating"}
                     isSearchable={true}
                     isClearable={false}
-                    disabled={isReadOnly || dropdownsLoading}
+                    disabled={isReadOnly || dropdownsLoading || loadingExchangeCoatings || !formData.exchange_lens_id}
                     required
                     error={errors.exchange_coating_id}
                     helperText={
                       !errors.exchange_coating_id &&
-                      "The coating whose price will be used instead of the selected coating in the sale order"
+                      (!formData.exchange_lens_id
+                        ? "Please select an Exchange Product first"
+                        : "The coating whose price will be used instead of the selected coating in the sale order")
                     }
                   />
 
@@ -697,13 +809,13 @@ export default function LensOffersForm() {
               <FormSelect
                 label="Coating"
                 name="coating_id"
-                options={coatingOptions}
+                options={appliesToCoatingOptions}
                 value={formData.coating_id}
                 onChange={(value) => handleSelectChange("coating_id", value)}
-                placeholder={dropdownsLoading ? "Loading..." : "All coatings"}
+                placeholder={loadingAppliesToCoatings ? "Loading..." : "All coatings"}
                 isSearchable={true}
                 isClearable={true}
-                disabled={isReadOnly || dropdownsLoading}
+                disabled={isReadOnly || dropdownsLoading || loadingAppliesToCoatings}
                 error={errors.coating_id}
                 helperText={
                   !errors.coating_id &&

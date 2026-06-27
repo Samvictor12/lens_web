@@ -134,7 +134,7 @@ export const updateLensOffer = async (req, res, next) => {
     }
 
     const offer = await lensOffersService.updateLensOffer(
-      idValidation.data,
+      idValidation.id,
       validation.data
     );
     res.status(200).json({
@@ -167,7 +167,7 @@ export const deleteLensOffer = async (req, res, next) => {
       });
     }
 
-    await lensOffersService.deleteLensOffer(validation.data, userId);
+    await lensOffersService.deleteLensOffer(validation.id, userId);
     res.status(200).json({
       success: true,
       message: "Lens offer deleted successfully",

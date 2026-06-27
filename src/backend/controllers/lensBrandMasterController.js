@@ -188,10 +188,7 @@ export const getLensBrandsDropdown = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Lens brands dropdown retrieved successfully",
-      data: brands.data,
-      totalCount: brands.pagination.total,
-      page: brands.pagination.page,
-      pageSize: brands.pagination.limit,
+      data: brands,
     });
   } catch (error) {
     next(error);

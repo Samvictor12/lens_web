@@ -18,6 +18,7 @@ export const defaultLensOffer = {
   coating_ids: [],
   coatingPromotionDiscountType: "VALUE",
   exchange_coating_id: null,
+  exchange_lens_id: null,
   withDiscount: false,
   startDate: "",
   endDate: "",
