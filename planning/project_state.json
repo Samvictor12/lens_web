@@ -1,17 +1,10 @@
 {
-  "active_feature_file": "planning/features/docker-folder-consolidation.md",
+  "v": "1.0.0",
+  "feature": null,
+  "active_feature_file": "planning/feature.md",
   "phase": "DONE",
-  "HUMAN_APPROVED": true,
+  "HUMAN_APPROVED": false,
   "state_tag": "IDLE",
   "last_agent": "orchestrator",
-  "recent_log": [
-    "2026-06-26: docker-folder-consolidation DONE (QA PASS, orchestrator-verified). Dev_lens/PROD_Lens moved to Docker/dev,Docker/prod; new Docker/test (lens_test_*, 6301-6304) added. Fixed 2 real bugs in the move: build context '..'->'../..' (would have broken builds post-move) and PROD compose's lens_dev_*->lens_prod_* naming bug. Untracked Docker/{dev,prod}/.env secrets from git, added scoped .gitignore entries + .env.example templates for all 3 envs. No commit made -- left staged for user review.",
-    "2026-06-26: planner-architect: CONTRACT_COMPLETE -- Docker/dev,Docker/prod,Docker/test layout; critical fix found: build context '..' must become '../..' post-move; prod lens_dev_*->lens_prod_* rename; .env untrack+.env.example plan. Routed implementer-fullstack",
-    "2026-06-26: orchestrator: docker-folder-consolidation approved. Routed to planner-architect for ## 2 Contract",
-    "2026-06-26: orchestrator drafted docker-folder-consolidation ## 1 Requirement -- Dev_lens/PROD_Lens -> Docker/dev,Docker/prod; new Docker/test (lens_test_*, ports 6301-6304); fix PROD compose's lens_dev_* naming bug -> lens_prod_*; untrack .env secrets, add .env.example. Awaiting approve.",
-    "2026-06-25: vendor-customer-ledger DONE (QA PASS on retest, 47/47 tests). Vendor/Customer get an auto-created subsidiary ledger at create time, shown read-only on both forms; PO receipts/invoices/payments post to the specific vendor's/customer's ledger instead of the shared AC-2001/AC-1003, which stay live-synced as parent rollups. Fixed one QA-found regression (dashboard bankLedgers query leaking child ledgers) + closed a rollup test-coverage gap. Migration + backfill applied to dev DB. KB-016 added.",
-    "2026-06-25: vendor-customer-ledger rework done -- getSummary() bankLedgers query now excludes parentLedgerId-not-null ledgers; added 2 postTransaction() rollup tests (47/47 pass). Routed back to reviewer-qa for retest.",
-    "2026-06-25: vendor-customer-ledger QA FAIL (REWORK_BACKEND) -- financialReportService.js getSummary() bankLedgers query excludes AC-1003/1004/1005 by literal code but not new ASSET-type customer child ledgers.",
-    "2026-06-25: vendor-customer-ledger IMPLEMENTATION_COMPLETE -- migration applied, backfill run, getOwnedLedger() + parent-rollup wired into accountingService.js, Vendor/Customer forms show read-only Ledger card."
-  ]
+  "at": "2026-06-27T04:55:00+05:30"
 }

@@ -124,6 +124,27 @@ export const getStockValueReport = async (params = {}) => {
   return response;
 };
 
+export const getInventorySpecCountTrend = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/reports/spec-trend`, {
+    params,
+  });
+  return response;
+};
+
+export const getTopLowSellingProducts = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/reports/top-low-selling`, {
+    params,
+  });
+  return response;
+};
+
+export const getInventoryStockPivot = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/reports/stock-pivot`, {
+    params,
+  });
+  return response;
+};
+
 export const inventoryService = {
   getInventoryItems,
   getInventoryInwardQueue,
@@ -142,4 +163,7 @@ export const inventoryService = {
   getInventoryStockGrouped,
   getLowStockItems,
   getStockValueReport,
+  getInventorySpecCountTrend,
+  getTopLowSellingProducts,
+  getInventoryStockPivot,
 };

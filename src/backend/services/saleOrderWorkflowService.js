@@ -2,6 +2,9 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
 import { INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
+import InventoryService from './inventory.service.js';
+
+const inventoryService = new InventoryService();
 
 const ACTIVE_PO_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
@@ -39,16 +42,36 @@ function requiredPoQty(order) {
 }
 
 export class SaleOrderWorkflowService {
-  async getInventoryQueue({ page = 1, limit = 50, search } = {}) {
-    const skip = (page - 1) * limit;
+  async getInventoryQueue({ page = 1, limit = 50, search, customerId, lensProductId, customerRefNo, orderNo } = {}) {
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 50;
+    const skip = (parsedPage - 1) * parsedLimit;
     const where = {
       deleteStatus: false,
       status: { in: INVENTORY_QUEUE_STATUSES },
     };
+
+    if (customerId) {
+      where.customerId = parseInt(customerId, 10);
+    }
+
+    if (lensProductId) {
+      where.lens_id = parseInt(lensProductId, 10);
+    }
+
+    if (customerRefNo?.trim()) {
+      where.customerRefNo = { contains: customerRefNo.trim(), mode: 'insensitive' };
+    }
+
+    if (orderNo?.trim()) {
+      where.orderNo = { contains: orderNo.trim(), mode: 'insensitive' };
+    }
+
     if (search?.trim()) {
       where.OR = [
         { orderNo: { contains: search.trim(), mode: 'insensitive' } },
         { customerRefNo: { contains: search.trim(), mode: 'insensitive' } },
+        { customer: { name: { contains: search.trim(), mode: 'insensitive' } } },
       ];
     }
 
@@ -56,7 +79,7 @@ export class SaleOrderWorkflowService {
       prisma.saleOrder.findMany({
         where,
         skip,
-        take: limit,
+        take: parsedLimit,
         orderBy: { updatedAt: 'desc' },
         include: {
           customer: { select: { id: true, code: true, name: true } },
@@ -71,7 +94,7 @@ export class SaleOrderWorkflowService {
       prisma.saleOrder.count({ where }),
     ]);
 
-    return { data: orders, total, page, limit };
+    return { data: orders, total, page: parsedPage, limit: parsedLimit };
   }
 
   async raisePoFromSo(saleOrderId, userId, source = 'USER') {
@@ -262,12 +285,113 @@ export class SaleOrderWorkflowService {
         throw new APIError('Both RE and LE inventory items required', 400, 'BOTH_EYES_REQUIRED');
       }
 
-      // Mark linked inventory items to SO (stub: full FIFO in inventory phase)
-      if (inventoryItemIds.length > 0) {
-        await tx.inventoryItem.updateMany({
-          where: { id: { in: inventoryItemIds }, deleteStatus: false },
-          data: { saleOrderId: so.id, status: 'IN_PRODUCTION', updatedBy: userId },
-        });
+      // Reserve each selected inventory item (1 unit per eye) via the shared,
+      // quantity-aware reservation path. Runs inside this same transaction
+      // (tx passed through as dbClient) so a failure on any item (e.g.
+      // INSUFFICIENT_STOCK/ITEM_NOT_AVAILABLE) rolls back all earlier
+      // reservations made in this call.
+      for (const itemId of inventoryItemIds) {
+        try {
+          if (typeof itemId === 'string' && itemId.startsWith('rec_')) {
+            const receiptId = parseInt(itemId.replace('rec_', ''), 10);
+            
+            // 1. Fetch the PurchaseOrderReceipt and its purchaseOrder
+            const receipt = await tx.purchaseOrderReceipt.findUnique({
+              where: { id: receiptId },
+              include: { purchaseOrder: true },
+            });
+            if (!receipt) throw new APIError('Purchase order receipt not found', 404, 'RECEIPT_NOT_FOUND');
+            if (receipt.inwardedQty >= receipt.totalReceivedQty) {
+              throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
+            }
+
+            // 2. Find a location and tray to auto-inward into
+            const location = await tx.locationMaster.findFirst({ where: { deleteStatus: false } });
+            if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
+            const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
+            if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
+
+            // 3. Create the InventoryItem on the fly
+            const itemData = {
+              lens_id: so.lens_id,
+              category_id: so.category_id,
+              Type_id: so.Type_id,
+              coating_id: so.coating_id,
+              dia_id: so.dia_id,
+              fitting_id: so.fitting_id,
+              tinting_id: so.tinting_id,
+              location_id: location.id,
+              tray_id: tray.id,
+              quantity: 1, // we only issue 1 unit per eye
+              costPrice: receipt.unitPrice || 0,
+              batchNo: receipt.receiptNumber,
+              purchaseOrderId: receipt.purchaseOrderId,
+              purchaseReceiptId: receipt.id,
+              vendorId: receipt.purchaseOrder?.vendorId,
+              rightEye: so.rightEye,
+              leftEye: so.leftEye,
+              rightSpherical: so.rightSpherical,
+              rightCylindrical: so.rightCylindrical,
+              rightAdd: so.rightAdd,
+              leftSpherical: so.leftSpherical,
+              leftCylindrical: so.leftCylindrical,
+              leftAdd: so.leftAdd,
+              status: 'AVAILABLE',
+              createdBy: userId,
+            };
+            const item = await tx.inventoryItem.create({ data: itemData });
+
+            // 4. Record the inward transaction and update the stock summary
+            // bucket, mirroring InventoryService.createInventoryItem — without
+            // this, reserveInventoryForSale's RESERVE step below finds no
+            // matching stock bucket and silently no-ops the stock update.
+            const transactionNo = await inventoryService.generateTransactionNumber(tx);
+            await tx.inventoryTransaction.create({
+              data: {
+                transactionNo,
+                type: 'INWARD_PO',
+                inventoryItemId: item.id,
+                quantity: itemData.quantity,
+                balanceAfter: itemData.quantity,
+                unitPrice: itemData.costPrice,
+                totalValue: itemData.quantity * itemData.costPrice,
+                toLocationId: itemData.location_id,
+                toTrayId: itemData.tray_id,
+                purchaseOrderId: itemData.purchaseOrderId,
+                vendorId: itemData.vendorId,
+                batchNo: itemData.batchNo,
+                reason: 'Auto-inward from Inward Queue for Pre-QC issue',
+                createdBy: userId,
+              },
+            });
+            await inventoryService.updateInventoryStock(item, itemData.quantity, 'ADD', tx);
+
+            // 5. Update the receipt's inwardedQty
+            await tx.purchaseOrderReceipt.update({
+              where: { id: receipt.id },
+              data: {
+                inwardedQty: { increment: 1 },
+                updatedBy: userId,
+              },
+            });
+
+            // 6. Reserve this item for the sale order
+            await inventoryService.reserveInventoryForSale(item.id, 1, so.id, userId, tx);
+          } else {
+            // It's a standard inventory item
+            const inventoryItemId = typeof itemId === 'string' && itemId.startsWith('inv_')
+              ? parseInt(itemId.replace('inv_', ''), 10)
+              : parseInt(itemId, 10);
+            await inventoryService.reserveInventoryForSale(inventoryItemId, 1, so.id, userId, tx);
+          }
+        } catch (err) {
+          const reason = err?.message || 'Failed to reserve inventory item';
+          throw new APIError(
+            `Could not reserve inventory item ${itemId}: ${reason}`,
+            err?.statusCode || 400,
+            err?.code || 'RESERVE_FAILED'
+          );
+        }
       }
 
       return saleOrderStatusService.transition({

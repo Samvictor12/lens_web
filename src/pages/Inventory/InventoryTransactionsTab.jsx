@@ -7,6 +7,8 @@ import { Refresh } from "@/components/ui/Refresh";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryService } from "@/services/inventory";
 import { transactionTypeOptions, formatCurrency, formatDate } from "./Inventory.constants";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLocation } from "react-router-dom";
 
 import { useState, useEffect, useMemo } from "react";
 
@@ -16,18 +18,29 @@ import { useState, useEffect, useMemo } from "react";
  */
 export default function InventoryTransactionsTab({ refreshKey = 0 }) {
   const { toast } = useToast();
+  const location = useLocation();
+  
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [transactionType, setTransactionType] = useState("all");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [sorting, setSorting] = useState([]);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
 
+  // Sync with router state if navigated from dashboard
+  useEffect(() => {
+    if (location.state?.filterType) {
+      setTransactionType(location.state.filterType);
+      setPageIndex(0);
+    }
+  }, [location.state]);
+
   useEffect(() => {
     loadTransactions();
-  }, [pageIndex, pageSize, searchQuery, sorting, refreshKey, localRefreshKey]);
+  }, [pageIndex, pageSize, searchQuery, sorting, refreshKey, localRefreshKey, transactionType]);
 
   const loadTransactions = async () => {
     try {
@@ -36,6 +49,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
         page: pageIndex + 1,
         limit: pageSize,
         search: searchQuery,
+        type: transactionType !== "all" ? transactionType : undefined,
       });
       if (response.success) {
         setTransactions(response.data || []);
@@ -133,6 +147,27 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
               }}
               className="pl-8 h-8 text-sm"
             />
+          </div>
+          <div className="w-48">
+            <Select
+              value={transactionType}
+              onValueChange={(val) => {
+                setTransactionType(val);
+                setPageIndex(0);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs bg-white border">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {transactionTypeOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-1.5">
             <Refresh onClick={() => {

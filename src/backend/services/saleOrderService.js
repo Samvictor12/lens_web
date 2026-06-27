@@ -975,7 +975,13 @@ export class SaleOrderService {
   async getMatchingInventoryFIFO(saleOrderId) {
     try {
       const saleOrder = await prisma.saleOrder.findUnique({
-        where: { id: saleOrderId, deleteStatus: false }
+        where: { id: saleOrderId, deleteStatus: false },
+        include: {
+          lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+          category: { select: { id: true, name: true } },
+          coating: { select: { id: true, name: true } },
+          lensType: { select: { id: true, name: true } },
+        }
       });
 
       if (!saleOrder) {
@@ -1020,8 +1026,38 @@ export class SaleOrderService {
         return where;
       };
 
+      const buildPoWhereClause = (eyeType) => {
+        const poWhere = {
+          deleteStatus: false,
+        };
+
+        if (saleOrder.lens_id) poWhere.lens_id = saleOrder.lens_id;
+        if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
+        if (saleOrder.Type_id) poWhere.Type_id = saleOrder.Type_id;
+        if (saleOrder.coating_id) poWhere.coating_id = saleOrder.coating_id;
+        if (saleOrder.dia_id) poWhere.dia_id = saleOrder.dia_id;
+        if (saleOrder.fitting_id) poWhere.fitting_id = saleOrder.fitting_id;
+        if (saleOrder.tinting_id) poWhere.tinting_id = saleOrder.tinting_id;
+
+        if (eyeType === 'right') {
+          poWhere.rightSpherical = saleOrder.rightSpherical;
+          poWhere.rightCylindrical = saleOrder.rightCylindrical;
+          if (saleOrder.rightAdd) {
+            poWhere.rightAdd = saleOrder.rightAdd;
+          }
+        } else {
+          poWhere.leftSpherical = saleOrder.leftSpherical;
+          poWhere.leftCylindrical = saleOrder.leftCylindrical;
+          if (saleOrder.leftAdd) {
+            poWhere.leftAdd = saleOrder.leftAdd;
+          }
+        }
+
+        return poWhere;
+      };
+
       if (saleOrder.rightEye) {
-        results.rightEyeMatches = await prisma.inventoryItem.findMany({
+        const physical = await prisma.inventoryItem.findMany({
           where: buildWhereClause('right'),
           orderBy: { inwardDate: 'asc' }, // FIFO
           include: {
@@ -1029,10 +1065,38 @@ export class SaleOrderService {
             tray: { select: { id: true, name: true, capacity: true } }
           }
         });
+        const formattedPhysical = physical.map(item => ({
+          ...item,
+          id: `inv_${item.id}`
+        }));
+
+        const receipts = await prisma.purchaseOrderReceipt.findMany({
+          where: {
+            deleteStatus: false,
+            purchaseOrder: buildPoWhereClause('right')
+          },
+          include: {
+            purchaseOrder: true
+          },
+          orderBy: { receivedDate: 'asc' }
+        });
+        const formattedReceipts = receipts
+          .filter(r => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
+          .map(r => ({
+            id: `rec_${r.id}`,
+            inwardDate: r.receivedDate || r.createdAt,
+            quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
+            costPrice: r.unitPrice || 0,
+            tray: { name: 'Inward Queue (Pending)', capacity: '-' },
+            location: { name: 'Inward Queue' },
+            isReceipt: true
+          }));
+
+        results.rightEyeMatches = [...formattedPhysical, ...formattedReceipts];
       }
 
       if (saleOrder.leftEye) {
-        results.leftEyeMatches = await prisma.inventoryItem.findMany({
+        const physical = await prisma.inventoryItem.findMany({
           where: buildWhereClause('left'),
           orderBy: { inwardDate: 'asc' }, // FIFO
           include: {
@@ -1040,9 +1104,41 @@ export class SaleOrderService {
             tray: { select: { id: true, name: true, capacity: true } }
           }
         });
+        const formattedPhysical = physical.map(item => ({
+          ...item,
+          id: `inv_${item.id}`
+        }));
+
+        const receipts = await prisma.purchaseOrderReceipt.findMany({
+          where: {
+            deleteStatus: false,
+            purchaseOrder: buildPoWhereClause('left')
+          },
+          include: {
+            purchaseOrder: true
+          },
+          orderBy: { receivedDate: 'asc' }
+        });
+        const formattedReceipts = receipts
+          .filter(r => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
+          .map(r => ({
+            id: `rec_${r.id}`,
+            inwardDate: r.receivedDate || r.createdAt,
+            quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
+            costPrice: r.unitPrice || 0,
+            tray: { name: 'Inward Queue (Pending)', capacity: '-' },
+            location: { name: 'Inward Queue' },
+            isReceipt: true
+          }));
+
+        results.leftEyeMatches = [...formattedPhysical, ...formattedReceipts];
       }
 
-      return results;
+      return {
+        saleOrder,
+        rightEyeMatches: results.rightEyeMatches,
+        leftEyeMatches: results.leftEyeMatches
+      };
     } catch (error) {
       console.error('Error in getMatchingInventoryFIFO:', error);
       if (error instanceof APIError) throw error;

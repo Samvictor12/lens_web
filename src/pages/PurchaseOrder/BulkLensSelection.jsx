@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { X, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { FormSelect } from "@/components/ui/form-select";
 
 /**
  * BulkLensSelection Component
@@ -18,6 +19,9 @@ export default function BulkLensSelection({
   disabled = false,
   categoryName = "",
   lensId = null,
+  coatings = [],
+  coatingId = null,
+  onCoatingChange = () => {},
 }) {
   const lowerCat = (categoryName || "").toLowerCase();
   const isProgressive = lowerCat.includes("prog");
@@ -41,6 +45,15 @@ export default function BulkLensSelection({
   const [selectedCell, setSelectedCell] = useState(null);
   const [showGrid, setShowGrid] = useState(false);
   const [showLensWarning, setShowLensWarning] = useState(false);
+  const [showCoatingWarning, setShowCoatingWarning] = useState(false);
+  const [coatingExpanded, setCoatingExpanded] = useState(true);
+
+  const coatingName = useMemo(
+    () => coatings.find((c) => String(c.id ?? c.value) === String(coatingId))?.name
+      ?? coatings.find((c) => String(c.id ?? c.value) === String(coatingId))?.label
+      ?? "",
+    [coatings, coatingId]
+  );
 
   // Initialise from existing value on mount only
   useEffect(() => {
@@ -170,6 +183,55 @@ export default function BulkLensSelection({
     setSelectedCell(null);
     onChange({ ranges, selections: {} });
   };
+
+  /** Product Spec auto-built string, e.g. "Sph=-2|Cyl=0|Add=0" */
+  const buildSpecLabel = (sph, colVal, eye) => {
+    const cylPart = useAdd ? 0 : colVal;
+    const addPart = useAdd ? colVal : 0;
+    const base = `Sph=${sph}|Cyl=${cylPart}|Add=${addPart}`;
+    return eye ? `${base}|Eye=${eye}` : base;
+  };
+
+  /** Flatten current `selections` into spec rows for the expandable-by-Coating table. */
+  const generatedRows = useMemo(() => {
+    const rows = [];
+    for (const [key, val] of Object.entries(selections)) {
+      if (eyeMode === "Single") {
+        const qty = val?.quantity || 0;
+        if (qty <= 0) continue;
+        const parsed = parseKeyForSpec(key);
+        rows.push({
+          key,
+          label: buildSpecLabel(parsed.sph, parsed.colVal, null),
+          qty,
+        });
+      } else {
+        for (const eye of ["R", "L"]) {
+          const qty = val?.[eye] || 0;
+          if (qty <= 0) continue;
+          const parsed = parseKeyForSpec(key);
+          rows.push({
+            key: `${key}_${eye}`,
+            label: buildSpecLabel(parsed.sph, parsed.colVal, eye),
+            qty,
+          });
+        }
+      }
+    }
+    return rows;
+  }, [selections, eyeMode, useAdd]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function parseKeyForSpec(key) {
+    const parts = key.split("_");
+    const sphIdx = parts.indexOf("sph");
+    const colIdx = useAdd ? parts.indexOf("add") : parts.indexOf("cyl");
+    return {
+      sph: sphIdx !== -1 ? parts[sphIdx + 1] : "0",
+      colVal: colIdx !== -1 ? parts[colIdx + 1] : "0",
+    };
+  }
+
+  const totalGeneratedQty = generatedRows.reduce((s, r) => s + r.qty, 0);
 
   // Unified grid renderer
   const renderGrid = () => {
@@ -312,6 +374,22 @@ export default function BulkLensSelection({
             </p>
           ) : (
             <>
+              {/* Coating select — required before Display Grid (mirrors lensId guard) */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                <div>
+                  <Label className="text-xs">Coating *</Label>
+                  <FormSelect
+                    name="coating_id"
+                    value={coatingId || null}
+                    onChange={(v) => onCoatingChange(v ? String(v) : "")}
+                    options={coatings}
+                    placeholder="Select coating"
+                    isSearchable
+                    disabled={disabled || !lensId}
+                  />
+                </div>
+              </div>
+
               {/* Range inputs */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -404,7 +482,13 @@ export default function BulkLensSelection({
                         setTimeout(() => setShowLensWarning(false), 3000);
                         return;
                       }
+                      if (!coatingId) {
+                        setShowCoatingWarning(true);
+                        setTimeout(() => setShowCoatingWarning(false), 3000);
+                        return;
+                      }
                       setShowLensWarning(false);
+                      setShowCoatingWarning(false);
                       setShowGrid(true);
                     }}
                     disabled={disabled}
@@ -414,6 +498,9 @@ export default function BulkLensSelection({
                   </Button>
                   {showLensWarning && (
                     <p className="text-xs text-destructive">Please select a Lens Product first.</p>
+                  )}
+                  {showCoatingWarning && (
+                    <p className="text-xs text-destructive">Please select a Coating first.</p>
                   )}
                 </div>
                 <Button
@@ -443,6 +530,49 @@ export default function BulkLensSelection({
               <div className="p-3">{renderGrid()}</div>
             </div>
           </CardContent>
+        </Card>
+      )}
+
+      {/* Expandable-by-Coating generated list — Product Spec / Qty columns
+          (Tray + Price columns are rendered by InventoryInitializationForm's Step 3
+          per the contract: A3 → 1a assigns Tray/Price to the parent form, not here). */}
+      {showGrid && categoryName && generatedRows.length > 0 && (
+        <Card>
+          <CardHeader className="p-3 pb-2">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between text-left"
+              onClick={() => setCoatingExpanded((v) => !v)}
+            >
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                {coatingExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                Coating: {coatingName || "—"}
+                <span className="text-xs font-normal text-muted-foreground ml-1">
+                  ({generatedRows.length} spec{generatedRows.length !== 1 ? "s" : ""} · {totalGeneratedQty} units)
+                </span>
+              </CardTitle>
+            </button>
+          </CardHeader>
+          {coatingExpanded && (
+            <CardContent className="p-0">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-y bg-muted/40">
+                    <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">Product Spec</th>
+                    <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-24">Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {generatedRows.map((row) => (
+                    <tr key={row.key} className="border-b last:border-0">
+                      <td className="px-3 py-1.5 font-mono">{row.label}</td>
+                      <td className="px-3 py-1.5 text-center font-semibold">{row.qty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          )}
         </Card>
       )}
 

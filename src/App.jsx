@@ -65,7 +65,6 @@ import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
 import { ProductionOperatorList, ProductionOrderDetail } from "./pages/ProductionOperator";
 import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
 import { PreQcOperatorList, PreQcOrderDetail } from "./pages/PreQcOperator";
-import SoOrderQueue from "./pages/Inventory/SoOrderQueue";
 import NotFound from "./pages/NotFound";
 import CustomerPortalLogin from "./pages/CustomerPortal/CustomerPortalLogin";
 import CustomerPortalDashboard from "./pages/CustomerPortal/CustomerPortalDashboard";
@@ -152,10 +151,10 @@ const AppRoutes = () => (
       <Route path="/inventory/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
       <Route path="/inventory/items" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/request-queue" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/so-queue" element={<ProtectedRoute><SoOrderQueue /></ProtectedRoute>} />
-      <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />      
+      <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
       <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />

@@ -442,7 +442,65 @@ export class InventoryController {
         success: true,
         data: report.data,
         summary: report.summary,
+        trend: report.trend,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get product spec count trend
+   * @route GET /api/inventory/reports/spec-trend
+   */
+  async getInventorySpecCountTrend(req, res, next) {
+    try {
+      const { startDate, endDate, lensTypeId } = req.query;
+      const result = await this.inventoryService.getInventorySpecCountTrend({
+        startDate,
+        endDate,
+        lensTypeId,
+      });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get top 10 and low 10 selling products
+   * @route GET /api/inventory/reports/top-low-selling
+   */
+  async getTopLowSellingProducts(req, res, next) {
+    try {
+      const { days = 30 } = req.query;
+      const result = await this.inventoryService.getTopLowSellingProducts({ days });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get inventory stock pivot
+   * @route GET /api/inventory/reports/stock-pivot
+   */
+  async getInventoryStockPivot(req, res, next) {
+    try {
+      const queryParams = {
+        lens_id: req.query.lens_id ? parseInt(req.query.lens_id, 10) : null,
+        category_id: req.query.category_id ? parseInt(req.query.category_id, 10) : null,
+        Type_id: req.query.Type_id ? parseInt(req.query.Type_id, 10) : null,
+        coating_id: req.query.coating_id ? parseInt(req.query.coating_id, 10) : null,
+        location_id: req.query.location_id ? parseInt(req.query.location_id, 10) : null,
+        search: req.query.search || "",
+        sph: req.query.sph || null,
+        cyl: req.query.cyl || null,
+        add: req.query.add || null,
+      };
+
+      const result = await this.inventoryService.getInventoryStockPivot(queryParams);
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }
