@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Exchange Coating Price Flow Alignment & Fixes",
+  "feature": "Sale Order View Page - Price Config Error Fix",
   "active_feature_file": "planning/feature.md",
   "phase": "COMPLETED",
   "HUMAN_APPROVED": true,
   "state_tag": "DONE",
   "last_agent": "implementer",
-  "at": "2026-06-27T15:42:01+05:30"
+  "at": "2026-06-27T15:54:00+05:30"
 }

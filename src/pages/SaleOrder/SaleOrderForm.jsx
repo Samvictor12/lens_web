@@ -282,8 +282,9 @@ export default function SaleOrderForm() {
 
     }, []);
 
-    // When an EXCHANGE_COATING_PRICE offer is selected, fetch the exchange coating's price
+    // When an EXCHANGE_COATING_PRICE offer is selected, fetch the exchange coating's price (edit/add only)
     useEffect(() => {
+        if (mode === "view") return; // Skip in view mode — saved prices are already correct
         const selectedOffer = formData.offer_id
             ? activeOffers.find((o) => o.id === formData.offer_id)
             : null;
@@ -319,6 +320,7 @@ export default function SaleOrderForm() {
     }, [formData.offer_id, activeOffers, formData.lens_id, formData.coating_id, priceBreakdown]);
 
     useEffect(() => {
+        if (mode === "view") return; // Skip in view mode — saved prices are already correct
         const selectedOffer = formData.offer_id
             ? activeOffers.find((o) => o.id === formData.offer_id)
             : null;
@@ -406,8 +408,9 @@ export default function SaleOrderForm() {
         loadApplicableOffers();
     }, [formData.lens_id, formData.coating_id]);
 
-    // Auto-calculate price when selected offer changes
+    // Auto-calculate price when selected offer changes (only in add/edit mode)
     useEffect(() => {
+        if (mode === "view") return; // Don't recalculate in view mode — saved prices are source of truth
         if (priceBreakdown && formData.customerId && formData.lens_id && formData.coating_id) {
             handleCalculatePrice();
         }
@@ -543,8 +546,11 @@ export default function SaleOrderForm() {
                                 discountValue: order.offer.discountValue,
                                 discountPercentage: order.offer.discountPercentage,
                                 exchange_coating_id: order.offer.exchange_coating_id ?? null,
+                                exchange_lens_id: order.offer.exchange_lens_id ?? null,
+                                exchange_brand_id: order.offer.exchange_brand_id ?? null,
                                 withDiscount: order.offer.withDiscount ?? false,
                                 exchangeCoating: order.offer.exchangeCoating ?? null,
+                                exchangeLensProduct: order.offer.exchangeLensProduct ?? null,
                                 endDate: order.offer.endDate || new Date().toISOString(),
                             }];
                         });
