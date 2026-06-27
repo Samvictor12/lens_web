@@ -34,6 +34,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_GST_RATES } from "@/utils/gstRates";
+import PrintSettingsPreviewPanel, {
+  configTypeToPreviewTab,
+  previewTabToConfigType,
+} from "@/components/LensPrint/previews/PrintSettingsPreviewPanel";
 
 // ─────────────────────────────────────────────
 // Tab config
@@ -547,23 +551,36 @@ function CompanyTab() {
 const PRINT_SERVICE_DOWNLOAD_URL = "/LensPrintService.exe"; // update to your CDN/static URL
 
 const CONFIG_LABELS = {
-  BARCODE_LABEL:      { label: "Barcode Label",      desc: "ZPL label printer (Zebra etc.)",  usesService: true },
-  LENS_SPECIFICATION: { label: "Lens Specification", desc: "A5 lens prescription details",    usesService: true },
-  SALE_ORDER:         { label: "Sale Order",         desc: "Invoice / challan printout",      usesService: false },
-  DISPATCH_NOTE:      { label: "Dispatch Note",      desc: "Delivery / dispatch document",    usesService: false },
+  AUTHENTICITY_CARD: { label: "Authenticity Card", desc: "Evolis Primacy 2 · 84 × 55 mm card", usesService: true },
+  BARCODE_LABEL:     { label: "Barcode Label",     desc: "TSC TTP-244 · 75 × 50 mm label",     usesService: true },
+  SALE_ORDER:        { label: "Invoice / Bill",    desc: "Canon LBP6030 · A4 sale invoice",    usesService: false },
+  DISPATCH_NOTE:     { label: "Dispatch Challan",  desc: "Canon LBP6030 · A4 delivery note",   usesService: false },
 };
-const PAPER_SIZES = ["A4", "A5", "Thermal80", "Label_4x2"];
+const PAPER_SIZES = {
+  AUTHENTICITY_CARD: ["Card_84x55"],
+  BARCODE_LABEL:     ["Label_75x50"],
+  SALE_ORDER:        ["A4"],
+  DISPATCH_NOTE:     ["A4"],
+};
+const DEFAULT_PAPER = {
+  AUTHENTICITY_CARD: "Card_84x55",
+  BARCODE_LABEL:     "Label_75x50",
+  SALE_ORDER:        "A4",
+  DISPATCH_NOTE:     "A4",
+};
 
 function PrintServiceTab() {
   const { toast } = useToast();
   const [serviceStatus, setServiceStatus] = useState(null); // null=checking, true=ok, false=down
   const [checking, setChecking]           = useState(false);
   const [localPrinters, setLocalPrinters] = useState([]); // [{ name, status_code, status }]
+  const [previewTemplate, setPreviewTemplate] = useState("AUTHENTICITY_CARD");
+  const [highlightConfig, setHighlightConfig] = useState(null);
   const [configs, setConfigs]             = useState({
-    BARCODE_LABEL:      { printer_name: "", paper_size: "", label_width: 180, label_height: 200, extra_config: "" },
-    LENS_SPECIFICATION: { printer_name: "", paper_size: "A5",  label_width: null, label_height: null, extra_config: "" },
-    SALE_ORDER:         { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
-    DISPATCH_NOTE:      { printer_name: "", paper_size: "A4",  label_width: null, label_height: null, extra_config: "" },
+    AUTHENTICITY_CARD: { printer_name: "", paper_size: "Card_84x55", label_width: null, label_height: null, extra_config: "" },
+    BARCODE_LABEL:     { printer_name: "", paper_size: "Label_75x50", label_width: 600, label_height: 400, extra_config: "" },
+    SALE_ORDER:        { printer_name: "", paper_size: "A4", label_width: null, label_height: null, extra_config: "" },
+    DISPATCH_NOTE:     { printer_name: "", paper_size: "A4", label_width: null, label_height: null, extra_config: "" },
   });
   const [saving, setSaving] = useState({});
   const [testing, setTesting] = useState({});
@@ -588,12 +605,13 @@ function PrintServiceTab() {
         if (res?.success && Array.isArray(res.data)) {
           const map = {};
           res.data.forEach((c) => {
-            const defaultSize = c.config_type === "BARCODE_LABEL" ? "" : (c.config_type === "LENS_SPECIFICATION" ? "A5" : "A4");
-            map[c.config_type] = {
+            const type = c.config_type === "LENS_SPECIFICATION" ? "AUTHENTICITY_CARD" : c.config_type;
+            if (!CONFIG_LABELS[type]) return;
+            map[type] = {
               printer_name:  c.printer_name  || "",
-              paper_size:    c.paper_size    || defaultSize,
-              label_width:   c.label_width   ?? (c.config_type === "BARCODE_LABEL" ? 180 : null),
-              label_height:  c.label_height  ?? (c.config_type === "BARCODE_LABEL" ? 200 : null),
+              paper_size:    c.paper_size    || DEFAULT_PAPER[type] || "",
+              label_width:   c.label_width   ?? (type === "BARCODE_LABEL" ? 600 : null),
+              label_height:  c.label_height  ?? (type === "BARCODE_LABEL" ? 400 : null),
               extra_config:  c.extra_config  || "",
             };
           });
@@ -639,8 +657,24 @@ function PrintServiceTab() {
   const setField = (type, field, value) =>
     setConfigs((prev) => ({ ...prev, [type]: { ...prev[type], [field]: value } }));
 
+  const handlePreviewTabChange = (tabId) => {
+    setPreviewTemplate(tabId);
+    setHighlightConfig(previewTabToConfigType(tabId));
+  };
+
+  const handleConfigFocus = (type) => {
+    setHighlightConfig(type);
+    setPreviewTemplate(configTypeToPreviewTab(type));
+  };
+
   return (
     <div className="space-y-5">
+
+      {/* ── Template Preview ── */}
+      <PrintSettingsPreviewPanel
+        activeTemplate={previewTemplate}
+        onTemplateChange={handlePreviewTabChange}
+      />
 
       {/* ── Service Status ── */}
       <div className="rounded-lg border p-4 space-y-3">
@@ -692,13 +726,23 @@ function PrintServiceTab() {
 
       {/* ── Config Cards ── */}
       {Object.entries(CONFIG_LABELS).map(([type, meta]) => (
-        <div key={type} className="rounded-lg border p-4 space-y-3">
+        <div
+          key={type}
+          className={cn(
+            "rounded-lg border p-4 space-y-3 transition-colors cursor-pointer",
+            highlightConfig === type && "border-teal-500 ring-1 ring-teal-500/30 bg-teal-50/30"
+          )}
+          onClick={() => handleConfigFocus(type)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && handleConfigFocus(type)}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold">{meta.label}</p>
               <p className="text-xs text-muted-foreground">{meta.desc}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
               {configs[type].printer_name && (
                 <Button
                   type="button"
@@ -763,28 +807,27 @@ function PrintServiceTab() {
                 onChange={(e) => setField(type, "paper_size", e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">— Select size —</option>
-                {PAPER_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {(PAPER_SIZES[type] || ["A4"]).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </FieldRow>
 
-            {/* Label dimensions (only for ZPL label type) */}
-            {meta.usesService && (
+            {/* Label dimensions (barcode only — 75×50 mm @ 203 dpi) */}
+            {type === "BARCODE_LABEL" && (
               <>
-                <FieldRow label="Label Width (dots)" hint="Typical: 180 for 1-inch label">
+                <FieldRow label="Label Width (dots)" hint="75 mm ≈ 600 dots @ 203 dpi">
                   <Input
                     type="number"
                     value={configs[type].label_width ?? ""}
                     onChange={(e) => setField(type, "label_width", e.target.value ? parseInt(e.target.value) : null)}
-                    placeholder="180"
+                    placeholder="600"
                   />
                 </FieldRow>
-                <FieldRow label="Label Height (dots)" hint="Typical: 200 for 1-inch label">
+                <FieldRow label="Label Height (dots)" hint="50 mm ≈ 400 dots @ 203 dpi">
                   <Input
                     type="number"
                     value={configs[type].label_height ?? ""}
                     onChange={(e) => setField(type, "label_height", e.target.value ? parseInt(e.target.value) : null)}
-                    placeholder="200"
+                    placeholder="400"
                   />
                 </FieldRow>
               </>
@@ -813,7 +856,7 @@ export function SettingsModal({ open, onOpenChange, defaultTab = "profile" }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="p-0 overflow-hidden gap-0"
-        style={{ width: "90vw", maxWidth: "1000px", maxHeight: "92vh" }}
+        style={{ width: "90vw", maxWidth: activeTab === "print" ? "1100px" : "1000px", maxHeight: "92vh" }}
       >
         <div className="flex" style={{ height: "min(680px, 85vh)" }}>
           {/* ── Left sidebar ── */}

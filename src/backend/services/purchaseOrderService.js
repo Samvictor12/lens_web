@@ -4,6 +4,17 @@ import InventoryService from "./inventory.service.js";
 import ExcelJS from "exceljs";
 import { postPurchaseReceipt } from "./accountingService.js";
 
+/** Required receive qty: 1 per eye for SO-linked POs, else PO quantity */
+function requiredReceiveQty(po) {
+  if (po.saleOrderId) {
+    let qty = 0;
+    if (po.rightEye) qty += 1;
+    if (po.leftEye) qty += 1;
+    return qty || 1;
+  }
+  return parseFloat(po.quantity) || 1;
+}
+
 class PurchaseOrderService {
   /**
    * Generate next PO number
@@ -855,8 +866,8 @@ class PurchaseOrderService {
       row++;
 
       const eyeRows = [];
-      if (po.rightEye) eyeRows.push({ eye: "Right (R)", sph: po.rightSpherical, cyl: po.rightCylindrical, axis: po.rightAxis, add: po.rightAdd, qty: po.quantity });
-      if (po.leftEye)  eyeRows.push({ eye: "Left (L)",  sph: po.leftSpherical,  cyl: po.leftCylindrical,  axis: po.leftAxis,  add: po.leftAdd,  qty: po.quantity });
+      if (po.rightEye) eyeRows.push({ eye: "Right (R)", sph: po.rightSpherical, cyl: po.rightCylindrical, axis: po.rightAxis, add: po.rightAdd, qty: 1 });
+      if (po.leftEye)  eyeRows.push({ eye: "Left (L)",  sph: po.leftSpherical,  cyl: po.leftCylindrical,  axis: po.leftAxis,  add: po.leftAdd,  qty: 1 });
       if (!eyeRows.length) eyeRows.push({ eye: "—", sph: po.rightSpherical || po.leftSpherical, cyl: po.rightCylindrical || po.leftCylindrical, axis: po.rightAxis || po.leftAxis, add: po.rightAdd || po.leftAdd, qty: po.quantity });
 
       for (const er of eyeRows) {
@@ -1291,9 +1302,7 @@ class PurchaseOrderService {
       const newCumulativeReceived = prevReceivedQty + totalReceivedQty;
 
       // Determine PO status from cumulative qty vs required (linked SO eyes or PO quantity)
-      const requiredQty = po.saleOrderId && po.rightEye && po.leftEye
-        ? 2
-        : (po.saleOrderId && (po.rightEye || po.leftEye) ? 1 : po.quantity);
+      const requiredQty = requiredReceiveQty(po);
       const isFull = newCumulativeReceived >= requiredQty;
       const receiptStatus = isFull ? "COMPLETE" : "PARTIAL";
       const newPOStatus = isFull ? "RECEIVED" : "PO_PARTIAL_RECEIVED";
@@ -1419,8 +1428,8 @@ class PurchaseOrderService {
         .reduce((sum, r) => sum + (r.totalReceivedQty || 0), 0);
       const newCumulativeReceived = otherReceiptsQty + newTotalQty;
 
-      // Determine new PO status
-      const receiptStatus = newCumulativeReceived >= po.quantity ? "COMPLETE" : "PARTIAL";
+      const requiredQty = requiredReceiveQty(po);
+      const receiptStatus = newCumulativeReceived >= requiredQty ? "COMPLETE" : "PARTIAL";
       // Any receipt (even partial) keeps PO as RECEIVED; only revert to DRAFT if all qty removed
       const newPOStatus = newCumulativeReceived <= 0 ? "DRAFT" : "RECEIVED";
 

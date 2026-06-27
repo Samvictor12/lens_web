@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { statusColors } from "./SaleOrder.constants";
 
-export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
+import { STATUS_LABELS, procurementBadgeStyles } from "@/constants/saleOrderStatus";
+
+export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) => {
   return [
     {
       accessorKey: "orderNo",
@@ -57,13 +59,17 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
       ),
     },
     {
-      accessorKey: "type",
+      accessorKey: "procurementType",
       header: "Type",
       cell: (row) => {
-        console.log("type", row.type);
+        const procurementType = row.procurementType || "RX";
+        const style =
+          procurementBadgeStyles[procurementType] || procurementBadgeStyles.RX;
         return (
-          <span className="text-sm">{row.type || "N/A"}</span>
-        )
+          <Badge variant="outline" className={`text-xs border ${style}`}>
+            {procurementType}
+          </Badge>
+        );
       },
     },
     {
@@ -72,10 +78,15 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick) => {
       sortable: true,
       cell: (row) => (
         <Badge
-          className={`${statusColors[row.status] || statusColors.DRAFT} text-xs`}
+          className={`${statusColors[row.status] || statusColors.DRAFT} text-xs cursor-pointer hover:opacity-80`}
           variant="outline"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStatusClick?.(row);
+          }}
+          title="View status history"
         >
-          {row.status ? row.status.replace(/_/g, " ") : "DRAFT"}
+          {row.status ? (STATUS_LABELS[row.status] || row.status.replace(/_/g, " ")) : "DRAFT"}
         </Badge>
       ),
     },

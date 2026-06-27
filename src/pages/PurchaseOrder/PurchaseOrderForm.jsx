@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Package, PackageCheck } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Package, PackageCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -16,6 +16,7 @@ import {
   getPurchaseOrderById,
   updatePurchaseOrder,
   generatePONumber,
+  cancelPurchaseOrder,
 } from "@/services/purchaseOrder";
 import { getVendorDropdown, getVendorLocation } from "@/services/vendor";
 import {
@@ -30,7 +31,7 @@ import {
   getLensProductsFiltered,
   getLensCoatingsByLensProduct,
 } from "@/services/saleOrder";
-import { defaultPurchaseOrder, activeStatusOptions, statusOptions, purchaseTypeOptions, orderTypeOptions } from "./PurchaseOrder.constants";
+import { defaultPurchaseOrder, activeStatusOptions, statusOptions, purchaseTypeOptions, orderTypeOptions, poQuantityFromEyes } from "./PurchaseOrder.constants";
 import BulkLensSelection from "./BulkLensSelection";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
@@ -130,7 +131,7 @@ export default function PurchaseOrderForm() {
   useEffect(() => {
     if (mode === "add" && location.state?.fromSaleOrder) {
       const so = location.state.fromSaleOrder;
-      const qty = (so.rightEye ? 0.5 : 0) + (so.leftEye ? 0.5 : 0) || 1;
+        const qty = poQuantityFromEyes(so);
       setFormData((prev) => ({
         ...prev,
         saleOrderId: so.id ?? null,
@@ -690,6 +691,38 @@ export default function PurchaseOrderForm() {
     !isEditing &&
     formData.status === "DRAFT" &&
     (formData.quantity || 0) > (formData.receivedQty || 0);
+
+  const canCancelPo =
+    mode === "view" &&
+    !isEditing &&
+    formData.saleOrderId &&
+    formData.status !== "CANCELLED" &&
+    (formData.receivedQty || 0) === 0;
+
+  const handleCancelPo = async () => {
+    const remark = window.prompt("Cancel remark (required):");
+    if (!remark?.trim()) return;
+    try {
+      setIsSaving(true);
+      const res = await cancelPurchaseOrder(parseInt(id, 10), remark.trim());
+      if (res.success) {
+        toast({ title: "Purchase order cancelled" });
+        const refresh = await getPurchaseOrderById(parseInt(id, 10));
+        if (refresh.success) {
+          setFormData(refresh.data);
+          setOriginalData(refresh.data);
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Cancel failed",
+        description: error.message || "Failed to cancel purchase order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Render common purchase form fields
   // Basic form for bulk orders (without individual lens selection)
@@ -1477,6 +1510,19 @@ export default function PurchaseOrderForm() {
             >
               <PackageCheck className="h-3.5 w-3.5" />
               Receive PO
+            </Button>
+          )}
+          {canCancelPo && (
+            <Button
+              type="button"
+              size="xs"
+              variant="destructive"
+              className="h-8 gap-1.5"
+              onClick={handleCancelPo}
+              disabled={isSaving}
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              Cancel PO
             </Button>
           )}
           {mode === "view" && (

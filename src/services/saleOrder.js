@@ -128,11 +128,19 @@ export const getStatusLog = async (id) => {
     }
 };
 
-export const raisePoFromSo = async (id, source = "USER") => {
+export const raisePoFromSo = async (id, { vendorId, source = "USER" } = {}) => {
     try {
-        return await apiClient("post", `/sale-orders/${id}/raise-po`, { data: { source } });
+        return await apiClient("post", `/sale-orders/${id}/raise-po`, { data: { vendorId, source } });
     } catch (error) {
         throw new Error(error.response?.data?.message || "Failed to raise PO");
+    }
+};
+
+export const cancelSaleOrder = async (id, remark) => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/cancel`, { data: { remark } });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to cancel sale order");
     }
 };
 

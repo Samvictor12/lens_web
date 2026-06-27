@@ -90,6 +90,16 @@ export const updatePurchaseOrder = async (id, data) => {
 };
 
 /**
+ * Cancel a linked purchase order (receivedQty must be 0)
+ */
+export const cancelPurchaseOrder = async (id, remark) => {
+  const response = await apiClient("post", `${PURCHASE_ORDER_BASE_URL}/${id}/cancel`, {
+    data: { remark },
+  });
+  return response;
+};
+
+/**
  * Delete purchase order (soft delete)
  */
 export const deletePurchaseOrder = async (id) => {

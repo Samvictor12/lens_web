@@ -12,6 +12,22 @@ export const updateExpense = (id, data) => apiClient("put", `${BASE}/${id}`, { d
 export const deleteExpense = (id) => apiClient("delete", `${BASE}/${id}`);
 
 export const getExpenseCategories = () => apiClient("get", CAT_BASE);
-export const createExpenseCategory = (data) => apiClient("post", CAT_BASE, { data });
-export const updateExpenseCategory = (id, data) => apiClient("put", `${CAT_BASE}/${id}`, { data });
+export const getExpenseCategoryById = (id) => apiClient("get", `${CAT_BASE}/${id}`);
+export const createExpenseCategory = (data) =>
+  apiClient("post", CAT_BASE, {
+    data: {
+      name: data.name,
+      expenseType: data.expenseType || "INDIRECT",
+      active_status:
+        data.activeStatus !== undefined ? data.activeStatus : true,
+    },
+  });
+export const updateExpenseCategory = (id, data) =>
+  apiClient("put", `${CAT_BASE}/${id}`, {
+    data: {
+      name: data.name,
+      expenseType: data.expenseType,
+      active_status: data.activeStatus,
+    },
+  });
 export const deleteExpenseCategory = (id) => apiClient("delete", `${CAT_BASE}/${id}`);

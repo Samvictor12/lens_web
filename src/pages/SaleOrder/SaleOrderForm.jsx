@@ -19,8 +19,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { SaleOrderPrintModal } from "@/components/LensPrint/SaleOrderPrintModal";
-import { generatePONumber, createPurchaseOrder } from "@/services/purchaseOrder";
 import SaleOrderStatusBar from "@/components/sale-order/SaleOrderStatusBar";
+import RaisePoModal from "@/components/sale-order/RaisePoModal";
 import { RESET_ELIGIBLE } from "@/constants/saleOrderStatus";
 import {
     createSaleOrder,
@@ -32,6 +32,7 @@ import {
     closeAndCreateSaleOrder,
     raisePoFromSo,
     confirmSoReset,
+    cancelSaleOrder,
     getCustomersDropdown,
     getLensProductsDropdown,
     getLensProductsFiltered,
@@ -95,6 +96,8 @@ export default function SaleOrderForm() {
     // Dropdown open states for split buttons
     const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
     const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
+    const [isRaisePoModalOpen, setIsRaisePoModalOpen] = useState(false);
+    const [raisePoModalMode, setRaisePoModalMode] = useState("raise");
     const addDropdownRef = useRef(null);
     const viewDropdownRef = useRef(null);
 
@@ -1527,12 +1530,8 @@ export default function SaleOrderForm() {
             case "DRAFT":
             case "CONFIRMED":
             case "ON_HOLD":
-                return {
-                    label: currentStatus === "ON_HOLD" ? "Resume Production" : "Start Production",
-                    nextStatus: "IN_PRODUCTION",
-                    icon: Play,
-                    variant: "default",
-                };
+                // Start Production disabled — use Raise PO workflow instead
+                return null;
             case "IN_PRODUCTION":
                 return {
                     label: "Ready for Dispatch",
@@ -1693,130 +1692,194 @@ export default function SaleOrderForm() {
         setFormData((prev) => ({ ...prev, additionalPrice: updatedPrices }));
     };
 
-    // Create and Raise PO Handler
-    const handleCreateAndRaisePO = async (e) => {
-        e?.preventDefault();
+    const hasActiveLinkedPo = (order) =>
+        order?.purchaseOrders?.some(
+            (p) =>
+                !p.deleteStatus &&
+                p.status !== "CANCELLED" &&
+                ["DRAFT", "PO_PARTIAL_RECEIVED", "RECEIVED"].includes(p.status)
+        );
 
-        // Requires price calculation
+    const canRaisePo =
+        mode === "view" &&
+        !isEditing &&
+        formData.id &&
+        ["DRAFT", "PO_CANCELLED"].includes(formData.status) &&
+        !hasActiveLinkedPo(formData);
+
+    const canCancelSo =
+        mode === "view" &&
+        !isEditing &&
+        formData.id &&
+        formData.status !== "CANCELLED" &&
+        ["DRAFT", "PO_CANCELLED", "PO_RAISED"].includes(formData.status);
+
+    const buildSubmitData = () => {
+        const selectedOffer = formData.offer_id
+            ? activeOffers.find((o) => o.id === formData.offer_id)
+            : null;
+        let submitData = {
+            ...formData,
+            discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
+        };
+        if (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" && effectiveBreakdown) {
+            submitData = {
+                ...submitData,
+                lensPrice: effectiveBreakdown.lensPrice,
+                discount: effectiveBreakdown.discountPercentage,
+            };
+        }
+        return submitData;
+    };
+
+    const buildRaisePoSummary = () => {
+        const customer = customers.find((c) => c.id === formData.customerId);
+        const lens = lensProducts.find((l) => l.id === formData.lens_id);
+        const category = categories.find((c) => c.id === formData.category_id);
+        const lensType = lensTypes.find((t) => t.id === formData.Type_id);
+        const coating =
+            filteredCoatings.find((c) => c.id === formData.coating_id) ||
+            coatings.find((c) => c.id === formData.coating_id);
+        return {
+            orderNo: formData.orderNo,
+            customerName: customer?.name || formData.customer?.name,
+            customerRefNo: formData.customerRefNo,
+            lensProductName: lens?.label || lens?.lens_name || formData.lensProduct?.lens_name,
+            categoryName: category?.label || category?.name,
+            typeName: lensType?.label || lensType?.name,
+            coatingName: coating?.name || coating?.label,
+            status: formData.status,
+            procurementType: formData.procurementType || "RX",
+            rightEye: formData.rightEye,
+            leftEye: formData.leftEye,
+            rightSpherical: formData.rightSpherical,
+            rightCylindrical: formData.rightCylindrical,
+            rightAxis: formData.rightAxis,
+            rightAdd: formData.rightAdd,
+            rightDia: formData.rightDia,
+            leftSpherical: formData.leftSpherical,
+            leftCylindrical: formData.leftCylindrical,
+            leftAxis: formData.leftAxis,
+            leftAdd: formData.leftAdd,
+            leftDia: formData.leftDia,
+        };
+    };
+
+    const validateBeforeRaisePo = () => {
         if (!priceBreakdown) {
             toast({
                 title: "Calculate Price First",
                 description: "Please click 'Calculate Price' before proceeding.",
                 variant: "destructive",
             });
-            return;
+            return false;
         }
-
-        // Validate form before saving
         if (!validateForm()) {
             toast({
                 title: "Validation Error",
                 description: "Please fill in all required fields correctly",
                 variant: "destructive",
             });
-            return;
+            return false;
         }
-
-        // Check if at least one eye is selected
         if (!formData.rightEye && !formData.leftEye) {
             toast({
                 title: "Specification Error",
                 description: "Please select and enter specifications for at least one eye",
                 variant: "destructive",
             });
-            return;
+            return false;
         }
+        return true;
+    };
 
+    const openRaisePoModal = (modalMode) => {
+        if (!validateBeforeRaisePo()) return;
+        setRaisePoModalMode(modalMode);
+        setIsRaisePoModalOpen(true);
+    };
+
+    const handleRaisePoConfirm = async (vendorId) => {
         try {
             setIsSaving(true);
+            let soId = formData.id;
 
-            // Build the payload (same offer handling as handleSubmit)
-            const selectedOffer = formData.offer_id
-                ? activeOffers.find((o) => o.id === formData.offer_id)
-                : null;
-            let submitData = {
-                ...formData,
-                discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
-            };
-            if (selectedOffer && 
-                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || 
-                 selectedOffer.offerType === "EXCHANGE_PRODUCT" || 
-                 selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") && 
-                effectiveBreakdown) {
-                submitData = {
-                    ...submitData,
-                    lensPrice: effectiveBreakdown.lensPrice,
-                    discount: effectiveBreakdown.discountPercentage,
-                };
+            if (mode === "add") {
+                const response = await createSaleOrder(buildSubmitData());
+                if (!response.success) {
+                    throw new Error(response.message || "Failed to create sale order");
+                }
+                soId = response.data.id;
+            } else if (isEditing) {
+                const response = await updateSaleOrder(parseInt(id, 10), buildSubmitData());
+                if (!response.success) {
+                    throw new Error(response.message || "Failed to update sale order");
+                }
+                soId = response.data?.id || parseInt(id, 10);
             }
 
-            const response = await createSaleOrder(submitData);
-            if (!response.success) {
-                throw new Error(response.message || "Failed to create sale order");
+            const res = await raisePoFromSo(soId, { vendorId, source: "USER" });
+            if (res.success) {
+                toast({
+                    title: "Success",
+                    description: `PO ${res.data.poNumber} raised successfully`,
+                });
+                setIsRaisePoModalOpen(false);
+                if (mode === "add") {
+                    navigate(`/sales/orders/view/${soId}`);
+                } else {
+                    const refreshResponse = await getSaleOrderById(soId);
+                    if (refreshResponse.success) {
+                        setFormData(refreshResponse.data);
+                        setOriginalData(refreshResponse.data);
+                        setIsEditing(false);
+                    }
+                }
             }
-
-            const so = response.data;
-
-            // Generate a PO number and auto-create a draft PO linked to this SO
-            const poNumberResponse = await generatePONumber();
-            if (!poNumberResponse.success) {
-                throw new Error(poNumberResponse.message || "Failed to generate PO number");
-            }
-
-            const qty = (so.rightEye ? 0.5 : 0) + (so.leftEye ? 0.5 : 0) || 1;
-            const poDraftData = {
-                poNumber: poNumberResponse.data.poNumber,
-                saleOrderId: so.id,
-                orderType: "Single",
-                status: "DRAFT",
-                lens_id: so.lens_id ?? null,
-                category_id: so.category_id ?? null,
-                Type_id: so.Type_id ?? null,
-                fitting_id: so.fitting_id ?? null,
-                coating_id: so.coating_id ?? null,
-                tinting_id: so.tinting_id ?? null,
-                rightEye: so.rightEye ?? false,
-                leftEye: so.leftEye ?? false,
-                rightSpherical: so.rightSpherical || "",
-                rightCylindrical: so.rightCylindrical || "",
-                rightAxis: so.rightAxis || "",
-                rightAdd: so.rightAdd || "",
-                rightDia: so.rightDia || "",
-                leftSpherical: so.leftSpherical || "",
-                leftCylindrical: so.leftCylindrical || "",
-                leftAxis: so.leftAxis || "",
-                leftAdd: so.leftAdd || "",
-                leftDia: so.leftDia || "",
-                quantity: qty,
-                unitPrice: 0,
-                subtotal: 0,
-                totalValue: 0,
-                itemDescription: so.orderNo || "",
-                notes: so.remark || "",
-            };
-
-            const poResponse = await createPurchaseOrder(poDraftData);
-            if (!poResponse.success) {
-                throw new Error(poResponse.message || "Failed to create draft purchase order");
-            }
-
-            toast({
-                title: "Sale Order & Draft PO Created",
-                description: `${so.orderNo} created. Draft PO ${poResponse.data.poNumber} opened for completion.`,
-            });
-
-            // Navigate to the PO edit form so the user can complete remaining fields
-            navigate(`/masters/purchase-orders/edit/${poResponse.data.id}`);
         } catch (error) {
-            console.error("Error in Create & Raise PO:", error);
             toast({
-                title: "Error",
-                description: error.message || "Failed to create sale order",
+                title: "Failed to raise PO",
+                description: error.message || "Could not save sale order and raise PO",
+                variant: "destructive",
+            });
+            setIsRaisePoModalOpen(false);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCancelSo = async () => {
+        const remark = window.prompt("Cancel remark (required):");
+        if (!remark?.trim()) return;
+        try {
+            setIsSaving(true);
+            const res = await cancelSaleOrder(formData.id, remark.trim());
+            if (res.success) {
+                toast({ title: "Sale order cancelled" });
+                const refreshResponse = await getSaleOrderById(formData.id);
+                if (refreshResponse.success) {
+                    setFormData(refreshResponse.data);
+                    setOriginalData(refreshResponse.data);
+                } else {
+                    setFormData((prev) => ({ ...prev, status: "CANCELLED" }));
+                }
+            }
+        } catch (e) {
+            toast({
+                title: "Cancel failed",
+                description: e.message,
                 variant: "destructive",
             });
         } finally {
             setIsSaving(false);
         }
+    };
+
+    // Create and Raise PO Handler
+    const handleCreateAndRaisePO = (e) => {
+        e?.preventDefault();
+        setIsAddDropdownOpen(false);
+        openRaisePoModal("create");
     };
 
     // Create and Print Handler
@@ -2192,6 +2255,31 @@ export default function SaleOrderForm() {
                         Close
                     </Button>
 
+                    {canRaisePo && (
+                        <Button
+                            size="xs"
+                            className="h-8 gap-1.5"
+                            onClick={() => openRaisePoModal("raise")}
+                            disabled={isSaving}
+                        >
+                            <Package className="h-3.5 w-3.5" />
+                            Raise PO
+                        </Button>
+                    )}
+
+                    {canCancelSo && (
+                        <Button
+                            size="xs"
+                            variant="destructive"
+                            className="h-8 gap-1.5"
+                            onClick={handleCancelSo}
+                            disabled={isSaving}
+                        >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Cancel SO
+                        </Button>
+                    )}
+
                     {mode === "view" && !isEditing && statusActionButton && (
                         <Button
                             size="xs"
@@ -2388,27 +2476,17 @@ export default function SaleOrderForm() {
                             </AlertDescription>
                         </Alert>
                     )}
-                    {["DRAFT", "PO_CANCELLED"].includes(formData.status) && (
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={async () => {
-                                try {
-                                    const res = await raisePoFromSo(formData.id);
-                                    if (res.success) {
-                                        toast({ title: "PO raised", description: res.data.poNumber });
-                                        navigate(`/masters/purchase-orders/edit/${res.data.id}`);
-                                    }
-                                } catch (e) {
-                                    toast({ title: "Failed", description: e.message, variant: "destructive" });
-                                }
-                            }}
-                        >
-                            Raise PO
-                        </Button>
-                    )}
                 </div>
             )}
+
+            <RaisePoModal
+                open={isRaisePoModalOpen}
+                onOpenChange={setIsRaisePoModalOpen}
+                summary={buildRaisePoSummary()}
+                onConfirm={handleRaisePoConfirm}
+                loading={isSaving}
+                mode={raisePoModalMode}
+            />
 
             <div className="flex flex-col md:flex-row gap-4 h-full md:overflow-hidden">
                 {/* Block 1: Order Information */}

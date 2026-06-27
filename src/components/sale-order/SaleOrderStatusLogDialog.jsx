@@ -32,12 +32,13 @@ export default function SaleOrderStatusLogDialog({ open, onOpenChange, orderId, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="!flex !max-w-none w-[min(1100px,94vw)] h-[min(820px,88vh)] flex-col gap-4 overflow-hidden p-6">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Status history — {displayNo}</DialogTitle>
           <p className="text-sm text-muted-foreground">Current: {current}</p>
         </DialogHeader>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -86,6 +87,7 @@ export default function SaleOrderStatusLogDialog({ open, onOpenChange, orderId, 
         {!loading && data?.logs?.length === 0 && (
           <p className="text-sm text-muted-foreground">No status history yet.</p>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

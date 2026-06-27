@@ -601,6 +601,7 @@ enum SaleOrderStatus {
   DELIVERED
   INVOICED
   COMPLETED
+  CANCELLED
 }
 
 enum SaleOrderStatusSource {

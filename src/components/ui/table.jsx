@@ -205,9 +205,9 @@ const Table = React.forwardRef(
     const endIndex = pagination ? Math.min((pageIndex + 1) * pageSize, totalCount) : totalCount;
 
     return (
-      <div ref={ref} className={cn("flex flex-col", className)} {...props} style={{ height: '100%' }}>
-        {/* Table Container */}
-        <div className="flex-1 rounded-md border overflow-hidden min-h-0">
+      <div ref={ref} className={cn("flex flex-col h-full min-h-0", className)} {...props}>
+        {/* Table Container — scrollable body */}
+        <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
           <div className="relative h-full overflow-auto">
             <table className="min-w-full border-collapse w-full caption-bottom text-sm">
               <TableHeader className="sticky top-0 bg-background z-10 border-b">
@@ -282,9 +282,9 @@ const Table = React.forwardRef(
           </div>
         </div>
 
-        {/* Pagination - Sticky at bottom */}
+        {/* Pagination — pinned below scroll area */}
         {pagination && totalCount > 0 && (
-          <div className="flex items-center justify-between px-2 pt-2 bg-background">
+          <div className="flex flex-shrink-0 items-center justify-between px-2 py-3 border-t bg-background">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>
                 Showing {startIndex} to {endIndex} of {totalCount} results

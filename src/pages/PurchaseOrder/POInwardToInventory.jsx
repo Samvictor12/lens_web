@@ -418,8 +418,13 @@ export default function POInwardToInventory() {
           description: `${res.data.createdCount} item(s) created · ${res.data.totalInwardedQty} units pushed to stock`,
         });
         setShowSubmitWarnings(false);
-        // Reload to reflect updated inward status
-        await load();
+        setTimeout(() => {
+          if (window.opener) {
+            window.close();
+          } else {
+            navigate(closeRoute, { replace: true });
+          }
+        }, 800);
       } else {
         throw new Error(res.message || "Failed to inward items");
       }

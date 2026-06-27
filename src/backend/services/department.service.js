@@ -109,6 +109,13 @@ export class DepartmentService {
         orderBy: {
           [sortBy]: sortOrder,
         },
+        include: {
+          _count: {
+            select: {
+              Users: { where: { delete_status: false } },
+            },
+          },
+        },
       });
 
       return {
@@ -139,6 +146,13 @@ export class DepartmentService {
     try {
       const department = await prisma.departmentDetails.findUnique({
         where: { id: parseInt(id) },
+        include: {
+          _count: {
+            select: {
+              Users: { where: { delete_status: false } },
+            },
+          },
+        },
       });
 
       if (!department || department.delete_status) {

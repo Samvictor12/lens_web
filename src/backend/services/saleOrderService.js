@@ -640,7 +640,16 @@ export class SaleOrderService {
           tinting: true,
           items: true,
           invoice: true,
-          purchaseOrders: true,
+          purchaseOrders: {
+            where: { deleteStatus: false },
+            select: {
+              id: true,
+              poNumber: true,
+              status: true,
+              receivedQty: true,
+              deleteStatus: true,
+            },
+          },
           dispatch: true,
           assignedPerson: {
             select: {

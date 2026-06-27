@@ -12,7 +12,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
 import { getPurchaseOrderById, getPOReceipts, receivePurchaseOrder, updatePOReceipt, getPOReceiptLogs } from "@/services/purchaseOrder";
 import { FormSelect } from "@/components/ui/form-select";
-import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
+import { getStatusColor, getStatusLabel, buildSinglePoReceiveRows } from "./PurchaseOrder.constants";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -31,6 +31,23 @@ const parseKey = (key) => {
     add: addIdx !== -1 ? parts[addIdx + 1] : null,
     eye,
   };
+};
+
+/** Map legacy single-key receipts to per-eye keys when PO has eye flags */
+const migrateLegacySingleCumulative = (cumulativeMap, po) => {
+  if (!cumulativeMap.single || cumulativeMap.single_R || cumulativeMap.single_L) return;
+  const legacy = cumulativeMap.single;
+  delete cumulativeMap.single;
+  if (po.rightEye && po.leftEye) {
+    cumulativeMap.single_R = Math.min(1, legacy);
+    cumulativeMap.single_L = Math.max(0, legacy - 1);
+  } else if (po.rightEye) {
+    cumulativeMap.single_R = legacy;
+  } else if (po.leftEye) {
+    cumulativeMap.single_L = legacy;
+  } else {
+    cumulativeMap.single = legacy;
+  }
 };
 
 /** Build rows from lensBulkSelection.selections + past receipts cumulative map */
@@ -196,21 +213,39 @@ export default function PurchaseOrderReceive() {
           }
           setRows(builtRows);
         } else {
-          // Single PO — one row
-          const alreadyReceived = isEditMode
-            ? (rcpData.totalReceivedQty || 0) - (editReceipt?.totalReceivedQty || 0)
-            : rcpData.totalReceivedQty || 0;
-          const preFillQty = isEditMode && editReceipt ? String(editReceipt.totalReceivedQty) : "";
-          setRows([{
-            key: "single",
-            spherical: poData.rightSpherical || poData.leftSpherical || "-",
-            cylindrical: poData.rightCylindrical || poData.leftCylindrical || "-",
-            orderedQty: poData.quantity || 1,
-            alreadyReceived,
-            remaining: (poData.quantity || 1) - alreadyReceived,
-            unitPrice: poData.unitPrice || 0,
-            receivedQty: preFillQty,
-          }]);
+          migrateLegacySingleCumulative(cumulativeMap, poData);
+          const receiveRowDefs = buildSinglePoReceiveRows(poData);
+          const builtRows = receiveRowDefs.map((def) => {
+            const alreadyReceived = cumulativeMap[def.key] || 0;
+            const remaining = def.orderedQty - alreadyReceived;
+            return {
+              key: def.key,
+              eye: def.eye,
+              label: def.label,
+              spherical: def.sph ?? "-",
+              cylindrical: def.cyl ?? "-",
+              add: def.add ?? null,
+              orderedQty: def.orderedQty,
+              alreadyReceived,
+              remaining,
+              unitPrice: poData.unitPrice || 0,
+              receivedQty: "",
+            };
+          });
+          if (isEditMode && editReceipt?.receivedItems) {
+            const editItemMap = {};
+            editReceipt.receivedItems.forEach((item) => {
+              if (item.key) editItemMap[item.key] = item.receivedQty;
+            });
+            builtRows.forEach((row) => {
+              if (editItemMap[row.key] !== undefined) {
+                row.receivedQty = String(editItemMap[row.key]);
+              } else if (editItemMap.single && builtRows.length === 1) {
+                row.receivedQty = String(editItemMap.single);
+              }
+            });
+          }
+          setRows(builtRows);
         }
       } catch (err) {
         toast({ title: "Error", description: err.message || "Failed to load PO", variant: "destructive" });
@@ -673,6 +708,7 @@ export default function PurchaseOrderReceive() {
                     {(() => {
                       const isProgressive = rows.some(r => r.add !== null && r.add !== undefined);
                       const hasEyeData = rows.some(r => r.eye);
+                      const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                       return (
                       <tr className="border-b bg-muted/50">
                         {po.orderType === "Bulk" && (
@@ -680,6 +716,13 @@ export default function PurchaseOrderReceive() {
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">{isProgressive ? "ADD" : "CYL"}</th>
                             {hasEyeData && <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>}
+                          </>
+                        )}
+                        {isSingleWithEyes && (
+                          <>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">CYL</th>
                           </>
                         )}
                         <th className="px-3 py-2 text-right font-medium text-muted-foreground">PO Qty</th>
@@ -694,6 +737,7 @@ export default function PurchaseOrderReceive() {
                     {(() => {
                       const isProgressive = rows.some(r => r.add !== null && r.add !== undefined);
                       const hasEyeData = rows.some(r => r.eye);
+                      const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                       return rows.map((row, idx) => {
                       const qty = parseFloat(row.receivedQty) || 0;
 
@@ -705,6 +749,13 @@ export default function PurchaseOrderReceive() {
                               <td className="px-3 py-2 font-medium">{row.spherical}</td>
                               <td className="px-3 py-2">{isProgressive ? row.add : row.cylindrical}</td>
                               {hasEyeData && <td className="px-3 py-2">{row.eye || "-"}</td>}
+                            </>
+                          )}
+                          {isSingleWithEyes && (
+                            <>
+                              <td className="px-3 py-2 font-medium">{row.label || row.eye}</td>
+                              <td className="px-3 py-2">{row.spherical}</td>
+                              <td className="px-3 py-2">{row.cylindrical}</td>
                             </>
                           )}
                           <td className="px-3 py-2 text-right">{row.orderedQty}</td>
@@ -739,10 +790,12 @@ export default function PurchaseOrderReceive() {
                     })()}
                     {rows.length === 0 && (() => {
                       const hasEyeData = rows.some(r => r.eye);
+                      const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                       const bulkCols = po.orderType === "Bulk" ? (2 + (hasEyeData ? 1 : 0)) : 0;
+                      const singleEyeCols = isSingleWithEyes ? 3 : 0;
                       return (
                       <tr>
-                        <td colSpan={bulkCols + 4} className="px-3 py-8 text-center text-muted-foreground">
+                        <td colSpan={bulkCols + singleEyeCols + 3} className="px-3 py-8 text-center text-muted-foreground">
                           No items to receive
                         </td>
                       </tr>
@@ -751,11 +804,15 @@ export default function PurchaseOrderReceive() {
                   </tbody>
                   {rows.length > 0 && (() => {
                     const hasEyeData = rows.some(r => r.eye);
+                    const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                     const bulkCols = po.orderType === "Bulk" ? (2 + (hasEyeData ? 1 : 0)) : 0;
+                    const singleEyeCols = isSingleWithEyes ? 3 : 0;
                     return (
                     <tfoot>
                       <tr className="bg-muted/50 font-semibold border-t">
-                        {po.orderType === "Bulk" && <td colSpan={2 + (hasEyeData ? 1 : 0)} />}
+                        {(po.orderType === "Bulk" || isSingleWithEyes) && (
+                          <td colSpan={bulkCols + singleEyeCols} />
+                        )}
                         <td className="px-3 py-2 text-right">{orderedQty}</td>
                         {/* <td className="px-3 py-2 text-right text-green-600">{alreadyReceived}</td> */}
                         <td className="px-3 py-2 text-right text-orange-600">{pendingQty}</td>
@@ -882,7 +939,12 @@ export default function PurchaseOrderReceive() {
                                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">CYL</th>
                                         </>
                                       ) : (
-                                        <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Lens</th>
+                                        <>
+                                          {items.some((i) => i.eye) && (
+                                            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Eye</th>
+                                          )}
+                                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Lens</th>
+                                        </>
                                       )}
                                       <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Ordered</th>
                                       <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Received</th>
@@ -901,7 +963,14 @@ export default function PurchaseOrderReceive() {
                                             </td>
                                           </>
                                         ) : (
-                                          <td className="px-2 py-1.5 text-muted-foreground">Single Lens</td>
+                                          <>
+                                            {items.some((i) => i.eye) && (
+                                              <td className="px-2 py-1.5 font-medium">{item.eye === "R" ? "Right (R)" : item.eye === "L" ? "Left (L)" : item.eye}</td>
+                                            )}
+                                            <td className="px-2 py-1.5 text-muted-foreground">
+                                              {item.eye ? `SPH ${item.spherical ?? "—"} / CYL ${item.cylindrical ?? "—"}` : "Single Lens"}
+                                            </td>
+                                          </>
                                         )}
                                         <td className="px-2 py-1.5 text-right text-muted-foreground">{item.orderedQty ?? "—"}</td>
                                         <td className="px-2 py-1.5 text-right font-semibold text-green-700">{item.receivedQty}</td>

@@ -81,14 +81,6 @@ export const useVendorColumns = (navigate, onDelete) => {
           <Button
             variant="ghost"
             size="xs"
-            className="h-7 px-2 text-xs"
-            onClick={() => navigate(`/masters/vendors/view/${vendor.id}`)}
-          >
-            View
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
             className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={() => onDelete && onDelete(vendor)}
           >

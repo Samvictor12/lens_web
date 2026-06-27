@@ -19,6 +19,7 @@ export const STATUS_LABELS = {
   DELIVERED: 'Delivered',
   INVOICED: 'Invoice Generated',
   COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
   STOCK_ISSUED: 'Stock Issued',
 };
 
@@ -62,3 +63,9 @@ export function queueBadge(status) {
       return null;
   }
 }
+
+/** RX / STOCK procurement badges — shared across SO list & inventory queue */
+export const procurementBadgeStyles = {
+  RX: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+  STOCK: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:border-teal-800',
+};

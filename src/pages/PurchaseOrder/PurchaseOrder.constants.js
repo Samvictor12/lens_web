@@ -122,3 +122,54 @@ export const purchaseOrderFilters = {
   start_date: "",
   end_date: "",
 };
+
+/** PO quantity from linked SO eyes: 1 per eye, minimum 1 */
+export function poQuantityFromEyes(order) {
+  if (!order) return 1;
+  let qty = 0;
+  if (order.rightEye) qty += 1;
+  if (order.leftEye) qty += 1;
+  return qty || 1;
+}
+
+/** Receive rows for SO-linked single PO: one row per eye, qty 1 each */
+export function buildSinglePoReceiveRows(po) {
+  const rows = [];
+  if (po?.rightEye) {
+    rows.push({
+      key: "single_R",
+      eye: "R",
+      label: "Right (R)",
+      orderedQty: 1,
+      sph: po.rightSpherical,
+      cyl: po.rightCylindrical,
+      axis: po.rightAxis,
+      add: po.rightAdd,
+    });
+  }
+  if (po?.leftEye) {
+    rows.push({
+      key: "single_L",
+      eye: "L",
+      label: "Left (L)",
+      orderedQty: 1,
+      sph: po.leftSpherical,
+      cyl: po.leftCylindrical,
+      axis: po.leftAxis,
+      add: po.leftAdd,
+    });
+  }
+  if (!rows.length) {
+    rows.push({
+      key: "single",
+      eye: null,
+      label: "Single",
+      orderedQty: parseFloat(po?.quantity) || 1,
+      sph: po?.rightSpherical ?? po?.leftSpherical,
+      cyl: po?.rightCylindrical ?? po?.leftCylindrical,
+      axis: po?.rightAxis ?? po?.leftAxis,
+      add: po?.rightAdd ?? po?.leftAdd,
+    });
+  }
+  return rows;
+}

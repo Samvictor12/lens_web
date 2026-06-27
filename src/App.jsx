@@ -72,6 +72,7 @@ import CheckSheetMain from "./pages/CheckSheet/CheckSheetMain";
 import CheckSheetForm from "./pages/CheckSheet/CheckSheetForm";
 import ChartOfAccounts from "./pages/Accounting/ChartOfAccounts/ChartOfAccountsMain";
 import ExpenseCategories from "./pages/ExpenseCategory/ExpenseCategoryMain";
+import ExpenseCategoryForm from "./pages/ExpenseCategory/ExpenseCategoryForm";
 import ExpensesMain from "./pages/Accounting/Expenses/ExpensesMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
 import FinancialReports from "./pages/Accounting/FinancialReports";
@@ -175,6 +176,8 @@ const AppRoutes = () => (
       <Route path="/accounts/bank-reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
       <Route path="/accounts/ledgers" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />
       <Route path="/masters/expense-categories" element={<ProtectedRoute><ExpenseCategories /></ProtectedRoute>} />
+      <Route path="/masters/expense-categories/:mode" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
+      <Route path="/masters/expense-categories/:mode/:id" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
       <Route path="/accounts/reports" element={<ProtectedRoute><FinancialReports /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />

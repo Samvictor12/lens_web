@@ -910,6 +910,11 @@ router.post('/:id/issue-to-pre-qc',
   controller.issueToPreQc.bind(controller)
 );
 
+router.post('/:id/cancel',
+  authenticateToken,
+  controller.cancelSaleOrder.bind(controller)
+);
+
 router.get('/:id/fifo-matches',
   authenticateToken,
   controller.getFifoMatches.bind(controller)

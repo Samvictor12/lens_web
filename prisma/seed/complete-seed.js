@@ -1,8 +1,36 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import { seedFinancialLedgers } from './financial-ledgers-seed.js';
+import { backfillVendorCustomerLedgers } from './backfill-vendor-customer-ledgers.js';
+import { patchMissingDbColumns } from '../../scripts/patch-missing-db-columns.js';
 
 const prisma = new PrismaClient();
+
+/** Keep autoincrement in sync after seeding rows with explicit ids */
+async function resetTableSequence(tableName) {
+  await prisma.$executeRawUnsafe(
+    `SELECT setval(pg_get_serial_sequence('"${tableName}"', 'id'), COALESCE((SELECT MAX(id) FROM "${tableName}"), 1))`
+  );
+}
+
+async function resetSeedSequences() {
+  const tables = [
+    'User',
+    'DepartmentDetails',
+    'Role',
+    'BusinessCategoryMaster',
+    'LensCategoryMaster',
+    'LensMaterialMaster',
+    'LensCoatingMaster',
+    'LensBrandMaster',
+    'LensTypeMaster',
+    'LensFittingMaster',
+    'LensTintingMaster',
+  ];
+  for (const table of tables) {
+    await resetTableSequence(table);
+  }
+}
 
 async function seedComplete() {
   try {
@@ -785,6 +813,11 @@ async function seedComplete() {
     await seedFinancialLedgers(prisma);
     console.log('✅ Financial ledgers created\n');
 
+    console.log('🔧 Patching schema + linking customer/vendor ledgers...');
+    await patchMissingDbColumns(prisma);
+    await backfillVendorCustomerLedgers(prisma);
+    console.log('✅ Customer/vendor ledger links ready\n');
+
     console.log('⚙️  Seeding company settings...');
     const defaultCustomAttributes = {
       gstRates: [
@@ -811,6 +844,10 @@ async function seedComplete() {
       });
     }
     console.log('✅ Company settings created\n');
+
+    console.log('🔢 Syncing ID sequences...');
+    await resetSeedSequences();
+    console.log('✅ ID sequences synced\n');
 
     console.log('═══════════════════════════════════════');
     console.log('🎉 Complete database seed successful!');

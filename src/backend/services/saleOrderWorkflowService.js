@@ -97,7 +97,13 @@ export class SaleOrderWorkflowService {
     return { data: orders, total, page: parsedPage, limit: parsedLimit };
   }
 
-  async raisePoFromSo(saleOrderId, userId, source = 'USER') {
+  async raisePoFromSo(saleOrderId, userId, options = {}) {
+    const { source = 'USER', vendorId } = options;
+    const parsedVendorId = parseInt(vendorId, 10);
+    if (!parsedVendorId) {
+      throw new APIError('Vendor is required to raise PO', 400, 'VENDOR_REQUIRED');
+    }
+
     return prisma.$transaction(async (tx) => {
       const so = await tx.saleOrder.findUnique({
         where: { id: saleOrderId, deleteStatus: false },
@@ -124,7 +130,7 @@ export class SaleOrderWorkflowService {
       const next = last ? parseInt(last.poNumber.split('-')[2], 10) + 1 : 1;
       const poNumber = `${prefix}${String(next).padStart(3, '0')}`;
 
-      const qty = (so.rightEye ? 0.5 : 0) + (so.leftEye ? 0.5 : 0) || 1;
+      const qty = requiredPoQty(so);
       const po = await tx.purchaseOrder.create({
         data: {
           poNumber,
@@ -155,6 +161,7 @@ export class SaleOrderWorkflowService {
           totalValue: 0,
           itemDescription: so.orderNo,
           notes: so.remark,
+          vendorId: parsedVendorId,
           createdBy: userId,
         },
       });
@@ -176,6 +183,85 @@ export class SaleOrderWorkflowService {
       });
 
       return po;
+    });
+  }
+
+  async cancelSaleOrder(saleOrderId, userId, remark) {
+    if (!remark?.trim()) {
+      throw new APIError('Cancel remark is required', 400, 'REMARK_REQUIRED');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const so = await tx.saleOrder.findUnique({
+        where: { id: saleOrderId, deleteStatus: false },
+        include: {
+          purchaseOrders: { where: { deleteStatus: false } },
+          invoice: true,
+        },
+      });
+      if (!so) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+      if (so.status === 'CANCELLED') {
+        throw new APIError('Sale order is already cancelled', 400, 'ALREADY_CANCELLED');
+      }
+      if (so.invoiceId) {
+        throw new APIError('Cannot cancel sale order with an invoice', 400, 'HAS_INVOICE');
+      }
+
+      const blockedStatuses = [
+        'PO_RECEIVED',
+        'PRE_QC',
+        'PRE_QC_REJECTED',
+        'PRE_QC_SCRAPPED',
+        'PRODUCTION_READY',
+        'IN_PRODUCTION',
+        'ON_HOLD',
+        'AWAITING_QUALITY',
+        'POST_QC_REJECTED',
+        'POST_QC_SCRAPPED',
+        'READY_FOR_DISPATCH',
+        'DISPATCHED',
+        'DELIVERED',
+        'INVOICED',
+        'COMPLETED',
+      ];
+      if (blockedStatuses.includes(so.status)) {
+        throw new APIError(`Cannot cancel sale order in status ${so.status}`, 400, 'INVALID_STATUS');
+      }
+
+      const activePos = so.purchaseOrders.filter(
+        (p) => p.status !== 'CANCELLED' && ACTIVE_PO_STATUSES.includes(p.status)
+      );
+
+      if (so.status === 'PO_RAISED' && activePos.length > 0) {
+        for (const po of activePos) {
+          if ((po.receivedQty || 0) > 0) {
+            throw new APIError(
+              'Cannot cancel sale order while linked PO has received quantity',
+              400,
+              'PO_RECEIVED'
+            );
+          }
+          await tx.purchaseOrder.update({
+            where: { id: po.id },
+            data: { status: 'CANCELLED', updatedBy: userId },
+          });
+        }
+      } else if (activePos.some((p) => (p.receivedQty || 0) > 0)) {
+        throw new APIError(
+          'Cannot cancel sale order while linked PO has received quantity',
+          400,
+          'PO_RECEIVED'
+        );
+      }
+
+      return saleOrderStatusService.transition({
+        tx,
+        saleOrderId: so.id,
+        toStatus: 'CANCELLED',
+        userId,
+        remark: remark.trim(),
+        source: 'USER',
+      });
     });
   }
 
