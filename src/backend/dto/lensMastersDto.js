@@ -271,6 +271,10 @@ export const validateCreateLensProduct = (data) => {
     errors.push({ field: 'type_id', message: 'Type ID is required' });
   }
 
+  if (!data.index_id || !isValidNumber(data.index_id)) {
+    errors.push({ field: 'index_id', message: 'Index ID is required' });
+  }
+
   if (!data.product_code || data.product_code.trim() === '') {
     errors.push({ field: 'product_code', message: 'Product code is required' });
   } else if (!isValidLength(data.product_code, 1, 100)) {
@@ -318,6 +322,10 @@ export const validateUpdateLensProduct = (data) => {
 
   if (data.type_id !== undefined && !isValidNumber(data.type_id)) {
     errors.push({ field: 'type_id', message: 'Type ID must be a valid number' });
+  }
+
+  if (data.index_id !== undefined && (!data.index_id || !isValidNumber(data.index_id))) {
+    errors.push({ field: 'index_id', message: 'Index ID is required and must be a valid number' });
   }
 
   if (data.product_code && !isValidLength(data.product_code, 1, 100)) {

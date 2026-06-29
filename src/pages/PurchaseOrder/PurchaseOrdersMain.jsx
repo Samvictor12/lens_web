@@ -88,7 +88,7 @@ export default function PurchaseOrders() {
 
   // Handle receive purchase order click
   const handleReceive = (po) => {
-    window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
+    navigate(`/masters/purchase-orders/receive/${po.id}`);
   };
 
   const handleInward = async (po) => {
@@ -98,7 +98,7 @@ export default function PurchaseOrders() {
         const sorted = [...res.data.receipts].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
-        window.open(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`, "_blank");
+        navigate(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`);
         return;
       }
 
@@ -125,13 +125,13 @@ export default function PurchaseOrders() {
         const sorted = [...res.data.receipts].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
-        window.open(`/masters/purchase-orders/receive/${po.id}/edit/${sorted[0].id}`, "_blank");
+        navigate(`/masters/purchase-orders/receive/${po.id}/edit/${sorted[0].id}`);
       } else {
         // Fallback: open normal receive page
-        window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
+        navigate(`/masters/purchase-orders/receive/${po.id}`);
       }
     } catch {
-      window.open(`/masters/purchase-orders/receive/${po.id}`, "_blank");
+      navigate(`/masters/purchase-orders/receive/${po.id}`);
     }
   };
 
@@ -204,6 +204,56 @@ export default function PurchaseOrders() {
     if (activeTab !== "list") return;
     fetchPurchaseOrders();
   }, [activeTab, pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
+
+  // WebSocket Live Refresh
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_WEB_API_URL || "http://localhost:5001/api";
+    let wsUrl = apiUrl.replace(/^http/, "ws");
+    if (wsUrl.endsWith("/api")) {
+      wsUrl = wsUrl.substring(0, wsUrl.length - 4);
+    }
+
+    let socket = null;
+    let reconnectTimeout = null;
+
+    const connect = () => {
+      console.log(`🔌 Connecting to WebSocket at ${wsUrl}`);
+      socket = new WebSocket(wsUrl);
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'PURCHASE_ORDER_UPDATED') {
+            console.log('📡 WebSocket live refresh event: PURCHASE_ORDER_UPDATED');
+            setRefreshKey((prev) => prev + 1);
+          }
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('🔌 WebSocket connection closed. Attempting reconnect in 3s...');
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      socket.onerror = (err) => {
+        console.error('❌ WebSocket error:', err);
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab !== "dashboard") return;
@@ -383,7 +433,7 @@ export default function PurchaseOrders() {
             <div className="h-full overflow-y-auto pr-1 space-y-3">
               {dashboardStats.recentActivity.map((po) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                     onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}>
+                     onClick={() => navigate(`/masters/purchase-orders/view/${po.id}`)}>
                   <div className="flex-1">
                     <div className="font-medium">{po.poNumber}</div>
                     <div className="text-sm text-muted-foreground">
@@ -442,7 +492,7 @@ export default function PurchaseOrders() {
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => window.open("/masters/purchase-orders/add", "_blank")}
+            onClick={() => navigate("/masters/purchase-orders/add")}
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Add Purchase Order</span>
@@ -529,9 +579,9 @@ export default function PurchaseOrders() {
                 renderCard={(po) => (
                   <PurchaseOrderCard
                     purchaseOrder={po}
-                    onView={(id) => window.open(`/masters/purchase-orders/view/${id}`, "_blank")}
+                    onView={(id) => navigate(`/masters/purchase-orders/view/${id}`)}
                     onDelete={handleDeleteClick}
-                    onReceive={(id) => window.open(`/masters/purchase-orders/receive/${id}`, "_blank")}
+                    onReceive={(id) => navigate(`/masters/purchase-orders/receive/${id}`)}
                   />
                 )}
                 isLoading={isLoading}

@@ -545,19 +545,21 @@ class LensProductMasterService {
           material_id: true,
           brand: { select: { name: true } },
           category: { select: { name: true } },
+          index: { select: { index_name: true } },
         },
         orderBy: { lens_name: "asc" },
       });
 
       return products.map((p) => ({
         id: p.id,
-        label: `${p.lens_name} (${p.product_code})`,
+        label: `${p.product_code} - ${p.lens_name} [${p.index?.index_name || "N/A"}]`,
         value: p.id,
         product_code: p.product_code,
         lens_name: p.lens_name,
         brand: p.brand.name,
         category: p.category.name,
         material_id: p.material_id,
+        index_name: p.index?.index_name || null,
       }));
     } catch (error) {
       console.error("Error fetching product dropdown:", error);

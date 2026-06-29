@@ -189,6 +189,9 @@ export default function LensProductForm() {
     if (!formData.typeId) {
       newErrors.typeId = "Type is required";
     }
+    if (!formData.indexId) {
+      newErrors.indexId = "Index is required";
+    }
 
     // Range validation
     if (formData.sphereMin && formData.sphereMax) {
@@ -581,9 +584,9 @@ export default function LensProductForm() {
                 value={formData.indexId}
                 onChange={(value) => handleSelectChange("indexId", value)}
                 error={errors.indexId}
+                required
                 disabled={!isEditing}
                 placeholder="Select index"
-                isClearable={true}
               />
               <div className="grid md:grid-cols-3 grid-cols-2 gap-3">
                 <FormInput

@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { errorHandler } from './middleware/errorHandler.js';
+import { initWebSocket } from './utils/websocket.js';
 
 // Route imports
 import authRoutes from './routes/auth.routes.js';
@@ -180,6 +181,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
 });
+
+initWebSocket(server);
 
 server.on('listening', () => {
   const addr = server.address();

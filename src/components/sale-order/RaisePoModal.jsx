@@ -52,8 +52,15 @@ export default function RaisePoModal({
   summary,
   onConfirm,
   loading = false,
-  mode = "raise",
+  mode = "raise", // "raise" | "create" | "inventory"
 }) {
+  const confirmLabel =
+    mode === "create"
+      ? "Save SO & Raise PO"
+      : mode === "inventory"
+        ? "Raise PO"
+        : "Save & Raise PO";
+  const loadingLabel = mode === "inventory" ? "Raising..." : "Saving...";
   const [vendors, setVendors] = useState([]);
   const [vendorId, setVendorId] = useState(null);
   const [error, setError] = useState("");
@@ -169,7 +176,7 @@ export default function RaisePoModal({
             Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={loading}>
-            {loading ? "Saving..." : mode === "create" ? "Save SO & Raise PO" : "Save & Raise PO"}
+            {loading ? loadingLabel : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

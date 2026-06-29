@@ -94,8 +94,8 @@ export default function QualityOperatorList({
         100,
         search,
         { statuses: statusFilter },
-        "orderDate",
-        "desc"
+        "updatedAt",
+        "asc"
       );
       if (response.success) {
         setOrders(response.data || []);
@@ -123,8 +123,8 @@ export default function QualityOperatorList({
         1,
         scannedOrderNo,
         { statuses: statusFilter },
-        "orderDate",
-        "desc"
+        "updatedAt",
+        "asc"
       );
       const results = response?.data || [];
       if (

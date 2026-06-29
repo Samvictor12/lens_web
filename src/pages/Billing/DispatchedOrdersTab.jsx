@@ -92,7 +92,7 @@ export default function DispatchedOrdersTab({ onBillCustomer }) {
                 : "No dispatched orders waiting to be billed."}
             </p>
             <p className="text-sm text-muted-foreground">
-              Orders in <strong>DELIVERED</strong> status that are not yet invoiced appear here.
+              Orders in <strong>DISPATCHED</strong> or <strong>DELIVERED</strong> status that are not yet invoiced appear here.
             </p>
           </CardContent>
         </Card>

@@ -303,6 +303,11 @@ export default function PurchaseOrderForm() {
             // Hide tabs in view/edit mode - show only the form for existing order type
             setShowTabs(false);
 
+            // If PO is received, partially received, or cancelled, do not allow editing
+            if (["RECEIVED", "PARTIALLY_RECEIVED", "CANCELLED"].includes(po.status) || (po.receivedQty || 0) > 0) {
+              setIsEditing(false);
+            }
+
             setFormData(poData);
             setOriginalData(poData);
           } else {
@@ -692,11 +697,17 @@ export default function PurchaseOrderForm() {
     formData.status === "DRAFT" &&
     (formData.quantity || 0) > (formData.receivedQty || 0);
 
+  // Once PO is received, Cancel PO action should not be available
   const canCancelPo =
     mode === "view" &&
     !isEditing &&
     formData.saleOrderId &&
-    formData.status !== "CANCELLED" &&
+    !["RECEIVED", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
+    (formData.receivedQty || 0) === 0;
+
+  const canEditPo =
+    mode === "view" &&
+    !["RECEIVED", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
     (formData.receivedQty || 0) === 0;
 
   const handleCancelPo = async () => {
@@ -1506,7 +1517,7 @@ export default function PurchaseOrderForm() {
               size="xs"
               variant="outline"
               className="h-8 gap-1.5"
-              onClick={() => window.open(`/masters/purchase-orders/receive/${id}`, "_blank")}
+              onClick={() => navigate(`/masters/purchase-orders/receive/${id}`)}
             >
               <PackageCheck className="h-3.5 w-3.5" />
               Receive PO
@@ -1525,7 +1536,7 @@ export default function PurchaseOrderForm() {
               Cancel PO
             </Button>
           )}
-          {mode === "view" && (
+          {mode === "view" && canEditPo && (
             <Button
               size="xs"
               className="h-8 gap-1.5"

@@ -1,9 +1,26 @@
 import { Router } from 'express';
 import { SaleOrderController } from '../controllers/saleOrderController.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { broadcast } from '../utils/websocket.js';
 
 const router = Router();
 const controller = new SaleOrderController();
+
+// Broadcast updates on successful POST/PUT/PATCH/DELETE requests
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const originalJson = res.json;
+    res.json = function (body) {
+      if (res.statusCode >= 200 && res.statusCode < 300 && body && body.success !== false) {
+        setTimeout(() => {
+          broadcast('SALE_ORDER_UPDATED', { method: req.method, url: req.originalUrl });
+        }, 100);
+      }
+      return originalJson.apply(this, arguments);
+    };
+  }
+  next();
+});
 
 /**
  * @swagger
@@ -196,6 +213,7 @@ const controller = new SaleOrderController();
  *       type: object
  *       required:
  *         - customerId
+ *         - customerRefNo
  *       properties:
  *         customerId:
  *           type: integer
@@ -203,7 +221,7 @@ const controller = new SaleOrderController();
  *           example: 1
  *         customerRefNo:
  *           type: string
- *           description: Customer reference number
+ *           description: Customer reference number (required)
  *           example: "CUST-REF-001"
  *         orderDate:
  *           type: string

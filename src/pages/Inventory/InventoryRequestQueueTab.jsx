@@ -23,6 +23,7 @@ import {
 import InventoryRequestQueueFilter from './InventoryRequestQueueFilter';
 import RaisePoModal from '@/components/sale-order/RaisePoModal';
 import StockPickModal from './StockPickModal';
+import QueueCardLensSpecs from './QueueCardLensSpecs';
 
 function buildOrderSummary(order) {
   return {
@@ -62,36 +63,82 @@ function ProcurementBadge({ type }) {
   );
 }
 
+function hasActiveLinkedPo(order) {
+  return order?.purchaseOrders?.some(
+    (p) =>
+      p.status !== 'CANCELLED' &&
+      ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'].includes(p.status)
+  );
+}
+
+function hasSpecValue(value) {
+  return value !== null && value !== undefined && value !== '';
+}
+
+function DetailRow({ label, value }) {
+  if (!hasSpecValue(value)) return null;
+  return (
+    <div className="text-xs text-muted-foreground">
+      <span className="font-semibold text-foreground">{label}:</span> {value}
+    </div>
+  );
+}
+
 function QueueCard({ order, onIssue, onRaisePo, busy }) {
   const badge = queueBadge(order.status);
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
+  const canRaisePo =
+    ['DRAFT', 'PO_CANCELLED'].includes(order.status) && !hasActiveLinkedPo(order);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200 flex flex-col">
       <div className="flex justify-between gap-2">
         <span className="font-semibold text-foreground">{order.orderNo}</span>
-        <Badge className={`${statusClass} text-xs border`}>
+        <Badge className={`${statusClass} text-xs border shrink-0`}>
           {order.status?.replace(/_/g, ' ')}
         </Badge>
       </div>
+
       {badge && (
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-xs w-fit">
           {badge}
         </Badge>
       )}
-      <p className="text-sm text-muted-foreground truncate">
-        {order.customer?.name} {order.customerRefNo ? `· Ref: ${order.customerRefNo}` : ''}
-      </p>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>Procurement:</span>
-        <ProcurementBadge type={order.procurementType} />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+        <div className="space-y-2 min-w-0">
+          <h4 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">
+            Details
+          </h4>
+          <div className="space-y-1">
+            <DetailRow label="Customer" value={order.customer?.name} />
+            <DetailRow label="Ref" value={order.customerRefNo} />
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">Procurement:</span>
+              <ProcurementBadge type={order.procurementType} />
+            </div>
+            <DetailRow label="Product" value={order.lensProduct?.lens_name} />
+            <DetailRow label="Category" value={order.category?.name || order.lensCategory?.name} />
+            <DetailRow label="Type" value={order.lensType?.name || order.type?.name} />
+            <DetailRow label="Coating" value={order.coating?.name} />
+          </div>
+        </div>
+
+        <div className="space-y-2 min-w-0">
+          <h4 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">
+            Lens Specifications
+          </h4>
+          <div className="space-y-2">
+            <QueueCardLensSpecs order={order} />
+          </div>
+        </div>
       </div>
-      <p className="text-sm font-medium truncate text-foreground">{order.lensProduct?.lens_name || '—'}</p>
-      <div className="flex flex-wrap gap-2 pt-1">
+
+      <div className="flex flex-wrap gap-2 pt-1 border-t">
         <Button size="sm" onClick={() => onIssue(order)} disabled={busy}>
           Issue &amp; Pre-QC
         </Button>
-        {['DRAFT', 'PO_CANCELLED'].includes(order.status) && (
+        {canRaisePo && (
           <Button size="sm" variant="outline" onClick={() => onRaisePo(order)} disabled={busy}>
             Raise PO
           </Button>
@@ -117,6 +164,8 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [pickModalOrder, setPickModalOrder] = useState(null);
   const [raisePoOrder, setRaisePoOrder] = useState(null);
+  const [isRaisePoModalOpen, setIsRaisePoModalOpen] = useState(false);
+  const [isRaisingPo, setIsRaisingPo] = useState(false);
 
   const [filters, setFilters] = useState(soRequestQueueFilters);
   const [tempFilters, setTempFilters] = useState(soRequestQueueFilters);
@@ -202,23 +251,36 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
 
   const handleRaisePoClick = (order) => {
     setRaisePoOrder(order);
+    setIsRaisePoModalOpen(true);
+  };
+
+  const closeRaisePoModal = () => {
+    setIsRaisePoModalOpen(false);
+    setRaisePoOrder(null);
   };
 
   const handleRaisePoConfirm = async (vendorId) => {
     if (!raisePoOrder) return;
-    setBusy(true);
+    setIsRaisingPo(true);
     try {
       const res = await raisePoFromSo(raisePoOrder.id, { vendorId, source: 'INVENTORY' });
       if (res.success) {
-        toast({ title: 'PO raised', description: res.data?.poNumber });
-        setRaisePoOrder(null);
+        toast({
+          title: 'Success',
+          description: `PO ${res.data?.poNumber} raised successfully`,
+        });
+        closeRaisePoModal();
         load();
       }
     } catch (e) {
-      toast({ title: 'Raise PO failed', description: e.message, variant: 'destructive' });
-      setRaisePoOrder(null);
+      toast({
+        title: 'Failed to raise PO',
+        description: e.message || 'Could not raise purchase order',
+        variant: 'destructive',
+      });
+      closeRaisePoModal();
     } finally {
-      setBusy(false);
+      setIsRaisingPo(false);
     }
   };
 
@@ -314,7 +376,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
         {loading ? (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 p-1">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-40 w-full rounded-xl" />
+              <Skeleton key={i} className="h-56 w-full rounded-xl" />
             ))}
           </div>
         ) : orders.length === 0 ? (
@@ -374,16 +436,17 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
         )}
       </div>
 
-      {raisePoOrder && (
-        <RaisePoModal
-          open={Boolean(raisePoOrder)}
-          onOpenChange={(open) => !open && setRaisePoOrder(null)}
-          summary={buildOrderSummary(raisePoOrder)}
-          onConfirm={handleRaisePoConfirm}
-          loading={busy}
-          mode="raise"
-        />
-      )}
+      <RaisePoModal
+        open={isRaisePoModalOpen}
+        onOpenChange={(open) => {
+          if (!open) closeRaisePoModal();
+          else setIsRaisePoModalOpen(true);
+        }}
+        summary={raisePoOrder ? buildOrderSummary(raisePoOrder) : null}
+        onConfirm={handleRaisePoConfirm}
+        loading={isRaisingPo}
+        mode="inventory"
+      />
 
       {pickModalOrder && (
         <StockPickModal

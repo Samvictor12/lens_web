@@ -1,11 +1,28 @@
 import express from "express";
 import purchaseOrderController from "../controllers/purchaseOrderController.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { broadcast } from '../utils/websocket.js';
 
 const router = express.Router();
 
 // Apply auth middleware to all purchase order routes
 router.use(authenticateToken);
+
+// Broadcast updates on successful POST/PUT/PATCH/DELETE requests (excluding PO number generation)
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !req.path.includes('/generate-po-number')) {
+    const originalJson = res.json;
+    res.json = function (body) {
+      if (res.statusCode >= 200 && res.statusCode < 300 && body && body.success !== false) {
+        setTimeout(() => {
+          broadcast('PURCHASE_ORDER_UPDATED', { method: req.method, url: req.originalUrl });
+        }, 100);
+      }
+      return originalJson.apply(this, arguments);
+    };
+  }
+  next();
+});
 
 /**
  * @route   POST /api/purchase-orders/generate-po-number

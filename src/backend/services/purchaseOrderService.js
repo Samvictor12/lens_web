@@ -1781,6 +1781,28 @@ class PurchaseOrderService {
         data: { inwardedQty: newInwardedQty, updatedBy: createdBy },
       });
 
+      // 8. If all quantities across all receipts are inwarded, change PO status to CLOSED (Completed)
+      const allReceipts = await prisma.purchaseOrderReceipt.findMany({
+        where: { purchaseOrderId: poId, deleteStatus: false },
+        select: { id: true, inwardedQty: true },
+      });
+
+      let totalPoInwardedQty = 0;
+      for (const r of allReceipts) {
+        if (r.id === receiptId) {
+          totalPoInwardedQty += newInwardedQty;
+        } else {
+          totalPoInwardedQty += r.inwardedQty || 0;
+        }
+      }
+
+      if (totalPoInwardedQty >= po.quantity) {
+        await prisma.purchaseOrder.update({
+          where: { id: poId },
+          data: { status: 'CLOSED', updatedBy: createdBy },
+        });
+      }
+
       return {
         createdCount: createdItemIds.length,
         totalInwardedQty: totalNewQty,

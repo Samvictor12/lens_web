@@ -106,8 +106,10 @@ export const validateCreateCustomerMaster = (data) => {
         errors.push({ field: 'notes', message: 'Notes must not exceed 1000 characters' });
     }
 
-    // Validate credit_limit if provided
-    if (data.credit_limit !== undefined && data.credit_limit !== null && data.credit_limit !== '') {
+    // Validate credit_limit (required)
+    if (data.credit_limit === undefined || data.credit_limit === null || data.credit_limit === '') {
+        errors.push({ field: 'credit_limit', message: 'Credit limit is required' });
+    } else {
         const creditLimit = parseInt(data.credit_limit);
         if (isNaN(creditLimit) || creditLimit < 0) {
             errors.push({ field: 'credit_limit', message: 'Credit limit must be a valid positive number' });
@@ -242,10 +244,14 @@ export const validateUpdateCustomerMaster = (data) => {
     }
 
     // Validate credit_limit if provided
-    if (data.credit_limit !== undefined && data.credit_limit !== null && data.credit_limit !== '') {
-        const creditLimit = parseInt(data.credit_limit);
-        if (isNaN(creditLimit) || creditLimit < 0) {
-            errors.push({ field: 'credit_limit', message: 'Credit limit must be a valid positive number' });
+    if (data.credit_limit !== undefined) {
+        if (data.credit_limit === null || data.credit_limit === '') {
+            errors.push({ field: 'credit_limit', message: 'Credit limit is required' });
+        } else {
+            const creditLimit = parseInt(data.credit_limit);
+            if (isNaN(creditLimit) || creditLimit < 0) {
+                errors.push({ field: 'credit_limit', message: 'Credit limit must be a valid positive number' });
+            }
         }
     }
 

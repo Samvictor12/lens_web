@@ -339,21 +339,19 @@ export default function PurchaseOrderReceive() {
 
       if (res.success) {
         const desc = isEditMode
-          ? `Receipt updated. PO status: ${res.data.poStatus}`
-          : `Receipt ${res.data.receipt.receiptNumber} created. PO status: ${res.data.poStatus}`;
-        toast({ title: "Success", description: desc });
-        setTimeout(() => {
-          if (window.opener) {
-            window.close();
-          } else {
-            navigate("/masters/purchase-orders", { replace: true });
-          }
-        }, 800);
+          ? `Receipt updated successfully!`
+          : `Receipt ${res.data.receipt.receiptNumber} created successfully!`;
+        window.alert(desc);
+        if (window.opener) {
+          window.close();
+        } else {
+          navigate("/masters/purchase-orders", { replace: true });
+        }
       } else {
         throw new Error(res.message || "Failed to save receipt");
       }
     } catch (err) {
-      toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
+      window.alert(`Error saving receipt:\n${err.message || "Unknown error"}`);
     } finally {
       setIsSaving(false);
     }

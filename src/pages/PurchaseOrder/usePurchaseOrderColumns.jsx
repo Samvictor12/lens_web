@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
-// Allow receiving when PO is DRAFT or RECEIVED (and still has pending qty — checked via po.quantity vs po.receivedQty)
+// Allow receiving when PO is DRAFT or PARTIALLY_RECEIVED (and still has pending qty — checked via po.quantity vs po.receivedQty)
 const canReceive = (po) =>
-  ["DRAFT"].includes(po.status) &&
+  ["DRAFT", "PARTIALLY_RECEIVED"].includes(po.status) &&
   (po.quantity || 0) > (po.receivedQty || 0);
 // Allow editing the latest receipt when PO is RECEIVED
 const canEditReceipt = (status) => status === "RECEIVED";
@@ -35,7 +35,7 @@ export const usePurchaseOrderColumns = (
       cell: (po) => (
         <button
           type="button"
-          onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}
+          onClick={() => navigate(`/masters/purchase-orders/view/${po.id}`)}
           className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>
@@ -181,6 +181,7 @@ export const usePurchaseOrderColumns = (
               Inward
             </Button>
           )}
+          {/* 
           {po.status === "RECEIVED" && (
             <Button
               variant="outline"
@@ -192,6 +193,7 @@ export const usePurchaseOrderColumns = (
               Edit Receive
             </Button>
           )}
+          */}
         </div>
       ),
     },
@@ -217,14 +219,16 @@ export const usePurchaseOrderColumns = (
                 <Download className="h-3.5 w-3.5" />
               )}
             </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => onDelete && onDelete(po)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            {po.status !== "RECEIVED" && po.status !== "PARTIALLY_RECEIVED" && (po.receivedQty || 0) === 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => onDelete && onDelete(po)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         );
       },

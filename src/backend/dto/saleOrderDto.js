@@ -76,8 +76,9 @@ export const validateCreateSaleOrder = (data) => {
     }
   }
 
-  // Optional field validations
-  if (data.customerRefNo && !isValidLength(data.customerRefNo, 0, 100)) {
+  if (!data.customerRefNo || !data.customerRefNo.trim()) {
+    errors.push({ field: 'customerRefNo', message: 'Customer reference number is required' });
+  } else if (!isValidLength(data.customerRefNo, 1, 100)) {
     errors.push({ field: 'customerRefNo', message: 'Customer reference number must not exceed 100 characters' });
   }
 
@@ -275,7 +276,7 @@ export const validateCreateSaleOrder = (data) => {
     data: errors.length === 0 ? {
       customerId: parseInt(data.customerId),
       status: data.status || 'DRAFT',
-      customerRefNo: data.customerRefNo?.trim() || null,
+      customerRefNo: data.customerRefNo.trim(),
       orderDate: data.orderDate || null,
       type: data.type?.trim() || null,
       deliverySchedule: data.deliverySchedule || null,
@@ -350,8 +351,12 @@ export const validateUpdateSaleOrder = (data) => {
     }
   }
 
-  if (data.customerRefNo !== undefined && data.customerRefNo && !isValidLength(data.customerRefNo, 0, 100)) {
-    errors.push({ field: 'customerRefNo', message: 'Customer reference number must not exceed 100 characters' });
+  if (data.customerRefNo !== undefined) {
+    if (!data.customerRefNo || !data.customerRefNo.trim()) {
+      errors.push({ field: 'customerRefNo', message: 'Customer reference number is required' });
+    } else if (!isValidLength(data.customerRefNo, 1, 100)) {
+      errors.push({ field: 'customerRefNo', message: 'Customer reference number must not exceed 100 characters' });
+    }
   }
 
   if (data.orderDate !== undefined && data.orderDate && !isValidDate(data.orderDate)) {
@@ -413,7 +418,7 @@ export const validateUpdateSaleOrder = (data) => {
   // Add fields that are being updated
   if (data.customerId !== undefined) updateData.customerId = parseInt(data.customerId);
   if (data.status !== undefined) updateData.status = data.status;
-  if (data.customerRefNo !== undefined) updateData.customerRefNo = data.customerRefNo?.trim() || null;
+  if (data.customerRefNo !== undefined) updateData.customerRefNo = data.customerRefNo.trim();
   if (data.orderDate !== undefined) updateData.orderDate = data.orderDate;
   if (data.type !== undefined) updateData.type = data.type?.trim() || null;
   if (data.deliverySchedule !== undefined) updateData.deliverySchedule = data.deliverySchedule;
