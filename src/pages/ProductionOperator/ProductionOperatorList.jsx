@@ -102,8 +102,8 @@ export default function ProductionOperatorList() {
         100,
         search,
         { statuses: "PRODUCTION_READY,IN_PRODUCTION,ON_HOLD" },
-        "orderDate",
-        "desc"
+        "updatedAt",
+        "asc"
       );
       if (response.success) {
         setOrders(response.data || []);
@@ -131,8 +131,8 @@ export default function ProductionOperatorList() {
         1,
         scannedOrderNo,
         { statuses: "PRODUCTION_READY,IN_PRODUCTION,ON_HOLD" },
-        "orderDate",
-        "desc"
+        "updatedAt",
+        "asc"
       );
       const results = response?.data || [];
       if (

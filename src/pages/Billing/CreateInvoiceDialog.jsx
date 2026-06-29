@@ -127,14 +127,14 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
           {customerId && (
             <div className="space-y-1">
               <Label>
-                Delivered Orders (select to include){" "}
+                Dispatched/Delivered Orders (select to include){" "}
                 <span className="text-red-500">*</span>
               </Label>
               {ordersLoading ? (
                 <p className="text-sm text-muted-foreground py-2">Loading orders…</p>
               ) : deliveredOrders.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No delivered un-billed orders for this customer.
+                  No dispatched or delivered un-billed orders for this customer.
                 </p>
               ) : (
                 <div className="border rounded-md divide-y max-h-56 overflow-y-auto">

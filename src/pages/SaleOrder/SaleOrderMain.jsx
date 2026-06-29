@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ export default function SaleOrderMain() {
   const [pageSize, setPageSize] = useState(10);
 
   // Sorting state
-  const [sorting, setSorting] = useState([]);
+  const [sorting, setSorting] = useState([{ id: "createdAt", desc: true }]);
 
   // Filter states
   const [filters, setFilters] = useState(saleOrderFilters);
@@ -83,7 +83,7 @@ export default function SaleOrderMain() {
     try {
       setIsLoading(true);
       const sortField = sorting[0]?.id || "createdAt";
-      const sortDirection = sorting[0]?.desc ? "desc" : "asc";
+      const sortDirection = sorting[0] ? (sorting[0].desc ? "desc" : "asc") : "desc";
 
       const response = await getSaleOrders(
         pageIndex + 1, // Backend uses 1-indexed pages
@@ -121,6 +121,62 @@ export default function SaleOrderMain() {
   useEffect(() => {
     fetchSaleOrders();
   }, [pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
+
+  // Keep ref to latest fetch function to avoid WebSocket reconnect on filter/state change
+  const fetchRef = useRef(fetchSaleOrders);
+  useEffect(() => {
+    fetchRef.current = fetchSaleOrders;
+  });
+
+  // WebSocket Live Refresh
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_WEB_API_URL || "http://localhost:5001/api";
+    let wsUrl = apiUrl.replace(/^http/, "ws");
+    if (wsUrl.endsWith("/api")) {
+      wsUrl = wsUrl.substring(0, wsUrl.length - 4);
+    }
+
+    let socket = null;
+    let reconnectTimeout = null;
+
+    const connect = () => {
+      console.log(`🔌 Connecting to WebSocket at ${wsUrl}`);
+      socket = new WebSocket(wsUrl);
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'SALE_ORDER_UPDATED') {
+            console.log('📡 WebSocket live refresh event: SALE_ORDER_UPDATED');
+            fetchRef.current();
+          }
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('🔌 WebSocket connection closed. Attempting reconnect in 3s...');
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      socket.onerror = (err) => {
+        console.error('❌ WebSocket error:', err);
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
+  }, []);
 
   // Handle delete sale order
   const handleDeleteConfirm = async () => {

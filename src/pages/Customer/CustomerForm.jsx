@@ -185,10 +185,11 @@ export default function CustomerForm() {
       newErrors.gstNumber = "Invalid GST number format (e.g., 27AABCU9603R1Z5)";
     }
 
-    // Credit Limit validation (must be a number if provided)
-    if (
-      formData.creditLimit &&
-      (isNaN(formData.creditLimit) || parseFloat(formData.creditLimit) < 0)
+    // Credit Limit validation (required)
+    if (formData.creditLimit === undefined || formData.creditLimit === null || formData.creditLimit.toString().trim() === "") {
+      newErrors.creditLimit = "Credit limit is required";
+    } else if (
+      isNaN(formData.creditLimit) || parseFloat(formData.creditLimit) < 0
     ) {
       newErrors.creditLimit = "Credit limit must be a valid positive number";
     }
@@ -662,7 +663,7 @@ export default function CustomerForm() {
                 />
 
                 <FormInput
-                  label="Credit Limit (Optional)"
+                  label="Credit Limit"
                   name="creditLimit"
                   type="number"
                   min="0"
@@ -670,7 +671,7 @@ export default function CustomerForm() {
                   value={formData.creditLimit}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  // placeholder="30010"
+                  required
                   prefix="₹"
                   error={errors.creditLimit}
                   helperText={

@@ -49,11 +49,11 @@ export class InvoiceService {
         throw new APIError('One or more sale orders not found', 404, 'ORDERS_NOT_FOUND');
       }
 
-      // All must be DELIVERED
-      const nonDelivered = orders.filter(o => o.status !== 'DELIVERED');
+      // All must be DISPATCHED or DELIVERED
+      const nonDelivered = orders.filter(o => o.status !== 'DELIVERED' && o.status !== 'DISPATCHED');
       if (nonDelivered.length) {
         throw new APIError(
-          `Sale orders must be in DELIVERED status before billing. Non-delivered: ${nonDelivered.map(o => o.orderNo).join(', ')}`,
+          `Sale orders must be in DISPATCHED or DELIVERED status before billing. Non-delivered: ${nonDelivered.map(o => o.orderNo).join(', ')}`,
           400,
           'ORDERS_NOT_DELIVERED'
         );
@@ -410,7 +410,7 @@ export class InvoiceService {
   async getAllDispatchedOrders({ page = 1, limit = 20, search, customerId } = {}) {
     const skip = (page - 1) * limit;
     const where = {
-      status: 'DELIVERED',
+      status: { in: ['DISPATCHED', 'DELIVERED'] },
       invoiceId: null,
       deleteStatus: false,
       ...(customerId && { customerId: parseInt(customerId) }),
@@ -460,7 +460,7 @@ export class InvoiceService {
     return prisma.saleOrder.findMany({
       where: {
         customerId: parseInt(customerId),
-        status: 'DELIVERED',
+        status: { in: ['DISPATCHED', 'DELIVERED'] },
         invoiceId: null,
         deleteStatus: false,
       },

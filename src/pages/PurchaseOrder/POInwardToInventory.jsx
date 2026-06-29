@@ -413,23 +413,18 @@ export default function POInwardToInventory() {
       setIsSaving(true);
       const res = await inwardReceiptToInventory(parseInt(id), parseInt(receiptId), inwardRows);
       if (res.success) {
-        toast({
-          title: "Inventory updated",
-          description: `${res.data.createdCount} item(s) created · ${res.data.totalInwardedQty} units pushed to stock`,
-        });
+        window.alert(`Inventory updated successfully!\n${res.data.createdCount} item(s) created · ${res.data.totalInwardedQty} units pushed to stock`);
         setShowSubmitWarnings(false);
-        setTimeout(() => {
-          if (window.opener) {
-            window.close();
-          } else {
-            navigate(closeRoute, { replace: true });
-          }
-        }, 800);
+        if (window.opener) {
+          window.close();
+        } else {
+          navigate(closeRoute, { replace: true });
+        }
       } else {
         throw new Error(res.message || "Failed to inward items");
       }
     } catch (err) {
-      toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
+      window.alert(`Error inwarding items:\n${err.message || "Unknown error"}`);
     } finally {
       setIsSaving(false);
     }

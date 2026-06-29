@@ -203,15 +203,25 @@ export class AuthService {
         throw new APIError('User account is not active', 401);
       }
 
-      // Generate new tokens
-      const { accessToken, refreshToken: newRefreshToken } = await this.generateTokens(storedToken.user);
+      // Generate new access token
+      const payload = {
+        userId: storedToken.user.id,
+        email: storedToken.user.email,
+        usercode: storedToken.user.usercode,
+        username: storedToken.user.username,
+        roleId: storedToken.user.role_id,
+        roleName: storedToken.user.role?.name || null
+      };
 
-      // Update refresh token in database
-      await this.storeRefreshToken(storedToken.user.id, newRefreshToken);
+      const accessToken = jwt.sign(payload, this.JWT_SECRET, {
+        expiresIn: this.JWT_EXPIRES_IN,
+        issuer: 'lens-management',
+        audience: 'lens-users'
+      });
 
       return {
         accessToken,
-        refreshToken: newRefreshToken,
+        refreshToken, // Reuse the same refresh token to support concurrent refreshes in multi-tab setups
         tokenType: 'Bearer',
         expiresIn: this.JWT_EXPIRES_IN
       };

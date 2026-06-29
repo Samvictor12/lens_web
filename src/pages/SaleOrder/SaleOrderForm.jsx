@@ -1473,34 +1473,21 @@ export default function SaleOrderForm() {
             if (mode === "add") {
                 const response = await createSaleOrder(submitData);
                 if (response.success) {
-                    toast({
-                        title: "Success",
-                        description: "Sale order created successfully!",
-                        success: true,
-                    });
-                    handleCancel();
+                    window.alert(`Sale Order created successfully!\nOrder Number: ${response.data?.orderNo}`);
+                    window.close();
                 }
             } else if (mode === "edit" || isEditing) {
                 const response = await updateSaleOrder(parseInt(id), submitData);
                 if (response.success) {
-                    toast({
-                        title: "Success",
-                        description: "Sale order updated successfully!",
-                        success: true,
-                    });
+                    window.alert(`Sale Order updated successfully!\nOrder Number: ${response.data?.orderNo || formData.orderNo}`);
                     setOriginalData(formData);
                     setIsEditing(false);
-                    // handleCancel();
-
+                    window.close();
                 }
             }
         } catch (error) {
             console.error("Error saving sale order:", error);
-            toast({
-                title: "Error",
-                description: error.message || "Failed to save sale order",
-                variant: "destructive",
-            });
+            window.alert(`Error saving sale order:\n${error.message || "Unknown error"}`);
         } finally {
             setIsSaving(false);
         }
@@ -1721,7 +1708,7 @@ export default function SaleOrderForm() {
         !isEditing &&
         formData.id &&
         formData.status !== "CANCELLED" &&
-        ["DRAFT", "PO_CANCELLED", "PO_RAISED"].includes(formData.status);
+        ["DRAFT", "PO_CANCELLED"].includes(formData.status);
 
     const buildSubmitData = () => {
         const selectedOffer = formData.offer_id
@@ -1829,28 +1816,16 @@ export default function SaleOrderForm() {
 
             const res = await raisePoFromSo(soId, { vendorId, source: "USER" });
             if (res.success) {
-                toast({
-                    title: "Success",
-                    description: `PO ${res.data.poNumber} raised successfully`,
-                });
+                window.alert(`PO ${res.data.poNumber} raised successfully!`);
                 setIsRaisePoModalOpen(false);
                 if (mode === "add") {
                     navigate(`/sales/orders/view/${soId}`);
                 } else {
-                    const refreshResponse = await getSaleOrderById(soId);
-                    if (refreshResponse.success) {
-                        setFormData(refreshResponse.data);
-                        setOriginalData(refreshResponse.data);
-                        setIsEditing(false);
-                    }
+                    window.location.reload();
                 }
             }
         } catch (error) {
-            toast({
-                title: "Failed to raise PO",
-                description: error.message || "Could not save sale order and raise PO",
-                variant: "destructive",
-            });
+            window.alert(`Failed to raise PO:\n${error.message || "Could not save sale order and raise PO"}`);
             setIsRaisePoModalOpen(false);
         } finally {
             setIsSaving(false);
@@ -2077,12 +2052,8 @@ export default function SaleOrderForm() {
             if (printActionMode === "create-and-print") {
                 // Close modal and navigate back to orders list
                 closePrintModal();
-                toast({
-                    title: "Success",
-                    description: "Order created and printed successfully!",
-                    success: true,
-                });
-                handleCancel();
+                window.alert(`Order created and printed successfully!\nOrder Number: ${formData.orderNo}`);
+                window.close();
             } else if (printActionMode === "print-existing") {
                 // Just close the modal
                 closePrintModal();

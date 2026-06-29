@@ -112,16 +112,19 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
     </Button>
   );
 
+  // PRODUCTION_READY: skip "Start" — show Direct Complete + Hold
   if (status === "PRODUCTION_READY") {
     return (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-area-bottom">
         <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
-          {btn("Start Production", "IN_PRODUCTION", "default")}
+          {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
+          {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
         </div>
       </div>
     );
   }
 
+  // IN_PRODUCTION (legacy orders already in this state): same buttons
   if (status === "IN_PRODUCTION") {
     return (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
@@ -133,11 +136,11 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
     );
   }
 
+  // ON_HOLD: force complete only (no Resume)
   if (status === "ON_HOLD") {
     return (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
         <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
-          {btn("Resume", "IN_PRODUCTION", "default")}
           {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
         </div>
       </div>

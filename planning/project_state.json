@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Sale Order View Page - Price Config Error Fix",
+  "feature": "Customer Credit Limit, Product Index & Dropdown Enhancements",
   "active_feature_file": "planning/feature.md",
   "phase": "COMPLETED",
   "HUMAN_APPROVED": true,
   "state_tag": "DONE",
-  "last_agent": "implementer",
-  "at": "2026-06-27T15:54:00+05:30"
+  "last_agent": "reviewer",
+  "at": "2026-06-29T23:05:00+05:30"
 }
