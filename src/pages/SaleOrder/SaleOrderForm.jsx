@@ -632,6 +632,9 @@ export default function SaleOrderForm() {
         if (!formData.status) {
             newErrors.status = "Status is required";
         }
+        if (!formData.customerRefNo?.trim()) {
+            newErrors.customerRefNo = "Customer ref no is required";
+        }
         if (customerRefStatus?.status === "fail") {
             newErrors.customerRefNo = customerRefStatus.message || "Already same ref is used against this customer";
         }
@@ -2582,7 +2585,8 @@ export default function SaleOrderForm() {
                                 value={formData.customerRefNo}
                                 onChange={handleChange}
                                 disabled={!isEditing}
-                                placeholder="Optional customer reference"
+                                placeholder="Enter customer reference"
+                                required
                                 error={errors.customerRefNo}
                                 containerClassName="flex-1 min-w-0"
                             />

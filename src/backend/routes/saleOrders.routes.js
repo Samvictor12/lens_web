@@ -196,6 +196,7 @@ const controller = new SaleOrderController();
  *       type: object
  *       required:
  *         - customerId
+ *         - customerRefNo
  *       properties:
  *         customerId:
  *           type: integer
@@ -203,7 +204,7 @@ const controller = new SaleOrderController();
  *           example: 1
  *         customerRefNo:
  *           type: string
- *           description: Customer reference number
+ *           description: Customer reference number (required)
  *           example: "CUST-REF-001"
  *         orderDate:
  *           type: string
