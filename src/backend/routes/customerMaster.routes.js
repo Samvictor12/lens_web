@@ -679,5 +679,6 @@ router.get('/:id/portal/status', authenticateToken, controller.getPortalStatus.b
 router.post('/:id/portal/activate', authenticateToken, controller.activatePortal.bind(controller));
 router.post('/:id/portal/change-pin', authenticateToken, controller.changePortalPin.bind(controller));
 router.get('/:id/portal/invoices', authenticateToken, controller.getCustomerPendingInvoices.bind(controller));
+router.patch('/:id/opening-balance', authenticateToken, controller.updateOpeningBalance.bind(controller));
 
 export default router;

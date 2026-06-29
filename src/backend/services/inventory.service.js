@@ -214,6 +214,7 @@ export class InventoryService {
           deleteStatus: false,
           purchaseOrder: {
             deleteStatus: false,
+            saleOrderId: null, // Exclude RX POs that were raised from a Sale Order
           },
         },
         include: {

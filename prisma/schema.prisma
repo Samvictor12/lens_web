@@ -209,6 +209,7 @@ model Customer {
   gstin               String?
   credit_limit        Int?
   outstanding_credit  Int?
+  reserved_amount     Float             @default(0) // Amount reserved for active (uninvoiced) sale orders
   notes               String?
   sale_person_id      Int?
   delivery_person_id  Int?

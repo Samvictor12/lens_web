@@ -85,14 +85,16 @@ export class InvoiceService {
 
       // Calculate total from individual order amounts
       const totalAmount = orders.reduce((sum, o) => {
-        const base = (o.lensPrice || 0) + (o.fittingPrice || 0) + (o.tintingPrice || 0)
+        const lensPrice = o.lensPrice || 0;
+        const extras = (o.fittingPrice || 0) + (o.tintingPrice || 0)
           + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
-        const discountAmt = base * ((o.discount || 0) / 100);
+        // Discount applies to lens price only (not fitting, tinting, or extras)
+        const discountAmt = lensPrice * ((o.discount || 0) / 100);
         // additionalPrice is a JSON array [{ label, amount }]
         const additional = Array.isArray(o.additionalPrice)
           ? o.additionalPrice.reduce((a, x) => a + (x.amount || 0), 0)
           : 0;
-        return sum + (base - discountAmt + additional);
+        return sum + (lensPrice - discountAmt + extras + additional);
       }, 0);
 
       const invoiceNo = await this.generateInvoiceNo();
@@ -120,6 +122,17 @@ export class InvoiceService {
         await tx.saleOrder.updateMany({
           where: { id: { in: saleOrderIds } },
           data: { invoiceId: created.id, updatedBy: userId },
+        });
+
+        // Move SO amounts from reserved_amount → outstanding_credit
+        // (the invoiced amount is now owed by the customer, no longer just reserved)
+        const invoicedTotal = Math.round(totalAmount * 100) / 100;
+        await tx.customer.update({
+          where: { id: customerId },
+          data: {
+            reserved_amount: { decrement: invoicedTotal },
+            outstanding_credit: { increment: invoicedTotal },
+          },
         });
 
         // Auto-post accounting entry
@@ -273,6 +286,12 @@ export class InvoiceService {
           data: { paidAmount: newPaidAmount, status: newInvoiceStatus, updatedBy: userId },
         });
 
+        // Decrement customer outstanding_credit by payment amount
+        await tx.customer.update({
+          where: { id: invoice.customer.id },
+          data: { outstanding_credit: { decrement: amount } },
+        });
+
         // If fully paid → mark all linked sale orders as COMPLETED
         if (isFullyPaid && saleOrderIds.length) {
           await tx.saleOrder.updateMany({
@@ -342,6 +361,18 @@ export class InvoiceService {
           where: { id: invoiceId },
           data: { status: 'CANCELLED', updatedBy: userId },
         });
+
+        // Reverse the reserve→outstanding move: move unpaid amount back to reserved_amount
+        const unpaidAmount = Math.max(0, invoice.totalAmount - (invoice.paidAmount || 0));
+        if (unpaidAmount > 0) {
+          await tx.customer.update({
+            where: { id: invoice.customerId },
+            data: {
+              outstanding_credit: { decrement: unpaidAmount },
+              reserved_amount: { increment: unpaidAmount },
+            },
+          });
+        }
       });
 
       await logUpdate({

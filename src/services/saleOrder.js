@@ -231,19 +231,23 @@ export const getLensPriceId = async (lensId, coatingId) => {
 };
 
 /**
- * Calculate product cost with customer Credit Limit
+ * Fetch customer credit information: credit_limit, outstanding_credit, reserved_amount
  */
 export const checkCreditLimit = async (data) => {
     try {
         const customer = await apiClient("get", "/customer-master/" + data);
         if (customer.success && customer.data) {
-            return { outstanding_credit: customer.data.outstanding_credit, credit_limit: customer.data.credit_limit };
+            return {
+                outstanding_credit: customer.data.outstanding_credit || 0,
+                credit_limit: customer.data.credit_limit || null,
+                reserved_amount: customer.data.reserved_amount || 0,
+            };
         } else {
             return null;
         }
     } catch (error) {
         throw new Error(
-            error.response?.data?.message || "Failed to calculate product cost"
+            error.response?.data?.message || "Failed to fetch credit limit"
         );
     }
 };

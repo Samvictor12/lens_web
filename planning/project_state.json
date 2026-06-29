@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Fix Production Docker Build Failure (Frontend Image)",
+  "feature": "DB Migration + QA Testing: SO Discount, Customer Opening Balance, Reserve/Outstanding, Inward Queue RX Filter",
   "active_feature_file": "planning/feature.md",
   "phase": "DONE",
   "HUMAN_APPROVED": true,
   "state_tag": "DONE",
   "last_agent": "orchestrator",
-  "at": "2026-06-27T16:32:00+05:30"
+  "at": "2026-06-30T00:31:07+05:30"
 }

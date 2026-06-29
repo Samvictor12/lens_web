@@ -99,3 +99,6 @@ Represents the physical organization. A Location (warehouse/room) contains multi
 
 ### 4. SaleOrder
 Represents sales orders placed by Customers. Triggers stock reservations via `reserveInventoryForSale()` during the Pre-QC workflow transition.
+
+### 5. Customer
+Represents customer accounts. Tracks credit limits and exposure dynamically using `credit_limit`, `outstanding_credit`, and the new `reserved_amount` field (which stores reserved amounts for active/uninvoiced Sale Orders).

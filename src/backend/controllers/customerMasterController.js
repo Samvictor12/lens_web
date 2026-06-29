@@ -360,6 +360,20 @@ export class CustomerMasterController {
       res.json({ success: true, data });
     } catch (error) { next(error); }
   }
+
+  async updateOpeningBalance(req, res, next) {
+    try {
+      const id = parseInt(req.params.id);
+      const { amount } = req.body;
+      if (isNaN(id)) return res.status(400).json({ success: false, message: "Invalid customer ID" });
+      if (typeof amount !== 'number' || isNaN(amount)) {
+        return res.status(400).json({ success: false, message: "Amount must be a valid number" });
+      }
+      const userId = req.user?.id || 1;
+      const data = await this.customerMasterService.updateOpeningBalance(id, amount, userId, req);
+      res.json({ success: true, data, message: "Opening balance updated successfully" });
+    } catch (error) { next(error); }
+  }
 }
 
 export default CustomerMasterController;
