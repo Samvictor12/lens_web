@@ -35,7 +35,7 @@ export const usePurchaseOrderColumns = (
       cell: (po) => (
         <button
           type="button"
-          onClick={() => navigate(`/masters/purchase-orders/view/${po.id}`)}
+          onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, '_blank')}
           className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>

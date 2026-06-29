@@ -2554,7 +2554,7 @@ export default function SaleOrderForm() {
                                 name="customerRefNo"
                                 value={formData.customerRefNo}
                                 onChange={handleChange}
-                                disabled={!isEditing}
+                                disabled={mode !== "add"}
                                 placeholder="Enter customer reference"
                                 required
                                 error={errors.customerRefNo}

@@ -224,7 +224,7 @@ goto options
 echo.
 echo Creating production build and tar file...
 pushd ..\prod
-@REM docker-compose build
+docker-compose build
 docker save -o clair.tar lens-prod-backend:latest lens-prod-frontend:latest
 
 if not exist "clair.tar" (

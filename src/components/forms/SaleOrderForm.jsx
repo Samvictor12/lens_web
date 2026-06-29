@@ -77,7 +77,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
   }, [initialData]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-svh bg-gray-50">
       <div className="max-w-full mx-auto py-4 px-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 bg-white rounded-lg shadow-sm p-4">
@@ -111,7 +111,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                 {/* Customer */}
                 <div className="flex items-center gap-2">
                   <Label htmlFor="customer" className="text-sm font-medium text-gray-700 w-[120px]">Customer</Label>
-                  <Select className="flex-1" value={orderData.customer} onValueChange={(value) => setOrderData({...orderData, customer: value, customerRefNo: Math.floor(Math.random() * 9000000) + 1000000})}>
+                  <Select className="flex-1" value={orderData.customer} onValueChange={(value) => setOrderData({ ...orderData, customer: value, customerRefNo: Math.floor(Math.random() * 9000000) + 1000000 })}>
                     <SelectTrigger className="flex-1">
                       <SelectValue placeholder="Select customer" />
                     </SelectTrigger>
@@ -134,18 +134,18 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                 {/* Date */}
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px]">Date</Label>
-                  <Input 
-                    type="date" 
-                    value={orderData.date} 
-                    onChange={(e) => setOrderData({...orderData, date: e.target.value})}
-                    className="flex-1" 
+                  <Input
+                    type="date"
+                    value={orderData.date}
+                    onChange={(e) => setOrderData({ ...orderData, date: e.target.value })}
+                    className="flex-1"
                   />
                 </div>
 
                 {/* Type */}
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px]">Type</Label>
-                  <Select value={orderData.type} onValueChange={(value) => setOrderData({...orderData, type: value})}>
+                  <Select value={orderData.type} onValueChange={(value) => setOrderData({ ...orderData, type: value })}>
                     <SelectTrigger className="flex-1">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -160,18 +160,18 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                 {/* Delivery Schedule */}
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px]">Delivery Schedule</Label>
-                  <Input 
-                    type="datetime-local" 
-                    value={orderData.deliverySchedule} 
-                    onChange={(e) => setOrderData({...orderData, deliverySchedule: e.target.value})}
-                    className="flex-1" 
+                  <Input
+                    type="datetime-local"
+                    value={orderData.deliverySchedule}
+                    onChange={(e) => setOrderData({ ...orderData, deliverySchedule: e.target.value })}
+                    className="flex-1"
                   />
                 </div>
 
                 {/* Status */}
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px]">Status</Label>
-                  <Select value={orderData.status} onValueChange={(value) => setOrderData({...orderData, status: value})}>
+                  <Select value={orderData.status} onValueChange={(value) => setOrderData({ ...orderData, status: value })}>
                     <SelectTrigger className="flex-1">
                       <SelectValue />
                     </SelectTrigger>
@@ -189,10 +189,10 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                 {/* Remark */}
                 <div className="flex items-start gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px] pt-2">Remark</Label>
-                  <Textarea 
-                    value={orderData.remark} 
-                    onChange={(e) => setOrderData({...orderData, remark: e.target.value})}
-                    className="flex-1" 
+                  <Textarea
+                    value={orderData.remark}
+                    onChange={(e) => setOrderData({ ...orderData, remark: e.target.value })}
+                    className="flex-1"
                     rows={3}
                   />
                 </div>
@@ -200,19 +200,19 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                 {/* Item Ref No */}
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px]">Item Ref No</Label>
-                  <Input 
-                    value={orderData.itemRefNo || orderData.customerRefNo} 
-                    onChange={(e) => setOrderData({...orderData, itemRefNo: e.target.value})}
-                    className="flex-1" 
+                  <Input
+                    value={orderData.itemRefNo || orderData.customerRefNo}
+                    onChange={(e) => setOrderData({ ...orderData, itemRefNo: e.target.value })}
+                    className="flex-1"
                   />
                 </div>
 
                 {/* Free Lens */}
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
+                  <Checkbox
                     id="freeLens"
                     checked={orderData.freeLens}
-                    onCheckedChange={(checked) => setOrderData({...orderData, freeLens: checked})}
+                    onCheckedChange={(checked) => setOrderData({ ...orderData, freeLens: checked })}
                   />
                   <Label htmlFor="freeLens" className="text-sm font-medium text-gray-700">Free Lens</Label>
                 </div>
@@ -248,7 +248,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Name</Label>
-                          <Select value={orderData.lensName} onValueChange={(value) => setOrderData({...orderData, lensName: value})}>
+                          <Select value={orderData.lensName} onValueChange={(value) => setOrderData({ ...orderData, lensName: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Pristine Digital ff..." />
                             </SelectTrigger>
@@ -262,7 +262,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Category</Label>
-                          <Select value={orderData.category} onValueChange={(value) => setOrderData({...orderData, category: value})}>
+                          <Select value={orderData.category} onValueChange={(value) => setOrderData({ ...orderData, category: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="BiFocal" />
                             </SelectTrigger>
@@ -280,7 +280,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Type</Label>
-                          <Select value={orderData.lensType} onValueChange={(value) => setOrderData({...orderData, lensType: value})}>
+                          <Select value={orderData.lensType} onValueChange={(value) => setOrderData({ ...orderData, lensType: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Glass" />
                             </SelectTrigger>
@@ -294,7 +294,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Dia</Label>
-                          <Select value={orderData.dia} onValueChange={(value) => setOrderData({...orderData, dia: value})}>
+                          <Select value={orderData.dia} onValueChange={(value) => setOrderData({ ...orderData, dia: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="BiFocal" />
                             </SelectTrigger>
@@ -311,7 +311,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Fitting Type</Label>
-                          <Select value={orderData.fittingType} onValueChange={(value) => setOrderData({...orderData, fittingType: value})}>
+                          <Select value={orderData.fittingType} onValueChange={(value) => setOrderData({ ...orderData, fittingType: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Select fitting type" />
                             </SelectTrigger>
@@ -324,7 +324,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Coating Type</Label>
-                          <Select value={orderData.coatingType} onValueChange={(value) => setOrderData({...orderData, coatingType: value})}>
+                          <Select value={orderData.coatingType} onValueChange={(value) => setOrderData({ ...orderData, coatingType: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Select coating type" />
                             </SelectTrigger>
@@ -342,7 +342,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Coating Name</Label>
-                          <Select value={orderData.coatingName} onValueChange={(value) => setOrderData({...orderData, coatingName: value})}>
+                          <Select value={orderData.coatingName} onValueChange={(value) => setOrderData({ ...orderData, coatingName: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="CLAIRITE" />
                             </SelectTrigger>
@@ -356,7 +356,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Tinting Name</Label>
-                          <Select value={orderData.tintingName} onValueChange={(value) => setOrderData({...orderData, tintingName: value})}>
+                          <Select value={orderData.tintingName} onValueChange={(value) => setOrderData({ ...orderData, tintingName: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Select tinting" />
                             </SelectTrigger>
@@ -374,18 +374,18 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                       {/* Eye Selection */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex items-center space-x-2">
-                          <Checkbox 
+                          <Checkbox
                             id="rightEye"
                             checked={orderData.rightEye}
-                            onCheckedChange={(checked) => setOrderData({...orderData, rightEye: checked})}
+                            onCheckedChange={(checked) => setOrderData({ ...orderData, rightEye: checked })}
                           />
                           <Label htmlFor="rightEye" className="text-sm font-medium text-gray-700">Right</Label>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Checkbox 
+                          <Checkbox
                             id="leftEye"
                             checked={orderData.leftEye}
-                            onCheckedChange={(checked) => setOrderData({...orderData, leftEye: checked})}
+                            onCheckedChange={(checked) => setOrderData({ ...orderData, leftEye: checked })}
                           />
                           <Label htmlFor="leftEye" className="text-sm font-medium text-gray-700">Left</Label>
                         </div>
@@ -404,35 +404,35 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                           <div>Base Size</div>
                           <div>BLED</div>
                         </div>
-                        
+
                         {/* Right Eye Row */}
                         {orderData.rightEye && (
                           <div className="grid grid-cols-9 gap-2 mb-2">
                             <div className="text-sm font-medium text-gray-700 flex items-center">Right</div>
-                            <Input 
-                              value={orderData.rightSpherical || "-0.75"} 
-                              onChange={(e) => setOrderData({...orderData, rightSpherical: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.rightSpherical || "-0.75"}
+                              onChange={(e) => setOrderData({ ...orderData, rightSpherical: e.target.value })}
+                              className="h-8"
                             />
-                            <Input 
-                              value={orderData.rightCylindrical || "0.00"} 
-                              onChange={(e) => setOrderData({...orderData, rightCylindrical: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.rightCylindrical || "0.00"}
+                              onChange={(e) => setOrderData({ ...orderData, rightCylindrical: e.target.value })}
+                              className="h-8"
                             />
-                            <Input 
-                              value={orderData.rightAxis || "0"} 
-                              onChange={(e) => setOrderData({...orderData, rightAxis: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.rightAxis || "0"}
+                              onChange={(e) => setOrderData({ ...orderData, rightAxis: e.target.value })}
+                              className="h-8"
                             />
-                            <Input 
-                              value={orderData.rightAdd || "1.25"} 
-                              onChange={(e) => setOrderData({...orderData, rightAdd: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.rightAdd || "1.25"}
+                              onChange={(e) => setOrderData({ ...orderData, rightAdd: e.target.value })}
+                              className="h-8"
                             />
-                            <Input 
-                              value={orderData.rightDia || "70"} 
-                              onChange={(e) => setOrderData({...orderData, rightDia: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.rightDia || "70"}
+                              onChange={(e) => setOrderData({ ...orderData, rightDia: e.target.value })}
+                              className="h-8"
                             />
                           </div>
                         )}
@@ -441,34 +441,34 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                         {orderData.leftEye && (
                           <div className="grid grid-cols-9 gap-2">
                             <div className="text-sm font-medium text-gray-700 flex items-center">Left</div>
-                            <Input 
-                              value={orderData.leftSpherical || ""} 
-                              onChange={(e) => setOrderData({...orderData, leftSpherical: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.leftSpherical || ""}
+                              onChange={(e) => setOrderData({ ...orderData, leftSpherical: e.target.value })}
+                              className="h-8"
                               placeholder="-0.75"
                             />
-                            <Input 
-                              value={orderData.leftCylindrical || ""} 
-                              onChange={(e) => setOrderData({...orderData, leftCylindrical: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.leftCylindrical || ""}
+                              onChange={(e) => setOrderData({ ...orderData, leftCylindrical: e.target.value })}
+                              className="h-8"
                               placeholder="0.00"
                             />
-                            <Input 
-                              value={orderData.leftAxis || ""} 
-                              onChange={(e) => setOrderData({...orderData, leftAxis: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.leftAxis || ""}
+                              onChange={(e) => setOrderData({ ...orderData, leftAxis: e.target.value })}
+                              className="h-8"
                               placeholder="0"
                             />
-                            <Input 
-                              value={orderData.leftAdd || ""} 
-                              onChange={(e) => setOrderData({...orderData, leftAdd: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.leftAdd || ""}
+                              onChange={(e) => setOrderData({ ...orderData, leftAdd: e.target.value })}
+                              className="h-8"
                               placeholder="1.25"
                             />
-                            <Input 
-                              value={orderData.leftDia || ""} 
-                              onChange={(e) => setOrderData({...orderData, leftDia: e.target.value})}
-                              className="h-8" 
+                            <Input
+                              value={orderData.leftDia || ""}
+                              onChange={(e) => setOrderData({ ...orderData, leftDia: e.target.value })}
+                              className="h-8"
                               placeholder="70"
                             />
                           </div>
@@ -484,10 +484,10 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                           <MapPin className="h-4 w-4 mr-2" />
                           Dispatch Information
                         </h4>
-                        
+
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Dispatch Status</Label>
-                          <Select value={orderData.dispatchStatus} onValueChange={(value) => setOrderData({...orderData, dispatchStatus: value})}>
+                          <Select value={orderData.dispatchStatus} onValueChange={(value) => setOrderData({ ...orderData, dispatchStatus: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Pending" />
                             </SelectTrigger>
@@ -502,7 +502,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
 
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Assigned Person</Label>
-                          <Select value={orderData.assignedPerson} onValueChange={(value) => setOrderData({...orderData, assignedPerson: value})}>
+                          <Select value={orderData.assignedPerson} onValueChange={(value) => setOrderData({ ...orderData, assignedPerson: value })}>
                             <SelectTrigger className="flex-1">
                               <SelectValue placeholder="Select dispatch person" />
                             </SelectTrigger>
@@ -517,11 +517,11 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
 
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Dispatch ID</Label>
-                          <Input 
-                            value={orderData.dispatchId} 
-                            onChange={(e) => setOrderData({...orderData, dispatchId: e.target.value})}
+                          <Input
+                            value={orderData.dispatchId}
+                            onChange={(e) => setOrderData({ ...orderData, dispatchId: e.target.value })}
                             placeholder="Auto-generated or manual ID"
-                            className="flex-1" 
+                            className="flex-1"
                           />
                         </div>
                       </div>
@@ -531,24 +531,24 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                           <Clock className="h-4 w-4 mr-2" />
                           Schedule & Timing
                         </h4>
-                        
+
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Estimated Date</Label>
-                            <Input 
-                              type="date" 
-                              value={orderData.estimatedDate} 
-                              onChange={(e) => setOrderData({...orderData, estimatedDate: e.target.value})}
-                              className="flex-1" 
+                            <Input
+                              type="date"
+                              value={orderData.estimatedDate}
+                              onChange={(e) => setOrderData({ ...orderData, estimatedDate: e.target.value })}
+                              className="flex-1"
                             />
                           </div>
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Estimated Time</Label>
-                            <Input 
-                              type="time" 
-                              value={orderData.estimatedTime} 
-                              onChange={(e) => setOrderData({...orderData, estimatedTime: e.target.value})}
-                              className="flex-1" 
+                            <Input
+                              type="time"
+                              value={orderData.estimatedTime}
+                              onChange={(e) => setOrderData({ ...orderData, estimatedTime: e.target.value })}
+                              className="flex-1"
                             />
                           </div>
                         </div>
@@ -556,31 +556,31 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Actual Date</Label>
-                            <Input 
-                              type="date" 
-                              value={orderData.actualDate} 
-                              onChange={(e) => setOrderData({...orderData, actualDate: e.target.value})}
-                              className="flex-1" 
+                            <Input
+                              type="date"
+                              value={orderData.actualDate}
+                              onChange={(e) => setOrderData({ ...orderData, actualDate: e.target.value })}
+                              className="flex-1"
                             />
                           </div>
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Actual Time</Label>
-                            <Input 
-                              type="time" 
-                              value={orderData.actualTime} 
-                              onChange={(e) => setOrderData({...orderData, actualTime: e.target.value})}
-                              className="flex-1" 
+                            <Input
+                              type="time"
+                              value={orderData.actualTime}
+                              onChange={(e) => setOrderData({ ...orderData, actualTime: e.target.value })}
+                              className="flex-1"
                             />
                           </div>
                         </div>
 
                         <div className="flex items-start gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px] pt-2">Dispatch Notes</Label>
-                          <Textarea 
-                            value={orderData.dispatchNotes} 
-                            onChange={(e) => setOrderData({...orderData, dispatchNotes: e.target.value})}
+                          <Textarea
+                            value={orderData.dispatchNotes}
+                            onChange={(e) => setOrderData({ ...orderData, dispatchNotes: e.target.value })}
                             placeholder="Special delivery instructions"
-                            className="flex-1" 
+                            className="flex-1"
                             rows={3}
                           />
                         </div>
@@ -595,52 +595,52 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                           <DollarSign className="h-4 w-4 mr-2" />
                           Pricing Details
                         </h4>
-                        
+
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Lens Price</Label>
-                            <Input 
-                              type="number" 
+                            <Input
+                              type="number"
                               step="0.01"
-                              value={orderData.lensPrice} 
-                              onChange={(e) => setOrderData({...orderData, lensPrice: parseFloat(e.target.value) || 0})}
-                              className="flex-1" 
+                              value={orderData.lensPrice}
+                              onChange={(e) => setOrderData({ ...orderData, lensPrice: parseFloat(e.target.value) || 0 })}
+                              className="flex-1"
                               placeholder="0.00"
                             />
                           </div>
 
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Coating Price</Label>
-                            <Input 
-                              type="number" 
+                            <Input
+                              type="number"
                               step="0.01"
-                              value={orderData.coatingPrice} 
-                              onChange={(e) => setOrderData({...orderData, coatingPrice: parseFloat(e.target.value) || 0})}
-                              className="flex-1" 
+                              value={orderData.coatingPrice}
+                              onChange={(e) => setOrderData({ ...orderData, coatingPrice: parseFloat(e.target.value) || 0 })}
+                              className="flex-1"
                               placeholder="0.00"
                             />
                           </div>
 
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Fitting Price</Label>
-                            <Input 
-                              type="number" 
+                            <Input
+                              type="number"
                               step="0.01"
-                              value={orderData.fittingPrice} 
-                              onChange={(e) => setOrderData({...orderData, fittingPrice: parseFloat(e.target.value) || 0})}
-                              className="flex-1" 
+                              value={orderData.fittingPrice}
+                              onChange={(e) => setOrderData({ ...orderData, fittingPrice: parseFloat(e.target.value) || 0 })}
+                              className="flex-1"
                               placeholder="0.00"
                             />
                           </div>
 
                           <div className="flex items-center gap-2">
                             <Label className="text-sm font-medium text-gray-700 w-[120px]">Tinting Price</Label>
-                            <Input 
-                              type="number" 
+                            <Input
+                              type="number"
                               step="0.01"
-                              value={orderData.tintingPrice} 
-                              onChange={(e) => setOrderData({...orderData, tintingPrice: parseFloat(e.target.value) || 0})}
-                              className="flex-1" 
+                              value={orderData.tintingPrice}
+                              onChange={(e) => setOrderData({ ...orderData, tintingPrice: parseFloat(e.target.value) || 0 })}
+                              className="flex-1"
                               placeholder="0.00"
                             />
                           </div>
@@ -648,14 +648,14 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
 
                         <div className="flex items-center gap-2">
                           <Label className="text-sm font-medium text-gray-700 w-[120px]">Customer Discount (%)</Label>
-                          <Input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
                             step="0.1"
-                            value={orderData.discount} 
-                            onChange={(e) => setOrderData({...orderData, discount: parseFloat(e.target.value) || 0})}
-                            className="flex-1" 
+                            value={orderData.discount}
+                            onChange={(e) => setOrderData({ ...orderData, discount: parseFloat(e.target.value) || 0 })}
+                            className="flex-1"
                             placeholder="0"
                           />
                         </div>
@@ -663,36 +663,36 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
 
                       <div className="space-y-4">
                         <h4 className="font-medium text-gray-900">Billing Summary</h4>
-                        
+
                         <Card className="bg-gray-50">
                           <CardContent className="p-4 space-y-3">
                             <div className="flex justify-between text-sm">
                               <span>Subtotal:</span>
-                              <span>₹{((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)).toLocaleString("en-IN", {minimumFractionDigits: 2})}</span>
+                              <span>₹{((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             </div>
-                            
+
                             {orderData.discount > 0 && (
                               <div className="flex justify-between text-sm text-red-600">
                                 <span>Discount ({orderData.discount}%):</span>
-                                <span>-₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (orderData.discount || 0) / 100).toLocaleString("en-IN", {minimumFractionDigits: 2})}</span>
+                                <span>-₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (orderData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                               </div>
                             )}
-                            
+
                             <div className="flex justify-between text-sm">
                               <span>After Discount:</span>
-                              <span>₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (1 - (orderData.discount || 0) / 100)).toLocaleString("en-IN", {minimumFractionDigits: 2})}</span>
+                              <span>₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (1 - (orderData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             </div>
-                            
+
                             <div className="flex justify-between text-sm">
                               <span>GST (18%):</span>
-                              <span>₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (1 - (orderData.discount || 0) / 100) * 0.18).toLocaleString("en-IN", {minimumFractionDigits: 2})}</span>
+                              <span>₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (1 - (orderData.discount || 0) / 100) * 0.18).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             </div>
-                            
+
                             <Separator />
-                            
+
                             <div className="flex justify-between font-semibold">
                               <span>Total Amount:</span>
-                              <span className="text-green-600">₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (1 - (orderData.discount || 0) / 100) * 1.18).toLocaleString("en-IN", {minimumFractionDigits: 2})}</span>
+                              <span className="text-green-600">₹{(((orderData.lensPrice || 0) + (orderData.coatingPrice || 0) + (orderData.fittingPrice || 0) + (orderData.tintingPrice || 0)) * (1 - (orderData.discount || 0) / 100) * 1.18).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                             </div>
                           </CardContent>
                         </Card>

@@ -66,8 +66,8 @@ const buildRows = (lensBulkSelection, cumulativeMap, unitPrice) => {
       // orderedQty: handle per-eye { L: N } format as well as { quantity: N } and plain number
       const orderedQty = typeof val === "object" && val !== null
         ? (val.quantity != null
-            ? parseInt(val.quantity) || 0
-            : Object.values(val).reduce((s, v) => s + (parseInt(v) || 0), 0))
+          ? parseInt(val.quantity) || 0
+          : Object.values(val).reduce((s, v) => s + (parseInt(v) || 0), 0))
         : parseInt(val) || 0;
       const itemUnitPrice =
         typeof val === "object" && val?.unitPrice ? parseFloat(val.unitPrice) : parseFloat(unitPrice) || 0;
@@ -376,7 +376,7 @@ export default function PurchaseOrderReceive() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen w-full">
+      <div className="flex items-center justify-center h-svh w-full">
         <div className="flex flex-col items-center gap-3 ">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading purchase order...</p>
@@ -682,8 +682,8 @@ export default function PurchaseOrderReceive() {
               <CardContent className="p-3 text-xs text-destructive">
                 {po.status === "RECEIVED" ? "This PO has already been fully received."
                   : po.status === "INVOICE_RECEIVED" ? "Invoice has been received for this PO. No further receiving allowed."
-                  : po.status === "CLOSED" ? "This PO is closed."
-                  : "This PO has been cancelled and cannot be received."}
+                    : po.status === "CLOSED" ? "This PO is closed."
+                      : "This PO has been cancelled and cannot be received."}
               </CardContent>
             </Card>
           )}
@@ -708,26 +708,26 @@ export default function PurchaseOrderReceive() {
                       const hasEyeData = rows.some(r => r.eye);
                       const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                       return (
-                      <tr className="border-b bg-muted/50">
-                        {po.orderType === "Bulk" && (
-                          <>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">{isProgressive ? "ADD" : "CYL"}</th>
-                            {hasEyeData && <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>}
-                          </>
-                        )}
-                        {isSingleWithEyes && (
-                          <>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">CYL</th>
-                          </>
-                        )}
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">PO Qty</th>
-                        {/* <th className="px-3 py-2 text-right font-medium text-muted-foreground">Received</th> */}
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Remaining</th>
-                        <th className="px-3 py-2 text-center font-medium text-primary min-w-[110px]">Receiving Qty ↓</th>
-                      </tr>
+                        <tr className="border-b bg-muted/50">
+                          {po.orderType === "Bulk" && (
+                            <>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">{isProgressive ? "ADD" : "CYL"}</th>
+                              {hasEyeData && <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>}
+                            </>
+                          )}
+                          {isSingleWithEyes && (
+                            <>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">CYL</th>
+                            </>
+                          )}
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">PO Qty</th>
+                          {/* <th className="px-3 py-2 text-right font-medium text-muted-foreground">Received</th> */}
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Remaining</th>
+                          <th className="px-3 py-2 text-center font-medium text-primary min-w-[110px]">Receiving Qty ↓</th>
+                        </tr>
                       );
                     })()}
                   </thead>
@@ -737,54 +737,52 @@ export default function PurchaseOrderReceive() {
                       const hasEyeData = rows.some(r => r.eye);
                       const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                       return rows.map((row, idx) => {
-                      const qty = parseFloat(row.receivedQty) || 0;
+                        const qty = parseFloat(row.receivedQty) || 0;
 
-                      const hasMismatch = qty > 0 && (row.alreadyReceived + qty) !== row.orderedQty;
-                      return (
-                        <tr key={row.key} className={`border-b hover:bg-muted/30 ${hasMismatch ? "bg-red-50" : ""}`}>
-                          {po.orderType === "Bulk" && (
-                            <>
-                              <td className="px-3 py-2 font-medium">{row.spherical}</td>
-                              <td className="px-3 py-2">{isProgressive ? row.add : row.cylindrical}</td>
-                              {hasEyeData && <td className="px-3 py-2">{row.eye || "-"}</td>}
-                            </>
-                          )}
-                          {isSingleWithEyes && (
-                            <>
-                              <td className="px-3 py-2 font-medium">{row.label || row.eye}</td>
-                              <td className="px-3 py-2">{row.spherical}</td>
-                              <td className="px-3 py-2">{row.cylindrical}</td>
-                            </>
-                          )}
-                          <td className="px-3 py-2 text-right">{row.orderedQty}</td>
-                          {/* <td className="px-3 py-2 text-right text-green-600">{row.alreadyReceived}</td> */}
-                          <td className={`px-3 py-2 text-right font-medium ${
-                            row.remaining < 0 ? "text-red-600" : row.remaining === 0 ? "text-muted-foreground line-through" : "text-orange-600"
-                          }`}>
-                            {row.remaining}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={row.receivedQty}
-                              onChange={(e) => handleRowChange(idx, "receivedQty", e.target.value)}
-                              placeholder="0"
-                              className={`w-20 text-center border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
-                                hasMismatch ? "border-red-400 focus:ring-red-400" : "border-input"
-                              }`}
-                              disabled={isLocked}
-                            />
-                            {hasMismatch && (
-                              <p className="text-red-500 text-[10px] mt-0.5">
-                                {row.alreadyReceived + qty > row.orderedQty ? "Over received" : "Partial receipt"}
-                              </p>
+                        const hasMismatch = qty > 0 && (row.alreadyReceived + qty) !== row.orderedQty;
+                        return (
+                          <tr key={row.key} className={`border-b hover:bg-muted/30 ${hasMismatch ? "bg-red-50" : ""}`}>
+                            {po.orderType === "Bulk" && (
+                              <>
+                                <td className="px-3 py-2 font-medium">{row.spherical}</td>
+                                <td className="px-3 py-2">{isProgressive ? row.add : row.cylindrical}</td>
+                                {hasEyeData && <td className="px-3 py-2">{row.eye || "-"}</td>}
+                              </>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    });
+                            {isSingleWithEyes && (
+                              <>
+                                <td className="px-3 py-2 font-medium">{row.label || row.eye}</td>
+                                <td className="px-3 py-2">{row.spherical}</td>
+                                <td className="px-3 py-2">{row.cylindrical}</td>
+                              </>
+                            )}
+                            <td className="px-3 py-2 text-right">{row.orderedQty}</td>
+                            {/* <td className="px-3 py-2 text-right text-green-600">{row.alreadyReceived}</td> */}
+                            <td className={`px-3 py-2 text-right font-medium ${row.remaining < 0 ? "text-red-600" : row.remaining === 0 ? "text-muted-foreground line-through" : "text-orange-600"
+                              }`}>
+                              {row.remaining}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={row.receivedQty}
+                                onChange={(e) => handleRowChange(idx, "receivedQty", e.target.value)}
+                                placeholder="0"
+                                className={`w-20 text-center border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${hasMismatch ? "border-red-400 focus:ring-red-400" : "border-input"
+                                  }`}
+                                disabled={isLocked}
+                              />
+                              {hasMismatch && (
+                                <p className="text-red-500 text-[10px] mt-0.5">
+                                  {row.alreadyReceived + qty > row.orderedQty ? "Over received" : "Partial receipt"}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      });
                     })()}
                     {rows.length === 0 && (() => {
                       const hasEyeData = rows.some(r => r.eye);
@@ -792,11 +790,11 @@ export default function PurchaseOrderReceive() {
                       const bulkCols = po.orderType === "Bulk" ? (2 + (hasEyeData ? 1 : 0)) : 0;
                       const singleEyeCols = isSingleWithEyes ? 3 : 0;
                       return (
-                      <tr>
-                        <td colSpan={bulkCols + singleEyeCols + 3} className="px-3 py-8 text-center text-muted-foreground">
-                          No items to receive
-                        </td>
-                      </tr>
+                        <tr>
+                          <td colSpan={bulkCols + singleEyeCols + 3} className="px-3 py-8 text-center text-muted-foreground">
+                            No items to receive
+                          </td>
+                        </tr>
                       );
                     })()}
                   </tbody>
@@ -806,17 +804,17 @@ export default function PurchaseOrderReceive() {
                     const bulkCols = po.orderType === "Bulk" ? (2 + (hasEyeData ? 1 : 0)) : 0;
                     const singleEyeCols = isSingleWithEyes ? 3 : 0;
                     return (
-                    <tfoot>
-                      <tr className="bg-muted/50 font-semibold border-t">
-                        {(po.orderType === "Bulk" || isSingleWithEyes) && (
-                          <td colSpan={bulkCols + singleEyeCols} />
-                        )}
-                        <td className="px-3 py-2 text-right">{orderedQty}</td>
-                        {/* <td className="px-3 py-2 text-right text-green-600">{alreadyReceived}</td> */}
-                        <td className="px-3 py-2 text-right text-orange-600">{pendingQty}</td>
-                        <td className="px-3 py-2 text-center text-primary">{totalThisQty}</td>
-                      </tr>
-                    </tfoot>
+                      <tfoot>
+                        <tr className="bg-muted/50 font-semibold border-t">
+                          {(po.orderType === "Bulk" || isSingleWithEyes) && (
+                            <td colSpan={bulkCols + singleEyeCols} />
+                          )}
+                          <td className="px-3 py-2 text-right">{orderedQty}</td>
+                          {/* <td className="px-3 py-2 text-right text-green-600">{alreadyReceived}</td> */}
+                          <td className="px-3 py-2 text-right text-orange-600">{pendingQty}</td>
+                          <td className="px-3 py-2 text-center text-primary">{totalThisQty}</td>
+                        </tr>
+                      </tfoot>
                     );
                   })()}
                 </table>
@@ -900,9 +898,8 @@ export default function PurchaseOrderReceive() {
                           className="w-full flex items-center gap-2 px-3 py-2.5 text-xs hover:bg-muted/40 transition-colors text-left"
                         >
                           <ChevronDown
-                            className={`h-3.5 w-3.5 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${
-                              isOpen ? "rotate-180" : ""
-                            }`}
+                            className={`h-3.5 w-3.5 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
+                              }`}
                           />
                           <span className="font-semibold text-primary min-w-[70px]">{log.receiptNumber}</span>
                           <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleDateString("en-IN")}</span>
@@ -910,11 +907,10 @@ export default function PurchaseOrderReceive() {
                             <span className="font-semibold">{log.totalReceivedQty} pcs</span>
                             <Badge
                               variant="outline"
-                              className={`text-[10px] h-4 px-1.5 ${
-                                log.status === "COMPLETE"
+                              className={`text-[10px] h-4 px-1.5 ${log.status === "COMPLETE"
                                   ? "bg-green-50 text-green-700 border-green-200"
                                   : "bg-blue-50 text-blue-700 border-blue-200"
-                              }`}
+                                }`}
                             >
                               {log.status || "LOG"}
                             </Badge>

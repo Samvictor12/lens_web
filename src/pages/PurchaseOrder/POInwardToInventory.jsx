@@ -327,7 +327,7 @@ export default function POInwardToInventory() {
       if (splitTotal > row.pending + 0.001) {
         toast({
           title: "Quantity exceeds pending",
-          description: `SPH ${fmtSph(row.spherical)} / ${isProgressive ? "ADD" : "CYL"} ${fmtSph(isProgressive ? row.add : row.cylindrical)}${row.eye ? ` (${row.eye})` : ""}: split total (${splitTotal}) exceeds pending (${row.pending})`,  
+          description: `SPH ${fmtSph(row.spherical)} / ${isProgressive ? "ADD" : "CYL"} ${fmtSph(isProgressive ? row.add : row.cylindrical)}${row.eye ? ` (${row.eye})` : ""}: split total (${splitTotal}) exceeds pending (${row.pending})`,
           variant: "destructive",
         });
         return false;
@@ -434,7 +434,7 @@ export default function POInwardToInventory() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen w-full">
+      <div className="flex items-center justify-center h-svh w-full">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading inward data...</p>
@@ -486,7 +486,7 @@ export default function POInwardToInventory() {
         </div>
       </div>
 
-        {/* <Alert className="bg-primary/5 border-primary/20 flex-shrink-0">
+      {/* <Alert className="bg-primary/5 border-primary/20 flex-shrink-0">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="text-xs">
             Choose <span className="font-medium">Location</span>, then select the matching <span className="font-medium">Tray</span>, then enter <span className="font-medium">Qty</span>.
@@ -752,10 +752,10 @@ export default function POInwardToInventory() {
                               const percentUsed = selectedTrayOccupancy ? effectivePercentUsed : 0;
                               const occupancyColor =
                                 isTrayFull ? "bg-red-100 text-red-800" :
-                                percentUsed >= 90 ? "bg-red-100 text-red-800" :
-                                percentUsed >= 70 ? "bg-orange-100 text-orange-800" :
-                                "bg-green-100 text-green-800";
-                              
+                                  percentUsed >= 90 ? "bg-red-100 text-red-800" :
+                                    percentUsed >= 70 ? "bg-orange-100 text-orange-800" :
+                                      "bg-green-100 text-green-800";
+
                               return (
                                 <tr
                                   key={splitIdx}
