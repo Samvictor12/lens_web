@@ -84,6 +84,9 @@ export class SaleOrderWorkflowService {
         include: {
           customer: { select: { id: true, code: true, name: true } },
           lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+          category: { select: { id: true, name: true } },
+          lensType: { select: { id: true, name: true } },
+          coating: { select: { id: true, name: true } },
           purchaseOrders: {
             where: { deleteStatus: false },
             select: { id: true, poNumber: true, status: true, receivedQty: true, quantity: true },
