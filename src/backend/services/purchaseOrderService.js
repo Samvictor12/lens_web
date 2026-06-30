@@ -234,6 +234,7 @@ class PurchaseOrderService {
         start_date,
         endDate,
         end_date,
+        orderType,
       } = queryParams;
 
       const resolvedVendorId = vendorId ?? vendor_id;
@@ -289,6 +290,11 @@ class PurchaseOrderService {
         }
       }
 
+      // Order type filter (Single / Bulk)
+      if (orderType && orderType !== "all") {
+        where.orderType = orderType;
+      }
+
       // Execute query with pagination
       const [purchaseOrders, total] = await Promise.all([
         prisma.purchaseOrder.findMany({
@@ -310,6 +316,7 @@ class PurchaseOrderService {
               select: {
                 id: true,
                 orderNo: true,
+                customerRefNo: true,
               },
             },
             lensProduct: {
@@ -899,6 +906,180 @@ class PurchaseOrderService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // BATCH EXPORT (Single POs → compact multi-row sheet)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Export multiple Single POs into one compact Excel sheet (one row per PO).
+   * Columns: PO Number | Vendor | Customer Ref | Lens Name | Category |
+   *          R.SPH | R.CYL | R.Axis | R.ADD | L.SPH | L.CYL | L.Axis | L.ADD |
+   *          Qty | Rate | Total | Status
+   */
+  async exportBatchSinglePOToExcel(ids, res) {
+    const pos = await prisma.purchaseOrder.findMany({
+      where: { id: { in: ids }, deleteStatus: false },
+      include: {
+        vendor:      { select: { name: true } },
+        lensProduct: { select: { lens_name: true, product_code: true } },
+        category:    { select: { name: true } },
+        saleOrder:   { select: { customerRefNo: true, orderNo: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!pos.length) {
+      res.status(404).json({ success: false, message: "No purchase orders found" });
+      return;
+    }
+
+    const fmtLen = (v) => {
+      const n = parseFloat(v);
+      if (isNaN(n)) return "—";
+      return (n >= 0 ? "+" : "") + n.toFixed(2);
+    };
+
+    // ── Colours ──────────────────────────────────────────────────────────────
+    const C = {
+      navyBg: "1B4F72", navyText: "FFFFFF",
+      blueBg: "2980B9", blueText: "FFFFFF",
+      lightBlue: "D6EAF8", darkBlue: "1A5276",
+      altRow: "EBF5FB",
+    };
+    const fill = (hex) => ({ type: "pattern", pattern: "solid", fgColor: { argb: `FF${hex}` } });
+    const font = (hex, size = 10, bold = false) => ({ name: "Calibri", color: { argb: `FF${hex}` }, size, bold });
+    const border = {
+      top:    { style: "thin", color: { argb: "FFBDC3C7" } },
+      left:   { style: "thin", color: { argb: "FFBDC3C7" } },
+      bottom: { style: "thin", color: { argb: "FFBDC3C7" } },
+      right:  { style: "thin", color: { argb: "FFBDC3C7" } },
+    };
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Lens Management System";
+    const ws = wb.addWorksheet("Purchase Orders", { views: [{ showGridLines: false }] });
+
+    // ── Columns definition ────────────────────────────────────────────────────
+    const HEADERS = [
+      { label: "PO Number",     key: "poNumber",     width: 14 },
+      { label: "Vendor",        key: "vendor",        width: 22 },
+      { label: "Customer Ref",  key: "customerRef",   width: 16 },
+      { label: "Lens Name",     key: "lensName",      width: 24 },
+      { label: "Category",      key: "category",      width: 16 },
+      { label: "R.SPH",         key: "rSph",          width: 9  },
+      { label: "R.CYL",         key: "rCyl",          width: 9  },
+      { label: "R.Axis",        key: "rAxis",         width: 9  },
+      { label: "R.ADD",         key: "rAdd",          width: 9  },
+      { label: "L.SPH",         key: "lSph",          width: 9  },
+      { label: "L.CYL",         key: "lCyl",          width: 9  },
+      { label: "L.Axis",        key: "lAxis",         width: 9  },
+      { label: "L.ADD",         key: "lAdd",          width: 9  },
+      { label: "Qty",           key: "qty",           width: 7  },
+      { label: "Rate",          key: "rate",          width: 12 },
+      { label: "Total",         key: "total",         width: 14 },
+      { label: "Status",        key: "status",        width: 18 },
+    ];
+
+    HEADERS.forEach((h, i) => {
+      ws.getColumn(i + 1).width = h.width;
+    });
+
+    // ── Title row ─────────────────────────────────────────────────────────────
+    ws.mergeCells(1, 1, 1, HEADERS.length);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.value = "PURCHASE ORDER LIST";
+    titleCell.fill = fill(C.navyBg);
+    titleCell.font = font(C.navyText, 16, true);
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(1).height = 36;
+
+    // ── Sub-title: date generated ─────────────────────────────────────────────
+    ws.mergeCells(2, 1, 2, HEADERS.length);
+    const subCell = ws.getCell(2, 1);
+    subCell.value = `Generated: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}   |   Total POs: ${pos.length}`;
+    subCell.fill = fill(C.blueBg);
+    subCell.font = font(C.blueText, 10);
+    subCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(2).height = 20;
+
+    // ── Header row ────────────────────────────────────────────────────────────
+    ws.getRow(3).height = 24;
+    HEADERS.forEach((h, i) => {
+      const cell = ws.getCell(3, i + 1);
+      cell.value = h.label;
+      cell.fill = fill(C.blueBg);
+      cell.font = font(C.blueText, 10, true);
+      cell.border = border;
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+    });
+
+    // ── Data rows ─────────────────────────────────────────────────────────────
+    pos.forEach((po, idx) => {
+      const rowNum = 4 + idx;
+      ws.getRow(rowNum).height = 20;
+      const isAlt = idx % 2 === 1;
+      const rowFill = isAlt ? fill(C.altRow) : fill("FFFFFF");
+
+      const statusLabel = {
+        DRAFT: "Draft", RECEIVED: "Received", PARTIALLY_RECEIVED: "Partially Received",
+        CANCELLED: "Cancelled", CLOSED: "Completed",
+      }[po.status] ?? po.status;
+
+      const customerRef =
+        po.saleOrder?.customerRefNo || po.reference_id || "—";
+
+      const values = [
+        po.poNumber,
+        po.vendor?.name || "—",
+        customerRef,
+        po.lensProduct?.lens_name || "—",
+        po.category?.name || "—",
+        po.rightEye ? fmtLen(po.rightSpherical) : "—",
+        po.rightEye ? fmtLen(po.rightCylindrical) : "—",
+        po.rightEye ? (po.rightAxis || "—") : "—",
+        po.rightEye ? fmtLen(po.rightAdd) : "—",
+        po.leftEye  ? fmtLen(po.leftSpherical) : "—",
+        po.leftEye  ? fmtLen(po.leftCylindrical) : "—",
+        po.leftEye  ? (po.leftAxis || "—") : "—",
+        po.leftEye  ? fmtLen(po.leftAdd) : "—",
+        po.quantity || 0,
+        po.unitPrice ? parseFloat(po.unitPrice) : null,
+        po.totalValue ? parseFloat(po.totalValue) : null,
+        statusLabel,
+      ];
+
+      values.forEach((val, ci) => {
+        const cell = ws.getCell(rowNum, ci + 1);
+        cell.value = val;
+        cell.fill = rowFill;
+        cell.font = font("1A1A2E", 10);
+        cell.border = border;
+        // Right-align numeric columns
+        cell.alignment = {
+          horizontal: ci >= 13 && ci <= 15 ? "right" : ci >= 5 && ci <= 12 ? "center" : "left",
+          vertical: "middle",
+        };
+        // Format currency columns
+        if (ci === 14 || ci === 15) {
+          cell.numFmt = "#,##0.00";
+        }
+      });
+    });
+
+    // ── Freeze header rows ────────────────────────────────────────────────────
+    ws.views = [{ state: "frozen", ySplit: 3, showGridLines: false }];
+
+    // ── Stream ────────────────────────────────────────────────────────────────
+    const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+    const filename = `PO_Batch_${today}.xlsx`;
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
 
   formatPurchaseOrderResponse(purchaseOrder) {
     if (!purchaseOrder) return null;

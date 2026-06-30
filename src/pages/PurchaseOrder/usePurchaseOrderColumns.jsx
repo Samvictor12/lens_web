@@ -1,6 +1,7 @@
-import { Building, Trash2, PackageCheck, PencilLine, Warehouse, Download } from "lucide-react";
+import { Building, Trash2, PackageCheck, PencilLine, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
 // Allow receiving when PO is DRAFT or PARTIALLY_RECEIVED (and still has pending qty — checked via po.quantity vs po.receivedQty)
@@ -26,8 +27,26 @@ export const usePurchaseOrderColumns = (
   onInward,
   onDownload,
   downloadingId,
+  selectedIds = new Set(),
+  onToggleSelect,
 ) => {
   return [
+    // ── Checkbox column ──────────────────────────────────────────────────────
+    {
+      accessorKey: "__select",
+      header: "",
+      sortable: false,
+      width: 40,
+      cell: (po) => (
+        <div className="flex items-center justify-center px-1">
+          <Checkbox
+            checked={selectedIds.has(po.id)}
+            onCheckedChange={() => onToggleSelect && onToggleSelect(po)}
+            aria-label={`Select ${po.poNumber}`}
+          />
+        </div>
+      ),
+    },
     {
       accessorKey: "poNumber",
       header: "PO Number",
@@ -46,13 +65,16 @@ export const usePurchaseOrderColumns = (
     },
     {
       accessorKey: "reference_id",
-      header: "Reference No",
+      header: "Customer Ref / Ref No",
       sortable: true,
-      cell: (po) => (
-        <span className="text-xs">
-          {po.reference_id || "-"}
-        </span>
-      ),
+      cell: (po) => {
+        // For Single POs linked to an SO, prefer the SO's customer reference number
+        const displayRef =
+          po.orderType !== "Bulk" && po.saleOrder?.customerRefNo
+            ? po.saleOrder.customerRefNo
+            : (po.reference_id || "-");
+        return <span className="text-xs">{displayRef}</span>;
+      },
     },
     {
       accessorKey: "vendor",
@@ -79,8 +101,9 @@ export const usePurchaseOrderColumns = (
       accessorKey: "lensProduct",
       header: "Lens Name",
       sortable: false,
+      width: 200,
       cell: (po) => (
-        <span className="text-xs">
+        <span className="text-xs block min-w-[180px]">
           {po.lensProduct?.lens_name || "-"}
         </span>
       ),
@@ -202,23 +225,20 @@ export const usePurchaseOrderColumns = (
       header: "Actions",
       sortable: false,
       cell: (po) => {
-        const isDownloading = downloadingId === po.id;
         return (
           <div className="flex gap-1">
+            {/* Download button moved to batch action bar — comment kept for reference
             <Button
               variant="ghost"
               size="xs"
               className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               onClick={() => onDownload && onDownload(po)}
-              disabled={isDownloading}
+              disabled={downloadingId === po.id}
               title="Download PO as Excel"
             >
-              {isDownloading ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
+              <Download className="h-3.5 w-3.5" />
             </Button>
+            */}
             {po.status !== "RECEIVED" && po.status !== "PARTIALLY_RECEIVED" && (po.receivedQty || 0) === 0 && (
               <Button
                 variant="ghost"

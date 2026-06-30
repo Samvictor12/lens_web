@@ -51,6 +51,9 @@ export const getPurchaseOrders = async (
     if (filters.end_date) {
       params.end_date = filters.end_date;
     }
+    if (filters.orderType && filters.orderType !== "all") {
+      params.orderType = filters.orderType;
+    }
   }
 
   const response = await apiClient("get", PURCHASE_ORDER_BASE_URL, { params });
@@ -189,3 +192,27 @@ export const downloadPurchaseOrderExcel = async (poId, poNumber, orderDate) => {
   link.remove();
   window.URL.revokeObjectURL(url);
 };
+
+/**
+ * Download multiple Single POs as a single compact Excel sheet.
+ * @param {number[]} poIds - Array of PO IDs to export
+ */
+export const downloadBatchPurchaseOrderExcel = async (poIds) => {
+  const today = new Date()
+    .toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })
+    .replace(/\//g, "-");
+  const response = await api.post(
+    `${PURCHASE_ORDER_BASE_URL}/export-batch`,
+    { ids: poIds },
+    { responseType: "blob" }
+  );
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `PO_Batch_${today}.xlsx`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+

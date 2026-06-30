@@ -175,6 +175,17 @@ router.get(
 );
 
 /**
+ * @route   POST /api/purchase-orders/export-batch
+ * @desc    Export multiple Single POs as one compact Excel sheet
+ * @access  Private
+ */
+router.post(
+  "/export-batch",
+  purchaseOrderController.exportBatchPurchaseOrders.bind(purchaseOrderController)
+);
+
+
+/**
  * @route   PUT /api/purchase-orders/:id
  * @desc    Update purchase order
  * @access  Private

@@ -488,6 +488,22 @@ class PurchaseOrderController {
     }
   }
 
+  /**
+   * POST /api/purchase-orders/export-batch
+   */
+  async exportBatchPurchaseOrders(req, res, next) {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ success: false, message: "No PO IDs provided" });
+      }
+      const parsedIds = ids.map((id) => parseInt(id)).filter(Boolean);
+      await purchaseOrderService.exportBatchSinglePOToExcel(parsedIds, res);
+    } catch (error) {
+      if (!res.headersSent) next(error);
+    }
+  }
+
   async cancelPurchaseOrder(req, res, next) {
     try {
       const { id } = req.params;

@@ -21,11 +21,19 @@ import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   getPurchaseOrders,
   deletePurchaseOrder,
   getPOReceipts,
   getPurchaseOrderDashboard,
   downloadPurchaseOrderExcel,
+  downloadBatchPurchaseOrderExcel,
 } from "@/services/purchaseOrder";
 import { purchaseOrderFilters } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
@@ -75,6 +83,14 @@ export default function PurchaseOrders() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Lens Type filter — default to Single
+  const [orderType, setOrderType] = useState("Single");
+
+  // Selection state for batch download
+  const [selectedPos, setSelectedPos] = useState([]); // array of full PO objects
+  const selectedIds = useMemo(() => new Set(selectedPos.map((p) => p.id)), [selectedPos]);
+  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("purchaseOrdersView", "table");
@@ -135,7 +151,7 @@ export default function PurchaseOrders() {
     }
   };
 
-  // Handle PO Excel download
+  // Handle PO Excel download (single)
   const [downloadingId, setDownloadingId] = useState(null);
 
   const handleDownload = async (po) => {
@@ -154,6 +170,57 @@ export default function PurchaseOrders() {
     }
   };
 
+  // Toggle selection for a PO row
+  const handleToggleSelect = (po) => {
+    setSelectedPos((prev) => {
+      const exists = prev.some((p) => p.id === po.id);
+      if (exists) return prev.filter((p) => p.id !== po.id);
+      // Bulk: limit to 1 selection at a time
+      if (orderType === "Bulk") return [po];
+      return [...prev, po];
+    });
+  };
+
+  // Clear selection when type filter or page changes
+  useEffect(() => { setSelectedPos([]); }, [orderType, pageIndex]);
+
+  // Batch download handler
+  const handleBatchDownload = async () => {
+    if (selectedPos.length === 0 || isBatchDownloading) return;
+
+    if (orderType === "Bulk") {
+      // Bulk: use existing single-PO export
+      const po = selectedPos[0];
+      await handleDownload(po);
+      return;
+    }
+
+    // Single: validate same vendor
+    const vendorIds = new Set(selectedPos.map((p) => p.vendor?.id ?? p.vendorId));
+    if (vendorIds.size > 1) {
+      toast({
+        title: "Mixed vendors selected",
+        description: "All selected POs must be from the same vendor. Please deselect and retry.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBatchDownloading(true);
+    try {
+      await downloadBatchPurchaseOrderExcel(selectedPos.map((p) => p.id));
+      toast({ title: `Downloaded ${selectedPos.length} PO(s) successfully` });
+    } catch {
+      toast({
+        title: "Batch download failed",
+        description: "Could not export the selected POs.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBatchDownloading(false);
+    }
+  };
+
   // Get table columns with delete handler
   const columns = usePurchaseOrderColumns(
     navigate,
@@ -163,6 +230,8 @@ export default function PurchaseOrders() {
     handleInward,
     handleDownload,
     downloadingId,
+    selectedIds,
+    handleToggleSelect,
   );
 
   // Fetch purchase orders from API
@@ -173,10 +242,10 @@ export default function PurchaseOrders() {
       const sortDirection = sorting[0]?.desc ? "desc" : "asc";
       
       const response = await getPurchaseOrders(
-        pageIndex + 1, // Backend uses 1-indexed pages
+        pageIndex + 1,
         pageSize,
         searchQuery,
-        filters,
+        { ...filters, orderType },
         sortField,
         sortDirection
       );
@@ -203,7 +272,7 @@ export default function PurchaseOrders() {
   useEffect(() => {
     if (activeTab !== "list") return;
     fetchPurchaseOrders();
-  }, [activeTab, pageIndex, pageSize, searchQuery, filters, sorting, refreshKey]);
+  }, [activeTab, pageIndex, pageSize, searchQuery, filters, sorting, refreshKey, orderType]);
 
   // WebSocket Live Refresh
   useEffect(() => {
@@ -470,7 +539,30 @@ export default function PurchaseOrders() {
             Manage purchase orders and vendor purchases
           </p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
+          {/* Batch Download PO button — slides in when rows are selected */}
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxWidth: selectedPos.length > 0 ? "220px" : "0px",
+              opacity: selectedPos.length > 0 ? 1 : 0,
+            }}
+          >
+            <Button
+              size="xs"
+              variant="outline"
+              className="gap-1.5 h-8 border-blue-400 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+              onClick={handleBatchDownload}
+              disabled={isBatchDownloading}
+            >
+              {isBatchDownloading ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              Download PO ({selectedPos.length})
+            </Button>
+          </div>
           {/* <Button
             variant="outline"
             size="xs"
@@ -526,6 +618,23 @@ export default function PurchaseOrders() {
                 />
               </div>
               <div className="flex items-center gap-1.5">
+                {/* Lens Type Dropdown filter */}
+                <Select
+                  value={orderType}
+                  onValueChange={(val) => {
+                    setOrderType(val);
+                    setPageIndex(0);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[110px] text-xs">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Single">Single</SelectItem>
+                    <SelectItem value="Bulk">Bulk</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
+                  </SelectContent>
+                </Select>
                 {/* <ViewToggle view={view} onViewChange={handleViewChange} /> */}
                 <Refresh onClick={handleRefresh} />
                 <PurchaseOrderFilter
