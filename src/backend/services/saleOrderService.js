@@ -280,6 +280,38 @@ export class SaleOrderService {
       // Generate order number
       const orderNo = await this.generateOrderNumber();
 
+      // ── Credit limit pre-check ────────────────────────────────────────────────
+      {
+        const lensP = orderData.lensPrice || 0;
+        const lensD = lensP * ((orderData.discount || 0) / 100);
+        const prospectiveTotal =
+          lensP - lensD +
+          (orderData.rightEyeExtra || 0) +
+          (orderData.leftEyeExtra || 0) +
+          (orderData.fittingPrice || 0) +
+          (orderData.tintingPrice || 0) +
+          (Array.isArray(orderData.additionalPrice)
+            ? orderData.additionalPrice.reduce((s, x) => s + (parseFloat(x.value) || 0), 0)
+            : 0);
+
+        const custCredit = await prisma.customer.findUnique({
+          where: { id: orderData.customerId },
+          select: { credit_limit: true, reserved_amount: true, outstanding_credit: true },
+        });
+
+        if (custCredit?.credit_limit && custCredit.credit_limit > 0) {
+          const currentExposure = (custCredit.reserved_amount || 0) + (custCredit.outstanding_credit || 0);
+          if (currentExposure + prospectiveTotal >= custCredit.credit_limit) {
+            throw new APIError(
+              `Credit limit exceeded. Limit: \u20b9${custCredit.credit_limit}, Current exposure: \u20b9${currentExposure.toFixed(2)}, New SO amount: \u20b9${prospectiveTotal.toFixed(2)}`,
+              400,
+              'CREDIT_LIMIT_EXCEEDED'
+            );
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       // Create the sale order
       const saleOrder = await prisma.$transaction(async (tx) => {
         const created = await tx.saleOrder.create({
@@ -406,6 +438,26 @@ export class SaleOrderService {
           }
         }
       });
+
+        // Compute SO final total (lens discount only)
+        const lensPrice = orderData.lensPrice || 0;
+        const lensDiscount = lensPrice * ((orderData.discount || 0) / 100);
+        const soFinalTotal =
+          lensPrice - lensDiscount +
+          (orderData.rightEyeExtra || 0) +
+          (orderData.leftEyeExtra || 0) +
+          (orderData.fittingPrice || 0) +
+          (orderData.tintingPrice || 0) +
+          (Array.isArray(orderData.additionalPrice)
+            ? orderData.additionalPrice.reduce((s, x) => s + (parseFloat(x.value) || 0), 0)
+            : 0);
+
+        // Increment customer reserved_amount by SO total
+        await tx.customer.update({
+          where: { id: orderData.customerId },
+          data: { reserved_amount: { increment: soFinalTotal } },
+        });
+
         await saleOrderStatusService.logCreation(tx, created.id, userId);
         return created;
       });
@@ -1378,6 +1430,25 @@ export class SaleOrderService {
           updatedBy: userId
         }
       });
+
+      // Decrement customer reserved_amount if the SO was not yet invoiced
+      if (!existing.invoiceId) {
+        const lP = existing.lensPrice || 0;
+        const lD = lP * ((existing.discount || 0) / 100);
+        const soTotal =
+          lP - lD +
+          (existing.rightEyeExtra || 0) +
+          (existing.leftEyeExtra || 0) +
+          (existing.fittingPrice || 0) +
+          (existing.tintingPrice || 0) +
+          (Array.isArray(existing.additionalPrice)
+            ? existing.additionalPrice.reduce((s, x) => s + (parseFloat(x.value) || 0), 0)
+            : 0);
+        await prisma.customer.update({
+          where: { id: existing.customerId },
+          data: { reserved_amount: { decrement: Math.max(0, soTotal) } },
+        });
+      }
 
       // ✅ LOG THE DELETE OPERATION
       await logDelete({

@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
 import { randomUUID } from "crypto";
+import { postTransaction } from "./accountingService.js";
 
 /**
  * Customer Master Service
@@ -825,6 +826,83 @@ export class CustomerMasterService {
     } catch (error) {
       if (error instanceof APIError) throw error;
       throw new APIError("Failed to fetch portal dashboard", 500, "PORTAL_DASHBOARD_ERROR");
+    }
+  }
+
+  async updateOpeningBalance(customerId, amount, userId, req = null) {
+    try {
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId },
+        include: { ledger: true }
+      });
+
+      if (!customer) {
+        throw new APIError("Customer not found", 404, "CUSTOMER_NOT_FOUND");
+      }
+
+      if (!customer.ledger) {
+        throw new APIError("Customer subsidiary ledger not found", 404, "LEDGER_NOT_FOUND");
+      }
+
+      const ledger = customer.ledger;
+      const oldOpeningBalance = parseFloat(ledger.openingBalance || 0);
+      const diff = amount - oldOpeningBalance;
+
+      if (diff === 0) {
+        return customer;
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        // Update Ledger openingBalance (the field itself)
+        await tx.ledger.update({
+          where: { id: ledger.id },
+          data: { openingBalance: amount }
+        });
+
+        // Resolve the offset equity ledger (AC-5002 Retained Earnings)
+        const equityLedger = await tx.ledger.findFirst({
+          where: { ledgerCode: 'AC-5002', delete_status: false }
+        });
+        if (!equityLedger) {
+          throw new APIError("Equity ledger AC-5002 not found", 500, "LEDGER_NOT_FOUND");
+        }
+
+        // Post balanced financial transaction
+        const entryTypeDr = diff > 0 ? 'DEBIT' : 'CREDIT';
+        const entryTypeCr = diff > 0 ? 'CREDIT' : 'DEBIT';
+        const absDiff = Math.abs(diff);
+
+        await postTransaction(tx, {
+          transactionType: 'OPENING_BALANCE',
+          referenceType: 'MANUAL',
+          referenceId: customerId,
+          referenceNumber: `OB-C${customerId}`,
+          description: `Opening balance update for customer ${customer.name} from \u20b9${oldOpeningBalance} to \u20b9${amount}`,
+          transactionDate: new Date(),
+        }, [
+          { ledgerId: ledger.id, entryType: entryTypeDr, amount: absDiff, description: 'Customer AR opening balance adjustment' },
+          { ledgerId: equityLedger.id, entryType: entryTypeCr, amount: absDiff, description: 'Equity offset entry' }
+        ], userId);
+
+        // Update customer outstanding_credit by adding diff
+        const currentOutstanding = customer.outstanding_credit || 0;
+        await tx.customer.update({
+          where: { id: customerId },
+          data: { outstanding_credit: Math.max(0, currentOutstanding + Math.round(diff)) }
+        });
+
+        // Re-fetch updated customer
+        return tx.customer.findUnique({
+          where: { id: customerId },
+          include: { ledger: true }
+        });
+      });
+
+      return updated;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error("Error updating customer opening balance:", error);
+      throw new APIError("Failed to update opening balance", 500, "UPDATE_OPENING_BALANCE_ERROR");
     }
   }
 }

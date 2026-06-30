@@ -83,7 +83,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
   }, [initialData]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-svh bg-gray-50">
       <div className="max-w-full mx-auto py-4 px-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 bg-white rounded-lg shadow-sm p-4">

@@ -23,7 +23,7 @@ export default function CustomerPortalLogin() {
   useEffect(() => {
     getPublicCompanySettings()
       .then((r) => { if (r?.data) setCompany(r.data); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function CustomerPortalLogin() {
   // ─── Not found ──────────────────────────────────────────────────────────────
   if (notFound) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-svh bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full text-center space-y-4">
           <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
           <h1 className="text-xl font-bold">Portal Not Found</h1>
@@ -80,7 +80,7 @@ export default function CustomerPortalLogin() {
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (loadingCustomer) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className="min-h-svh bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -88,7 +88,7 @@ export default function CustomerPortalLogin() {
 
   // ─── Login Form ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-svh bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">

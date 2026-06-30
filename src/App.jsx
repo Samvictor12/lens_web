@@ -136,13 +136,13 @@ const AppRoutes = () => (
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
       <Route path="/sales/orders/dif/:mode" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
-      <Route path="/sales/orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
-      <Route path="/sales/orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><SaleOrderForm /></div>} />
+      <Route path="/sales/orders/:mode" element={<div className="flex overflow-auto h-svh w-full"><SaleOrderForm /></div>} />
+      <Route path="/sales/orders/:mode/:id" element={<div className="flex overflow-auto h-svh w-full"><SaleOrderForm /></div>} />
       <Route path="/sales/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/sales/customers/:customerId/price-mapping" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
-      
+
       {/* Inventory Routes */}
       <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/items/add" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
@@ -157,11 +157,11 @@ const AppRoutes = () => (
       <Route path="/inventory/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
-      <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
-      <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderForm /></div>} />
-      <Route path="/masters/purchase-orders/receive/:id" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
-      <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><PurchaseOrderReceive /></div>} />
-      <Route path="/masters/purchase-orders/receive/:id/inward/:receiptId" element={<div className="flex overflow-auto h-screen w-full"><POInwardToInventory /></div>} />
+      <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderForm /></div>} />
+      <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderForm /></div>} />
+      <Route path="/masters/purchase-orders/receive/:id" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderReceive /></div>} />
+      <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderReceive /></div>} />
+      <Route path="/masters/purchase-orders/receive/:id/inward/:receiptId" element={<div className="flex overflow-auto h-svh w-full"><POInwardToInventory /></div>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
       <Route path="/production/operator" element={<ProtectedRoute><ProductionOperatorList /></ProtectedRoute>} />
       <Route path="/production/operator/:id" element={<ProtectedRoute><ProductionOrderDetail /></ProtectedRoute>} />

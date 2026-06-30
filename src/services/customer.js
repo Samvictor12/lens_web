@@ -275,3 +275,9 @@ export async function getPortalCustomerByToken(token) {
 export async function getPortalDashboard(token) {
   return await apiClient("get", `/customer-master/portal/token/${token}/dashboard`);
 }
+
+export async function updateOpeningBalance(id, amount) {
+  return await apiClient("patch", `/customer-master/${id}/opening-balance`, {
+    data: { amount },
+  });
+}

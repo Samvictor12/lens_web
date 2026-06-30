@@ -154,6 +154,7 @@ export async function seedAccountingTestData(client = prisma) {
         subtotal: 10000,
         taxAmount: 1800,
         totalValue: 11800,
+        vendor: vendor,
       }, USER_ID);
     });
     console.log('   ✅ TEST-PO-2026-001 received + GL posted');
@@ -205,6 +206,7 @@ export async function seedAccountingTestData(client = prisma) {
         subtotal: 20000,
         taxAmount: 3600,
         totalValue: 23600,
+        vendor: vendor2 ?? vendor,
       }, USER_ID);
     });
     console.log('   ✅ TEST-PO-2026-002 received + GL posted');
@@ -240,6 +242,7 @@ export async function seedAccountingTestData(client = prisma) {
         voucherNumber: vpv.voucherNumber,
         totalAmount: 11800,
         bankLedgerId: bankLedger.id,
+        vendor: vendor,
       }, USER_ID);
     });
     console.log('   ✅ TEST-VPV-2026-0001 created + GL posted');
@@ -318,6 +321,7 @@ export async function seedAccountingTestData(client = prisma) {
         invoiceNo: invoice1.invoiceNo,
         totalAmount: inv1Total,
         taxAmount: inv1Tax,
+        customer: customer,
       }, USER_ID);
     });
     console.log('   ✅ TEST-INV-2026-001 issued + GL posted');
@@ -350,6 +354,7 @@ export async function seedAccountingTestData(client = prisma) {
         invoiceNo: invoice2.invoiceNo,
         totalAmount: inv2Total,
         taxAmount: inv2Tax,
+        customer: customer2 ?? customer,
       }, USER_ID);
     });
     await client.$transaction(async (tx) => {
@@ -358,6 +363,7 @@ export async function seedAccountingTestData(client = prisma) {
         invoiceNo: invoice2.invoiceNo,
         amount: 5000,
         bankLedgerId: bankLedger.id,
+        customer: customer2 ?? customer,
       }, USER_ID);
     });
     await client.payment.create({
@@ -386,6 +392,7 @@ export async function seedAccountingTestData(client = prisma) {
         invoiceNo: invoice1.invoiceNo,
         amount: 10000,
         bankLedgerId: bankLedger.id,
+        customer: customer,
       }, USER_ID);
     });
     await client.payment.create({

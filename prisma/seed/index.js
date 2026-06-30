@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { seedFinancialLedgers } from './financial-ledgers-seed.js';
+import { backfillVendorCustomerLedgers } from './backfill-vendor-customer-ledgers.js';
 import { seedAccountingTestData } from './accounting-test-seed.js';
 
 const prisma = new PrismaClient();
@@ -27,54 +28,13 @@ async function main() {
   // This is the standard PostgreSQL approach for seeding.
   await prisma.$executeRaw`SET session_replication_role = 'replica'`;
   try {
-    for (const fn of [
-      () => prisma.expenseLog?.deleteMany?.(),
-      () => prisma.expense?.deleteMany?.(),
-      () => prisma.expenseCategory?.deleteMany?.(),
-      () => prisma.vendorPaymentVoucherItem?.deleteMany?.(),
-      () => prisma.vendorPaymentVoucher?.deleteMany?.(),
-      () => prisma.payment.deleteMany(),
-      () => prisma.invoice.deleteMany(),
-      () => prisma.transactionEntry?.deleteMany?.(),
-      () => prisma.financialTransaction?.deleteMany?.(),
-      () => prisma.ledger?.deleteMany?.(),
-      () => prisma.companySettings?.deleteMany?.(),
-      () => prisma.inventoryAlert?.deleteMany?.(),
-      () => prisma.inventoryTransaction?.deleteMany?.(),
-      () => prisma.inventoryItem?.deleteMany?.(),
-      () => prisma.inventoryStock?.deleteMany?.(),
-      () => prisma.purchaseReceiptLog?.deleteMany?.(),
-      () => prisma.purchaseOrderReceipt?.deleteMany?.(),
-      () => prisma.purchaseOrder.deleteMany(),
-      () => prisma.saleOrderItem.deleteMany(),
-      () => prisma.priceMapping.deleteMany(),
-      () => prisma.saleOrder.deleteMany(),
-      () => prisma.dispatchCopy.deleteMany(),
-      () => prisma.lensOffers?.deleteMany?.(),
-      () => prisma.lensPriceMaster.deleteMany(),
-      () => prisma.lensProductMaster.deleteMany(),
-      () => prisma.lensTintingMaster.deleteMany(),
-      () => prisma.lensDiaMaster.deleteMany(),
-      () => prisma.lensFittingMaster.deleteMany(),
-      () => prisma.lensCoatingMaster.deleteMany(),
-      () => prisma.lensTypeMaster.deleteMany(),
-      () => prisma.lensBrandMaster.deleteMany(),
-      () => prisma.lensMaterialMaster.deleteMany(),
-      () => prisma.lensCategoryMaster.deleteMany(),
-      () => prisma.customer.deleteMany(),
-      () => prisma.vendor.deleteMany(),
-      () => prisma.businessCategory.deleteMany(),
-      () => prisma.permission.deleteMany(),
-      () => prisma.refreshToken.deleteMany(),
-      () => prisma.auditLog?.deleteMany?.(),
-      () => prisma.errorLog?.deleteMany?.(),
-      () => prisma.trayMaster?.deleteMany?.(),
-      () => prisma.locationMaster?.deleteMany?.(),
-      () => prisma.departmentDetails.deleteMany(),
-      () => prisma.user.deleteMany(),
-      () => prisma.role.deleteMany(),
-    ]) {
-      try { await fn(); } catch (_) { /* table may not exist yet */ }
+    const tables = await prisma.$queryRawUnsafe(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name != '_prisma_migrations'
+    `);
+    for (const { table_name } of tables) {
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table_name}" RESTART IDENTITY CASCADE`);
     }
   } finally {
     await prisma.$executeRaw`SET session_replication_role = 'origin'`;
@@ -113,6 +73,11 @@ async function main() {
     UPDATE "User" SET department_id = 1 WHERE id = 1
   `;
   
+  // Reset sequences so that subsequent auto-generated IDs do not conflict with manual ID 1
+  await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"User"', 'id'), COALESCE(MAX(id), 1)) FROM "User"`);
+  await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Role"', 'id'), COALESCE(MAX(id), 1)) FROM "Role"`);
+  await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"DepartmentDetails"', 'id'), COALESCE(MAX(id), 1)) FROM "DepartmentDetails"`);
+
   const systemUser = await prisma.user.findUnique({ where: { id: 1 } });
   console.log('✅ System user created\n');
 
@@ -953,6 +918,7 @@ async function main() {
   // Financial Accounting + test GL data
   console.log('💰 Seeding accounting module data…');
   await seedFinancialLedgers(prisma);
+  await backfillVendorCustomerLedgers(prisma);
   await seedAccountingTestData(prisma);
   console.log('✅ Accounting module seeded\n');
 

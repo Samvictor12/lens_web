@@ -14,6 +14,8 @@ import {
   activateCustomerPortal,
   changeCustomerPortalPin,
   getCustomerPendingInvoices,
+  getCustomerById,
+  updateOpeningBalance,
 } from "@/services/customer";
 import {
   ShieldCheck,
@@ -103,6 +105,9 @@ export default function CustomerActionsModal({ customer, open, onClose }) {
   const [activatedData, setActivatedData] = useState(null); // after successful activation
   const [invoiceData, setInvoiceData] = useState(null);
 
+  const [fullCustomer, setFullCustomer] = useState(null);
+  const [openingBalanceVal, setOpeningBalanceVal] = useState("0");
+
   // Fetch portal status each time modal opens
   useEffect(() => {
     if (!open || !customer) return;
@@ -112,14 +117,21 @@ export default function CustomerActionsModal({ customer, open, onClose }) {
     setPinConfirm("");
     setActivatedData(null);
     setInvoiceData(null);
+    setOpeningBalanceVal("0");
 
     (async () => {
       try {
         setLoading(true);
-        const res = await getPortalStatus(customer.id);
-        setStatus(res.data || res);
-      } catch {
-        toast({ title: "Error", description: "Failed to load portal status.", variant: "destructive" });
+        const [portalRes, customerRes] = await Promise.all([
+          getPortalStatus(customer.id),
+          getCustomerById(customer.id)
+        ]);
+        setStatus(portalRes.data || portalRes);
+        const custData = customerRes.data || customerRes;
+        setFullCustomer(custData);
+        setOpeningBalanceVal(custData?.ledger?.openingBalance?.toString() || "0");
+      } catch (err) {
+        toast({ title: "Error", description: "Failed to load customer details.", variant: "destructive" });
         onClose();
       } finally {
         setLoading(false);
@@ -134,6 +146,7 @@ export default function CustomerActionsModal({ customer, open, onClose }) {
     setPinConfirm("");
     setActivatedData(null);
     setInvoiceData(null);
+    setOpeningBalanceVal(fullCustomer?.ledger?.openingBalance?.toString() || "0");
   };
 
   // ─── Activation Flow ──────────────────────────────────────────────────────
@@ -250,6 +263,31 @@ export default function CustomerActionsModal({ customer, open, onClose }) {
     });
   };
 
+  const handleUpdateOpeningBalance = async () => {
+    const amt = parseFloat(openingBalanceVal);
+    if (isNaN(amt)) {
+      toast({ title: "Invalid amount", description: "Please enter a valid numeric value.", variant: "destructive" });
+      return;
+    }
+    try {
+      setBusy(true);
+      await updateOpeningBalance(customer.id, amt);
+      toast({ title: "Opening balance updated", description: `Opening balance set to \u20b9${amt} successfully.` });
+      setFullCustomer(prev => ({
+        ...prev,
+        ledger: {
+          ...prev?.ledger,
+          openingBalance: amt
+        }
+      }));
+      resetFlow();
+    } catch (err) {
+      toast({ title: "Update failed", description: err?.message || "Could not update opening balance.", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ─── Render helpers ───────────────────────────────────────────────────────
   const renderLoading = () => (
     <div className="flex flex-col items-center justify-center py-10 gap-3">
@@ -302,6 +340,40 @@ export default function CustomerActionsModal({ customer, open, onClose }) {
       />
     </div>
   );
+
+  const renderOpeningBalanceFlow = () => {
+    return (
+      <div className="space-y-4 mt-4">
+        <p className="text-sm text-muted-foreground">
+          Update the opening balance for this customer's account. This will adjust their ledger and current outstanding balance.
+        </p>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Opening Balance (₹)</label>
+          <Input
+            type="number"
+            value={openingBalanceVal}
+            onChange={(e) => setOpeningBalanceVal(e.target.value)}
+            disabled={busy}
+            placeholder="Enter opening balance amount"
+            className="text-lg font-mono h-12"
+          />
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Button variant="outline" className="flex-1" onClick={resetFlow} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={openingBalanceVal === "" || busy}
+            onClick={handleUpdateOpeningBalance}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+            Update Balance
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   const renderActivationFlow = () => {
     if (step === 1) {
@@ -474,32 +546,88 @@ export default function CustomerActionsModal({ customer, open, onClose }) {
 
     if (flow === "activate") return renderActivationFlow();
     if (flow === "change-pin") return renderChangePinFlow();
+    if (flow === "opening-balance") return renderOpeningBalanceFlow();
 
-    // Default menu
-    if (!status.portal_active) {
-      return (
-        <div className="space-y-4 mt-4">
-          <p className="text-sm text-muted-foreground">
-            This customer does not have portal access yet. Activate their account to let them view their
-            orders and outstanding balance online.
-          </p>
+    // Default menu: show portal activation/management and account settings
+    return (
+      <div className="space-y-4 mt-4">
+        {!status.portal_active ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This customer does not have portal access yet. Activate their account to let them view their
+              orders and outstanding balance online.
+            </p>
+            <ActionCard
+              icon={ShieldCheck}
+              title="Activate Account"
+              description="Set a PIN and enable online portal access for this customer"
+              variant="success"
+              onClick={() => { setFlow("activate"); setStep(1); }}
+            />
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <p className="text-xs text-muted-foreground mb-1">Choose an action for this customer's portal:</p>
+            <ActionCard
+              icon={KeyRound}
+              title="Change PIN"
+              description="Set a new 6-digit login PIN for this customer"
+              variant="default"
+              onClick={() => { setFlow("change-pin"); setStep(1); }}
+            />
+            <ActionCard
+              icon={RotateCcw}
+              title="Resend Login Link"
+              description={
+                status?.pin_needs_reset
+                  ? "PIN needs to be reset — please use Change PIN first"
+                  : "Send the portal URL and PIN to customer via WhatsApp"
+              }
+              variant="blue"
+              disabled={!!status?.pin_needs_reset}
+              onClick={handleResendLogin}
+            />
+            {status?.pin_needs_reset && (
+              <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2">
+                This customer's PIN was set before the current system. Please use <strong>Change PIN</strong> to set a new one, then Resend Login will include the PIN automatically.
+              </p>
+            )}
+            <ActionCard
+              icon={ReceiptText}
+              title="Send Invoice Reminder"
+              description="Fetch outstanding balance and send WhatsApp reminder"
+              variant="warning"
+              disabled={busy}
+              onClick={handleFetchAndSendInvoice}
+            />
+            <ActionCard
+              icon={Copy}
+              title="Copy Portal Link"
+              description="Copy the secure portal URL to clipboard"
+              variant="success"
+              onClick={handleCopyLink}
+            />
+          </div>
+        )}
+
+        <div className="border-t pt-3 mt-3">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">Account Management</p>
           <ActionCard
-            icon={ShieldCheck}
-            title="Activate Account"
-            description="Set a PIN and enable online portal access for this customer"
-            variant="success"
-            onClick={() => { setFlow("activate"); setStep(1); }}
+            icon={ReceiptText}
+            title="Set Opening Balance"
+            description={`Set or update this customer's opening balance (Current: \u20b9${parseFloat(fullCustomer?.ledger?.openingBalance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })})`}
+            variant="default"
+            onClick={() => { setFlow("opening-balance"); setStep(1); }}
           />
         </div>
-      );
-    }
-
-    return renderActiveMenu();
+      </div>
+    );
   };
 
   const getTitle = () => {
     if (flow === "activate") return "Activate Customer Portal";
     if (flow === "change-pin") return "Change Portal PIN";
+    if (flow === "opening-balance") return "Set Opening Balance";
     return "Customer Actions";
   };
 

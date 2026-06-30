@@ -176,7 +176,7 @@ const severityColors = {
 ```jsx
 // Main application layout
 <SidebarProvider>
-  <div className="min-h-screen h-screen flex w-full bg-background overflow-hidden">
+  <div className="min-h-svh h-svh flex w-full bg-background overflow-hidden">
     <AppSidebar />
     <div className="flex-1 flex flex-col w-full min-w-0 h-full overflow-hidden">
       <AppHeader />

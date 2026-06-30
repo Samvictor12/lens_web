@@ -48,27 +48,27 @@ export default function PurchaseOrders() {
   const [view, setView] = useState("table");
   const [isLoading, setIsLoading] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
-  
+
   // Pagination states
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-  
+
   // Sorting state
   const [sorting, setSorting] = useState([]);
 
   // Filter states
   const [filters, setFilters] = useState(purchaseOrderFilters);
   const [tempFilters, setTempFilters] = useState(purchaseOrderFilters);
-  
+
   // Purchase Order data
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  
+
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [poToDelete, setPoToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   // Dashboard statistics
   const [dashboardStats, setDashboardStats] = useState({
     totalOrders: 0,
@@ -78,7 +78,7 @@ export default function PurchaseOrders() {
     avgOrderValue: 0,
     recentActivity: []
   });
-  
+
   // Active tab state
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -240,7 +240,7 @@ export default function PurchaseOrders() {
       setIsLoading(true);
       const sortField = sorting[0]?.id || "createdAt";
       const sortDirection = sorting[0]?.desc ? "desc" : "asc";
-      
+
       const response = await getPurchaseOrders(
         pageIndex + 1,
         pageSize,
@@ -249,7 +249,7 @@ export default function PurchaseOrders() {
         sortField,
         sortDirection
       );
-      
+
       if (response.success) {
         setPurchaseOrders(response.data);
         setTotalCount(response.pagination.total);
@@ -365,15 +365,15 @@ export default function PurchaseOrders() {
     try {
       setIsDeleting(true);
       await deletePurchaseOrder(poToDelete.id);
-      
+
       toast({
         title: "Success",
         description: `Purchase Order "${poToDelete.poNumber}" has been deleted successfully.`,
       });
-      
+
       setDeleteDialogOpen(false);
       setPoToDelete(null);
-      
+
       // Refresh purchase order list
       fetchPurchaseOrders();
     } catch (error) {
@@ -455,7 +455,7 @@ export default function PurchaseOrders() {
             <p className="text-xs text-muted-foreground">All purchase orders</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
@@ -466,7 +466,7 @@ export default function PurchaseOrders() {
             <p className="text-xs text-muted-foreground">Awaiting completion</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completed Orders</CardTitle>
@@ -477,7 +477,7 @@ export default function PurchaseOrders() {
             <p className="text-xs text-muted-foreground">Successfully completed</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Value</CardTitle>
@@ -489,7 +489,7 @@ export default function PurchaseOrders() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Recent Activity */}
       <Card className="flex min-h-0 flex-1 flex-col">
         <CardHeader>
@@ -502,7 +502,7 @@ export default function PurchaseOrders() {
             <div className="h-full overflow-y-auto pr-1 space-y-3">
               {dashboardStats.recentActivity.map((po) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                     onClick={() => navigate(`/masters/purchase-orders/view/${po.id}`)}>
+                  onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}>
                   <div className="flex-1">
                     <div className="font-medium">{po.poNumber}</div>
                     <div className="text-sm text-muted-foreground">
@@ -598,11 +598,11 @@ export default function PurchaseOrders() {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="list">Purchase Orders List</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="dashboard" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           {renderDashboard()}
         </TabsContent>
-        
+
         <TabsContent value="list" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
 
           {/* Search and Filters */}

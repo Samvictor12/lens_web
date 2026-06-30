@@ -74,7 +74,7 @@ export default function SaleOrderForm() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isCalculating, setIsCalculating] = useState(false);
-    const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null });
+    const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null, reserved_amount: 0 });
     const [priceBreakdown, setPriceBreakdown] = useState(null);
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
@@ -130,8 +130,11 @@ export default function SaleOrderForm() {
             priceBreakdown.subtotal -
             priceBreakdown.freeLensDeduction -
             priceBreakdown.freeFittingDeduction;
+        // Lens price base for discount/offer calculations (discount applies to lens price only)
+        const lensBaseForDiscount = priceBreakdown.freeLensDeduction > 0 ? 0 : priceBreakdown.lensPrice;
         if (selectedOffer.offerType === "PERCENTAGE") {
-            const offerDiscount = (subtotalAfterFreeItems * (selectedOffer.discountPercentage || 0)) / 100;
+            // PERCENTAGE offer applies to lens price only
+            const offerDiscount = (lensBaseForDiscount * (selectedOffer.discountPercentage || 0)) / 100;
             return {
                 ...priceBreakdown,
                 // PERCENTAGE offer replaces the category-based discount
@@ -150,7 +153,7 @@ export default function SaleOrderForm() {
                 offerDiscount,
                 offerName: selectedOffer.offerName,
                 offerType: "VALUE",
-                // VALUE offer is deducted on top of the regular category discount
+                // VALUE offer is deducted on top of the lens-only category discount
                 finalTotal: priceBreakdown.finalTotal - offerDiscount,
             };
         } else if (selectedOffer.offerType === "EXCHANGE_COATING_PRICE") {
@@ -252,7 +255,8 @@ export default function SaleOrderForm() {
                 return { ...priceBreakdown, offerDiscount: 0, offerName: selectedOffer.offerName, offerType: "COATING_PROMOTION" };
             }
             if (selectedOffer.discountPercentage) {
-                const offerDiscount = (subtotalAfterFreeItems * selectedOffer.discountPercentage) / 100;
+                // COATING_PROMOTION percentage applies to lens price only
+                const offerDiscount = (lensBaseForDiscount * selectedOffer.discountPercentage) / 100;
                 return {
                     ...priceBreakdown,
                     discountPercentage: 0,
@@ -532,6 +536,7 @@ export default function SaleOrderForm() {
                     setOriginalData(order);
                     document.title = `${order.orderNo} - View Sale Order`
                     console.log("Field Order", order);
+                    checkCustomerCreditLimit(order.customerId);
 
                     // Ensure the applied offer (if any) is visible even if it has expired/been deleted
                     if (order.offer_id && order.offer) {
@@ -586,10 +591,12 @@ export default function SaleOrderForm() {
                         reconstructedBreakdown.subtotal = reconstructedBreakdown.baseLensPrice + reconstructedBreakdown.additionalPriceTotal;
 
                         // Calculate discount
-                        const subtotalAfterFreeItems = reconstructedBreakdown.subtotal - reconstructedBreakdown.freeLensDeduction - reconstructedBreakdown.freeFittingDeduction;
-                        reconstructedBreakdown.discountAmount = (subtotalAfterFreeItems * reconstructedBreakdown.discountPercentage) / 100;
+                        // Calculate discount on lens price only
+                        const lensBaseForDiscount = order.freeLens ? 0 : (order.lensPrice || 0);
+                        reconstructedBreakdown.discountAmount = (lensBaseForDiscount * reconstructedBreakdown.discountPercentage) / 100;
 
                         // Calculate final total
+                        const subtotalAfterFreeItems = reconstructedBreakdown.subtotal - reconstructedBreakdown.freeLensDeduction - reconstructedBreakdown.freeFittingDeduction;
                         reconstructedBreakdown.finalTotal = subtotalAfterFreeItems - reconstructedBreakdown.discountAmount;
 
                         setPriceBreakdown(reconstructedBreakdown);
@@ -809,18 +816,8 @@ export default function SaleOrderForm() {
     };
 
     const checkCustomerCreditLimit = (customerId) => {
-        checkCreditLimit(customerId).then(({ outstanding_credit, credit_limit }) => {
-            if (outstanding_credit === credit_limit) {
-                toast({
-                    title: "Full Credit Utilization",
-                    description: "Customer has utilized their full credit limit.",
-                    variant: "info",
-                });
-                setCustomerCreditLimit({ outstanding_credit, credit_limit });
-                setIsEditing(false);
-            } else {
-                setCustomerCreditLimit({ outstanding_credit, credit_limit });
-            }
+        checkCreditLimit(customerId).then(({ outstanding_credit, credit_limit, reserved_amount }) => {
+            setCustomerCreditLimit({ outstanding_credit, credit_limit, reserved_amount });
         });
     };
 
@@ -1369,11 +1366,12 @@ export default function SaleOrderForm() {
                 console.error("Error fetching discount:", error);
             }
 
-            // RIGHT SECTION: Calculate discount on (Subtotal - Free Lens - Free Fitting)
-            const subtotalAfterFreeItems = breakdown.subtotal - breakdown.freeLensDeduction - breakdown.freeFittingDeduction;
-            breakdown.discountAmount = (subtotalAfterFreeItems * breakdown.discountPercentage) / 100;
+            // RIGHT SECTION: Calculate discount on lens price only (not fitting, tinting, or extras)
+            const lensBaseForDiscount = breakdown.freeLensDeduction > 0 ? 0 : breakdown.lensPrice;
+            breakdown.discountAmount = (lensBaseForDiscount * breakdown.discountPercentage) / 100;
 
-            // RIGHT SECTION: Final Total
+            // RIGHT SECTION: Final Total = (subtotal - freeLens - freeFitting) - lensDiscount
+            const subtotalAfterFreeItems = breakdown.subtotal - breakdown.freeLensDeduction - breakdown.freeFittingDeduction;
             breakdown.finalTotal = subtotalAfterFreeItems - breakdown.discountAmount;
 
             // Update form data with left section values
@@ -1458,10 +1456,10 @@ export default function SaleOrderForm() {
                 ...formData,
                 discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
             };
-            if (selectedOffer && 
-                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || 
-                 selectedOffer.offerType === "EXCHANGE_PRODUCT" || 
-                 selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") && 
+            if (selectedOffer &&
+                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" ||
+                    selectedOffer.offerType === "EXCHANGE_PRODUCT" ||
+                    selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") &&
                 effectiveBreakdown) {
                 submitData = {
                     ...submitData,
@@ -1911,10 +1909,10 @@ export default function SaleOrderForm() {
                 ...formData,
                 discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
             };
-            if (selectedOffer && 
-                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" || 
-                 selectedOffer.offerType === "EXCHANGE_PRODUCT" || 
-                 selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") && 
+            if (selectedOffer &&
+                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" ||
+                    selectedOffer.offerType === "EXCHANGE_PRODUCT" ||
+                    selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") &&
                 effectiveBreakdown) {
                 submitData = {
                     ...submitData,
@@ -2491,7 +2489,8 @@ export default function SaleOrderForm() {
                             disabled={mode !== "add"}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: ₹${customerCreditLimit.credit_limit} ---> Outstanding: ₹${customerCreditLimit.outstanding_credit || 0}` : ""}
+                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: \u20b9${customerCreditLimit.credit_limit} ---> Outstanding: \u20b9${(customerCreditLimit.outstanding_credit || 0) + (customerCreditLimit.reserved_amount || 0)} ` : ""}
+                        // (Reserved: \u20b9${customerCreditLimit.reserved_amount || 0}, Invoiced: \u20b9${customerCreditLimit.outstanding_credit || 0})
                         />
 
                         <FormInput
@@ -2555,7 +2554,7 @@ export default function SaleOrderForm() {
                                 name="customerRefNo"
                                 value={formData.customerRefNo}
                                 onChange={handleChange}
-                                disabled={!isEditing}
+                                disabled={mode !== "add"}
                                 placeholder="Enter customer reference"
                                 required
                                 error={errors.customerRefNo}
@@ -2633,8 +2632,8 @@ export default function SaleOrderForm() {
                                                     {selectedOffer.offerType === "VALUE" && `₹${selectedOffer.discountValue} off`}
                                                     {selectedOffer.offerType === "PERCENTAGE" && `${selectedOffer.discountPercentage}% off`}
                                                     {selectedOffer.offerType === "EXCHANGE_PRODUCT" && (
-                                                         `Exchange price using product: ${selectedOffer.exchangeLensProduct?.lens_name || ''}`
-                                                     )}
+                                                        `Exchange price using product: ${selectedOffer.exchangeLensProduct?.lens_name || ''}`
+                                                    )}
                                                     {selectedOffer.offerType === "EXCHANGE_COATING_PRICE" && (
                                                         `Exchange price using: ${selectedOffer.exchangeLensProduct?.lens_name || ''} + ${selectedOffer.exchangeCoating?.name || ''}${selectedOffer.withDiscount ? " + discount" : ""}`
                                                     )}
@@ -2724,11 +2723,11 @@ export default function SaleOrderForm() {
                                                         {offer.offerType === "VALUE" && `₹${offer.discountValue} off`}
                                                         {offer.offerType === "PERCENTAGE" && `${offer.discountPercentage}% off`}
                                                         {offer.offerType === "EXCHANGE_PRODUCT" && (
-                                                             `Exchange price using product: ${offer.exchangeLensProduct?.lens_name || ''}`
-                                                         )}
-                                                         {offer.offerType === "EXCHANGE_COATING_PRICE" && (
-                                                             `Exchange price using: ${offer.exchangeLensProduct?.lens_name || ''} + ${offer.exchangeCoating?.name || ''}${offer.withDiscount ? " + discount" : ""}`
-                                                         )}
+                                                            `Exchange price using product: ${offer.exchangeLensProduct?.lens_name || ''}`
+                                                        )}
+                                                        {offer.offerType === "EXCHANGE_COATING_PRICE" && (
+                                                            `Exchange price using: ${offer.exchangeLensProduct?.lens_name || ''} + ${offer.exchangeCoating?.name || ''}${offer.withDiscount ? " + discount" : ""}`
+                                                        )}
                                                         {" · Ends "}
                                                         {new Date(offer.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                                                     </div>
@@ -2874,36 +2873,36 @@ export default function SaleOrderForm() {
                                     // required
                                     error={errors.tinting_id}
                                 />
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <FormSelect
-                                        singleLine={true}
-                                        label="Coating Name"
-                                        name="coating_id"
-                                        options={filteredCoatings}
-                                        value={formData.coating_id}
-                                        onChange={(value) => handleSelectChange("coating_id", value)}
-                                        placeholder={
-                                            isLoadingCoatings ? "Loading..." :
-                                                !formData.lens_id ? "Select Lens first" :
-                                                    "Select coating"
-                                        }
-                                        isSearchable={true}
-                                        disabled={mode !== "add" || !formData.lens_id || isLoadingCoatings}
-                                        required
-                                        error={errors.coating_id}
-                                        containerClassName="flex-1 min-w-0"
-                                    />
-                                    <FormInput
-                                        singleLine={true}
-                                        label="Index"
-                                        name="lensProductIndex"
-                                        value={lensProductIndexName}
-                                        disabled={true}
-                                        placeholder="—"
-                                        // containerClassName="w-[120px] shrink-0"
-                                    />
-                                
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <FormSelect
+                                    singleLine={true}
+                                    label="Coating Name"
+                                    name="coating_id"
+                                    options={filteredCoatings}
+                                    value={formData.coating_id}
+                                    onChange={(value) => handleSelectChange("coating_id", value)}
+                                    placeholder={
+                                        isLoadingCoatings ? "Loading..." :
+                                            !formData.lens_id ? "Select Lens first" :
+                                                "Select coating"
+                                    }
+                                    isSearchable={true}
+                                    disabled={mode !== "add" || !formData.lens_id || isLoadingCoatings}
+                                    required
+                                    error={errors.coating_id}
+                                    containerClassName="flex-1 min-w-0"
+                                />
+                                <FormInput
+                                    singleLine={true}
+                                    label="Index"
+                                    name="lensProductIndex"
+                                    value={lensProductIndexName}
+                                    disabled={true}
+                                    placeholder="—"
+                                // containerClassName="w-[120px] shrink-0"
+                                />
+
                             </div>
 
                         </CardContent>
@@ -2914,11 +2913,10 @@ export default function SaleOrderForm() {
                             <div className="flex gap-2 items-center">
                                 <CardTitle className="text-base">Eye Specifications</CardTitle>
                                 <div
-                                    className={`inline-flex items-center gap-2 border border-border rounded-md px-2 py-1.5 bg-muted/50 ${
-                                        bothEyesDisabled
-                                            ? "opacity-50 cursor-not-allowed pointer-events-none"
-                                            : "cursor-pointer"
-                                    }`}
+                                    className={`inline-flex items-center gap-2 border border-border rounded-md px-2 py-1.5 bg-muted/50 ${bothEyesDisabled
+                                        ? "opacity-50 cursor-not-allowed pointer-events-none"
+                                        : "cursor-pointer"
+                                        }`}
                                 >
                                     <Checkbox
                                         id="bothEyes"
@@ -3320,7 +3318,7 @@ export default function SaleOrderForm() {
                                                     {/* Regular category discount — hidden when a PERCENTAGE offer is applied */}
                                                     {effectiveBreakdown.discountPercentage > 0 && !effectiveBreakdown.offerType && (
                                                         <div className="flex justify-between text-sm text-red-600">
-                                                            <span>Discount ({effectiveBreakdown.discountPercentage}%)</span>
+                                                            <span>Lens Discount ({effectiveBreakdown.discountPercentage}%)</span>
                                                             <span>-₹{effectiveBreakdown.discountAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     )}
@@ -3359,13 +3357,21 @@ export default function SaleOrderForm() {
                                                         <span>-₹{((formData.freeFitting && formData.fittingPrice || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                     </div>}
                                                     <div className="flex justify-between text-sm text-red-600">
-                                                        <span>Discount ({formData.discount}%):</span>
-                                                        <span>-₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.lensPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (formData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        <span>Lens Discount ({formData.discount}%):</span>
+                                                        <span>-₹{((!formData.freeLens ? (formData.lensPrice || 0) : 0) * (formData.discount || 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                     </div>
                                                     <Separator />
                                                     <div className="flex justify-between font-semibold">
                                                         <span>Total Amount:</span>
-                                                        <span className="text-green-600">₹{(((!formData.freeLens && formData.lensPrice || 0) + (formData.lensPrice || 0) + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0) + (!formData.freeFitting && formData.fittingPrice || 0) + (formData.tintingPrice || 0)) * (1 - (formData.discount || 0) / 100)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                                                        <span className="text-green-600">₹{(
+                                                            (!formData.freeLens ? (formData.lensPrice || 0) : 0)
+                                                            - ((!formData.freeLens ? (formData.lensPrice || 0) : 0) * (formData.discount || 0) / 100)
+                                                            + (formData.rightEyeExtra || 0)
+                                                            + (formData.leftEyeExtra || 0)
+                                                            + (!formData.freeFitting ? (formData.fittingPrice || 0) : 0)
+                                                            + (formData.tintingPrice || 0)
+                                                            + (formData.additionalPrice?.reduce((acc, curr) => Number(acc) + (Number(curr.value) || 0), 0) || 0)
+                                                        ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                                                     </div>
                                                 </>
                                             )}
