@@ -142,13 +142,15 @@ model User {
 }
 
 model Role {
-  id          Int          @id @default(autoincrement())
-  name        String       @unique // "Admin", "Sales", "Inventory", "Accounts"
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            Int          @id @default(autoincrement())
+  name          String       @unique // "Admin", "Sales", "Inventory", "Accounts"
+  description   String?      @db.Text
+  active_status Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   //Relationships Tables
-  permissions Permission[]
-  users       User[]
+  permissions   Permission[]
+  users         User[]
 }
 
 model Permission {

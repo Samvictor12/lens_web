@@ -52,79 +52,79 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
-// import { UserRole } from "@/types";
+import { useRolePermissionsContext } from "@/contexts/RolePermissionsContext";
 
 const navItems = [
   {
     title: "Dashboard",
     url: "/dashboard",
     icon: LayoutDashboard,
-    // allowedRoles: ["admin", "sales", "inventory", "accounts"],
+    key: "dashboard",
   },
   {
     title: "Sale Orders",
     url: "/sales/orders",
     icon: ShoppingCart,
-    // allowedRoles: ["admin", "sales"],
+    key: "sale_orders",
   },
   {
     title: "Inventory",
     url: "/inventory/items",
     icon: Package,
-    // allowedRoles: ["admin", "inventory"],
+    key: "inventory",
   },
   {
     title: "Purchase Orders",
     url: "/masters/purchase-orders",
     icon: Receipt,
-    // allowedRoles: ["admin", "inventory"],
+    key: "purchase_orders",
   },
   {
     title: "Dispatch",
     url: "/dispatch",
     icon: Truck,
-    // allowedRoles: ["admin", "sales", "inventory"],
+    key: "dispatch",
   },
   {
     title: "Production",
     url: "/production/operator",
     icon: Factory,
-    // allowedRoles: ["admin", "operator"],
+    key: "production",
   },
   {
     title: "Pre-QC",
     url: "/pre-qc/operator",
     icon: ClipboardCheck,
-    // allowedRoles: ["admin", "quality"],
+    key: "pre_qc",
   },
   {
     title: "Post-QC",
     url: "/quality/operator",
     icon: ClipboardCheck,
-    // allowedRoles: ["admin", "quality"],
+    key: "post_qc",
   },
   {
     title: "Billing",
     url: "/billing",
     icon: Receipt,
-    // allowedRoles: ["admin", "accounts"],
+    key: "billing",
   },
   {
     title: "Accounting",
     icon: BookOpen,
     subItems: [
-      { title: "Chart of Accounts", url: "/accounts/ledgers", icon: BookOpen },
-      { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown },
-      { title: "Vendor Payments", url: "/accounts/vendor-payments", icon: CreditCard },
-      { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw },
-      { title: "Financial Reports", url: "/accounts/reports", icon: Scale },
+      { title: "Chart of Accounts", url: "/accounts/ledgers", icon: BookOpen, key: "chart_of_accounts" },
+      { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown, key: "expenses" },
+      { title: "Vendor Payments", url: "/accounts/vendor-payments", icon: CreditCard, key: "vendor_payments" },
+      { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw, key: "bank_reconciliation" },
+      { title: "Financial Reports", url: "/accounts/reports", icon: Scale, key: "financial_reports" },
     ],
   },
   {
     title: "Reports",
     url: "/reports",
     icon: BarChart3,
-    // allowedRoles: ["admin", "accounts"],
+    key: "reports",
   },
 ];
 
@@ -133,153 +133,159 @@ const masterItems = [
     title: "Business Categories",
     url: "/masters/business-categories",
     icon: Tag,
-    // allowedRoles: ["admin", "sales"],
+    key: "business_categories",
   },
   {
     title: "Expense Categories",
     url: "/masters/expense-categories",
     icon: Tag,
-    // allowedRoles: ["admin", "accounts"],
+    key: "expense_categories",
   },
   {
     title: "Customers",
     url: "/sales/customers",
     icon: Users,
-    // allowedRoles: ["admin", "sales", "accounts"],
+    key: "customers",
   },
   {
     title: "Vendors",
     url: "/masters/vendors",
     icon: Building,
-    // allowedRoles: ["admin", "inventory"],
+    key: "vendors",
   },
   {
     title: "Admin Masters",
     icon: Eye,
-    // allowedRoles: ["admin"],
     subItems: [
       {
         title: "Departments",
         url: "/masters/departments",
         icon: Briefcase,
-        // allowedRoles: ["admin"],
+        key: "departments",
       },
       {
         title: "Users",
         url: "/masters/users",
         icon: UserCog,
-        // allowedRoles: ["admin"],
+        key: "users",
+      },
+      {
+        title: "Roles",
+        url: "/masters/roles",
+        icon: UserCog,
+        key: "users",
       },
       {
         title: "Check Sheets",
         url: "/masters/check-sheets",
         icon: ClipboardCheck,
-        // allowedRoles: ["admin"],
+        key: "check_sheets",
       },
     ],
   },
   {
     title: "Lens Masters",
     icon: Package,
-    // allowedRoles: ["admin", "inventory"],
     subItems: [
-      
       {
         title: "Lens Indexes",
         url: "/masters/lens-index",
         icon: Grid,
+        key: "lens_indexes",
       },
       {
         title: "Lens Diameters",
         url: "/masters/lens-dia",
         icon: Circle,
+        key: "lens_diameters",
       },
       {
         title: "Lens Categories",
         url: "/masters/lens-category",
         icon: Layers,
+        key: "lens_categories",
       },
       {
         title: "Lens Materials",
         url: "/masters/lens-material",
         icon: Package,
+        key: "lens_materials",
       },
       {
         title: "Lens Coatings",
         url: "/masters/lens-coating",
         icon: Sparkles,
+        key: "lens_coatings",
       },
       {
         title: "Lens Tinting",
         url: "/masters/lens-tinting",
         icon: Sparkles,
+        key: "lens_tintings",
       },
       {
         title: "Lens Fittings",
         url: "/masters/lens-fitting",
         icon: Wrench,
+        key: "lens_fittings",
       },
       {
         title: "Lens Brands",
         url: "/masters/lens-brand",
         icon: Award,
+        key: "lens_brands",
       },
-      
       {
         title: "Lens Types",
         url: "/masters/lens-type",
         icon: Grid,
+        key: "lens_types",
       },
       {
         title: "Lens Products",
         url: "/masters/lens-product",
         icon: Package,
+        key: "lens_products",
       },
-      
-      
       {
         title: "Lens Offers",
         url: "/masters/lens-offers",
         icon: Tag,
+        key: "lens_offers",
       },
     ],
   },
   {
     title: "Inventory Masters",
     icon: Warehouse,
-    // allowedRoles: ["admin", "inventory"],
     subItems: [
       {
         title: "Locations",
         url: "/masters/location",
         icon: MapPin,
+        key: "locations",
       },
       {
         title: "Trays",
         url: "/masters/tray",
         icon: Box,
+        key: "trays",
       },
     ],
   },
-
   {
     title: "Price Mapping",
     url: "/masters/price-mapping",
     icon: Tag,
-    // allowedRoles: ["admin", "sales"],
+    key: "price_mapping",
   },
-  // {
-  //   title: "Settings",
-  //   url: "/settings",
-  //   icon: Settings,
-  //   // allowedRoles: ["admin"],
-  // },
 ];
 
 export const AppSidebar = () => {
   const { state } = useSidebar();
   const location = useLocation();
   const { hasPermission } = useAuth();
+  const { has, loading } = useRolePermissionsContext();
   const [openSubmenus, setOpenSubmenus] = React.useState({});
 
   const isActive = (path) => location.pathname === path;
@@ -295,9 +301,35 @@ export const AppSidebar = () => {
     return subItems?.some((item) => location.pathname.startsWith(item.url));
   };
 
-  const filteredNavItems = navItems;
+  const filterItems = React.useCallback((items) => {
+    return items
+      .map((item) => {
+        if (item.subItems) {
+          const filteredSub = filterItems(item.subItems);
+          if (filteredSub.length > 0) {
+            return { ...item, subItems: filteredSub };
+          }
+          return null;
+        }
+        
+        // Leaf item validation
+        if (item.key && !has(item.key, "Screen")) {
+          return null;
+        }
+        return item;
+      })
+      .filter(Boolean);
+  }, [has]);
 
-  const filteredMasterItems = masterItems;
+  const filteredNavItems = React.useMemo(() => {
+    if (loading) return [];
+    return filterItems(navItems);
+  }, [loading, filterItems]);
+
+  const filteredMasterItems = React.useMemo(() => {
+    if (loading) return [];
+    return filterItems(masterItems);
+  }, [loading, filterItems]);
 
   const isMasterActive = filteredMasterItems.some(item => {
     if (item.subItems) {

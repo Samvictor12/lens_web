@@ -80,28 +80,44 @@ import BankReconciliation from "./pages/Accounting/BankReconciliation/BankReconc
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
+import { RolePermissionsProvider, useRolePermissionsContext } from "@/contexts/RolePermissionsContext";
+import PermissionRoute from "@/components/layout/PermissionRoute";
+import RoleListPage from "./pages/Role/RoleListPage";
+import RoleFormPage from "./pages/Role/RoleFormPage";
+
+const ProtectedRouteInner = ({ allowedPermission, children }) => {
+  const { has, loading } = useRolePermissionsContext();
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground text-sm">Loading permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isAllowed = allowedPermission ? has(allowedPermission, "Screen") : true;
+
+  return <PermissionRoute allowed={isAllowed}>{children}</PermissionRoute>;
+};
+
+const ProtectedRoute = ({ children, allowedPermission }) => {
   const { user } = useAuth();
-  // const { toast } = useToast();
-  // const navigate = useNavigate();
 
   if (!user) return <Navigate to="/login" replace />;
 
-  // ROLE ACCESS DISABLED - Enable later for production
-  // If allowedRoles is specified, check if user has permission
-  // if (allowedRoles && !hasPermission(allowedRoles)) {
-  //   useEffect(() => {
-  //     toast({
-  //       title: "Access Denied",
-  //       description: "You don't have permission to access this page.",
-  //       variant: "destructive",
-  //     });
-  //     navigate("/dashboard", { replace: true });
-  //   }, []);
-  //   return null;
-  // }
-
-  return <AppLayout>{children}</AppLayout>;
+  return (
+    <RolePermissionsProvider enabled={!!user}>
+      <AppLayout>
+        <ProtectedRouteInner allowedPermission={allowedPermission}>
+          {children}
+        </ProtectedRouteInner>
+      </AppLayout>
+    </RolePermissionsProvider>
+  );
 };
 
 const SessionExpiryHandler = () => {
@@ -189,9 +205,12 @@ const AppRoutes = () => (
       <Route path="/masters/departments" element={<ProtectedRoute><Departments /></ProtectedRoute>} />
       <Route path="/masters/departments/:mode" element={<ProtectedRoute><DepartmentForm /></ProtectedRoute>} />
       <Route path="/masters/departments/:mode/:id" element={<ProtectedRoute><DepartmentForm /></ProtectedRoute>} />
-      <Route path="/masters/users" element={<ProtectedRoute><UsersMain /></ProtectedRoute>} />
-      <Route path="/masters/users/:mode" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
-      <Route path="/masters/users/:mode/:id" element={<ProtectedRoute><UserForm /></ProtectedRoute>} />
+      <Route path="/masters/users" element={<ProtectedRoute allowedPermission="users"><UsersMain /></ProtectedRoute>} />
+      <Route path="/masters/users/:mode" element={<ProtectedRoute allowedPermission="users"><UserForm /></ProtectedRoute>} />
+      <Route path="/masters/users/:mode/:id" element={<ProtectedRoute allowedPermission="users"><UserForm /></ProtectedRoute>} />
+      <Route path="/masters/roles" element={<ProtectedRoute allowedPermission="users"><RoleListPage /></ProtectedRoute>} />
+      <Route path="/masters/roles/:mode" element={<ProtectedRoute allowedPermission="users"><RoleFormPage /></ProtectedRoute>} />
+      <Route path="/masters/roles/:mode/:id" element={<ProtectedRoute allowedPermission="users"><RoleFormPage /></ProtectedRoute>} />
       <Route path="/masters/lens-category" element={<ProtectedRoute><LensCategoryMain /></ProtectedRoute>} />
       <Route path="/masters/lens-category/:mode" element={<ProtectedRoute><LensCategoryForm /></ProtectedRoute>} />
       <Route path="/masters/lens-category/:mode/:id" element={<ProtectedRoute><LensCategoryForm /></ProtectedRoute>} />
