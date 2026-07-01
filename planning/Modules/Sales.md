@@ -43,6 +43,17 @@ graph TD
 * **Delete Sale Order:** Decrements `reserved_amount` by the SO total (only if uninvoiced).
 * **Cancel Invoice:** Decrements `outstanding_credit` and increments `reserved_amount` back to indicate active reservation.
 
+### E. Client-Side Read-Only Lock (Credit-Limit View-Mode Lock)
+In addition to the server-side hard block on SO creation (§A), `SaleOrderForm.jsx` computes a derived `isCreditBlocked` flag: `credit_limit > 0 && (reserved_amount + outstanding_credit) >= credit_limit`. When true, the entire form collapses to read-only — mirroring the form's existing `mode === "view"` behavior — regardless of whether the route's actual mode is `add`/`edit`/`view`:
+* Forces `isEditing = false` (via a `useEffect` watching `isCreditBlocked`), which cascades through the many pre-existing `disabled={... !isEditing ...}` field guards and hides the Calculate Price button (already gated on `isEditing`).
+* The 9 fields whose `disabled` prop is keyed directly off `mode !== "add"` (not `isEditing`) — customer, order date, customer ref no, type/category/lens/fitting/tinting/coating selects — each additionally check `|| isCreditBlocked`.
+* The Edit/Cancel-Edit toggle button and the Save/Update submit button are disabled/hidden while blocked.
+* An inline warning `Alert` banner is shown near the Customer field explaining the read-only state.
+* Both the client-side `>=` comparison and the server-side `CREDIT_LIMIT_EXCEEDED` check (§A) use the same `>=` threshold, so they stay consistent — this feature does not change the server-side block, only adds a client-side presentation layer on top.
+
+## Calculate Price Button — Eye-Selection Gate
+The "Calculate Price" button in `SaleOrderForm.jsx` requires `customerId`, `lens_id`, and `coating_id` to be set, **and** (since 2026-07-01) at least one of `rightEye`/`leftEye` to be checked — until an eye is selected, the button stays disabled. This composes with the credit-limit lock above: the button's outer render guard (`isEditing && formData.status === "DRAFT"`) is already gated on `isEditing`, so it disappears automatically once the form is credit-blocked.
+
 ## Linkages & Dependencies
 * **CRM Module:** References `Customer` records and updates credit fields.
 * **Accounting Module:** Posts client payments and double-entry sales revenue ledger updates.

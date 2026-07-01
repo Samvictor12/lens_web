@@ -152,6 +152,7 @@ while true; do
             echo ""
             echo "Building and starting all services..."
             docker-compose down
+            docker rmi lens-prod-backend:latest lens-prod-frontend:latest
             docker load -i clair.tar
             docker-compose up -d
             echo "Full deployment completed!"

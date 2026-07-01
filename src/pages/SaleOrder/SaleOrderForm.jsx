@@ -75,6 +75,22 @@ export default function SaleOrderForm() {
     const [isSaving, setIsSaving] = useState(false);
     const [isCalculating, setIsCalculating] = useState(false);
     const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null, reserved_amount: 0 });
+    // Customer has reached/exceeded their credit limit -> lock the whole form read-only,
+    // mirroring mode === "view", regardless of the route's actual add/edit mode.
+    const isCreditBlocked = useMemo(() => {
+        const { credit_limit, reserved_amount, outstanding_credit } = customerCreditLimit;
+        if (!credit_limit || credit_limit <= 0) return false;
+        return (reserved_amount || 0) + (outstanding_credit || 0) >= credit_limit;
+    }, [customerCreditLimit]);
+
+    // Collapse any in-progress add/edit state to read-only once the customer hits their limit.
+    useEffect(() => {
+        if (isCreditBlocked) {
+            setIsEditing(false);
+        } else if (mode === "add" || mode === "edit") {
+            setIsEditing(true);
+        }
+    }, [isCreditBlocked]);
     const [priceBreakdown, setPriceBreakdown] = useState(null);
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
@@ -2269,7 +2285,7 @@ export default function SaleOrderForm() {
                             {statusActionButton.label}
                         </Button>
                     )}
-                    {(mode !== "view" || isEditing) && (
+                    {(mode !== "view" || isEditing) && !isCreditBlocked && (
                         <Button
                             type="submit"
                             size="xs"
@@ -2359,6 +2375,8 @@ export default function SaleOrderForm() {
                                             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-indigo-700 disabled:opacity-50"
                                             variant={isEditing ? "outline" : "default"}
                                             onClick={toggleEdit}
+                                            disabled={isCreditBlocked}
+                                            title={isCreditBlocked ? "Read-only: customer has reached their credit limit" : undefined}
                                         >
                                             {isEditing ? (
                                                 <>
@@ -2474,6 +2492,15 @@ export default function SaleOrderForm() {
                     </CardHeader>
                     <CardContent className="space-y-3">
 
+                        {isCreditBlocked && (
+                            <Alert variant="destructive">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertDescription>
+                                    This customer has reached their credit limit.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         <FormSelect
                             singleLine={true}
                             label="Customer"
@@ -2489,8 +2516,8 @@ export default function SaleOrderForm() {
                             disabled={mode !== "add"}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: \u20b9${customerCreditLimit.credit_limit} ---> Outstanding: \u20b9${(customerCreditLimit.outstanding_credit || 0) + (customerCreditLimit.reserved_amount || 0)} ` : ""}
-                        // (Reserved: \u20b9${customerCreditLimit.reserved_amount || 0}, Invoiced: \u20b9${customerCreditLimit.outstanding_credit || 0})
+                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: \u20b9${customerCreditLimit.credit_limit} ---> (Reserved: \u20b9${customerCreditLimit.reserved_amount || 0}, Invoiced: \u20b9${customerCreditLimit.outstanding_credit || 0}) ` : ""}
+
                         />
 
                         <FormInput
@@ -2499,7 +2526,7 @@ export default function SaleOrderForm() {
                             name="orderDate"
                             value={new Date(formData.orderDate).toISOString().split("T")[0]}
                             onChange={handleChange}
-                            disabled={mode !== "add" && formData.status !== "DRAFT"}
+                            disabled={(mode !== "add" && formData.status !== "DRAFT") || isCreditBlocked}
                             required
                             error={errors.orderDate}
                         />
@@ -2554,7 +2581,7 @@ export default function SaleOrderForm() {
                                 name="customerRefNo"
                                 value={formData.customerRefNo}
                                 onChange={handleChange}
-                                disabled={mode !== "add"}
+                                disabled={mode !== "add" || isCreditBlocked}
                                 placeholder="Enter customer reference"
                                 required
                                 error={errors.customerRefNo}
@@ -2796,7 +2823,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("Type_id", value)}
                                     placeholder="Select type"
                                     isSearchable={false}
-                                    disabled={mode !== "add"}
+                                    disabled={mode !== "add" || isCreditBlocked}
                                     required
                                     error={errors.Type_id}
                                 />
@@ -2808,7 +2835,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("category_id", value)}
                                     placeholder="Select "
                                     isSearchable={false}
-                                    disabled={mode !== "add"}
+                                    disabled={mode !== "add" || isCreditBlocked}
                                     required
                                     error={errors.category_id}
                                 />
@@ -2824,7 +2851,7 @@ export default function SaleOrderForm() {
                                                 "Select lens"
                                     }
                                     isSearchable={true}
-                                    disabled={mode !== "add" || isLoadingLensProducts || lensProducts.length === 0}
+                                    disabled={mode !== "add" || isLoadingLensProducts || lensProducts.length === 0 || isCreditBlocked}
                                     required
                                     error={errors.lens_id}
                                 />
@@ -2844,7 +2871,7 @@ export default function SaleOrderForm() {
                                         onChange={(value) => handleSelectChange("fitting_id", value)}
                                         placeholder="Select fitting"
                                         isSearchable={false}
-                                        disabled={mode !== "add"}
+                                        disabled={mode !== "add" || isCreditBlocked}
                                         required={!formData.freeFitting && !formData.onlyLens}
                                         error={errors.fitting_id}
                                     />
@@ -2869,7 +2896,7 @@ export default function SaleOrderForm() {
                                     onChange={(value) => handleSelectChange("tinting_id", value)}
                                     placeholder="Select tinting"
                                     isSearchable={false}
-                                    disabled={mode !== "add"}
+                                    disabled={mode !== "add" || isCreditBlocked}
                                     // required
                                     error={errors.tinting_id}
                                 />
@@ -2888,7 +2915,7 @@ export default function SaleOrderForm() {
                                                 "Select coating"
                                     }
                                     isSearchable={true}
-                                    disabled={mode !== "add" || !formData.lens_id || isLoadingCoatings}
+                                    disabled={mode !== "add" || !formData.lens_id || isLoadingCoatings || isCreditBlocked}
                                     required
                                     error={errors.coating_id}
                                     containerClassName="flex-1 min-w-0"
@@ -3112,7 +3139,8 @@ export default function SaleOrderForm() {
                                     isCalculating ||
                                     !formData.customerId ||
                                     !formData.lens_id ||
-                                    !formData.coating_id
+                                    !formData.coating_id ||
+                                    !(formData.rightEye || formData.leftEye)
                                 }
                             >
                                 {isCalculating ? (
