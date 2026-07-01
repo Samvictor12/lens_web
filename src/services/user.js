@@ -233,6 +233,7 @@ export async function enableUserLogin(id, loginData) {
       username: loginData.username,
       password: loginData.password,
       is_login: loginData.is_login !== undefined ? loginData.is_login : true,
+      role_id: loginData.role_id || null,
     },
   });
 
@@ -308,6 +309,10 @@ export async function updateUserLogin(id, payload) {
 
   if (payload.is_login !== undefined) {
     data.is_login = payload.is_login;
+  }
+
+  if (payload.role_id !== undefined) {
+    data.role_id = payload.role_id;
   }
 
   return await apiClient("put", `/user-master/${id}/update-login`, {

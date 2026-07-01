@@ -338,7 +338,8 @@ export class UserMasterController {
         throw new APIError('Invalid user ID', 400, 'INVALID_ID');
       }
 
-      const { username, password, is_login } = req.body;
+      const { username, password, is_login, role_id, roleId } = req.body;
+      const resolvedRoleId = role_id ?? roleId;
 
       // Validation
       if (!username || username.trim().length < 3) {
@@ -358,7 +359,8 @@ export class UserMasterController {
       const updatedUser = await this.userMasterService.enableLogin(userId, {
         username: username.trim(),
         password,
-        is_login: is_login !== undefined ? is_login : true
+        is_login: is_login !== undefined ? is_login : true,
+        role_id: resolvedRoleId !== undefined && resolvedRoleId !== null ? parseInt(resolvedRoleId) : undefined
       });
 
       res.json({
@@ -383,7 +385,8 @@ export class UserMasterController {
         throw new APIError('Invalid user ID', 400, 'INVALID_ID');
       }
 
-      const { username, password, is_login } = req.body;
+      const { username, password, is_login, role_id, roleId } = req.body;
+      const resolvedRoleId = role_id ?? roleId;
 
       // Validation
       const updateData = {};
@@ -412,11 +415,15 @@ export class UserMasterController {
         updateData.is_login = is_login;
       }
 
+      if (resolvedRoleId !== undefined) {
+        updateData.role_id = resolvedRoleId !== null ? parseInt(resolvedRoleId) : null;
+      }
+
       // At least one field must be provided
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'At least one field (username, password, or is_login) must be provided'
+          message: 'At least one field (username, password, is_login, or role_id) must be provided'
         });
       }
 

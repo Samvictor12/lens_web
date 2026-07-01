@@ -692,6 +692,7 @@ export class UserMasterService {
           salary: true,
           department_id: true,
           active_status: true,
+          role_id: true,
           role: {
             select: { id: true, name: true },
           },
@@ -726,19 +727,6 @@ export class UserMasterService {
 
       if (!existingUser) {
         throw new APIError("User not found", 404, "USER_NOT_FOUND");
-      }
-
-      // Check if login credentials exist (username is set and not a temp one)
-      const hasLoginCredentials = existingUser.username && 
-                                  existingUser.username.trim() !== '' &&
-                                  !existingUser.username.startsWith('user_');
-      
-      if (!hasLoginCredentials) {
-        throw new APIError(
-          "Login credentials do not exist for this user. Use enable-login endpoint first.",
-          400,
-          "LOGIN_NOT_ENABLED"
-        );
       }
 
       // Prepare update data
@@ -808,6 +796,7 @@ export class UserMasterService {
           salary: true,
           department_id: true,
           active_status: true,
+          role_id: true,
           role: {
             select: { id: true, name: true },
           },

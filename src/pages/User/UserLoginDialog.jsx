@@ -50,11 +50,10 @@ export default function UserLoginDialog({
 
           if (response.success) {
             const credentials = response.data;
-            // Check if login credentials exist (username is set and not a temp one)
+            // Check if login credentials exist based on whether role_id is present
             const hasLoginCredentials =
-              credentials.username &&
-              credentials.username.trim() !== "" &&
-              !credentials.username.startsWith("user_");
+              credentials.role_id !== null &&
+              credentials.role_id !== undefined;
             setIsLoginEnabled(hasLoginCredentials);
             setShowPasswordChange(false);
             setLoginData({
@@ -218,10 +217,10 @@ export default function UserLoginDialog({
                 label="Role"
                 name="role_id"
                 value={loginData.role_id}
-                onChange={(selectedOption) => {
+                onChange={(val) => {
                   setLoginData((prev) => ({
                     ...prev,
-                    role_id: selectedOption ? selectedOption.value : null,
+                    role_id: val,
                   }));
                   if (errors.role_id) {
                     setErrors((prev) => ({ ...prev, role_id: "" }));

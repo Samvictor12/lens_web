@@ -205,6 +205,9 @@ export class SaleOrderService {
         if (!lensType) {
           throw new APIError('Lens type not found', 404, 'TYPE_NOT_FOUND');
         }
+        if (lensType.name === 'STOCK' || lensType.name === 'RX') {
+          orderData.procurementType = lensType.name;
+        }
       }
 
       if (orderData.fitting_id) {
@@ -865,6 +868,15 @@ export class SaleOrderService {
         ...updateData,
         updatedBy: userId
       };
+
+      if (updateData.Type_id) {
+        const lensType = await prisma.lensTypeMaster.findUnique({
+          where: { id: updateData.Type_id, deleteStatus: false }
+        });
+        if (lensType && (lensType.name === 'STOCK' || lensType.name === 'RX')) {
+          dataToUpdate.procurementType = lensType.name;
+        }
+      }
 
       // Handle date conversions
       if (updateData.orderDate) {

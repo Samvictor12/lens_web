@@ -28,14 +28,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       header: "Customer",
       sortable: true,
       cell: (row) => (
-        <div className="flex flex-col">
-          <span className="text-sm">{row.customer?.name || "N/A"}</span>
-          {row.customer?.code && (
-            <span className="text-xs text-muted-foreground">
-              {row.customer.code}
-            </span>
-          )}
-        </div>
+        <span className="text-xs">{row.customer?.name || "N/A"}</span>
       )
     },
     {
@@ -43,17 +36,37 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       header: "Customer Reference No",
       sortable: true,
       cell: (row) => (
-        <div className="flex flex-col">
-          <span className="text-sm">{row.customerRefNo || "N/A"}</span>
-        </div>
+        <span className="text-xs">{row.customerRefNo || "N/A"}</span>
       )
+    },
+    {
+      accessorKey: "lensName",
+      header: "Lens Name",
+      sortable: false,
+      width: 220,
+      cell: (row) => (
+        <span className="text-xs font-medium block min-w-[200px]">
+          {row.lensProduct?.lens_name || "N/A"}
+          {row.lensProduct?.product_code ? ` (${row.lensProduct.product_code})` : ""}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "lensCategory",
+      header: "Lens Category",
+      sortable: false,
+      cell: (row) => (
+        <span className="text-xs">
+          {row.category?.name || "N/A"}
+        </span>
+      ),
     },
     {
       accessorKey: "orderDate",
       header: "Order Date",
       sortable: true,
       cell: (row) => (
-        <span className="text-sm">
+        <span className="text-xs">
           {row.orderDate ? new Date(row.orderDate).toLocaleDateString() : "N/A"}
         </span>
       ),
@@ -66,7 +79,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
         const style =
           procurementBadgeStyles[procurementType] || procurementBadgeStyles.RX;
         return (
-          <Badge variant="outline" className={`text-xs border ${style}`}>
+          <Badge variant="outline" className={`text-3xs border ${style}`}>
             {procurementType}
           </Badge>
         );
@@ -78,7 +91,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       sortable: true,
       cell: (row) => (
         <Badge
-          className={`${statusColors[row.status] || statusColors.DRAFT} text-xs cursor-pointer hover:opacity-80`}
+          className={`${statusColors[row.status] || statusColors.DRAFT} text-3xs text-wrap max-w-[140px] cursor-pointer hover:opacity-80`}
           variant="outline"
           onClick={(e) => {
             e.stopPropagation();
