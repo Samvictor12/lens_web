@@ -37,8 +37,9 @@ graph TD
 
 ### A. Procurement & Inventory Inward
 * **Manual Inward Wizard:** Pre-calculates range specifications using increment cartesian logic. Generates lists grouped by Lens Coating, with quantity splits allocated to physical locations and trays.
-* **PO Inward:** Receives purchase orders and allocates physical items into `TrayMaster` bins. Live tray occupancy is calculated client-side to dynamically prevent tray capacity overflows.
+* **PO Inward:** Receives purchase orders and allocates physical items into `TrayMaster` bins. Live tray occupancy is calculated client-side to dynamically prevent tray capacity overflows. Tray occupancy excludes RX-sourced stock (see note below).
 * **DB Entry:** Uses bulk-inserts and updates database records inside atomic database transactions via Prisma `$transaction`.
+* **RX-sourced stock exclusion:** An `InventoryItem` is "RX-sourced" iff its `purchaseOrder.saleOrderId` is non-null (procured specifically for one customer's Sale Order, vs. general stock-type procurement). The Stock Summary List/pivot and the Initialize Stock Grid's tray-capacity check exclude RX-sourced stock so these surfaces reflect general/resellable inventory only. FIFO picking, low-stock alerts, and the `InventoryStock` bucket table are unaffected — they continue to reflect true total physical stock including RX-sourced items.
 
 ### B. Sales & FIFO Stock Picking
 * **Sale Order Queue:** Aggregates orders ready for QC/issue.
