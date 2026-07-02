@@ -7,7 +7,7 @@ export const getInvoices = (params = {}) =>
   apiClient("get", BASE, { params });
 
 /**
- * Get ALL dispatched (DELIVERED, un-billed) sale orders — for billing screen list
+ * Get ALL delivered, un-billed sale orders — for billing screen list
  */
 export const getDispatchedOrders = (params = {}) =>
   apiClient("get", `${BASE}/dispatched-orders`, { params });

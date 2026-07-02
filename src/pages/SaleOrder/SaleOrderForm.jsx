@@ -1550,12 +1550,9 @@ export default function SaleOrderForm() {
                     variant: "default",
                 };
             case "READY_FOR_DISPATCH":
-                return {
-                    label: "Mark as Delivered",
-                    nextStatus: "DELIVERED",
-                    icon: Check,
-                    variant: "default",
-                };
+            case "READY_FOR_PICKUP":
+            case "DISPATCHED":
+                return null;
             default:
                 return null;
         }
@@ -3637,4 +3634,3 @@ export default function SaleOrderForm() {
         </div >
     );
 }
-

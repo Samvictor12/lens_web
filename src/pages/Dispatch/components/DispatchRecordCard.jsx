@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 const STATUS_CONFIG = {
-    PENDING:     { label: "Pending",     className: "border-amber-300 bg-amber-50 text-amber-800" },
+    PENDING:     { label: "Ready for Pickup", className: "border-amber-300 bg-amber-50 text-amber-800" },
     IN_TRANSIT:  { label: "In Transit",  className: "border-blue-300 bg-blue-50 text-blue-800" },
     DELIVERED:   { label: "Delivered",   className: "border-green-300 bg-green-50 text-green-800" },
     ON_HOLD:     { label: "On Hold",     className: "border-red-300 bg-red-50 text-red-800" },
@@ -46,7 +46,7 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
         try {
             setIsUpdating(action);
             await updateDispatchStatus(dispatch.id, action);
-            toast({ title: "Updated", description: `Dispatch marked as ${action === "PICKUP" ? "In Transit" : action}` });
+            toast({ title: "Updated", description: `Dispatch marked as ${action === "PICKUP" ? "Dispatched" : action}` });
             onStatusUpdated?.();
         } catch (err) {
             toast({ title: "Error", description: err?.message || String(err), variant: "destructive" });
@@ -148,7 +148,7 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
                                 ) : (
                                     <Truck className="h-3 w-3" />
                                 )}
-                                Picked Up
+                                Dispatch
                             </Button>
                         )}
                         {dispatch.status === "IN_TRANSIT" && (

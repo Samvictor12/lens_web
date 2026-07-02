@@ -711,6 +711,7 @@ export class CustomerMasterService {
               'ON_HOLD',
               'AWAITING_QUALITY',
               'READY_FOR_DISPATCH',
+              'READY_FOR_PICKUP',
               'DISPATCHED',
               'DELIVERED',
             ],

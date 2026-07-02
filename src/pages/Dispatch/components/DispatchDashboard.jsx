@@ -9,7 +9,7 @@ import { getDispatchDashboard } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_CONFIG = {
-    PENDING:     { label: "Pending",     className: "bg-amber-50 text-amber-700 border-amber-200" },
+    PENDING:     { label: "Ready for Pickup", className: "bg-amber-50 text-amber-700 border-amber-200" },
     IN_TRANSIT:  { label: "In Transit",  className: "bg-blue-50 text-blue-700 border-blue-200" },
     DELIVERED:   { label: "Delivered",   className: "bg-green-50 text-green-700 border-green-200" },
     ON_HOLD:     { label: "On Hold",     className: "bg-red-50 text-red-700 border-red-200" },
@@ -107,7 +107,7 @@ export default function DispatchDashboard({ refreshKey, onNavigate }) {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold">{stats?.totalPending ?? 0}</div>
-                                <p className="text-xs text-muted-foreground">Not yet dispatched</p>
+                                <p className="text-xs text-muted-foreground">Open dispatch workload</p>
                             </CardContent>
                         </Card>
                     </>

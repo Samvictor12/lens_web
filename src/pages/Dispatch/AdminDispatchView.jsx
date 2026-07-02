@@ -56,7 +56,7 @@ export default function AdminDispatchView({ orders = [], onRefresh, isLoading })
     const [groupBy, setGroupBy] = useState("customer");
     const [view, setView] = useState("card"); // "card" | "list"
 
-    const readyOrders   = orders.filter((o) => o.status === "READY_FOR_DISPATCH");
+    const readyForPickup = orders.filter((o) => o.status === "READY_FOR_PICKUP");
     const inTransit     = orders.filter((o) => o.dispatchStatus === "In Transit" && o.status !== "DELIVERED");
     const grouped       = useMemo(() => groupOrders(orders, groupBy), [orders, groupBy]);
 
@@ -66,8 +66,8 @@ export default function AdminDispatchView({ orders = [], onRefresh, isLoading })
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <Card className="border-amber-200 bg-amber-50">
                     <CardContent className="py-3 px-4">
-                        <p className="text-xs text-amber-700 font-medium">Ready for Dispatch</p>
-                        <p className="text-2xl font-bold text-amber-800">{readyOrders.length}</p>
+                        <p className="text-xs text-amber-700 font-medium">Ready for Pickup</p>
+                        <p className="text-2xl font-bold text-amber-800">{readyForPickup.length}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-blue-200 bg-blue-50">
@@ -144,7 +144,7 @@ export default function AdminDispatchView({ orders = [], onRefresh, isLoading })
                 <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
                     <Package2 className="h-12 w-12 opacity-30" />
                     <p className="text-sm font-medium">No orders ready for dispatch</p>
-                    <p className="text-xs">Orders with status "Ready for Dispatch" will appear here.</p>
+                    <p className="text-xs">Orders with status "Ready for Pickup" or "In Transit" will appear here.</p>
                 </div>
             ) : (
                 <div className={view === "card" ? "flex flex-col gap-3" : "flex flex-col gap-2"}>

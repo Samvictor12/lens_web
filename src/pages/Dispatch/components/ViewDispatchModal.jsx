@@ -11,7 +11,7 @@ import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_CONFIG = {
-    PENDING:     { label: "Pending",     className: "bg-amber-50 text-amber-800 border-amber-300" },
+    PENDING:     { label: "Ready for Pickup", className: "bg-amber-50 text-amber-800 border-amber-300" },
     IN_TRANSIT:  { label: "In Transit",  className: "bg-blue-50 text-blue-800 border-blue-300" },
     DELIVERED:   { label: "Delivered",   className: "bg-green-50 text-green-800 border-green-300" },
     ON_HOLD:     { label: "On Hold",     className: "bg-red-50 text-red-800 border-red-300" },

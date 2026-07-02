@@ -4,6 +4,7 @@ import { CalendarClock, MapPin, Package, User } from "lucide-react";
 
 const DISPATCH_STATUS_BADGE = {
     "Pending":    { variant: "outline",   label: "Pending" },
+    "Ready for Pickup": { variant: "outline", label: "Ready for Pickup" },
     "Assigned":   { variant: "secondary", label: "Assigned" },
     "In Transit": { variant: "default",   label: "In Transit" },
     "Delivered":  { variant: "success",   label: "Delivered" },

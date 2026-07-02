@@ -21,7 +21,7 @@ function groupByCustomer(orders) {
 
 /**
  * Mobile-first tabbed view for Delivery Person role.
- * Pickup tab  → select READY_FOR_DISPATCH orders → mark In Transit.
+ * Pickup tab  → select READY_FOR_PICKUP orders → mark Dispatched/In Transit.
  * Delivery tab → deliver In Transit orders by customer → signature modal.
  */
 export default function DeliveryPersonView({ orders = [], onRefresh }) {
@@ -36,7 +36,7 @@ export default function DeliveryPersonView({ orders = [], onRefresh }) {
     const [isDelivering, setIsDelivering] = useState(false);
     const [signatureOpen, setSignatureOpen] = useState(false);
 
-    const pickupOrders  = useMemo(() => orders.filter((o) => o.status === "READY_FOR_DISPATCH"), [orders]);
+    const pickupOrders  = useMemo(() => orders.filter((o) => o.status === "READY_FOR_PICKUP"), [orders]);
     const deliveryGroups = useMemo(() => groupByCustomer(orders.filter((o) => o.dispatchStatus === "In Transit" && o.status !== "DELIVERED")), [orders]);
 
     // ── Pickup logic ──
@@ -53,7 +53,7 @@ export default function DeliveryPersonView({ orders = [], onRefresh }) {
         try {
             setIsPickingUp(true);
             await bulkMarkPickup([...selectedPickupIds]);
-            toast({ title: "Picked up!", description: `${selectedPickupIds.size} order(s) marked as In Transit.`, success: true });
+            toast({ title: "Dispatched!", description: `${selectedPickupIds.size} order(s) marked as dispatched.`, success: true });
             setSelectedPickupIds(new Set());
             onRefresh();
         } catch (err) {
@@ -115,7 +115,7 @@ export default function DeliveryPersonView({ orders = [], onRefresh }) {
                         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
                             <Package2 className="h-12 w-12 opacity-30" />
                             <p className="text-sm font-medium">No orders to pick up</p>
-                            <p className="text-xs text-center px-4">Orders assigned to you with status "Ready for Dispatch" will appear here.</p>
+                            <p className="text-xs text-center px-4">Orders assigned to you with status "Ready for Pickup" will appear here.</p>
                         </div>
                     ) : (
                         <>

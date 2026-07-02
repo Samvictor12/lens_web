@@ -25,7 +25,7 @@ import { Refresh } from "@/components/ui/Refresh";
 
 const STATUS_OPTIONS = [
     { value: "", label: "All Statuses" },
-    { value: "PENDING", label: "Pending" },
+    { value: "PENDING", label: "Ready for Pickup" },
     { value: "IN_TRANSIT", label: "In Transit" },
     { value: "DELIVERED", label: "Delivered" },
     { value: "ON_HOLD", label: "On Hold" },

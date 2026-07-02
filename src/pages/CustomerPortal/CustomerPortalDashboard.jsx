@@ -53,10 +53,11 @@ const STATUS_META = {
   ON_HOLD:            { label: "On Hold",         cls: "bg-orange-50 text-orange-700 border-orange-200" },
   AWAITING_QUALITY:   { label: "Awaiting QC",     cls: "bg-orange-50 text-orange-700 border-orange-200" },
   READY_FOR_DISPATCH: { label: "Ready to Ship",   cls: "bg-green-50 text-green-700 border-green-200" },
+  READY_FOR_PICKUP:   { label: "Ready for Pickup", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   DELIVERED:          { label: "Delivered",       cls: "bg-gray-100 text-gray-500 border-gray-200" },
   CLOSED:             { label: "Closed",          cls: "bg-gray-50 text-gray-400 border-gray-200" },
   IN_TRANSIT:         { label: "In Transit",      cls: "bg-sky-50 text-sky-700 border-sky-200" },
-  PENDING:            { label: "Pending",         cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  PENDING:            { label: "Ready for Pickup", cls: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
 function StatusBadge({ status }) {
@@ -361,4 +362,3 @@ export default function CustomerPortalDashboard() {
     </div>
   );
 }
-

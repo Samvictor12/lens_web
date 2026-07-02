@@ -222,6 +222,7 @@ export class SaleOrderWorkflowService {
         'POST_QC_REJECTED',
         'POST_QC_SCRAPPED',
         'READY_FOR_DISPATCH',
+        'READY_FOR_PICKUP',
         'DISPATCHED',
         'DELIVERED',
         'INVOICED',

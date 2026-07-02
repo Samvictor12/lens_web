@@ -88,11 +88,11 @@ export default function DispatchedOrdersTab({ onBillCustomer }) {
             <Receipt className="h-12 w-12 text-muted-foreground/50" />
             <p className="text-muted-foreground font-medium">
               {search
-                ? "No dispatched orders match your search."
-                : "No dispatched orders waiting to be billed."}
+                ? "No delivered orders match your search."
+                : "No delivered orders waiting to be billed."}
             </p>
             <p className="text-sm text-muted-foreground">
-              Orders in <strong>DISPATCHED</strong> or <strong>DELIVERED</strong> status that are not yet invoiced appear here.
+              Orders in <strong>DELIVERED</strong> status that are not yet invoiced appear here.
             </p>
           </CardContent>
         </Card>

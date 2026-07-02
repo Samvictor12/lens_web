@@ -1,8 +1,9 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
+import saleOrderStatusService from './saleOrderStatusService.js';
 
 /** Sale orders in the dispatch pipeline (not yet delivered) */
-const DISPATCH_PIPELINE_STATUSES = ['READY_FOR_DISPATCH', 'DISPATCHED'];
+const DISPATCH_PIPELINE_STATUSES = ['READY_FOR_DISPATCH', 'READY_FOR_PICKUP', 'DISPATCHED'];
 
 // ─── Shared includes ─────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export const getDispatchDashboard = async (userId, roleName) => {
     : {};
 
   const [readyCount, inTransitCount, deliveredCount, totalPending, recentDispatches] = await Promise.all([
-    // Ready for dispatch (not yet picked up)
+    // Ready for dispatch (not yet assigned to a dispatch copy)
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
@@ -81,7 +82,7 @@ export const getDispatchDashboard = async (userId, roleName) => {
     prisma.dispatchCopy.count({
       where: { status: 'DELIVERED', ...deliveryPersonFilter },
     }),
-    // Active dispatch workload (awaiting pickup or out for delivery)
+    // Active dispatch workload (ready for dispatch, awaiting pickup, or out for delivery)
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
@@ -207,16 +208,24 @@ export const createDispatch = async (payload, userId) => {
       include: DISPATCH_COPY_INCLUDE,
     });
 
-    // Update sale orders: assign delivery person, link dispatch, status remains READY_FOR_DISPATCH
-    await tx.saleOrder.updateMany({
-      where: { id: { in: saleOrderIds.map(Number) } },
-      data: {
-        dispatchId: dcNumber,
-        dispatchCopyId: created.id,
-        assignedPerson_id: deliveryPersonId ? Number(deliveryPersonId) : undefined,
-        updatedBy: userId,
-      },
-    });
+    for (const id of saleOrderIds.map(Number)) {
+      await saleOrderStatusService.transition({
+        tx,
+        saleOrderId: id,
+        toStatus: 'READY_FOR_PICKUP',
+        userId,
+        remark: `Dispatch ${dcNumber} created; ready for pickup`,
+        source: 'DISPATCH',
+        referenceType: 'DispatchCopy',
+        referenceId: created.id,
+        extraOrderData: {
+          dispatchStatus: 'Ready for Pickup',
+          dispatchId: dcNumber,
+          dispatchCopyId: created.id,
+          assignedPerson_id: deliveryPersonId ? Number(deliveryPersonId) : undefined,
+        },
+      });
+    }
 
     return created;
   });
@@ -326,15 +335,35 @@ export const updateDispatchStatus = async (dispatchId, action, signature, userId
     });
 
     if (saleOrderIds.length > 0) {
-      await tx.saleOrder.updateMany({
-        where: { id: { in: saleOrderIds } },
-        data: {
-          ...(newSaleOrderStatus ? { status: newSaleOrderStatus } : {}),
-          dispatchStatus: newSaleOrderDispatchStatus,
-          updatedBy: userId,
-          ...extraSaleOrderData,
-        },
-      });
+      for (const saleOrderId of saleOrderIds) {
+        if (newSaleOrderStatus) {
+          await saleOrderStatusService.transition({
+            tx,
+            saleOrderId,
+            toStatus: newSaleOrderStatus,
+            userId,
+            remark: action === 'PICKUP'
+              ? `Dispatch ${dispatch.dcNumber} picked up`
+              : `Dispatch ${dispatch.dcNumber} delivered`,
+            source: 'DISPATCH',
+            referenceType: 'DispatchCopy',
+            referenceId: dispatch.id,
+            extraOrderData: {
+              dispatchStatus: newSaleOrderDispatchStatus,
+              ...extraSaleOrderData,
+            },
+          });
+        } else {
+          await tx.saleOrder.update({
+            where: { id: saleOrderId },
+            data: {
+              dispatchStatus: newSaleOrderDispatchStatus,
+              updatedBy: userId,
+              ...extraSaleOrderData,
+            },
+          });
+        }
+      }
     }
 
     return updatedDispatch;
@@ -349,7 +378,7 @@ export const getDispatchOrders = async (userId, roleName) => {
   const where = {
     deleteStatus: false,
     OR: [
-      { status: 'READY_FOR_DISPATCH' },
+      { status: 'READY_FOR_PICKUP' },
       { AND: [{ status: { not: 'DELIVERED' } }, { dispatchStatus: 'In Transit' }] },
     ],
   };
@@ -375,10 +404,23 @@ export const bulkMarkPickup = async (orderIds, userId, roleName) => {
     }
   }
 
-  return prisma.saleOrder.updateMany({
-    where: { id: { in: orderIds }, deleteStatus: false, status: 'READY_FOR_DISPATCH' },
-    data: { dispatchStatus: 'In Transit', updatedBy: userId },
+  let count = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const id of orderIds) {
+      await saleOrderStatusService.transition({
+        tx,
+        saleOrderId: Number(id),
+        toStatus: 'DISPATCHED',
+        userId,
+        remark: 'Order picked up for dispatch',
+        source: 'DISPATCH',
+        extraOrderData: { dispatchStatus: 'In Transit' },
+      });
+      count += 1;
+    }
   });
+
+  return { count };
 };
 
 export const bulkMarkDelivered = async (orderIds, signature, userId, roleName) => {
@@ -395,8 +437,25 @@ export const bulkMarkDelivered = async (orderIds, signature, userId, roleName) =
     }
   }
 
-  return prisma.saleOrder.updateMany({
-    where: { id: { in: orderIds }, deleteStatus: false },
-    data: { status: 'DELIVERED', dispatchStatus: 'Delivered', deliverySignature: signature, actualDate: new Date(), updatedBy: userId },
+  let count = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const id of orderIds) {
+      await saleOrderStatusService.transition({
+        tx,
+        saleOrderId: Number(id),
+        toStatus: 'DELIVERED',
+        userId,
+        remark: 'Order delivered',
+        source: 'DISPATCH',
+        extraOrderData: {
+          dispatchStatus: 'Delivered',
+          deliverySignature: signature,
+          actualDate: new Date(),
+        },
+      });
+      count += 1;
+    }
   });
+
+  return { count };
 };

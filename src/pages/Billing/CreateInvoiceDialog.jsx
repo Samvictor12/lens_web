@@ -127,7 +127,7 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
           {customerId && (
             <div className="space-y-1">
               <Label>
-                Dispatched/Delivered Orders (select to include){" "}
+                Delivered Orders (select to include){" "}
                 <span className="text-red-500">*</span>
               </Label>
               {ordersLoading ? (

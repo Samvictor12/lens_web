@@ -33,6 +33,7 @@ export const updateSaleOrderStatusSchema = z.object({
       'ON_HOLD',
       'AWAITING_QUALITY',
       'READY_FOR_DISPATCH',
+      'READY_FOR_PICKUP',
       'DISPATCHED',
       'DELIVERED'
     ])
@@ -139,4 +140,3 @@ export const updateDispatchStatusSchema = z.object({
     remarks: z.string().optional()
   })
 });
-

@@ -10,6 +10,53 @@ import {
 import saleOrderStatusService from './saleOrderStatusService.js';
 import { isSoLocked, SALE_ORDER_STATUSES } from '../constants/saleOrderStatus.js';
 
+const normalizeSpecValue = (value) => {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+
+  const numeric = Number(text);
+  if (!Number.isNaN(numeric)) {
+    return Number.isInteger(numeric) ? String(numeric) : String(numeric);
+  }
+
+  return text.toUpperCase();
+};
+
+const specVariants = (value) => {
+  const normalized = normalizeSpecValue(value);
+  if (normalized === null) return [];
+
+  const variants = new Set([String(value).trim(), normalized]);
+  const numeric = Number(normalized);
+  if (!Number.isNaN(numeric)) {
+    variants.add(numeric.toFixed(1));
+    variants.add(numeric.toFixed(2));
+    if (numeric > 0) {
+      variants.add(`+${numeric}`);
+      variants.add(`+${numeric.toFixed(1)}`);
+      variants.add(`+${numeric.toFixed(2)}`);
+    }
+  }
+  return [...variants].filter((v) => v !== '');
+};
+
+const addSpecMatch = (where, field, value) => {
+  const variants = specVariants(value);
+  if (variants.length === 0) return;
+  if (variants.length === 1) {
+    where[field] = variants[0];
+    return;
+  }
+  if (!where.AND) where.AND = [];
+  where.AND.push({ OR: variants.map((variant) => ({ [field]: variant })) });
+};
+
+const categoryUsesAdd = (categoryName) => {
+  const name = String(categoryName || '').toLowerCase();
+  return name.includes('progressive') || name.includes('bifocal') || name.includes('bi-focal') || name.includes('bi focal');
+};
+
 /**
  * Sale Order Service
  * Handles business logic for sale order management with comprehensive audit logging
@@ -992,6 +1039,7 @@ export class SaleOrderService {
         PRE_QC_SCRAPPED: 'PRE_QC',
         POST_QC_REJECTED: 'POST_QC',
         POST_QC_SCRAPPED: 'POST_QC',
+        READY_FOR_PICKUP: 'DISPATCH',
         DISPATCHED: 'DISPATCH',
         DELIVERED: 'DISPATCH',
         INVOICED: 'BILLING',
@@ -1075,25 +1123,18 @@ export class SaleOrderService {
         };
 
         if (saleOrder.lens_id) where.lens_id = saleOrder.lens_id;
-        if (saleOrder.category_id) where.category_id = saleOrder.category_id;
         if (saleOrder.Type_id) where.Type_id = saleOrder.Type_id;
         if (saleOrder.coating_id) where.coating_id = saleOrder.coating_id;
-        if (saleOrder.dia_id) where.dia_id = saleOrder.dia_id;
-        if (saleOrder.fitting_id) where.fitting_id = saleOrder.fitting_id;
-        if (saleOrder.tinting_id) where.tinting_id = saleOrder.tinting_id;
+        if (saleOrder.category_id) where.category_id = saleOrder.category_id;
 
         if (eyeType === 'right') {
-          where.rightSpherical = saleOrder.rightSpherical;
-          where.rightCylindrical = saleOrder.rightCylindrical;
-          if (saleOrder.rightAdd) {
-            where.rightAdd = saleOrder.rightAdd;
-          }
+          addSpecMatch(where, 'rightSpherical', saleOrder.rightSpherical);
+          addSpecMatch(where, 'rightCylindrical', saleOrder.rightCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'rightAdd', saleOrder.rightAdd);
         } else {
-          where.leftSpherical = saleOrder.leftSpherical;
-          where.leftCylindrical = saleOrder.leftCylindrical;
-          if (saleOrder.leftAdd) {
-            where.leftAdd = saleOrder.leftAdd;
-          }
+          addSpecMatch(where, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(where, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'leftAdd', saleOrder.leftAdd);
         }
 
         return where;
@@ -1105,25 +1146,18 @@ export class SaleOrderService {
         };
 
         if (saleOrder.lens_id) poWhere.lens_id = saleOrder.lens_id;
-        if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
         if (saleOrder.Type_id) poWhere.Type_id = saleOrder.Type_id;
         if (saleOrder.coating_id) poWhere.coating_id = saleOrder.coating_id;
-        if (saleOrder.dia_id) poWhere.dia_id = saleOrder.dia_id;
-        if (saleOrder.fitting_id) poWhere.fitting_id = saleOrder.fitting_id;
-        if (saleOrder.tinting_id) poWhere.tinting_id = saleOrder.tinting_id;
+        if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
 
         if (eyeType === 'right') {
-          poWhere.rightSpherical = saleOrder.rightSpherical;
-          poWhere.rightCylindrical = saleOrder.rightCylindrical;
-          if (saleOrder.rightAdd) {
-            poWhere.rightAdd = saleOrder.rightAdd;
-          }
+          addSpecMatch(poWhere, 'rightSpherical', saleOrder.rightSpherical);
+          addSpecMatch(poWhere, 'rightCylindrical', saleOrder.rightCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'rightAdd', saleOrder.rightAdd);
         } else {
-          poWhere.leftSpherical = saleOrder.leftSpherical;
-          poWhere.leftCylindrical = saleOrder.leftCylindrical;
-          if (saleOrder.leftAdd) {
-            poWhere.leftAdd = saleOrder.leftAdd;
-          }
+          addSpecMatch(poWhere, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(poWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'leftAdd', saleOrder.leftAdd);
         }
 
         return poWhere;
