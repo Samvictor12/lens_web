@@ -1540,9 +1540,9 @@ export default function SaleOrderForm() {
             case "DRAFT":
             case "CONFIRMED":
             case "ON_HOLD":
-                // Start Production disabled — use Raise PO workflow instead
+                // Start Fitting disabled — use Raise PO workflow instead
                 return null;
-            case "IN_PRODUCTION":
+            case "IN_FITTING":
                 return {
                     label: "Ready for Dispatch",
                     nextStatus: "READY_FOR_DISPATCH",
@@ -1562,8 +1562,8 @@ export default function SaleOrderForm() {
         const statusAction = getStatusActionButton();
         if (!statusAction) return;
 
-        // If transitioning to IN_PRODUCTION, trigger the FIFO selection modal instead of direct update
-        if (statusAction.nextStatus === "IN_PRODUCTION") {
+        // If transitioning to IN_FITTING, trigger the FIFO selection modal instead of direct update
+        if (statusAction.nextStatus === "IN_FITTING") {
             try {
                 setIsSaving(true);
                 const response = await getMatchingInventoryFIFO(parseInt(id));
@@ -1660,15 +1660,15 @@ export default function SaleOrderForm() {
 
         try {
             setIsSaving(true);
-            const response = await updateSaleOrderStatus(parseInt(id), "IN_PRODUCTION", undefined, itemIds);
+            const response = await updateSaleOrderStatus(parseInt(id), "IN_FITTING", undefined, itemIds);
 
             if (response.success) {
                 toast({
                     title: "Success",
-                    description: "Order status updated to In Production and stock allocated successfully.",
+                    description: "Order status updated to In Fitting and stock allocated successfully.",
                     success: true,
                 });
-                setFormData((prev) => ({ ...prev, status: "IN_PRODUCTION" }));
+                setFormData((prev) => ({ ...prev, status: "IN_FITTING" }));
                 setIsFifoModalOpen(false);
 
                 // Refresh order data
@@ -1680,7 +1680,7 @@ export default function SaleOrderForm() {
             }
         } catch (error) {
             toast({
-                title: "Error moving to production",
+                title: "Error moving to fitting",
                 description: error.message || "Failed to update status and allocate stock.",
                 variant: "destructive",
             });
@@ -3436,7 +3436,7 @@ export default function SaleOrderForm() {
 
                     <div className="space-y-6 py-4">
                         <p className="text-sm text-slate-500">
-                            Select the matching available lenses physically being taken from inventory to start production for Sale Order <strong className="text-slate-800">{formData.orderNo}</strong>.
+                            Select the matching available lenses physically being taken from inventory to start fitting for Sale Order <strong className="text-slate-800">{formData.orderNo}</strong>.
                         </p>
 
                         {/* Right Eye Stock Section */}
@@ -3625,7 +3625,7 @@ export default function SaleOrderForm() {
                             }
                             onClick={handleFifoConfirm}
                         >
-                            {isSaving ? "Processing..." : "Confirm & Move to Production"}
+                            {isSaving ? "Processing..." : "Confirm & Move to Fitting"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

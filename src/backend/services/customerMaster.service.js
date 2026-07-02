@@ -706,8 +706,8 @@ export class CustomerMasterService {
           deleteStatus: false,
           status: {
             in: [
-              'PRODUCTION_READY',
-              'IN_PRODUCTION',
+              'FITTING_READY',
+              'IN_FITTING',
               'ON_HOLD',
               'AWAITING_QUALITY',
               'READY_FOR_DISPATCH',

@@ -55,7 +55,7 @@ router.use((req, res, next) => {
  *           example: "Standard"
  *         status:
  *           type: string
- *           enum: [DRAFT, CONFIRMED, IN_PRODUCTION, READY_FOR_DISPATCH, DELIVERED]
+ *           enum: [DRAFT, CONFIRMED, IN_FITTING, READY_FOR_DISPATCH, DELIVERED]
  *           description: Order status
  *           example: "CONFIRMED"
  *         deliverySchedule:
@@ -358,7 +358,7 @@ router.use((req, res, next) => {
  *       properties:
  *         status:
  *           type: string
- *           enum: [DRAFT, CONFIRMED, IN_PRODUCTION, READY_FOR_DISPATCH, DELIVERED]
+ *           enum: [DRAFT, CONFIRMED, IN_FITTING, READY_FOR_DISPATCH, DELIVERED]
  *           description: New order status
  *           example: "CONFIRMED"
  * 
@@ -414,7 +414,7 @@ router.use((req, res, next) => {
  *               type: integer
  *             CONFIRMED:
  *               type: integer
- *             IN_PRODUCTION:
+ *             IN_FITTING:
  *               type: integer
  *             READY_FOR_DISPATCH:
  *               type: integer
@@ -578,7 +578,7 @@ router.post('/',
  *         name: status
  *         schema:
  *           type: string
- *           enum: [DRAFT, CONFIRMED, IN_PRODUCTION, READY_FOR_DISPATCH, DELIVERED]
+ *           enum: [DRAFT, CONFIRMED, IN_FITTING, READY_FOR_DISPATCH, DELIVERED]
  *         description: Filter by order status
  *       - in: query
  *         name: customerId
@@ -815,7 +815,7 @@ router.get('/:id',
  *             $ref: '#/components/schemas/SaleOrderInput'
  *           example:
  *             customerId: 1
- *             status: "IN_PRODUCTION"
+ *             status: "IN_FITTING"
  *             lensName: "Progressive Lens Updated"
  *             lensPrice: 5500
  *             discount: 15

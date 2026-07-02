@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -62,7 +62,7 @@ import TrayMain from "./pages/TrayMaster/TrayMain";
 import TrayForm from "./pages/TrayMaster/TrayForm";
 import LogsViewer from "./pages/LogsViewer";
 import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
-import { ProductionOperatorList, ProductionOrderDetail } from "./pages/ProductionOperator";
+import { FittingOperatorList, FittingOrderDetail } from "./pages/FittingOperator";
 import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
 import { PreQcOperatorList, PreQcOrderDetail } from "./pages/PreQcOperator";
 import NotFound from "./pages/NotFound";
@@ -118,6 +118,11 @@ const ProtectedRoute = ({ children, allowedPermission }) => {
       </AppLayout>
     </RolePermissionsProvider>
   );
+};
+
+const LegacyFittingOperatorRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={id ? `/fitting/operator/${id}` : "/fitting/operator"} replace />;
 };
 
 const SessionExpiryHandler = () => {
@@ -179,8 +184,10 @@ const AppRoutes = () => (
       <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderReceive /></div>} />
       <Route path="/masters/purchase-orders/receive/:id/inward/:receiptId" element={<div className="flex overflow-auto h-svh w-full"><POInwardToInventory /></div>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
-      <Route path="/production/operator" element={<ProtectedRoute><ProductionOperatorList /></ProtectedRoute>} />
-      <Route path="/production/operator/:id" element={<ProtectedRoute><ProductionOrderDetail /></ProtectedRoute>} />
+      <Route path="/production/operator" element={<LegacyFittingOperatorRedirect />} />
+      <Route path="/production/operator/:id" element={<LegacyFittingOperatorRedirect />} />
+      <Route path="/fitting/operator" element={<ProtectedRoute><FittingOperatorList /></ProtectedRoute>} />
+      <Route path="/fitting/operator/:id" element={<ProtectedRoute><FittingOrderDetail /></ProtectedRoute>} />
       <Route path="/pre-qc/operator" element={<ProtectedRoute><PreQcOperatorList /></ProtectedRoute>} />
       <Route path="/pre-qc/operator/:id" element={<ProtectedRoute><PreQcOrderDetail /></ProtectedRoute>} />
       <Route path="/quality/operator" element={<ProtectedRoute><QualityOperatorList title="Post-QC" /></ProtectedRoute>} />
@@ -278,7 +285,4 @@ const App = () => (
 );
 
 export default App;
-
-
-
 

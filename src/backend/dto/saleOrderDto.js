@@ -36,7 +36,7 @@ const isValidPositiveNumber = (num) => {
 const isValidStatus = (status) => {
   const validStatuses = [
     'DRAFT', 'PO_RAISED', 'PO_RECEIVED', 'PO_CANCELLED', 'PRE_QC', 'PRE_QC_REJECTED', 'PRE_QC_SCRAPPED',
-    'PRODUCTION_READY', 'IN_PRODUCTION', 'ON_HOLD', 'AWAITING_QUALITY', 'POST_QC_REJECTED', 'POST_QC_SCRAPPED',
+    'FITTING_READY', 'IN_FITTING', 'ON_HOLD', 'AWAITING_QUALITY', 'POST_QC_REJECTED', 'POST_QC_SCRAPPED',
     'READY_FOR_DISPATCH', 'READY_FOR_PICKUP', 'DISPATCHED', 'DELIVERED', 'INVOICED', 'COMPLETED',
   ];
   return validStatuses.includes(status);
@@ -267,7 +267,7 @@ export const validateCreateSaleOrder = (data) => {
 
   // Status validation
   if (data.status && !isValidStatus(data.status)) {
-    errors.push({ field: 'status', message: 'Invalid status. Must be one of: DRAFT, CONFIRMED, IN_PRODUCTION, READY_FOR_DISPATCH, DELIVERED' });
+    errors.push({ field: 'status', message: 'Invalid status. Must be one of the configured sale order workflow statuses' });
   }
 
   return {
@@ -480,7 +480,7 @@ export const validateUpdateStatus = (data) => {
   if (!data.status) {
     errors.push({ field: 'status', message: 'Status is required' });
   } else if (!isValidStatus(data.status)) {
-    errors.push({ field: 'status', message: 'Invalid status. Must be one of: DRAFT, CONFIRMED, IN_PRODUCTION, READY_FOR_DISPATCH, DELIVERED' });
+    errors.push({ field: 'status', message: 'Invalid status. Must be one of the configured sale order workflow statuses' });
   }
 
   if (data.inventoryItemIds && !Array.isArray(data.inventoryItemIds)) {

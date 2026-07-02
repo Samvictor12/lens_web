@@ -329,8 +329,8 @@ async function main() {
     // ── 10. Other-status sale orders ────────────────────────────────────────
     console.log('📋 Creating other-status sale orders…');
     await Promise.all([
-        prisma.saleOrder.upsert({ where: { orderNo: 'TEST-SO-C001' }, update: {}, create: soBase({ orderNo: 'TEST-SO-C001', customerId: cust1.id, status: 'PRODUCTION_READY', lensPrice: 1500 }) }),
-        prisma.saleOrder.upsert({ where: { orderNo: 'TEST-SO-C002' }, update: {}, create: soBase({ orderNo: 'TEST-SO-C002', customerId: cust2.id, status: 'IN_PRODUCTION', lensPrice: 5500 }) }),
+        prisma.saleOrder.upsert({ where: { orderNo: 'TEST-SO-C001' }, update: {}, create: soBase({ orderNo: 'TEST-SO-C001', customerId: cust1.id, status: 'FITTING_READY', lensPrice: 1500 }) }),
+        prisma.saleOrder.upsert({ where: { orderNo: 'TEST-SO-C002' }, update: {}, create: soBase({ orderNo: 'TEST-SO-C002', customerId: cust2.id, status: 'IN_FITTING', lensPrice: 5500 }) }),
         prisma.saleOrder.upsert({ where: { orderNo: 'TEST-SO-C003' }, update: {}, create: soBase({ orderNo: 'TEST-SO-C003', customerId: cust3.id, status: 'AWAITING_QUALITY', lensPrice: 2200 }) }),
     ]);
     console.log('   ✅ 3 other-status orders created\n');

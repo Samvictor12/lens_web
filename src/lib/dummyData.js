@@ -441,7 +441,7 @@ export const dummySaleOrders = [
         totalPrice: 7000,
       },
     ],
-    status: "in-production",
+    status: "in-fitting",
     subtotal: 7000,
     discountAmount: 0,
     fittingCharges: 500,

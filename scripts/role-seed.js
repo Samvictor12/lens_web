@@ -32,7 +32,7 @@ const DEFAULT_ROLES = [
 
 const MODULE_KEYS = [
   'dashboard', 'sale_orders', 'inventory', 'purchase_orders', 'dispatch',
-  'production', 'pre_qc', 'post_qc', 'billing', 'chart_of_accounts',
+  'fitting', 'pre_qc', 'post_qc', 'billing', 'chart_of_accounts',
   'expenses', 'vendor_payments', 'bank_reconciliation', 'financial_reports',
   'reports', 'business_categories', 'expense_categories', 'customers',
   'vendors', 'departments', 'users', 'check_sheets', 'lens_indexes',
@@ -65,7 +65,7 @@ async function main() {
   // 1. ADMIN PERMISSIONS: Grant screen/action permissions for ALL modules
   const adminModules = [...MODULE_KEYS];
   const fullActions = ['Screen', 'Create', 'Edit', 'View', 'Delete'];
-  const screenOnlyModules = ['dashboard', 'production', 'pre_qc', 'post_qc', 'financial_reports', 'reports'];
+  const screenOnlyModules = ['dashboard', 'fitting', 'pre_qc', 'post_qc', 'financial_reports', 'reports'];
 
   adminModules.forEach((mod) => {
     const actions = screenOnlyModules.includes(mod) ? ['Screen'] : fullActions;

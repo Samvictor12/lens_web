@@ -25,7 +25,7 @@ const BUSINESS_NAME = "XYZ Optics";
 
 // ─── Dummy Data ───────────────────────────────────────────────────────────────
 const ORDERS = [
-  { id: 1, orderNo: "SO-2026-048", status: "IN_PRODUCTION",      orderDate: "2026-05-10", category: "Progressive",   product: "Essilor Varilux X",  coating: "Anti-Reflection",   amount: 8400, urgent: true },
+  { id: 1, orderNo: "SO-2026-048", status: "IN_FITTING",      orderDate: "2026-05-10", category: "Progressive",   product: "Essilor Varilux X",  coating: "Anti-Reflection",   amount: 8400, urgent: true },
   { id: 2, orderNo: "SO-2026-039", status: "READY_FOR_DISPATCH", orderDate: "2026-05-06", category: "Single Vision", product: "Zeiss DuraVision",   coating: "Blue Cut",          amount: 3200, urgent: false },
   { id: 3, orderNo: "SO-2026-031", status: "CONFIRMED",          orderDate: "2026-04-29", category: "Bifocal",       product: "Hoya HD",            coating: "UV Protection",     amount: 2800, urgent: false },
   { id: 4, orderNo: "SO-2026-022", status: "DELIVERED",          orderDate: "2026-04-18", category: "Single Vision", product: "Crizal Easy",        coating: "Anti-Reflection",   amount: 1950, urgent: false },
@@ -49,7 +49,7 @@ const BILLING = [
 const STATUS_META = {
   DRAFT:              { label: "Draft",          cls: "bg-gray-50 text-gray-500 border-gray-200" },
   CONFIRMED:          { label: "Confirmed",       cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  IN_PRODUCTION:      { label: "In Production",   cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  IN_FITTING:      { label: "In Fitting",   cls: "bg-amber-50 text-amber-700 border-amber-200" },
   ON_HOLD:            { label: "On Hold",         cls: "bg-orange-50 text-orange-700 border-orange-200" },
   AWAITING_QUALITY:   { label: "Awaiting QC",     cls: "bg-orange-50 text-orange-700 border-orange-200" },
   READY_FOR_DISPATCH: { label: "Ready to Ship",   cls: "bg-green-50 text-green-700 border-green-200" },

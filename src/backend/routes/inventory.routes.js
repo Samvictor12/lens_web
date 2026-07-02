@@ -42,7 +42,7 @@ router.use(authenticateToken);
  *           description: Retail/selling price
  *         status:
  *           type: string
- *           enum: [AVAILABLE, RESERVED, IN_PRODUCTION, DAMAGED, RETURNED, QUALITY_CHECK]
+ *           enum: [AVAILABLE, RESERVED, IN_FITTING, DAMAGED, RETURNED, QUALITY_CHECK]
  *           description: Current status of inventory item
  *         batchNo:
  *           type: string
@@ -142,7 +142,7 @@ router.post('/bulk-inward', (req, res, next) => {
  *         name: status
  *         schema:
  *           type: string
- *           enum: [AVAILABLE, RESERVED, IN_PRODUCTION, DAMAGED, RETURNED, QUALITY_CHECK]
+ *           enum: [AVAILABLE, RESERVED, IN_FITTING, DAMAGED, RETURNED, QUALITY_CHECK]
  *         description: Filter by status
  *       - in: query
  *         name: lens_id

@@ -92,7 +92,7 @@ async function seedComplete() {
       { id: 2, department: 'Sales' },
       { id: 3, department: 'Inventory' },
       { id: 4, department: 'Accounts' },
-      { id: 5, department: 'Production' },
+      { id: 5, department: 'Fitting' },
       { id: 6, department: 'Dispatch' }
     ];
 
@@ -697,7 +697,7 @@ async function seedComplete() {
         orderNo: 'SO-2024-001',
         customerId: customer1.id,
         customerRefNo: 'CUST-REF-001',
-        status: 'PRODUCTION_READY',
+        status: 'FITTING_READY',
         type: 'Standard',
         urgentOrder: true,
         freeFitting: false,
@@ -725,7 +725,7 @@ async function seedComplete() {
         orderNo: 'SO-2024-002',
         customerId: customer2.id,
         customerRefNo: 'CUST-REF-002',
-        status: 'IN_PRODUCTION',
+        status: 'IN_FITTING',
         type: 'Premium',
         urgentOrder: false,
         freeFitting: true,

@@ -10,7 +10,7 @@ import { getMatchingInventoryFIFO } from "@/services/saleOrder";
  * Standalone "Inventory Stock Pick (FIFO Allocation)" modal.
  * Ported from SaleOrderForm.jsx's inline FIFO modal (~lines 3239-3400) so it
  * can be reused by the Request Queue tab's "Issue & Pre-QC" action, ahead of
- * the IN_PRODUCTION-transition usage that already exists in SaleOrderForm.
+ * the IN_FITTING-transition usage that already exists in SaleOrderForm.
  *
  * Props:
  *  - saleOrderId: number — order to fetch FIFO matches for

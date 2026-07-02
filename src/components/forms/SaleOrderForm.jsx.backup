@@ -184,7 +184,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                     <SelectContent>
                       <SelectItem value="Created">Created</SelectItem>
                       <SelectItem value="Confirmed">Confirmed</SelectItem>
-                      <SelectItem value="In Production">In Production</SelectItem>
+                      <SelectItem value="In Fitting">In Fitting</SelectItem>
                       <SelectItem value="Ready for Dispatch">Ready for Dispatch</SelectItem>
                       <SelectItem value="Dispatched">Dispatched</SelectItem>
                       <SelectItem value="Delivered">Delivered</SelectItem>

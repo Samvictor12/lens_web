@@ -593,8 +593,8 @@ enum SaleOrderStatus {
   PRE_QC
   PRE_QC_REJECTED
   PRE_QC_SCRAPPED
-  PRODUCTION_READY
-  IN_PRODUCTION
+  FITTING_READY
+  IN_FITTING
   ON_HOLD
   AWAITING_QUALITY
   POST_QC_REJECTED
@@ -615,7 +615,7 @@ enum SaleOrderStatusSource {
   PO
   PRE_QC
   POST_QC
-  PRODUCTION
+  FITTING
   DISPATCH
   BILLING
 }
@@ -1112,7 +1112,7 @@ enum InventoryTransactionType {
 enum InventoryItemStatus {
   AVAILABLE // Ready for sale
   RESERVED // Reserved for sale order
-  IN_PRODUCTION // Being processed
+  IN_FITTING // Being processed
   DAMAGED // Damaged/unusable
   RETURNED // Returned by customer
   QUALITY_CHECK // Under quality inspection

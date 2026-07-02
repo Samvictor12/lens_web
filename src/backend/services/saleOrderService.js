@@ -1030,10 +1030,10 @@ export class SaleOrderService {
       }
 
       const sourceByStatus = {
-        PRODUCTION_READY: 'PRE_QC',
-        IN_PRODUCTION: 'PRODUCTION',
-        ON_HOLD: 'PRODUCTION',
-        AWAITING_QUALITY: 'PRODUCTION',
+        FITTING_READY: 'PRE_QC',
+        IN_FITTING: 'FITTING',
+        ON_HOLD: 'FITTING',
+        AWAITING_QUALITY: 'FITTING',
         READY_FOR_DISPATCH: 'POST_QC',
         PRE_QC_REJECTED: 'PRE_QC',
         PRE_QC_SCRAPPED: 'PRE_QC',

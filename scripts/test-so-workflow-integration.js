@@ -39,25 +39,25 @@ async function main() {
 
   await saleOrderStatusService.transition({
     saleOrderId: so.id,
-    toStatus: 'PRODUCTION_READY',
+    toStatus: 'FITTING_READY',
     userId: user.id,
     source: 'PRE_QC',
   });
-  console.log('✅ Pre-QC pass → PRODUCTION_READY');
+  console.log('✅ Pre-QC pass → FITTING_READY');
 
   await saleOrderStatusService.transition({
     saleOrderId: so.id,
-    toStatus: 'IN_PRODUCTION',
+    toStatus: 'IN_FITTING',
     userId: user.id,
-    source: 'PRODUCTION',
+    source: 'FITTING',
   });
   await saleOrderStatusService.transition({
     saleOrderId: so.id,
     toStatus: 'AWAITING_QUALITY',
     userId: user.id,
-    source: 'PRODUCTION',
+    source: 'FITTING',
   });
-  console.log('✅ Production → Post-QC');
+  console.log('✅ Fitting → Post-QC');
 
   await saleOrderStatusService.transition({
     saleOrderId: so.id,

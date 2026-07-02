@@ -9,17 +9,17 @@ async function main() {
   if (!user) throw new Error('No user found — run complete-seed first');
 
   const existing = await prisma.locationMaster.findFirst({
-    where: { name: 'Production WIP', deleteStatus: false },
+    where: { name: 'Fitting WIP', deleteStatus: false },
   });
   const virtual = existing
     ? await prisma.locationMaster.update({
         where: { id: existing.id },
-        data: { isVirtual: true, description: 'Virtual location for SO-linked stock in production / billing' },
+        data: { isVirtual: true, description: 'Virtual location for SO-linked stock in fitting / billing' },
       })
     : await prisma.locationMaster.create({
         data: {
-          name: 'Production WIP',
-          description: 'Virtual location for SO-linked stock in production / billing',
+          name: 'Fitting WIP',
+          description: 'Virtual location for SO-linked stock in fitting / billing',
           isVirtual: true,
           activeStatus: true,
           deleteStatus: false,

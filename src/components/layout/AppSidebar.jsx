@@ -23,7 +23,6 @@ import {
   Warehouse,
   MapPin,
   Box,
-  Factory,
   ClipboardCheck,
   BookOpen,
   CreditCard,
@@ -86,10 +85,10 @@ const navItems = [
     key: "dispatch",
   },
   {
-    title: "Production",
-    url: "/production/operator",
-    icon: Factory,
-    key: "production",
+    title: "Fitting",
+    url: "/fitting/operator",
+    icon: Wrench,
+    key: "fitting",
   },
   {
     title: "Pre-QC",

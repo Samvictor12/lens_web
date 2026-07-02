@@ -84,7 +84,7 @@ async function createInitialData() {
         update: {},
         create: {
           id: 5,
-          department: 'Production',
+          department: 'Fitting',
           active_status: true,
           delete_status: false,
           createdBy: 1

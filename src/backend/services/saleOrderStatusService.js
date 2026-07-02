@@ -1,10 +1,82 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import {
+  ALLOWED_TRANSITIONS,
   canTransition,
   RESET_ELIGIBLE_STATUSES,
   SALE_ORDER_STATUSES,
+  STATUS_LABELS,
 } from '../constants/saleOrderStatus.js';
+
+const defaultSourceForStatus = (status) => {
+  const sourceByStatus = {
+    PO_RAISED: 'PO',
+    PO_RECEIVED: 'PO',
+    PO_CANCELLED: 'PO',
+    PRE_QC: 'INVENTORY',
+    FITTING_READY: 'PRE_QC',
+    PRE_QC_REJECTED: 'PRE_QC',
+    PRE_QC_SCRAPPED: 'PRE_QC',
+    IN_FITTING: 'FITTING',
+    ON_HOLD: 'FITTING',
+    AWAITING_QUALITY: 'FITTING',
+    READY_FOR_DISPATCH: 'POST_QC',
+    POST_QC_REJECTED: 'POST_QC',
+    POST_QC_SCRAPPED: 'POST_QC',
+    READY_FOR_PICKUP: 'DISPATCH',
+    DISPATCHED: 'DISPATCH',
+    DELIVERED: 'DISPATCH',
+    INVOICED: 'BILLING',
+    COMPLETED: 'BILLING',
+  };
+  return sourceByStatus[status] || 'SYSTEM';
+};
+
+const defaultRemarkForTransition = (fromStatus, toStatus) => {
+  const remarks = {
+    PO_RAISED: 'Purchase order raised',
+    PO_RECEIVED: 'Purchase order received',
+    PO_CANCELLED: 'Purchase order canceled',
+    PRE_QC: 'Stock issued to Pre-QC station',
+    FITTING_READY: 'Pre-QC passed; moved to Fitting Ready',
+    IN_FITTING: 'Fitting started',
+    ON_HOLD: 'Fitting put on hold',
+    AWAITING_QUALITY: 'Fitting completed; moved to Post-QC',
+    READY_FOR_DISPATCH: 'Post-QC approved; ready for dispatch',
+    READY_FOR_PICKUP: 'Dispatch created; ready for pickup',
+    DISPATCHED: 'Order picked up and dispatched',
+    DELIVERED: 'Order delivered',
+    INVOICED: 'Invoice generated',
+    COMPLETED: 'Order completed',
+    CANCELLED: 'Sale order cancelled',
+  };
+
+  if (remarks[toStatus]) return remarks[toStatus];
+  const label = STATUS_LABELS[toStatus] || toStatus;
+  const fromLabel = fromStatus ? (STATUS_LABELS[fromStatus] || fromStatus) : null;
+  return fromLabel ? `Moved from ${fromLabel} to ${label}` : `Moved to ${label}`;
+};
+
+const findStatusPath = (fromStatus, toStatus) => {
+  if (!fromStatus || fromStatus === toStatus) return [toStatus];
+
+  const queue = [[fromStatus]];
+  const visited = new Set([fromStatus]);
+
+  while (queue.length > 0) {
+    const path = queue.shift();
+    const current = path[path.length - 1];
+    for (const next of ALLOWED_TRANSITIONS[current] || []) {
+      if (visited.has(next)) continue;
+      const nextPath = [...path, next];
+      if (next === toStatus) return nextPath.slice(1);
+      visited.add(next);
+      queue.push(nextPath);
+    }
+  }
+
+  return [toStatus];
+};
 
 /**
  * Central sale order status transition + immutable status log
@@ -19,31 +91,60 @@ export class SaleOrderStatusService {
     referenceType,
     referenceId,
     userId,
+    createdAt,
   }) {
     return tx.saleOrderStatusLog.create({
       data: {
         saleOrderId,
         fromStatus: fromStatus ?? null,
         toStatus,
-        remark: remark ?? null,
+        remark: remark ?? defaultRemarkForTransition(fromStatus, toStatus),
         source,
         referenceType: referenceType ?? null,
         referenceId: referenceId ?? null,
         createdBy: userId ?? null,
+        ...(createdAt ? { createdAt } : {}),
       },
     });
+  }
+
+  async reconcileCurrentStatusLog(tx, order) {
+    const latest = await tx.saleOrderStatusLog.findFirst({
+      where: { saleOrderId: order.id },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+
+    if (latest?.toStatus === order.status) return;
+
+    let fromStatus = latest?.toStatus ?? null;
+    const missingStatuses = findStatusPath(fromStatus, order.status);
+
+    for (const toStatus of missingStatuses) {
+      await this.appendLog(tx, {
+        saleOrderId: order.id,
+        fromStatus,
+        toStatus,
+        remark: defaultRemarkForTransition(fromStatus, toStatus),
+        source: defaultSourceForStatus(toStatus),
+        userId: order.updatedBy ?? order.createdBy ?? null,
+        createdAt: order.updatedAt || new Date(),
+      });
+      fromStatus = toStatus;
+    }
   }
 
   async getStatusLog(saleOrderId) {
     const order = await prisma.saleOrder.findUnique({
       where: { id: saleOrderId, deleteStatus: false },
-      select: { id: true, orderNo: true, status: true },
+      select: { id: true, orderNo: true, status: true, updatedBy: true, createdBy: true, updatedAt: true },
     });
     if (!order) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
 
+    await prisma.$transaction((tx) => this.reconcileCurrentStatusLog(tx, order));
+
     const logs = await prisma.saleOrderStatusLog.findMany({
       where: { saleOrderId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       include: {
         createdByUser: { select: { id: true, name: true, username: true } },
       },
@@ -77,7 +178,28 @@ export class SaleOrderStatusService {
       if (!existing) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
 
       const fromStatus = existing.status;
-      if (fromStatus === toStatus) return existing;
+      if (fromStatus === toStatus) {
+        let currentOrder = existing;
+        if (Object.keys(extraOrderData).length > 0) {
+          currentOrder = await tx.saleOrder.update({
+            where: { id: saleOrderId },
+            data: {
+              updatedBy: userId,
+              ...extraOrderData,
+            },
+            include: {
+              customer: { select: { id: true, code: true, name: true } },
+            },
+          });
+        }
+
+        await this.reconcileCurrentStatusLog(tx, {
+          ...currentOrder,
+          updatedBy: userId ?? currentOrder.updatedBy,
+          updatedAt: new Date(),
+        });
+        return currentOrder;
+      }
 
       if (!canTransition(fromStatus, toStatus)) {
         throw new APIError(
@@ -116,7 +238,7 @@ export class SaleOrderStatusService {
         saleOrderId,
         fromStatus,
         toStatus,
-        remark,
+        remark: remark ?? defaultRemarkForTransition(fromStatus, toStatus),
         source,
         referenceType,
         referenceId,

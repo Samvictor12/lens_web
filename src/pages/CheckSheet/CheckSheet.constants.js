@@ -16,8 +16,8 @@ export const checkSheetClassOptions = [
   { value: 'General',          label: 'General' },
   { value: 'Quality Check',    label: 'Quality Check' },
   { value: 'Inspection',       label: 'Inspection' },
-  { value: 'Pre-Production',   label: 'Pre-Production' },
-  { value: 'Post-Production',  label: 'Post-Production' },
+  { value: 'Pre-Fitting',   label: 'Pre-Fitting' },
+  { value: 'Post-Fitting',  label: 'Post-Fitting' },
 ];
 
 export const checkSheetTypeOptions = [

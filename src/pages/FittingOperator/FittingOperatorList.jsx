@@ -11,7 +11,8 @@ import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
 
 const STATUS_LABELS = {
   CONFIRMED: "Confirmed",
-  IN_PRODUCTION: "In Production",
+  FITTING_READY: "Fitting Ready",
+  IN_FITTING: "In Fitting",
   ON_HOLD: "On Hold",
 };
 
@@ -85,7 +86,7 @@ function LoadingCards() {
   );
 }
 
-export default function ProductionOperatorList() {
+export default function FittingOperatorList() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -101,7 +102,7 @@ export default function ProductionOperatorList() {
         1,
         100,
         search,
-        { statuses: "PRODUCTION_READY,IN_PRODUCTION,ON_HOLD" },
+        { statuses: "FITTING_READY,IN_FITTING,ON_HOLD" },
         "updatedAt",
         "asc"
       );
@@ -109,7 +110,7 @@ export default function ProductionOperatorList() {
         setOrders(response.data || []);
       }
     } catch (err) {
-      setError("Failed to load production orders.");
+      setError("Failed to load fitting orders.");
     } finally {
       setIsLoading(false);
     }
@@ -130,7 +131,7 @@ export default function ProductionOperatorList() {
         1,
         1,
         scannedOrderNo,
-        { statuses: "PRODUCTION_READY,IN_PRODUCTION,ON_HOLD" },
+        { statuses: "FITTING_READY,IN_FITTING,ON_HOLD" },
         "updatedAt",
         "asc"
       );
@@ -140,7 +141,7 @@ export default function ProductionOperatorList() {
         results.length === 1 &&
         results[0].orderNo === scannedOrderNo
       ) {
-        navigate(`/production/operator/${results[0].id}`);
+        navigate(`/fitting/operator/${results[0].id}`);
         return;
       }
     } catch {
@@ -154,7 +155,7 @@ export default function ProductionOperatorList() {
     <div className="w-full p-3 sm:p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Production Orders</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Fitting Orders</h1>
         <Button
           variant="ghost"
           size="icon"
@@ -188,7 +189,7 @@ export default function ProductionOperatorList() {
       {/* Status summary counts */}
       {!isLoading && orders.length > 0 && (
         <div className="flex gap-2 flex-wrap text-xs">
-          {["PRODUCTION_READY", "IN_PRODUCTION", "ON_HOLD"].map((s) => {
+          {["FITTING_READY", "IN_FITTING", "ON_HOLD"].map((s) => {
             const count = orders.filter((o) => o.status === s).length;
             if (count === 0) return null;
             return (
@@ -217,7 +218,7 @@ export default function ProductionOperatorList() {
       ) : orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
           <FlaskConical className="w-10 h-10" />
-          <p className="text-sm">No active production orders found.</p>
+          <p className="text-sm">No active fitting orders found.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4">
@@ -225,7 +226,7 @@ export default function ProductionOperatorList() {
             <OrderCard
               key={order.id}
               order={order}
-              onClick={() => navigate(`/production/operator/${order.id}`)}
+              onClick={() => navigate(`/fitting/operator/${order.id}`)}
             />
           ))}
         </div>

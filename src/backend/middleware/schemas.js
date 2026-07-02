@@ -29,7 +29,8 @@ export const updateSaleOrderStatusSchema = z.object({
     status: z.enum([
       'DRAFT',
       'CONFIRMED',
-      'IN_PRODUCTION',
+      'FITTING_READY',
+      'IN_FITTING',
       'ON_HOLD',
       'AWAITING_QUALITY',
       'READY_FOR_DISPATCH',

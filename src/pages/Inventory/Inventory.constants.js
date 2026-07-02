@@ -6,7 +6,7 @@
 export const inventoryStatusOptions = [
   { value: 'AVAILABLE', label: 'Available', color: 'bg-green-100 text-green-800' },
   { value: 'RESERVED', label: 'Reserved', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'IN_PRODUCTION', label: 'In Production', color: 'bg-blue-100 text-blue-800' },
+  { value: 'IN_FITTING', label: 'In Fitting', color: 'bg-blue-100 text-blue-800' },
   { value: 'DAMAGED', label: 'Damaged', color: 'bg-red-100 text-red-800' },
   { value: 'RETURNED', label: 'Returned', color: 'bg-gray-100 text-gray-800' },
   { value: 'QUALITY_CHECK', label: 'Quality Check', color: 'bg-orange-100 text-orange-800' },

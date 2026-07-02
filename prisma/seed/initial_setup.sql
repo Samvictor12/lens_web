@@ -13,7 +13,7 @@ VALUES
   (2, 'Sales', true, false, NOW(), 1, NOW(), NULL),
   (3, 'Accounts', true, false, NOW(), 1, NOW(), NULL),
   (4, 'Inventory', true, false, NOW(), 1, NOW(), NULL),
-  (5, 'Production', true, false, NOW(), 1, NOW(), NULL),
+  (5, 'Fitting', true, false, NOW(), 1, NOW(), NULL),
   (6, 'Dispatch', true, false, NOW(), 1, NOW(), NULL)
 ON CONFLICT (id) DO NOTHING;
 

@@ -11,7 +11,8 @@ import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
 const STATUS_LABELS = {
   DRAFT: "Draft",
   CONFIRMED: "Confirmed",
-  IN_PRODUCTION: "In Production",
+  FITTING_READY: "Fitting Ready",
+  IN_FITTING: "In Fitting",
   ON_HOLD: "On Hold",
   AWAITING_QUALITY: "Awaiting Quality",
   READY_FOR_DISPATCH: "Ready for Dispatch",
@@ -112,8 +113,8 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
     </Button>
   );
 
-  // PRODUCTION_READY: skip "Start" — show Direct Complete + Hold
-  if (status === "PRODUCTION_READY") {
+  // FITTING_READY: skip "Start" — show Direct Complete + Hold
+  if (status === "FITTING_READY") {
     return (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-area-bottom">
         <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
@@ -124,8 +125,8 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
     );
   }
 
-  // IN_PRODUCTION (legacy orders already in this state): same buttons
-  if (status === "IN_PRODUCTION") {
+  // IN_FITTING (legacy orders already in this state): same buttons
+  if (status === "IN_FITTING") {
     return (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
         <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
@@ -159,7 +160,7 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
   );
 }
 
-export default function ProductionOrderDetail() {
+export default function FittingOrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -191,7 +192,7 @@ export default function ProductionOrderDetail() {
 
   const handleStatusChange = async (newStatus) => {
     const labels = {
-      IN_PRODUCTION: "Start Production",
+      IN_FITTING: "Start Fitting",
       ON_HOLD: "Hold",
       READY_FOR_DISPATCH: "Complete",
     };
@@ -206,9 +207,9 @@ export default function ProductionOrderDetail() {
       if (response.success) {
         toast({ title: `Order marked as ${STATUS_LABELS[newStatus]}` });
         setOrder(response.data);
-        // If completed, go back to production list
+        // If completed, go back to fitting list
         if (newStatus === "AWAITING_QUALITY") {
-          navigate("/production/operator");
+          navigate("/fitting/operator");
         }
       }
     } catch (err) {

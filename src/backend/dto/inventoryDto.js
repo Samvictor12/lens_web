@@ -138,7 +138,7 @@ export const validateCreateInventoryItem = (data) => {
   });
 
   // Validate status
-  const validStatuses = ['AVAILABLE', 'RESERVED', 'IN_PRODUCTION', 'DAMAGED', 'RETURNED', 'QUALITY_CHECK'];
+  const validStatuses = ['AVAILABLE', 'RESERVED', 'IN_FITTING', 'DAMAGED', 'RETURNED', 'QUALITY_CHECK'];
   if (data.status && !validStatuses.includes(data.status)) {
     errors.push({ field: 'status', message: `Status must be one of: ${validStatuses.join(', ')}` });
   }
@@ -291,7 +291,7 @@ export const validateQueryParams = (params) => {
 
   // Filters
   if (params.status && params.status !== 'all') {
-    const validStatuses = ['AVAILABLE', 'RESERVED', 'IN_PRODUCTION', 'DAMAGED', 'RETURNED', 'QUALITY_CHECK'];
+    const validStatuses = ['AVAILABLE', 'RESERVED', 'IN_FITTING', 'DAMAGED', 'RETURNED', 'QUALITY_CHECK'];
     if (!validStatuses.includes(params.status)) {
       errors.push({ field: 'status', message: `Status must be one of: ${validStatuses.join(', ')}` });
     } else {

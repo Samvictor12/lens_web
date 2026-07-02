@@ -19,7 +19,7 @@ import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
 const STATUS_LABELS = {
   DRAFT: "Draft",
   CONFIRMED: "Confirmed",
-  IN_PRODUCTION: "In Production",
+  IN_FITTING: "In Fitting",
   ON_HOLD: "On Hold",
   AWAITING_QUALITY: "Awaiting Quality",
   READY_FOR_DISPATCH: "Ready for Dispatch",
@@ -139,8 +139,8 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
   }, [id]);
 
   const handleApprove = async () => {
-    const nextStatus = mode === "pre" ? "PRODUCTION_READY" : "READY_FOR_DISPATCH";
-    const msg = mode === "pre" ? "Move to Production Ready?" : "Approve — Ready for Dispatch?";
+    const nextStatus = mode === "pre" ? "FITTING_READY" : "READY_FOR_DISPATCH";
+    const msg = mode === "pre" ? "Move to Fitting Ready?" : "Approve — Ready for Dispatch?";
     if (!window.confirm(msg)) return;
     setIsUpdating(true);
     try {
