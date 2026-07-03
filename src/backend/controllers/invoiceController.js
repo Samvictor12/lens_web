@@ -74,6 +74,16 @@ export class InvoiceController {
     }
   }
 
+  /** GET /api/invoices/stats — aggregated billing stats (no full row scan) */
+  async getStats(req, res, next) {
+    try {
+      const stats = await service.getStats();
+      res.status(200).json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /** GET /api/invoices/dispatched-orders — all DELIVERED un-billed orders for billing screen */
   async getAllDispatchedOrders(req, res, next) {
     try {

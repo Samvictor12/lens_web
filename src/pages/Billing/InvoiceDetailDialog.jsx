@@ -246,7 +246,10 @@ export default function InvoiceDetailDialog({
                     size="sm"
                     variant="outline"
                     className="gap-1.5"
-                    onClick={() => onQuickClose(invoice)}
+                    onClick={() => {
+                      onClose();
+                      onQuickClose(invoice);
+                    }}
                   >
                     <Zap className="h-3.5 w-3.5" /> Quick Close
                   </Button>

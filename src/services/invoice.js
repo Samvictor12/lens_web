@@ -6,6 +6,10 @@ const BASE = "/invoices";
 export const getInvoices = (params = {}) =>
   apiClient("get", BASE, { params });
 
+/** Aggregated billing stats (total, pending, paid, outstanding) — fast DB aggregation */
+export const getInvoiceStats = () =>
+  apiClient("get", `${BASE}/stats`);
+
 /**
  * Get ALL delivered, un-billed sale orders — for billing screen list
  */
@@ -35,9 +39,9 @@ export const issueInvoice = (id) =>
 
 /**
  * Record a payment against an invoice
- * When fully paid → invoice becomes PAID → sale orders become BILLED
+ * When fully paid → invoice becomes PAID → sale orders become COMPLETED
  * @param {number} id - invoice ID
- * @param {{ amount: number, method: string, referenceNo?: string, notes?: string }} data
+ * @param {{ amount: number, method: string, referenceNo?: string, notes?: string, bankLedgerId?: number }} data
  */
 export const recordPayment = (id, data) =>
   apiClient("post", `${BASE}/${id}/payments`, { data });

@@ -18,6 +18,8 @@ export default function Dashboard() {
   const { data: summaryRes, isLoading: summaryLoading } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: getDashboardSummary,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const summary = summaryRes?.data;

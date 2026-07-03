@@ -31,17 +31,26 @@ graph TD
 * Adds computed `finalTotal` to `customer.reserved_amount`.
 * **Credit Block:** If `credit_limit > 0` and `reserved_amount + outstanding_credit + newSOTotal >= credit_limit`, the system blocks order creation with a `CREDIT_LIMIT_EXCEEDED` error.
 
-### B. Invoice Created
-* Links the Sale Order(s) to an Invoice.
+### B. Invoice Created (DRAFT)
+* Links the Sale Order(s) to an Invoice (status `DRAFT`).
 * Moves the invoiced amount from `reserved_amount` to `outstanding_credit`.
+* **No accounting entry posted yet** — `FinancialTransaction` is deferred until the invoice is formally issued (§B2).
+
+### B2. Invoice Issued (DRAFT → ISSUED)
+* Invoice status changes to `ISSUED`; linked Sale Orders change to `INVOICED`.
+* **Accounting entry posted now** (2026-07-03): `postInvoice()` fires → `FinancialTransaction` type `SALE`: Dr Customer AR / Cr Sales Revenue (AC-3001) / Cr GST Output (AC-2003 if tax > 0).
+* Revenue is recognised at issue, not at draft creation.
 
 ### C. Payment Recorded
 * Reduces `outstanding_credit` by the payment amount.
 * If fully paid, sets the Sale Order status to `COMPLETED`.
+* **Accounting entry required (enforced since 2026-07-03):** Every payment (partial or full) must specify a `bankLedgerId` (cash/bank ledger). The backend `invoiceService.recordPayment()` calls `postClientPayment()` when `bankLedgerId` is present → creates a `FinancialTransaction` (Dr Bank/Cash, Cr Customer AR). The `RecordPaymentDialog` UI now fetches available ledgers and requires one to be selected before the submit button is enabled.
+* **Status gate (enforced since 2026-07-03):** Payments are only accepted on invoices in `ISSUED` or `PARTIALLY_PAID` status. Attempting to pay a `DRAFT` invoice returns HTTP 400 (`INVOICE_NOT_ISSUED`). Invoices must be explicitly issued via the "Issue Invoice" action before any payment can be recorded.
 
 ### D. Reversals (Delete / Cancel)
 * **Delete Sale Order:** Decrements `reserved_amount` by the SO total (only if uninvoiced).
-* **Cancel Invoice:** Decrements `outstanding_credit` and increments `reserved_amount` back to indicate active reservation.
+* **Cancel DRAFT Invoice:** Decrements `outstanding_credit` and increments `reserved_amount`. No accounting reversal needed (nothing was posted at DRAFT stage).
+* **Cancel ISSUED / PARTIALLY_PAID Invoice (2026-07-03):** Decrements `outstanding_credit` / increments `reserved_amount` for the unpaid portion. Additionally posts a `reverseInvoice()` `FinancialTransaction` type `JOURNAL`: Dr Sales Revenue / Dr GST Output / Cr Customer AR — fully reversing the issue-time posting. For PARTIALLY_PAID invoices, prior payment `RECEIPT` entries (Dr Bank, Cr AR) are left intact; the net Customer AR balance becomes negative (credit) equal to the payments received, representing a refund owed.
 
 ### E. Client-Side Read-Only Lock (Credit-Limit View-Mode Lock)
 In addition to the server-side hard block on SO creation (§A), `SaleOrderForm.jsx` computes a derived `isCreditBlocked` flag: `credit_limit > 0 && (reserved_amount + outstanding_credit) >= credit_limit`. When true, the entire form collapses to read-only — mirroring the form's existing `mode === "view"` behavior — regardless of whether the route's actual mode is `add`/`edit`/`view`:
@@ -54,6 +63,13 @@ In addition to the server-side hard block on SO creation (§A), `SaleOrderForm.j
 ## Calculate Price Button — Eye-Selection Gate
 The "Calculate Price" button in `SaleOrderForm.jsx` requires `customerId`, `lens_id`, and `coating_id` to be set, **and** (since 2026-07-01) at least one of `rightEye`/`leftEye` to be checked — until an eye is selected, the button stays disabled. This composes with the credit-limit lock above: the button's outer render guard (`isEditing && formData.status === "DRAFT"`) is already gated on `isEditing`, so it disappears automatically once the form is credit-blocked.
 
+## Billing UI — "Awaiting Invoice" Tab
+The second tab in the Billing page (`/billing`) was renamed from "Dispatch Orders" to **"Awaiting Invoice"** (2026-07-03). It lists all Sale Orders in `DELIVERED` status with `invoiceId: null` — i.e. delivered but not yet billed. Clicking "Create Bill" from this tab opens `CreateInvoiceDialog` pre-filtered to the selected customer.
+
+## Quick Close — Payment Dialog Routing
+The legacy "Quick Close" shortcut (which previously called `recordPayment()` directly with `method: CASH` and no bank ledger, bypassing accounting) has been replaced. Quick Close now opens `RecordPaymentDialog` with the remaining balance pre-filled and the amount field locked (read-only). The user must still select the receiving bank/cash ledger from the "Received Into" dropdown before confirming. This ensures all payment paths — partial, full, and quick-close — produce a `FinancialTransaction` entry.
+
 ## Linkages & Dependencies
-* **CRM Module:** References `Customer` records and updates credit fields.
-* **Accounting Module:** Posts client payments and double-entry sales revenue ledger updates.
+* **CRM Module:** References `Customer` records and updates credit fields (`reserved_amount`, `outstanding_credit`).
+* **Accounting Module:** Posts client payment receipts (Dr Bank/Cash, Cr Customer AR) via `postClientPayment()` in `accountingService.js`. Requires a valid `bankLedgerId` from `GET /api/ledgers/cash-bank`.
+* **Logistics Module:** Sale Orders must reach `DELIVERED` status (via Dispatch flow) before they appear in the Awaiting Invoice tab and can be invoiced.
