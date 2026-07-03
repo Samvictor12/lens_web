@@ -17,6 +17,7 @@ import { useSaleOrderColumns } from "./useSaleOrderColumns";
 import SaleOrderFilter from "./SaleOrderFilter";
 import { Refresh } from "@/components/ui/Refresh";
 import SaleOrderStatusLogDialog from "@/components/sale-order/SaleOrderStatusLogDialog";
+import { buildWebSocketUrl } from "@/lib/websocketUrl";
 
 export default function SaleOrderMain() {
   const navigate = useNavigate();
@@ -130,11 +131,7 @@ export default function SaleOrderMain() {
 
   // WebSocket Live Refresh
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_WEB_API_URL || "http://localhost:5001/api";
-    let wsUrl = apiUrl.replace(/^http/, "ws");
-    if (wsUrl.endsWith("/api")) {
-      wsUrl = wsUrl.substring(0, wsUrl.length - 4);
-    }
+    const wsUrl = buildWebSocketUrl();
 
     let socket = null;
     let reconnectTimeout = null;

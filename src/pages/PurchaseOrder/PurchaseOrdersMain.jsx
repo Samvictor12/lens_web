@@ -20,6 +20,7 @@ import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { buildWebSocketUrl } from "@/lib/websocketUrl";
 import {
   Select,
   SelectContent,
@@ -276,11 +277,7 @@ export default function PurchaseOrders() {
 
   // WebSocket Live Refresh
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_WEB_API_URL || "http://localhost:5001/api";
-    let wsUrl = apiUrl.replace(/^http/, "ws");
-    if (wsUrl.endsWith("/api")) {
-      wsUrl = wsUrl.substring(0, wsUrl.length - 4);
-    }
+    const wsUrl = buildWebSocketUrl();
 
     let socket = null;
     let reconnectTimeout = null;

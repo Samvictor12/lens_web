@@ -8,6 +8,18 @@ const prisma = new PrismaClient();
 
 /** Keep autoincrement in sync after seeding rows with explicit ids */
 async function resetTableSequence(tableName) {
+  const tableExists = await prisma.$queryRaw`
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = ${tableName}
+    LIMIT 1
+  `;
+
+  if (!tableExists.length) {
+    console.log(`   ℹ️  ${tableName} table not found, skipping sequence reset`);
+    return;
+  }
+
   await prisma.$executeRawUnsafe(
     `SELECT setval(pg_get_serial_sequence('"${tableName}"', 'id'), COALESCE((SELECT MAX(id) FROM "${tableName}"), 1))`
   );

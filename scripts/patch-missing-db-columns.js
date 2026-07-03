@@ -6,6 +6,7 @@
  * Run: npm run db:patch
  */
 import { PrismaClient } from '@prisma/client';
+import { pathToFileURL } from 'url';
 
 const prisma = new PrismaClient();
 
@@ -60,9 +61,11 @@ async function main() {
   console.log('\n✅ DB patch complete');
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Patch failed:', e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error('❌ Patch failed:', e);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+}
