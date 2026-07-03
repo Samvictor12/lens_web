@@ -17,6 +17,7 @@ export function InvoiceStatusBadge({ status }) {
 
 // ─── InvoiceCard ──────────────────────────────────────────────────────────────
 export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuickClose }) {
+  const isCancelled = invoice.status === "CANCELLED";
   const remaining = invoice.totalAmount - invoice.paidAmount;
   const pct =
     invoice.totalAmount > 0
@@ -43,30 +44,36 @@ export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuick
       </CardHeader>
 
       <CardContent className="space-y-3 flex-1">
-        <div className="grid grid-cols-2 gap-x-4 text-sm">
-          <div>
-            <span className="text-muted-foreground">Total</span>
-            <p className="font-semibold">{fmt(invoice.totalAmount)}</p>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Paid</span>
-            <p className="font-semibold text-green-600">{fmt(invoice.paidAmount)}</p>
-          </div>
-          {remaining > 0.01 && (
-            <div className="col-span-2">
-              <span className="text-muted-foreground">Outstanding</span>
-              <p className="font-bold text-orange-600">{fmt(remaining)}</p>
+        {isCancelled ? (
+          <p className="text-sm text-muted-foreground italic">Invoice cancelled — values voided</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-x-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Total</span>
+                <p className="font-semibold">{fmt(invoice.totalAmount)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Paid</span>
+                <p className="font-semibold text-green-600">{fmt(invoice.paidAmount)}</p>
+              </div>
+              {remaining > 0.01 && (
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Outstanding</span>
+                  <p className="font-bold text-orange-600">{fmt(remaining)}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Payment progress bar */}
-        <div className="w-full bg-muted rounded-full h-1.5">
-          <div
-            className="bg-green-500 h-1.5 rounded-full transition-all"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+            {/* Payment progress bar */}
+            <div className="w-full bg-muted rounded-full h-1.5">
+              <div
+                className="bg-green-500 h-1.5 rounded-full transition-all"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </>
+        )}
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{invoice._count?.saleOrders || 0} orders</span>

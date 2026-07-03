@@ -204,6 +204,38 @@ export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAm
 }
 
 /**
+ * Reverse a previously posted invoice (on cancel).
+ * Dr Sales Revenue (AC-3001), Dr GST Output (AC-2003 if tax > 0), Cr customer's AR ledger
+ */
+export async function reverseInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer }, userId) {
+  const [arLedger, salesLedger] = await Promise.all([
+    getOwnedLedger(tx, customer, 'Customer'),
+    getLedger(tx, 'AC-3001'),
+  ]);
+
+  const tax = parseFloat(taxAmount || 0);
+  const net = parseFloat(totalAmount) - tax;
+
+  const entries = [
+    { ledgerId: salesLedger.id, entryType: 'DEBIT', amount: net, description: `Sales revenue reversal — ${invoiceNo}` },
+    { ledgerId: arLedger.id, entryType: 'CREDIT', amount: parseFloat(totalAmount), description: `Invoice reversal — ${invoiceNo}` },
+  ];
+
+  if (tax > 0.001) {
+    const gstOutputLedger = await getLedger(tx, 'AC-2003');
+    entries.splice(1, 0, { ledgerId: gstOutputLedger.id, entryType: 'DEBIT', amount: tax, description: 'GST Output reversal' });
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'JOURNAL',
+    referenceType: 'INVOICE',
+    referenceId: invoiceId,
+    referenceNumber: invoiceNo,
+    description: `Invoice reversal — ${invoiceNo}`,
+  }, entries, userId);
+}
+
+/**
  * Auto-post on client payment received.
  * Dr Cash/Bank (bankLedgerId), Cr customer's AR ledger (child of AC-1003)
  */

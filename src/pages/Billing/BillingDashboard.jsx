@@ -83,6 +83,7 @@ export default function BillingDashboard({
           ) : (
             <div className="space-y-3">
               {recentInvoices.map((inv) => {
+                const isCancelled = inv.status === "CANCELLED";
                 const remaining = inv.totalAmount - inv.paidAmount;
                 return (
                   <div
@@ -99,14 +100,18 @@ export default function BillingDashboard({
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
                       <InvoiceStatusBadge status={inv.status} />
-                      <div className="text-xs">
-                        <span className="font-semibold">{fmt(inv.totalAmount)}</span>
-                        {remaining > 0.01 && (
-                          <span className="text-orange-600 ml-1">
-                            ({fmt(remaining)} due)
-                          </span>
-                        )}
-                      </div>
+                      {isCancelled ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <div className="text-xs">
+                          <span className="font-semibold">{fmt(inv.totalAmount)}</span>
+                          {remaining > 0.01 && (
+                            <span className="text-orange-600 ml-1">
+                              ({fmt(remaining)} due)
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

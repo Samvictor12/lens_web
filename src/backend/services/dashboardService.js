@@ -12,14 +12,15 @@ export class DashboardService {
   // InvoiceService.createInvoice (invoiceService.js lines 84-93)
   // ──────────────────────────────────────────────────────────
   _saleOrderRevenue(o) {
-    const base = (o.lensPrice || 0) + (o.fittingPrice || 0) + (o.tintingPrice || 0)
+    const lensPrice = o.lensPrice || 0;
+    const extras = (o.fittingPrice || 0) + (o.tintingPrice || 0)
       + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
-    const discountAmt = base * ((o.discount || 0) / 100);
-    // additionalPrice is a JSON array [{ label, amount }]
+    // Discount applies to lens price only — consistent with invoiceService & SaleOrderForm
+    const discountAmt = lensPrice * ((o.discount || 0) / 100);
     const additional = Array.isArray(o.additionalPrice)
       ? o.additionalPrice.reduce((a, x) => a + (x.amount || 0), 0)
       : 0;
-    return base - discountAmt + additional;
+    return lensPrice - discountAmt + extras + additional;
   }
 
   // ──────────────────────────────────────────────────────────

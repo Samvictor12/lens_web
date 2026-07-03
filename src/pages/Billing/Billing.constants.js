@@ -7,17 +7,18 @@ export const fmt = (n) =>
     : "—";
 
 export const orderTotal = (o) => {
-  const base =
-    (o.lensPrice || 0) +
+  const lensPrice = o.lensPrice || 0;
+  const extras =
     (o.fittingPrice || 0) +
     (o.tintingPrice || 0) +
     (o.rightEyeExtra || 0) +
     (o.leftEyeExtra || 0);
-  const disc = base * ((o.discount || 0) / 100);
-  const extra = Array.isArray(o.additionalPrice)
+  // Discount applies to lens price only — matches SaleOrderForm & invoiceService
+  const disc = lensPrice * ((o.discount || 0) / 100);
+  const additional = Array.isArray(o.additionalPrice)
     ? o.additionalPrice.reduce((s, x) => s + (x.amount || 0), 0)
     : 0;
-  return Math.round((base - disc + extra) * 100) / 100;
+  return Math.round((lensPrice - disc + extras + additional) * 100) / 100;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -43,14 +44,15 @@ export function buildInvoiceHtml(invoice) {
   const remaining = invoice.totalAmount - invoice.paidAmount;
   const orderRows = (invoice.saleOrders || [])
     .map((o) => {
-      const base =
-        (o.lensPrice || 0) + (o.fittingPrice || 0) + (o.tintingPrice || 0) +
+      const lensPrice = o.lensPrice || 0;
+      const extras =
+        (o.fittingPrice || 0) + (o.tintingPrice || 0) +
         (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
-      const disc = base * ((o.discount || 0) / 100);
+      const disc = lensPrice * ((o.discount || 0) / 100);
       const extra = Array.isArray(o.additionalPrice)
         ? o.additionalPrice.reduce((s, x) => s + (x.amount || 0), 0)
         : 0;
-      const total = Math.round((base - disc + extra) * 100) / 100;
+      const total = Math.round((lensPrice - disc + extras + extra) * 100) / 100;
       return `<tr>
         <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${o.orderNo}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${o.lensProduct?.lens_name || "—"}</td>

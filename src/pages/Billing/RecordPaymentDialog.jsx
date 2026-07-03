@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CreditCard } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CreditCard, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,16 +20,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { recordPayment } from "@/services/invoice";
+import { getCashBankLedgers } from "@/services/ledger";
 import { fmt, PAYMENT_METHODS } from "./Billing.constants";
 
-export default function RecordPaymentDialog({ invoice, open, onClose }) {
+export default function RecordPaymentDialog({ invoice, open, onClose, amountLocked = false }) {
   const qc = useQueryClient();
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("CASH");
   const [referenceNo, setReferenceNo] = useState("");
   const [notes, setNotes] = useState("");
+  const [bankLedgerId, setBankLedgerId] = useState(null);
 
   const remaining = invoice ? invoice.totalAmount - invoice.paidAmount : 0;
+
+  // Pre-fill amount when amountLocked is true and dialog opens
+  useEffect(() => {
+    if (open && amountLocked && remaining > 0) {
+      setAmount(String(remaining));
+    }
+  }, [open, amountLocked, remaining]);
+
+  const { data: ledgers = [] } = useQuery({
+    queryKey: ["cash-bank-ledgers"],
+    queryFn: getCashBankLedgers,
+    enabled: open,
+  });
 
   const mutation = useMutation({
     mutationFn: ({ id, data }) => recordPayment(id, data),
@@ -48,6 +63,7 @@ export default function RecordPaymentDialog({ invoice, open, onClose }) {
     setMethod("CASH");
     setReferenceNo("");
     setNotes("");
+    setBankLedgerId(null);
     onClose();
   };
 
@@ -56,18 +72,21 @@ export default function RecordPaymentDialog({ invoice, open, onClose }) {
     if (!amt || amt <= 0) return toast.error("Enter a valid amount");
     if (amt > remaining + 0.01)
       return toast.error(`Amount cannot exceed remaining balance ${fmt(remaining)}`);
-    mutation.mutate({
-      id: invoice.id,
-      data: {
-        amount: amt,
-        method,
-        referenceNo: referenceNo || undefined,
-        notes: notes || undefined,
-      },
-    });
+    const payload = {
+      amount: amt,
+      method,
+      referenceNo: referenceNo || undefined,
+      notes: notes || undefined,
+    };
+    if (bankLedgerId) {
+      payload.bankLedgerId = parseInt(bankLedgerId);
+    }
+    mutation.mutate({ id: invoice.id, data: payload });
   };
 
   if (!invoice) return null;
+
+  const isSubmitDisabled = !bankLedgerId || mutation.isPending || ledgers.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -103,8 +122,10 @@ export default function RecordPaymentDialog({ invoice, open, onClose }) {
               min="0.01"
               step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => !amountLocked && setAmount(e.target.value)}
               placeholder={`Max ${fmt(remaining)}`}
+              readOnly={amountLocked}
+              disabled={amountLocked}
             />
           </div>
 
@@ -124,6 +145,37 @@ export default function RecordPaymentDialog({ invoice, open, onClose }) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label>
+              Received Into <span className="text-red-500">*</span>
+            </Label>
+            {ledgers.length === 0 ? (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  No bank/cash accounts configured. Please add a ledger in Accounts → Chart of
+                  Accounts first.
+                </span>
+              </div>
+            ) : (
+              <Select
+                value={bankLedgerId ? String(bankLedgerId) : ""}
+                onValueChange={(v) => setBankLedgerId(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select bank / cash account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ledgers.map((ledger) => (
+                    <SelectItem key={ledger.id} value={String(ledger.id)}>
+                      {ledger.name} ({ledger.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {["UPI", "CARD", "BANK_TRANSFER", "CHECK"].includes(method) && (
@@ -149,7 +201,7 @@ export default function RecordPaymentDialog({ invoice, open, onClose }) {
           {parseFloat(amount) >= remaining && remaining > 0 && (
             <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded p-2">
               ✓ This payment will fully settle the invoice and mark all linked sale orders as{" "}
-              <strong>BILLED</strong>.
+              <strong>COMPLETED</strong>.
             </p>
           )}
         </div>
@@ -158,7 +210,7 @@ export default function RecordPaymentDialog({ invoice, open, onClose }) {
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={mutation.isPending}>
+          <Button onClick={handleSubmit} disabled={isSubmitDisabled}>
             {mutation.isPending ? "Recording…" : "Record Payment"}
           </Button>
         </DialogFooter>

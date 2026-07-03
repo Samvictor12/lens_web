@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   Plus,
   Receipt,
@@ -18,7 +18,7 @@ import { CardGrid } from "@/components/ui/card-grid";
 import { Refresh } from "@/components/ui/Refresh";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { getInvoices, recordPayment } from "@/services/invoice";
+import { getInvoices, getInvoiceStats } from "@/services/invoice";
 
 import { fmt, PAGE_SIZE, billingFilters } from "./Billing.constants";
 import BillingFilter from "./BillingFilter";
@@ -61,21 +61,30 @@ function useBillingColumns(onView, onPay) {
       header: "Total",
       align: "right",
       sortable: true,
-      cell: (row) => <span className="font-semibold">{fmt(row.totalAmount)}</span>,
+      cell: (row) =>
+        row.status === "CANCELLED" ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span className="font-semibold">{fmt(row.totalAmount)}</span>
+        ),
     },
     {
       accessorKey: "paidAmount",
       header: "Paid",
       align: "right",
-      cell: (row) => (
-        <span className="font-semibold text-green-600">{fmt(row.paidAmount)}</span>
-      ),
+      cell: (row) =>
+        row.status === "CANCELLED" ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span className="font-semibold text-green-600">{fmt(row.paidAmount)}</span>
+        ),
     },
     {
       accessorKey: "outstanding",
       header: "Outstanding",
       align: "right",
       cell: (row) => {
+        if (row.status === "CANCELLED") return <span className="text-muted-foreground">—</span>;
         const rem = row.totalAmount - row.paidAmount;
         return rem > 0.01 ? (
           <span className="font-bold text-orange-600">{fmt(rem)}</span>
@@ -123,12 +132,12 @@ function useBillingColumns(onView, onPay) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BillingMain() {
-  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [createOpen, setCreateOpen] = useState(false);
   const [createForCustomer, setCreateForCustomer] = useState("");
   const [detailId, setDetailId] = useState(null);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
+  const [amountLocked, setAmountLocked] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState(null);
 
   // Invoice list controls
@@ -166,36 +175,33 @@ export default function BillingMain() {
   const invoices = res?.data || [];
   const totalCount = res?.pagination?.total || 0;
 
-  // ── Stats query (always on — feeds Dashboard tab) ────────────────────────
+  // ── Stats query — aggregated from DB directly, no full row scan ──────────
   const { data: statsRes, isLoading: statsLoading } = useQuery({
     queryKey: ["invoices-stats", refreshKey],
-    queryFn: () => getInvoices({ limit: 1000 }),
-    staleTime: 30_000,
+    queryFn: getInvoiceStats,
+    staleTime: 60_000,
+    enabled: activeTab === "dashboard",
   });
-
-  const allInvoices = statsRes?.data || [];
 
   const stats = useMemo(
     () => ({
-      total: statsRes?.pagination?.total || 0,
-      pending: allInvoices.filter((i) =>
-        ["DRAFT", "ISSUED", "PARTIALLY_PAID"].includes(i.status)
-      ).length,
-      paid: allInvoices.filter((i) => i.status === "PAID").length,
-      outstanding: allInvoices
-        .filter((i) => i.status !== "CANCELLED")
-        .reduce((s, i) => s + Math.max(0, i.totalAmount - i.paidAmount), 0),
+      total:       statsRes?.data?.total       || 0,
+      pending:     statsRes?.data?.pending     || 0,
+      paid:        statsRes?.data?.paid        || 0,
+      outstanding: statsRes?.data?.outstanding || 0,
     }),
-    [allInvoices, statsRes]
+    [statsRes]
   );
 
-  const recentInvoices = useMemo(
-    () =>
-      [...allInvoices]
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 5),
-    [allInvoices]
-  );
+  // ── Recent invoices query — small, separate, fetches only 5 rows ─────────
+  const { data: recentRes } = useQuery({
+    queryKey: ["invoices-recent", refreshKey],
+    queryFn: () => getInvoices({ limit: 5, page: 1 }),
+    staleTime: 60_000,
+    enabled: activeTab === "dashboard",
+  });
+
+  const recentInvoices = recentRes?.data || [];
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
   const hasActiveFilters = useMemo(
@@ -243,18 +249,6 @@ export default function BillingMain() {
     (inv) => setPaymentInvoice(inv)
   );
 
-  // ── Quick close mutation (one-click full-payment shortcut) ────────────────
-  const quickCloseMutation = useMutation({
-    mutationFn: ({ id, data }) => recordPayment(id, data),
-    onSuccess: (_res, variables) => {
-      toast.success("Invoice closed");
-      qc.invalidateQueries({ queryKey: ["invoices"] });
-      qc.invalidateQueries({ queryKey: ["invoices-stats"] });
-      qc.invalidateQueries({ queryKey: ["invoice", variables.id] });
-    },
-    onError: (err) => toast.error(err?.message || "Failed to close invoice"),
-  });
-
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2">
@@ -293,8 +287,8 @@ export default function BillingMain() {
           </TabsTrigger>
           <TabsTrigger value="dispatched" className="gap-1.5">
             <PackageCheck className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Dispatch Orders</span>
-            <span className="sm:hidden">Dispatch</span>
+            <span className="hidden sm:inline">Awaiting Invoice</span>
+            <span className="sm:hidden">Awaiting Inv.</span>
           </TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5">
             <Receipt className="h-3.5 w-3.5" />
@@ -412,16 +406,10 @@ export default function BillingMain() {
                     onView={(id) => setDetailId(id)}
                     onPreview={(inv) => setPreviewInvoice(inv)}
                     onPay={(inv) => setPaymentInvoice(inv)}
-                    onQuickClose={(inv) =>
-                      quickCloseMutation.mutate({
-                        id: inv.id,
-                        data: {
-                          amount: inv.totalAmount - inv.paidAmount,
-                          method: "CASH",
-                          notes: "Quick close",
-                        },
-                      })
-                    }
+                    onQuickClose={(inv) => {
+                      setPaymentInvoice(inv);
+                      setAmountLocked(true);
+                    }}
                   />
                 )}
                 isLoading={isLoading}
@@ -454,23 +442,25 @@ export default function BillingMain() {
         invoiceId={detailId}
         open={!!detailId}
         onClose={() => setDetailId(null)}
-        onPay={(inv) => setPaymentInvoice(inv)}
+        onPay={(inv) => {
+          setDetailId(null);
+          setPaymentInvoice(inv);
+        }}
+        onQuickClose={(inv) => {
+          setDetailId(null);
+          setPaymentInvoice(inv);
+          setAmountLocked(true);
+        }}
         onPreview={(inv) => setPreviewInvoice(inv)}
-        onQuickClose={(inv) =>
-          quickCloseMutation.mutate({
-            id: inv.id,
-            data: {
-              amount: inv.totalAmount - inv.paidAmount,
-              method: "CASH",
-              notes: "Quick close",
-            },
-          })
-        }
       />
       <RecordPaymentDialog
         invoice={paymentInvoice}
         open={!!paymentInvoice}
-        onClose={() => setPaymentInvoice(null)}
+        amountLocked={amountLocked}
+        onClose={() => {
+          setPaymentInvoice(null);
+          setAmountLocked(false);
+        }}
       />
       <InvoicePreviewDialog
         invoice={previewInvoice}

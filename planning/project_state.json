@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Inventory RX Filter + Sale Order Credit Lock & Calculate-Price Gate",
+  "feature": "Invoice Accounting Timing Fix — Post at Issue, Reverse on Cancel",
   "active_feature_file": "planning/feature.md",
   "phase": "COMPLETED",
   "HUMAN_APPROVED": true,
   "state_tag": "COMPLETED",
   "last_agent": "reviewer",
-  "at": "2026-07-01T02:20:00+05:30"
+  "at": "2026-07-03T07:34:00+05:30"
 }

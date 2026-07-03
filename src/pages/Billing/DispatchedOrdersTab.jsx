@@ -26,7 +26,7 @@ export default function DispatchedOrdersTab({ onBillCustomer }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data: res, isLoading, refetch } = useQuery({
+  const { data: res, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dispatched-orders", { search, page }],
     queryFn: () => getDispatchedOrders({ search: search || undefined, page, limit: 20 }),
     placeholderData: keepPreviousData,
@@ -81,15 +81,32 @@ export default function DispatchedOrdersTab({ onBillCustomer }) {
       </Card>
 
       {isLoading ? (
-        <p className="text-muted-foreground text-center py-10">Loading dispatched orders…</p>
+        <p className="text-muted-foreground text-center py-10">Loading orders…</p>
+      ) : isError ? (
+        <Card className="border-destructive/50">
+          <CardContent className="py-10 flex flex-col items-center gap-2 text-center">
+            <p className="font-medium text-destructive">Failed to load orders</p>
+            <p className="text-sm text-muted-foreground">
+              {typeof error === "string"
+                ? error
+                : error?.message || "An unexpected error occurred. Check your permissions or try refreshing."}
+            </p>
+            <button
+              className="mt-2 text-sm underline text-muted-foreground hover:text-foreground"
+              onClick={() => refetch()}
+            >
+              Retry
+            </button>
+          </CardContent>
+        </Card>
       ) : orders.length === 0 ? (
         <Card>
           <CardContent className="py-16 flex flex-col items-center gap-3">
             <Receipt className="h-12 w-12 text-muted-foreground/50" />
             <p className="text-muted-foreground font-medium">
               {search
-                ? "No delivered orders match your search."
-                : "No delivered orders waiting to be billed."}
+                ? "No orders match your search."
+                : "No orders waiting to be billed."}
             </p>
             <p className="text-sm text-muted-foreground">
               Orders in <strong>DELIVERED</strong> status that are not yet invoiced appear here.
@@ -105,7 +122,8 @@ export default function DispatchedOrdersTab({ onBillCustomer }) {
                   <TableHead>Order No.</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Product / Coating</TableHead>
-                  <TableHead>Dispatch Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Order Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
@@ -125,6 +143,11 @@ export default function DispatchedOrdersTab({ onBillCustomer }) {
                       {o.coating?.name && (
                         <div className="text-xs text-muted-foreground">{o.coating.name}</div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        {o.status}
+                      </span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {o.orderDate

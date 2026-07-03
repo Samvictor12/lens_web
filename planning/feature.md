@@ -2,137 +2,136 @@
 
 This is the single shared feature document (`planning/feature.md`). Each phase owns exactly one section below. Specialist sub-agents must only edit their designated sections and must never commit code.
 
-> **Status: COMPLETED** (2026-07-01) — "Inventory RX Filter + Sale Order Credit Lock & Calculate-Price Gate". QA PASSED after 1 rework cycle. Findings synced to `planning/Modules/Inventory.md` (Pass J), `planning/Modules/Sales.md` (§E + Calculate Price gate), and `planning/ARCHITECTURE.md`. Content below is kept as the archived record of this pass; the next new requirement will overwrite the `Requirement` section onward.
+> **Status: COMPLETED** (2026-07-03) — "Invoice Accounting Timing Fix — Post at Issue, Reverse on Cancel". QA PASSED, first try. Docs synced to `planning/Modules/Sales.md`.
 
 ---
 
 ## Requirement
 
-**Sprint: Inventory RX Filter + Sale Order Credit Lock & Calculate-Price Gate**
+**Sprint: Invoice Accounting Timing Fix — Post at Issue, Reverse on Cancel**
 
-### Feature 1 — Inventory: Exclude RX-sourced Stock from Stock Summary & Initialize Stock Grid
+### Context & Problem Statement
 
-Definition of "RX type product" (confirmed with user): an `InventoryItem` whose originating `PurchaseOrder` has a **non-null `saleOrderId`** — i.e. stock that was procured specifically to fulfill one customer's Sale Order. This is the exact same definition Feature 4 of the prior sprint already uses to filter the Inward Queue (`purchaseOrder: { saleOrderId: null }`), so this stays consistent with existing code. There is **no** per-product RX flag on `LensProductMaster`/`LensCategoryMaster` — RX-ness is a property of the sourcing PO, not the product master record.
+During the billing flow audit, one accounting gap was identified and deferred:
 
-Scope:
-- **Stock Summary List** (`InventoryStockTab.jsx`, "list" view mode, backed by `getInventoryStockGrouped` → `inventory.service.js → getInventoryStockWithGrouping()`): exclude RX-sourced items from both the grouped views (by location/location_tray/category/lens — currently queried off the `InventoryStock` aggregate bucket table) and the ungrouped view (queried directly off `InventoryItem`).
-- **Stock Summary pivot/grid** (`getInventoryStockPivot()` in `inventory.service.js`, used by the "pivot" view of the same tab): exclude RX-sourced `InventoryItem` rows from the pivot aggregation.
-- **Initialize Stock (Grid)** (`InventoryInitializationForm.jsx`, opened from the "Initialize Stock" card in `InventoryDashboard.jsx`): the product dropdown and tray-occupancy/capacity calculations used while building the manual bulk-inward grid must not be inflated or populated by RX-sourced stock.
+**Current (wrong) behaviour:**  
+`invoiceService.createInvoice()` calls `postInvoice()` immediately when the invoice is created as a `DRAFT`. This means:
+- Revenue (Cr Sales, Cr GST) and the AR debit (Dr Customer AR) are recognised the moment a draft invoice is saved — **before the invoice is issued or sent to the customer**.
+- If the draft is **cancelled** before being issued, the Sales and AR ledger entries already posted are **never reversed**. The ledger shows phantom revenue and a phantom AR balance.
 
-**Known technical risk to resolve in Contract phase:** the grouped Stock Summary views read from the `InventoryStock` aggregate bucket table, not `InventoryItem` directly — this table has no direct link to `PurchaseOrder.saleOrderId`. The planner-architect must determine whether to (a) join/filter at the bucket-population layer (wherever `InventoryStock` rows are maintained/updated, e.g. `updateInventoryStock()`), (b) add a denormalized flag to `InventoryStock`, or (c) switch the affected grouped queries to read `InventoryItem` directly with the existing filter. Whichever approach is chosen must not corrupt existing stock totals used elsewhere (e.g. FIFO picking, low-stock alerts) — those must continue to reflect true physical stock including RX-sourced items; only the **display/selection surfaces named above** should exclude RX-sourced stock.
+**Correct behaviour:**  
+Revenue should be recognised only when the invoice is formally issued (`DRAFT → ISSUED`). Cancellation must reverse any accounting that was already posted.
 
-### Feature 2 — Sale Order: Credit-Limit View-Mode Lock
+### Functional Requirements
 
-On the Sale Order form (`SaleOrderForm.jsx`), reuse the existing `mode === "view"` read-only behavior (already used throughout the form to disable recalculation and edits) as the target state for this new condition:
+#### F1 — Move `postInvoice()` from `createInvoice()` to `issueInvoice()` (Backend)
+- Remove the `postInvoice()` call (and its import if it becomes unused at the call site) from `createInvoice()` in `invoiceService.js`.
+- Add `postInvoice()` call inside `issueInvoice()`, within the same Prisma transaction that sets the invoice status to `ISSUED` and sets linked SOs to `INVOICED`.
+- The `postInvoice()` call needs: `{ invoiceId, invoiceNo, totalAmount: invoice.totalAmount, taxAmount: invoice.taxAmount, customer }`. The customer object must include `{ id, code, ledgerId }` — fetch the customer inside `issueInvoice()` before the transaction if not already loaded.
 
-- Compute effective exposure = `customer.reserved_amount + customer.outstanding_credit` (same fields already loaded via `checkCustomerCreditLimit()` / `checkCreditLimit()`, see `customerCreditLimit` state at line ~818-822).
-- If `credit_limit > 0` and `reserved_amount + outstanding_credit >= credit_limit`, the entire Sale Order form (all inputs, selects, and action buttons — not just the price recalculation) must become **read-only**, behaving as if `mode === "view"`, even when the route's actual `mode` is `"add"` or `"edit"`.
-- This is a **display-only** lock in this feature (matching the requirement wording "make the entire form read only"); it does not change the existing server-side hard block in `saleOrderService.js → createSaleOrder()` (F3-BE-1 from the prior sprint, which throws `CREDIT_LIMIT_EXCEEDED` at `>=` limit) — both the client-side visual lock and the server-side hard block apply the same `>=` comparison so they stay consistent.
-- Existing precedent to reuse for the read-only wiring: field `disabled` props already keyed off `mode`/`isEditing`/`formData.status` throughout the form (e.g. lines ~2827, 2891, 3092, 3111-3116).
+#### F2 — Add `reverseInvoice()` to `accountingService.js` (Backend)
+- Create a new exported function `reverseInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer }, userId)`.
+- This must post a **reversal** of `postInvoice()` — i.e. the exact opposite entries:
+  - **Dr** Sales Revenue (`AC-3001`) — net amount (`totalAmount - taxAmount`)
+  - **Dr** GST Output (`AC-2003`) — tax amount (only if `taxAmount > 0.001`)
+  - **Cr** Customer AR ledger (customer's owned ledger) — full `totalAmount`
+- Use `transactionType: 'JOURNAL'`, `referenceType: 'INVOICE'`, `referenceId: invoiceId`, `referenceNumber: invoiceNo`, `description: \`Invoice reversal — ${invoiceNo}\`` .
 
-### Feature 3 — Sale Order: Calculate Price Button Eye-Selection Gate
+#### F3 — Call `reverseInvoice()` from `cancelInvoice()` (Backend)
+- In `invoiceService.cancelInvoice()`, after the existing status checks, add logic to conditionally call `reverseInvoice()` inside the Prisma transaction:
+  - Call `reverseInvoice()` only if `invoice.status` is `ISSUED` or `PARTIALLY_PAID` (those are the statuses that had `postInvoice()` run — only after the move in F1 is done, DRAFT cancellations will no longer have accounting to reverse).
+  - The customer must be fetched with `{ id, code, ledgerId }` before the transaction (same pattern as `recordPayment()`).
+- For `PARTIALLY_PAID` invoices: reverse the **full** invoice amount (not just the unpaid portion). The prior payment receipts (`postClientPayment()` entries: Dr Bank, Cr AR) remain intact — the bank physically received the money. The net effect leaves the customer AR with a credit balance equal to the payments received, which represents a refund owed. This is correct double-entry; the refund process is outside scope.
 
-The "Calculate Price" button (`SaleOrderForm.jsx` ~line 3105-3129) is currently enabled based on `!isCalculating && formData.customerId && formData.lens_id && formData.coating_id`. Add a requirement that **at least one of `formData.rightEye` or `formData.leftEye` must be checked** before the button is enabled — until then it stays disabled. This is in addition to (not a replacement of) the existing enablement conditions, and also composes with Feature 2's credit-lock (the button must also stay disabled/hidden when the form is locked read-only).
+#### F4 — Import `reverseInvoice` in `invoiceService.js`
+- Add `reverseInvoice` to the import from `'./accountingService.js'` in `invoiceService.js`.
+
+### Scope Boundary
+- No Prisma schema changes.
+- No frontend changes.
+- No changes to `postClientPayment()`, `recordPayment()`, or any other service.
+- Existing invoices already in the DB (some may have been posted at DRAFT) are out of scope — this fix applies to all future invoices only.
 
 ---
 
 ## Contract
 
-### F1 — Inventory: Exclude RX-sourced Stock
+### `accountingService.js`
+- [x] Add exported async function `reverseInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer }, userId)` that posts the exact reversal of `postInvoice()`:
+  - Resolve ledgers: `getOwnedLedger(tx, customer, 'Customer')` → `arLedger`; `getLedger(tx, 'AC-3001')` → `salesLedger`
+  - Compute: `tax = parseFloat(taxAmount || 0)`, `net = parseFloat(totalAmount) - tax`
+  - Build entries: `[{ ledgerId: salesLedger.id, entryType: 'DEBIT', amount: net, description: \`Sales revenue reversal — ${invoiceNo}\` }, { ledgerId: arLedger.id, entryType: 'CREDIT', amount: parseFloat(totalAmount), description: \`Invoice reversal — ${invoiceNo}\` }]`
+  - If `tax > 0.001`: fetch `gstOutputLedger = getLedger(tx, 'AC-2003')` and **splice** (or insert before CR entry) `{ ledgerId: gstOutputLedger.id, entryType: 'DEBIT', amount: tax, description: 'GST Output reversal' }`
+  - Call `postTransaction(tx, { transactionType: 'JOURNAL', referenceType: 'INVOICE', referenceId: invoiceId, referenceNumber: invoiceNo, description: \`Invoice reversal — ${invoiceNo}\` }, entries, userId)`
 
-- [x] **F1-BE-1**: In `inventory.service.js`, add a shared filter fragment (module-level const, e.g. `RX_SOURCE_EXCLUSION_FILTER`) for reuse across F1-BE-2..5:
+### `invoiceService.js`
+- [x] **Import line (line 5):** Add `reverseInvoice` to the named import from `'./accountingService.js'` → `import { postInvoice, postClientPayment, reverseInvoice } from './accountingService.js';`
+- [x] **`createInvoice()` (line 139):** Remove the call `await postInvoice(tx, { invoiceId: created.id, invoiceNo, totalAmount: created.totalAmount, taxAmount, customer }, userId);` entirely from the `prisma.$transaction` block. The comment `// Auto-post accounting entry` on the preceding line should also be removed.
+- [x] **`issueInvoice()`:** Before the `prisma.$transaction(...)` call, fetch the customer:
   ```js
-  const RX_SOURCE_EXCLUSION_FILTER = {
-    NOT: { purchaseOrder: { saleOrderId: { not: null } } },
-  };
+  const customer = await prisma.customer.findUnique({ where: { id: invoice.customerId }, select: { id: true, code: true, ledgerId: true } });
+  if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
   ```
-  **Do not** use the simpler `{ purchaseOrder: { saleOrderId: null } }` form (as used in the existing Inward Queue filter) — for `InventoryItem`, Prisma's relation-filter on an optional to-one relation only matches rows that *have* a related `purchaseOrder` satisfying the condition, so it would silently exclude every manually-initialized item (`purchaseOrderId = null`) too. The `NOT: { purchaseOrder: { saleOrderId: { not: null } } }` form correctly keeps rows with no PO (manual stock) and rows whose PO has `saleOrderId = null` (stock-type PO), excluding only rows whose PO has a non-null `saleOrderId` (RX-type PO).
-
-- [x] **F1-BE-2**: In `getInventoryStockPivot()` (~line 1859), add `RX_SOURCE_EXCLUSION_FILTER` into the `where` object (merge into the existing `andClauses`/`where.AND`) so the pivot's `prisma.inventoryItem.findMany` excludes RX-sourced items.
-
-- [x] **F1-BE-3**: In `getInventoryStockWithGrouping()` (~line 1115), "no grouping" / ungrouped branch (~line 1256-1271, queries `prisma.inventoryItem` directly): merge `RX_SOURCE_EXCLUSION_FILTER` into `where`.
-
-- [x] **F1-BE-4**: In `getInventoryStockWithGrouping()`, the four grouped branches (`location`, `location_tray`, `category`, `lens`, ~lines 1164-1255) currently read the pre-aggregated `InventoryStock` bucket table, which has **no** relation to `PurchaseOrder`/`saleOrderId` and mixes RX + non-RX quantities irreversibly. Do **not** modify `InventoryStock`'s schema or its update lifecycle (`updateInventoryStock()` and its ADD/SUBTRACT/RESERVE/UNRESERVE branches), since that table is also relied on elsewhere (FIFO picking, low-stock alerts, reservation math) and must keep reflecting true total physical stock. Instead, replace these 4 branches' data source with a **live aggregation off `InventoryItem`**:
-  - Use `prisma.inventoryItem.groupBy({ by: [...groupKeys], where: { deleteStatus: false, ...RX_SOURCE_EXCLUSION_FILTER, ...existing lens_id/location_id/tray_id/category_id/search filters }, _sum: { quantity: true }, _avg: { costPrice: true }, skip, take })` — group keys: `['location_id']` for `location`, `['location_id','tray_id']` for `location_tray`, `['category_id']` for `category`, `['lens_id']` for `lens`.
-  - Prisma's `groupBy` cannot include relation `search` filters the same way — for the `search` param (lens name/product code/category name/location name), keep the existing approach of resolving matching `lens_id`/`category_id`/`location_id` values via a small lookup query first (or fall back to filtering `search` only on the ungrouped path, matching current behavior where grouped views already only filter by the discrete `lens_id`/`location_id`/`tray_id`/`category_id` params, not `search`).
-  - After grouping, re-attach display metadata (`lensProduct.lens_name`/`product_code`, `category.name`, `location.name`, `tray.name`/`capacity`) via follow-up lookups keyed by the returned group ids — same pattern already used in `getInventoryStockPivot()`'s `locationsMap`/`productMap` construction.
-  - Map `_sum.quantity` → `totalStock`, compute `totalValue = totalStock * (_avg.costPrice || 0)`, to preserve the existing response shape (`{ data, grouping, total }`) so `InventoryStockTab.jsx` requires **no** frontend changes.
-  - Use `prisma.inventoryItem.groupBy(...)` result length (or a separate `count` via `groupBy` + counting distinct groups, e.g. `(await prisma.inventoryItem.groupBy({ by: [...groupKeys], where })).length`) for the `total` pagination count.
-
-- [x] **F1-BE-5**: In `getTrayOccupancy(trayId)` (~line 1070), merge `RX_SOURCE_EXCLUSION_FILTER` into the `where` of the `prisma.inventoryItem.aggregate(...)` call (~line 1082-1085) that computes `currentQty`, so RX-sourced items don't count toward the occupancy/available-capacity shown while building the Initialize Stock grid.
-
-- [x] **F1-FE-1**: No frontend changes required for `InventoryStockTab.jsx` or `InventoryInitializationForm.jsx` — response shapes are preserved by F1-BE-2..5. Manually verify (during QA) that displayed totals/capacity visibly change when RX-sourced stock exists.
-
----
-
-### F2 — Sale Order: Credit-Limit View-Mode Lock
-
-- [x] **F2-FE-1**: In `SaleOrderForm.jsx`, add a memoized derived value near the `customerCreditLimit` state (~line 77):
+  Then, inside the transaction after the `saleOrder.updateMany` call, add:
   ```js
-  const isCreditBlocked = useMemo(() => {
-    const { credit_limit, reserved_amount, outstanding_credit } = customerCreditLimit;
-    if (!credit_limit || credit_limit <= 0) return false;
-    return (reserved_amount || 0) + (outstanding_credit || 0) >= credit_limit;
-  }, [customerCreditLimit]);
+  await postInvoice(tx, { invoiceId, invoiceNo: invoice.invoiceNo, totalAmount: invoice.totalAmount, taxAmount: invoice.taxAmount, customer }, userId);
   ```
-
-- [x] **F2-FE-2**: Add a `useEffect` that forces `setIsEditing(false)` whenever `isCreditBlocked` becomes `true` (so any in-progress "add"/"edit"/toggled-edit state collapses to read-only). Do not force it back to `true` when unblocked — leave that to normal user interaction (toggle/mode navigation).
-
-- [x] **F2-FE-3**: Disable the "Edit"/"Cancel Edit" toggle button (~line 2357-2367, `onClick={toggleEdit}`) by adding `disabled={isCreditBlocked}` so the user cannot re-enter edit mode while blocked.
-
-- [x] **F2-FE-4**: For the 9 field `disabled` props currently keyed directly off `mode !== "add"` rather than `isEditing` (lines ~2489, 2502, 2557, 2799, 2811, 2827, 2847, 2872, 2891 — customer, lens, coating, category/type/dia/fitting selects etc.), append `|| isCreditBlocked` to each so these fields also lock during `mode === "add"` if the selected customer is already at/over their limit (not just in edit/view mode where they're already disabled via `mode !== "add"`).
-
-- [x] **F2-FE-5**: Update the Save/Update submit button visibility condition (~line 2272, currently `(mode !== "view" || isEditing)`) to `(mode !== "view" || isEditing) && !isCreditBlocked`, hiding the Save/Update action entirely while blocked.
-
-- [x] **F2-FE-6**: Add a visible inline warning banner/alert near the credit badge (~line 2492 `helperText`) shown when `isCreditBlocked` is true, e.g. "This customer has reached their credit limit — the order is read-only until reserved/outstanding amount is reduced." (Reuse existing `Alert`/toast UI primitives already imported in this file; do not introduce a new dependency.)
-
-- [x] **F2-FE-7**: Do not modify the existing server-side hard block in `saleOrderService.js → createSaleOrder()` — it already enforces `>=` at creation time (prior sprint's F3-BE-1). This feature is a client-side read-only presentation layered on top; both must keep using `>=` so behavior stays consistent.
-
----
-
-### F3 — Sale Order: Calculate Price Button Eye-Selection Gate
-
-- [x] **F3-FE-1**: In `SaleOrderForm.jsx` (~line 3111-3116), update the Calculate Price button's `disabled` condition:
+- [x] **`cancelInvoice()`:** In the initial `prisma.invoice.findUnique` call, expand the `include` to also fetch the customer — add `customer: { select: { id: true, code: true, ledgerId: true } }` to the `include` object. Then inside `prisma.$transaction`, after the `invoice.update` call, add a conditional reversal block:
   ```js
-  disabled={
-    isCalculating ||
-    !formData.customerId ||
-    !formData.lens_id ||
-    !formData.coating_id ||
-    !(formData.rightEye || formData.leftEye)
+  if (['ISSUED', 'PARTIALLY_PAID'].includes(invoice.status)) {
+    await reverseInvoice(tx, { invoiceId, invoiceNo: invoice.invoiceNo, totalAmount: invoice.totalAmount, taxAmount: invoice.taxAmount, customer: invoice.customer }, userId);
   }
   ```
-  The button's outer render guard already reads `{isEditing && formData.status === "DRAFT" && <Button ...>}` (~line 3105), so it is automatically hidden once F2-FE-2 forces `isEditing` to `false` under credit-lock — no additional guard needed here for F2 interaction.
 
 ---
 
-## Test plan
+## Build Log
 
-### F1 — Inventory: Exclude RX-sourced Stock
+**2026-07-03 — implementer-fullstack**
 
-- [x] **T-F1-1**: Create an RX-linked PO (`saleOrderId` set) and inward-receive it into an `InventoryItem`. Create a separate stock-type PO (`saleOrderId = null`) and inward-receive it too. Also manually add stock via Initialize Stock Grid (`purchaseOrderId = null`).
-- [x] **T-F1-2**: Open Inventory → Stock Summary → "list" view. Confirm the RX-sourced item's quantity does NOT appear/contribute to totals; confirm both the stock-type PO item and the manually-initialized item DO appear.
-- [x] **T-F1-3**: Switch groupBy to each of location / location_tray / category / lens. Confirm RX-sourced quantities are excluded from every grouping's totals, and non-RX quantities (PO-sourced and manual) are still correctly summed.
-- [x] **T-F1-4**: Open Inventory → Stock Summary → "pivot" view. Confirm the same RX-exclusion holds.
-- [x] **T-F1-5**: Confirm pagination (`total` count) in grouped list view reflects only non-RX groups/rows.
-- [x] **T-F1-6**: Open Initialize Stock (Add Stock wizard) for a tray that also holds RX-sourced items. Confirm the displayed tray occupancy/available capacity excludes the RX-sourced quantity (i.e. available capacity is higher than if RX stock were counted).
-- [x] **T-F1-7**: Regression — confirm FIFO stock-picking (`getMatchingInventoryFIFO`) and low-stock alerts still account for RX-sourced items (i.e. `InventoryStock` bucket totals and its other readers are unaffected by this change).
+1. **`accountingService.js`** — Added exported `reverseInvoice()` function immediately after `postInvoice()`. Posts a JOURNAL transaction that Dr Sales Revenue (AC-3001) and Dr GST Output (AC-2003, if tax > 0.001) and Cr Customer AR ledger for the full invoice amount — the exact mirror of `postInvoice()`.
 
-### F2 — Sale Order: Credit-Limit View-Mode Lock
+2. **`invoiceService.js` — import** — Added `reverseInvoice` to the named import from `'./accountingService.js'`.
 
-- [x] **T-F2-1**: Set customer `credit_limit = 5000`, `reserved_amount = 3000`, `outstanding_credit = 2000` (sum = 5000, i.e. `>=` limit). Open/create a Sale Order for this customer. Confirm all fields render disabled, the Save/Update button is hidden, the Calculate Price button is hidden, and the Edit toggle (if in view mode) is disabled.
-- [x] **T-F2-2**: Confirm the warning banner is visible explaining the read-only state.
-- [x] **T-F2-3**: Reduce `reserved_amount + outstanding_credit` below `credit_limit` (e.g. via a payment) and reopen/refresh the SO form. Confirm the form is editable again.
-- [x] **T-F2-4**: Customer with `credit_limit = 0` (no limit configured) — confirm the form is never locked regardless of reserved/outstanding amounts.
-- [x] **T-F2-5**: Attempt SO creation via API directly (bypassing UI) while blocked — confirm server still rejects with `CREDIT_LIMIT_EXCEEDED` (existing behavior, unchanged).
+3. **`invoiceService.js` — `createInvoice()`** — Removed the `postInvoice()` call (and its "Auto-post accounting entry" comment) from inside the `prisma.$transaction` block. Invoices now start as DRAFT with no accounting entries.
 
-### F3 — Sale Order: Calculate Price Button Eye-Selection Gate
+4. **`invoiceService.js` — `issueInvoice()`** — Added `prisma.customer.findUnique` to fetch `{ id, code, ledgerId }` before the transaction. Inside the transaction, after `saleOrder.updateMany`, added `await postInvoice(...)` so accounting is posted exactly when the invoice is formally issued.
 
-- [x] **T-F3-1**: New/draft SO with customer, lens, and coating selected but neither `rightEye` nor `leftEye` checked. Confirm Calculate Price button is disabled.
-- [x] **T-F3-2**: Check `rightEye` only. Confirm button becomes enabled.
-- [x] **T-F3-3**: Uncheck `rightEye`, check `leftEye` only. Confirm button stays enabled.
-- [x] **T-F3-4**: Uncheck both eyes. Confirm button becomes disabled again.
-- [x] **T-F3-5**: Combine with F2 — customer at/over credit limit: confirm Calculate Price button stays hidden regardless of eye selection.
+5. **`invoiceService.js` — `cancelInvoice()`** — Expanded the initial `findUnique` `include` to also load `customer: { select: { id, code, ledgerId } }`. Inside `prisma.$transaction`, after the customer credit reversal block, added a conditional `reverseInvoice()` call that fires only when `invoice.status` is `ISSUED` or `PARTIALLY_PAID`.
+
+---
+
+## QA / Test Plan
+
+- [x] **TC1 — Create invoice → no FinancialTransaction posted**
+  - **Test Data:** Two DELIVERED sale orders for the same customer; one with tax, one without.
+  - **Steps:** Call `POST /api/invoices` (or `invoiceService.createInvoice()`). Query `FinancialTransaction` table filtered by `referenceType = 'INVOICE'` and the new `invoiceId`.
+  - **Expected:** Zero `FinancialTransaction` rows exist for the new invoice. Invoice status is `DRAFT`.
+
+- [x] **TC2 — Issue invoice → FinancialTransaction posted correctly**
+  - **Test Data:** An existing DRAFT invoice with `totalAmount = 1180`, `taxAmount = 180` (net = 1000).
+  - **Steps:** Call `PUT /api/invoices/:id/issue` (or `invoiceService.issueInvoice(invoiceId)`). Query `FinancialTransaction` and its `JournalEntry` rows for this invoice.
+  - **Expected:** One `FinancialTransaction` with `transactionType = 'SALE'`, `referenceType = 'INVOICE'`. Three `JournalEntry` rows: Dr Customer AR ledger ₹1180, Cr AC-3001 (Sales) ₹1000, Cr AC-2003 (GST Output) ₹180. Invoice status is `ISSUED`.
+
+- [x] **TC3 — Cancel DRAFT invoice → no reversal FinancialTransaction**
+  - **Test Data:** A DRAFT invoice (TC1 invoice, no accounting posted).
+  - **Steps:** Call `PUT /api/invoices/:id/cancel` (or `invoiceService.cancelInvoice(invoiceId)`). Query `FinancialTransaction` for this invoiceId.
+  - **Expected:** Zero `FinancialTransaction` rows created by the cancellation. Invoice status is `CANCELLED`. Linked sale orders return to `DELIVERED`.
+
+- [x] **TC4 — Cancel ISSUED invoice → full reversal FinancialTransaction posted**
+  - **Test Data:** The ISSUED invoice from TC2 (`totalAmount = 1180`, `taxAmount = 180`). No payments recorded yet.
+  - **Steps:** Call `cancelInvoice(invoiceId)`. Query `FinancialTransaction` rows for this invoiceId.
+  - **Expected:** A second `FinancialTransaction` exists with `transactionType = 'JOURNAL'`, `description = 'Invoice reversal — <invoiceNo>'`. Its `JournalEntry` rows: Dr AC-3001 (Sales) ₹1000, Dr AC-2003 (GST Output) ₹180, Cr Customer AR ledger ₹1180. Net ledger balance for Customer AR is zero (original debit + reversal credit cancel out). Invoice status is `CANCELLED`.
+
+- [x] **TC5 — Cancel PARTIALLY_PAID invoice → full reversal posted; payment entries untouched**
+  - **Test Data:** An ISSUED invoice with `totalAmount = 1180`. Record a partial payment of ₹500 via `recordPayment()`. Then cancel.
+  - **Steps:** Cancel the invoice. Query all `FinancialTransaction` rows for this invoiceId.
+  - **Expected:** Three transactions total: (1) the original SALE posting (Dr AR ₹1180, Cr Sales ₹1000, Cr GST ₹180), (2) the RECEIPT posting (Dr Bank ₹500, Cr AR ₹500), (3) the JOURNAL reversal (Dr Sales ₹1000, Dr GST ₹180, Cr AR ₹1180). The RECEIPT entries are untouched. Net Customer AR balance = −₹500 (credit, representing refund owed). Invoice status is `CANCELLED`.
+
+- [x] **TC6 — Normal payment flow unaffected**
+  - **Test Data:** An ISSUED invoice with `totalAmount = 1000`, `taxAmount = 0`.
+  - **Steps:** Call `recordPayment(invoiceId, { amount: 1000, bankLedgerId: <valid bank ledger id>, ... })`. Query `FinancialTransaction` for this invoice.
+  - **Expected:** Two transactions: (1) SALE posting from `issueInvoice()` (Dr AR ₹1000, Cr Sales ₹1000), (2) RECEIPT posting from `recordPayment()` (Dr Bank ₹1000, Cr AR ₹1000). Invoice status is `PAID`. Linked sale orders move to `COMPLETED`.
 
 ---
 
@@ -141,20 +140,20 @@ The "Calculate Price" button (`SaleOrderForm.jsx` ~line 3105-3129) is currently 
 result: PASS
 levels: L1 PASS, L2 PASS, L3 PASS, L4 PASS, L5 PASS
 
-### Retest summary (post-rework)
+### Detail
 
-Rework fixed the L2 field-mapping gap identified in the prior QA pass. Verified this time with **live seeded data** in the dev DB (not just static code review / empty-DB smoke calls):
+**L1 — Build/Imports:** `reverseInvoice` is exported from `accountingService.js` (line 210) and correctly imported in `invoiceService.js` (line 5: `import { postInvoice, postClientPayment, reverseInvoice } from './accountingService.js'`). No Prisma schema changes required or present.
 
-- Seeded: 1 non-RX lens product/category/location/tray, 2 non-RX `InventoryItem` rows (qty 5 `AVAILABLE` @ cost 100, qty 3 `RESERVED` @ cost 120, inward in that order), plus 1 RX-linked `PurchaseOrder` (`saleOrderId` set) with a qty-50 `InventoryItem` sourced from it.
-- `getInventoryStockWithGrouping({ groupBy: 'location' | 'location_tray' | 'category' | 'lens' })` → single row: `totalStock: 8` (5+3, RX's 50 correctly excluded), `availableStock: 5`, `reservedStock: 3`, `damagedStock: 0`, `avgCostPrice: 110`, `lastCostPrice: 120` (correctly the most-recently-inwarded row's cost, not just the max), `totalValue: 880`, `lastInwardDate` populated — all fields now present and numerically correct, resolving the previously-reported bug (`inventory.service.js` L2 field-mapping gap in the grouped branches).
-- `getInventoryStockWithGrouping({})` (ungrouped): `total: 2` (RX item correctly excluded from the count/list).
-- `getInventoryStockPivot({})`: pivot product total qty = 8 (RX's 50 excluded).
-- `getTrayOccupancy(trayId)`: `currentQty: 8`, `availableQty: 92` (RX's 50 excluded from occupancy, matching F1-BE-5's intent for Initialize Stock capacity checks).
-- All seeded test rows (InventoryItem, PurchaseOrder, LensProductMaster + its category/material/type/brand, TrayMaster, LocationMaster) were deleted after verification; confirmed dev DB returns to a clean state (`inventoryItem` count 0, no `QA-*`-prefixed rows remaining).
-- L1: `npx vite build` re-run after rework — 4196 modules transformed, no errors.
-- L4 (business rules): `availableStock = totalStock - reservedStock` intentionally mirrors `InventoryStock`'s own documented derivation (schema.prisma comment), not a raw `status === 'AVAILABLE'` sum — consistent with pre-existing bucket semantics, not a new behavior.
-- L5 (regression / other readers unaffected): `updateInventoryStock()` and the `InventoryStock` table's own lifecycle were not touched by this change (confirmed via `git diff --stat` showing no edits to that function); FIFO picking (`getMatchingInventoryFIFO` in `saleOrderService.js`) and low-stock alerts read from `InventoryStock`/`InventoryItem` through code paths untouched by this feature, so they still account for RX-sourced stock as before.
+**L2 — Entry balance:** `reverseInvoice()` resolves `arLedger` via `getOwnedLedger(tx, customer, 'Customer')` and `salesLedger` via `getLedger(tx, 'AC-3001')`. Entries: Dr salesLedger (`net = totalAmount - tax`), Dr gstOutputLedger (`tax`, spliced at index 1 before CR when `tax > 0.001`), Cr arLedger (`totalAmount`). Balance: Dr = net + tax = totalAmount = Cr. `postTransaction()` enforces this with `Math.abs(totalDr - totalCr) > 0.01` guard.
 
-Carried over from the initial QA pass (F2/F3, unaffected by the F1 rework):
-- **F2 (Credit-Limit View-Mode Lock)**: `isCreditBlocked` memo, `useEffect` collapsing `isEditing`, Edit-toggle disable, 9 `mode !== "add"` field guards, Save/Update button visibility, and the warning banner reviewed in `SaleOrderForm.jsx` — logically sound. `>=` threshold matches the existing server-side `CREDIT_LIMIT_EXCEEDED` check in `saleOrderService.js` (confirmed unmodified via `git diff --stat`), `credit_limit <= 0` never blocks, and `checkCustomerCreditLimit()` is called on both existing-order load (`fetchSaleOrder()`) and customer selection.
-- **F3 (Calculate Price eye-selection gate)**: `disabled` condition correctly requires `formData.rightEye || formData.leftEye`; composes correctly with F2's forced `isEditing = false` under credit-lock.
+**L3 — Guard logic:** `cancelInvoice()` checks `['ISSUED', 'PARTIALLY_PAID'].includes(invoice.status)` before calling `reverseInvoice()`. `DRAFT` cancellations do not trigger reversal. `PAID` and `CANCELLED` are already blocked by the pre-transaction status guards (`throw APIError`) — they never reach the reversal block.
+
+**L4 — Business rules:**
+- `issueInvoice()` reads `taxAmount: invoice.taxAmount` (the persisted DB value from the fetched `invoice` object, line 443) — not from `req.body`. The old `req?.body?.taxAmount` in `createInvoice()` is only used to store the value at DRAFT creation, not at posting.
+- `cancelInvoice()` `findUnique` at lines 333–339 includes `customer: { select: { id: true, code: true, ledgerId: true } }`, so `invoice.customer` is fully populated when passed to `reverseInvoice()`.
+- `reverseInvoice()` is called AFTER `tx.invoice.update({ status: 'CANCELLED' })` (line 364 updates status; lines 382–390 call reversal) — order is correct.
+
+**L5 — KB regression:**
+- `postInvoice()` (lines 178–204) is completely unchanged; `transactionType: 'SALE'` confirmed.
+- `postClientPayment()` (lines 242–259) and `recordPayment()` (lines 233–326) are untouched.
+- No `postInvoice` call exists anywhere inside `createInvoice()`'s `prisma.$transaction` block (lines 104–139) — only invoice create, SO link, and customer credit update remain.

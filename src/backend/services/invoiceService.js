@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { logCreate, logUpdate, logDelete } from '../utils/auditLogger.js';
 import { logDatabaseError, logNotFoundError, logBusinessError } from '../utils/errorLogger.js';
-import { postInvoice, postClientPayment } from './accountingService.js';
+import { postInvoice, postClientPayment, reverseInvoice } from './accountingService.js';
 
 /**
  * Invoice Service
@@ -39,10 +39,13 @@ export class InvoiceService {
         throw new APIError('At least one sale order is required', 400, 'NO_ORDERS');
       }
 
-      // Fetch all requested sale orders
+      // Fetch all requested sale orders (include invoice status to detect cancelled-invoice SOs)
       const orders = await prisma.saleOrder.findMany({
         where: { id: { in: saleOrderIds }, deleteStatus: false },
-        include: { customer: { select: { id: true, name: true, code: true } } },
+        include: {
+          customer: { select: { id: true, name: true, code: true } },
+          invoice: { select: { status: true } },
+        },
       });
 
       if (orders.length !== saleOrderIds.length) {
@@ -53,7 +56,7 @@ export class InvoiceService {
       const nonDelivered = orders.filter(o => o.status !== 'DELIVERED');
       if (nonDelivered.length) {
         throw new APIError(
-          `Sale orders must be in DELIVERED status before billing. Non-delivered: ${nonDelivered.map(o => o.orderNo).join(', ')}`,
+          `Sale orders must be DELIVERED before billing. Not ready: ${nonDelivered.map(o => `${o.orderNo} (${o.status})`).join(', ')}`,
           400,
           'ORDERS_NOT_DELIVERED'
         );
@@ -69,8 +72,10 @@ export class InvoiceService {
         );
       }
 
-      // None should already be linked to an open invoice
-      const alreadyBilled = orders.filter(o => o.invoiceId !== null);
+      // None should already be linked to an active (non-cancelled) invoice
+      const alreadyBilled = orders.filter(
+        o => o.invoiceId !== null && o.invoice?.status !== 'CANCELLED'
+      );
       if (alreadyBilled.length) {
         throw new APIError(
           `Some orders are already on an invoice: ${alreadyBilled.map(o => o.orderNo).join(', ')}`,
@@ -118,7 +123,7 @@ export class InvoiceService {
           },
         });
 
-        // Link all sale orders to this invoice
+        // Link all sale orders to this invoice (overwrites any prior cancelled-invoice link)
         await tx.saleOrder.updateMany({
           where: { id: { in: saleOrderIds } },
           data: { invoiceId: created.id, updatedBy: userId },
@@ -134,9 +139,6 @@ export class InvoiceService {
             outstanding_credit: { increment: invoicedTotal },
           },
         });
-
-        // Auto-post accounting entry
-        await postInvoice(tx, { invoiceId: created.id, invoiceNo, totalAmount: created.totalAmount, taxAmount, customer }, userId);
 
         return created;
       });
@@ -247,6 +249,10 @@ export class InvoiceService {
         throw new APIError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
       }
 
+      if (invoice.status === 'DRAFT') {
+        throw new APIError('Invoice must be issued before recording payment. Please issue the invoice first.', 400, 'INVOICE_NOT_ISSUED');
+      }
+
       if (['PAID', 'CANCELLED'].includes(invoice.status)) {
         throw new APIError(`Cannot add payment to a ${invoice.status} invoice`, 400, 'INVOICE_CLOSED');
       }
@@ -331,7 +337,10 @@ export class InvoiceService {
     try {
       const invoice = await prisma.invoice.findUnique({
         where: { id: invoiceId },
-        include: { saleOrders: { select: { id: true } } },
+        include: {
+          saleOrders: { select: { id: true } },
+          customer: { select: { id: true, code: true, ledgerId: true } },
+        },
       });
 
       if (!invoice || invoice.deleteStatus) {
@@ -349,11 +358,12 @@ export class InvoiceService {
       const saleOrderIds = invoice.saleOrders.map(s => s.id);
 
       await prisma.$transaction(async (tx) => {
-        // Unlink sale orders and return them to DELIVERED
+        // Return SOs to DELIVERED status so they can be re-invoiced,
+        // but keep invoiceId intact so the cancelled invoice retains its SO history for review.
         if (saleOrderIds.length) {
           await tx.saleOrder.updateMany({
             where: { id: { in: saleOrderIds } },
-            data: { invoiceId: null, status: 'DELIVERED', updatedBy: userId },
+            data: { status: 'DELIVERED', updatedBy: userId },
           });
         }
 
@@ -372,6 +382,17 @@ export class InvoiceService {
               reserved_amount: { increment: unpaidAmount },
             },
           });
+        }
+
+        // Reverse accounting if invoice was already posted (ISSUED or PARTIALLY_PAID)
+        if (['ISSUED', 'PARTIALLY_PAID'].includes(invoice.status)) {
+          await reverseInvoice(tx, {
+            invoiceId,
+            invoiceNo: invoice.invoiceNo,
+            totalAmount: invoice.totalAmount,
+            taxAmount: invoice.taxAmount,
+            customer: invoice.customer,
+          }, userId);
         }
       });
 
@@ -408,6 +429,12 @@ export class InvoiceService {
         throw new APIError(`Invoice is already ${invoice.status}`, 400, 'INVALID_STATUS_TRANSITION');
       }
 
+      const customer = await prisma.customer.findUnique({
+        where: { id: invoice.customerId },
+        select: { id: true, code: true, ledgerId: true },
+      });
+      if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+
       const updated = await prisma.$transaction(async (tx) => {
         const issued = await tx.invoice.update({
           where: { id: invoiceId },
@@ -418,6 +445,8 @@ export class InvoiceService {
           where: { invoiceId, deleteStatus: false },
           data: { status: 'INVOICED', updatedBy: userId },
         });
+
+        await postInvoice(tx, { invoiceId, invoiceNo: invoice.invoiceNo, totalAmount: invoice.totalAmount, taxAmount: invoice.taxAmount, customer }, userId);
 
         return issued;
       });
@@ -442,8 +471,12 @@ export class InvoiceService {
     const skip = (page - 1) * limit;
     const where = {
       status: 'DELIVERED',
-      invoiceId: null,
       deleteStatus: false,
+      // Include SOs with no invoice OR SOs whose invoice was cancelled (available for re-invoicing)
+      OR: [
+        { invoiceId: null },
+        { invoice: { status: 'CANCELLED' } },
+      ],
       ...(customerId && { customerId: parseInt(customerId) }),
       ...(search && {
         OR: [
@@ -485,6 +518,36 @@ export class InvoiceService {
   }
 
   // ──────────────────────────────────────────────────────────
+  // Aggregated stats for the Billing dashboard (fast, no row scan)
+  // ──────────────────────────────────────────────────────────
+  async getStats() {
+    const [total, grouped, outstandingAgg] = await Promise.all([
+      prisma.invoice.count({ where: { deleteStatus: false } }),
+      prisma.invoice.groupBy({
+        by: ['status'],
+        where: { deleteStatus: false },
+        _count: { id: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { deleteStatus: false, status: { not: 'CANCELLED' } },
+        _sum: { totalAmount: true, paidAmount: true },
+      }),
+    ]);
+
+    const byStatus = {};
+    for (const g of grouped) byStatus[g.status] = g._count.id;
+
+    const totalRevenue = outstandingAgg._sum.totalAmount || 0;
+    const totalPaid    = outstandingAgg._sum.paidAmount  || 0;
+    const outstanding  = Math.max(0, totalRevenue - totalPaid);
+
+    const pending = (byStatus['DRAFT'] || 0) + (byStatus['ISSUED'] || 0) + (byStatus['PARTIALLY_PAID'] || 0);
+    const paid    = byStatus['PAID'] || 0;
+
+    return { total, pending, paid, outstanding, byStatus };
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Get delivered (unbilled) orders for a specific customer
   // ──────────────────────────────────────────────────────────
   async getDeliveredOrders(customerId) {
@@ -492,8 +555,12 @@ export class InvoiceService {
       where: {
         customerId: parseInt(customerId),
         status: 'DELIVERED',
-        invoiceId: null,
         deleteStatus: false,
+        // Include SOs with no invoice OR SOs from a cancelled invoice (available for re-invoicing)
+        OR: [
+          { invoiceId: null },
+          { invoice: { status: 'CANCELLED' } },
+        ],
       },
       select: {
         id: true, orderNo: true, orderDate: true, status: true,

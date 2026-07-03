@@ -134,7 +134,7 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
                 <p className="text-sm text-muted-foreground py-2">Loading orders…</p>
               ) : deliveredOrders.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No dispatched or delivered un-billed orders for this customer.
+                  No un-billed orders for this customer. Orders must be in <strong>DELIVERED</strong> status and not already linked to an invoice.
                 </p>
               ) : (
                 <div className="border rounded-md divide-y max-h-56 overflow-y-auto">
