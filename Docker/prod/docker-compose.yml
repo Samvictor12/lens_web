@@ -54,6 +54,7 @@ services:
       args:
         VITE_BACKEND_URL: ${VITE_BACKEND_URL}
         VITE_WEB_API_URL: ${VITE_WEB_API_URL}
+        VITE_WS_URL: ${VITE_WS_URL:-}
     container_name: lens_prod_frontend
     image: lens-prod-frontend:latest
     ports:

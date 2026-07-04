@@ -76,6 +76,7 @@ services:
         # Pass environment variables as build arguments for Vite
         VITE_BACKEND_URL: http://${IPADDRESS}:${PORT}
         VITE_WEB_API_URL: http://${IPADDRESS}:${PORT}/api
+        VITE_WS_URL: ${VITE_WS_URL:-}
     container_name: lens_frontend
     image: lens-frontend:latest
     ports:

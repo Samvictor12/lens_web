@@ -177,16 +177,16 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
   );
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onCancel?.(); }}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open size="wide" onOpenChange={(open) => { if (!open) onCancel?.(); }}>
+      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <Package className="h-5 w-5 text-blue-600" />
             Inventory Stock Pick (FIFO Allocation)
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-3">
+        <div className="min-h-0 overflow-y-auto pr-2 space-y-4 py-3">
           {/* Sale Order Details Header Card */}
           {saleOrder && (
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs shadow-sm">
@@ -253,7 +253,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 border-t pt-3 mt-2">
+        <DialogFooter className="shrink-0 gap-2 sm:gap-0 border-t pt-3 mt-2 bg-background">
           <Button variant="outline" onClick={onCancel} disabled={isConfirming}>
             Cancel
           </Button>

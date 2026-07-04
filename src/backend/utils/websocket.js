@@ -7,7 +7,7 @@ let wss = null;
  * @param {import('http').Server} server 
  */
 export const initWebSocket = (server) => {
-  wss = new WebSocketServer({ server });
+  wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws) => {
     console.log('🔌 Client connected via WebSocket');
