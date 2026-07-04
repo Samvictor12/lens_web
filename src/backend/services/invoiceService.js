@@ -2,7 +2,7 @@ import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { logCreate, logUpdate, logDelete } from '../utils/auditLogger.js';
 import { logDatabaseError, logNotFoundError, logBusinessError } from '../utils/errorLogger.js';
-import { postInvoice, postClientPayment, reverseInvoice } from './accountingService.js';
+import { postInvoice, reverseInvoice } from './accountingService.js';
 
 /**
  * Invoice Service
@@ -235,99 +235,12 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Record a payment against an invoice
   // ──────────────────────────────────────────────────────────
-  async recordPayment(invoiceId, { amount, method, referenceNo, notes, bankLedgerId }, userId, req = null) {
-    try {
-      const invoice = await prisma.invoice.findUnique({
-        where: { id: invoiceId },
-        include: {
-          saleOrders: { select: { id: true } },
-          customer: { select: { id: true, code: true, ledgerId: true } },
-        },
-      });
-
-      if (!invoice || invoice.deleteStatus) {
-        throw new APIError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
-      }
-
-      if (invoice.status === 'DRAFT') {
-        throw new APIError('Invoice must be issued before recording payment. Please issue the invoice first.', 400, 'INVOICE_NOT_ISSUED');
-      }
-
-      if (['PAID', 'CANCELLED'].includes(invoice.status)) {
-        throw new APIError(`Cannot add payment to a ${invoice.status} invoice`, 400, 'INVOICE_CLOSED');
-      }
-
-      const newPaidAmount = Math.round((invoice.paidAmount + amount) * 100) / 100;
-      if (newPaidAmount > invoice.totalAmount) {
-        throw new APIError(
-          `Payment of ₹${amount} would exceed invoice total of ₹${invoice.totalAmount}`,
-          400,
-          'PAYMENT_EXCEEDS_TOTAL'
-        );
-      }
-
-      // Determine new invoice status
-      const isFullyPaid = newPaidAmount >= invoice.totalAmount;
-      const newInvoiceStatus = isFullyPaid ? 'PAID'
-        : newPaidAmount > 0 ? 'PARTIALLY_PAID'
-        : invoice.status;
-
-      const saleOrderIds = invoice.saleOrders.map(s => s.id);
-
-      await prisma.$transaction(async (tx) => {
-        // Record payment
-        await tx.payment.create({
-          data: {
-            invoiceId,
-            amount,
-            method,
-            referenceNo: referenceNo || null,
-            notes: notes || null,
-          },
-        });
-
-        // Update invoice paid amount + status
-        await tx.invoice.update({
-          where: { id: invoiceId },
-          data: { paidAmount: newPaidAmount, status: newInvoiceStatus, updatedBy: userId },
-        });
-
-        // Decrement customer outstanding_credit by payment amount
-        await tx.customer.update({
-          where: { id: invoice.customer.id },
-          data: { outstanding_credit: { decrement: amount } },
-        });
-
-        // If fully paid → mark all linked sale orders as COMPLETED
-        if (isFullyPaid && saleOrderIds.length) {
-          await tx.saleOrder.updateMany({
-            where: { id: { in: saleOrderIds } },
-            data: { status: 'COMPLETED', updatedBy: userId },
-          });
-        }
-
-        // Auto-post accounting entry if bankLedgerId provided
-        if (bankLedgerId) {
-          await postClientPayment(tx, { invoiceId, invoiceNo: invoice.invoiceNo, amount, bankLedgerId: parseInt(bankLedgerId), customer: invoice.customer }, userId);
-        }
-      });
-
-      await logUpdate({
-        userId,
-        entity: 'Invoice',
-        entityId: invoiceId,
-        oldValues: { paidAmount: invoice.paidAmount, status: invoice.status },
-        newValues: { paidAmount: newPaidAmount, status: newInvoiceStatus },
-        req,
-        metadata: { operation: 'recordPayment', paymentAmount: amount, fullyPaid: isFullyPaid },
-      });
-
-      return this.getInvoiceById(invoiceId);
-    } catch (error) {
-      if (error instanceof APIError) throw error;
-      await logDatabaseError({ error, userId, req, metadata: { operation: 'recordPayment', invoiceId } }).catch(() => {});
-      throw new APIError('Failed to record payment', 500, 'PAYMENT_ERROR');
-    }
+  async recordPayment() {
+    throw new APIError(
+      'Per-invoice payment API is deprecated. Use POST /api/customer-payments instead.',
+      410,
+      'DEPRECATED_USE_CUSTOMER_PAYMENTS'
+    );
   }
 
   // ──────────────────────────────────────────────────────────

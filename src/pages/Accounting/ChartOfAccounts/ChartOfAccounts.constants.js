@@ -11,6 +11,21 @@ export const TYPE_BADGE = {
 export const emptyLedgerForm = {
   ledgerCode: "",
   ledgerName: "",
-  ledgerType: "ASSET",
+  ledgerType: "",
+  accountGroupId: "",
   openingBalance: "0",
+};
+
+export const PNL_CLASSIFICATIONS = [
+  "NOT_APPLICABLE",
+  "DIRECT_INCOME",
+  "INDIRECT_INCOME",
+  "DIRECT_EXPENSE",
+  "INDIRECT_EXPENSE",
+];
+
+export const emptyAccountGroupForm = {
+  groupName: "",
+  parentGroupId: "",
+  pnlClassification: "NOT_APPLICABLE",
 };

@@ -60,7 +60,9 @@ function makeLedger(partial) {
     ledgerName: partial.ledgerName ?? 'Cash',
     ledgerType: partial.ledgerType ?? 'ASSET',
     currentBalance: partial.currentBalance ?? 0,
-    delete_status: false,
+    isSystemLedger: false,
+    isGroupLedger: false,
+    allowsDirectPosting: true,
     ...partial,
   };
 }

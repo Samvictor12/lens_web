@@ -25,6 +25,7 @@ export const emptyPaymentForm = {
   paymentMethod: "BANK_TRANSFER",
   referenceNumber: "",
   notes: "",
+  totalAmount: "",
   items: [],
 };
 

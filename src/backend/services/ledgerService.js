@@ -24,7 +24,10 @@ export class LedgerService {
     const [data, total] = await Promise.all([
       prisma.ledger.findMany({
         where,
-        include: { childLedgers: { where: { delete_status: false }, select: { id: true, ledgerCode: true, ledgerName: true, ledgerType: true } } },
+        include: {
+          accountGroup: { select: { id: true, groupCode: true, groupName: true } },
+          childLedgers: { where: { delete_status: false }, select: { id: true, ledgerCode: true, ledgerName: true, ledgerType: true } },
+        },
         orderBy: [{ ledgerType: 'asc' }, { ledgerCode: 'asc' }],
         skip: (page - 1) * limit,
         take: parseInt(limit),
@@ -46,22 +49,39 @@ export class LedgerService {
     return ledger;
   }
 
-  async create({ ledgerCode, ledgerName, ledgerType, parentLedgerId, openingBalance = 0, description, bankDetails }, userId) {
-    if (!ledgerName || !ledgerType) throw new APIError('ledgerName and ledgerType are required', 400, 'VALIDATION_ERROR');
-    const code = ledgerCode || await this.generateLedgerCode(ledgerType);
+  async create({ ledgerCode, ledgerName, ledgerType, parentLedgerId, accountGroupId, openingBalance = 0, description, bankDetails }, userId) {
+    if (!ledgerName) throw new APIError('ledgerName is required', 400, 'VALIDATION_ERROR');
+
+    let resolvedType = ledgerType;
+    let resolvedGroupId = accountGroupId ? parseInt(accountGroupId) : null;
+
+    if (resolvedGroupId) {
+      const group = await prisma.accountGroup.findFirst({
+        where: { id: resolvedGroupId, delete_status: false, active_status: true },
+      });
+      if (!group) throw new APIError('Account group not found', 404, 'NOT_FOUND');
+      resolvedType = group.nature;
+    } else if (!ledgerType) {
+      throw new APIError('ledgerType or accountGroupId is required', 400, 'VALIDATION_ERROR');
+    }
+
+    const code = ledgerCode || await this.generateLedgerCode(resolvedType);
     const existing = await prisma.ledger.findFirst({ where: { ledgerCode: code } });
     if (existing) throw new APIError(`Ledger code ${code} already exists`, 409, 'DUPLICATE_CODE');
     return prisma.ledger.create({
       data: {
         ledgerCode: code,
         ledgerName,
-        ledgerType,
+        ledgerType: resolvedType,
         parentLedgerId: parentLedgerId || null,
+        accountGroupId: resolvedGroupId,
         openingBalance: parseFloat(openingBalance),
         currentBalance: parseFloat(openingBalance),
         description: description || null,
         bankDetails: bankDetails || null,
         isSystemLedger: false,
+        isGroupLedger: false,
+        allowsDirectPosting: true,
         createdBy: userId,
       },
     });
@@ -96,8 +116,18 @@ export class LedgerService {
   }
 
   async getCashBankLedgers() {
+    const groupFilter = {
+      delete_status: false,
+      active_status: true,
+      allowsDirectPosting: true,
+      isGroupLedger: false,
+      OR: [
+        { accountGroup: { groupCode: { in: ['GRP-CASH', 'GRP-BANK'] } } },
+        { ledgerCode: { in: ['AC-1001', 'AC-1002'] }, accountGroupId: null },
+      ],
+    };
     return prisma.ledger.findMany({
-      where: { ledgerType: 'ASSET', delete_status: false, active_status: true },
+      where: groupFilter,
       select: { id: true, ledgerCode: true, ledgerName: true, bankDetails: true, currentBalance: true },
       orderBy: { ledgerCode: 'asc' },
     });

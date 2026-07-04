@@ -17,6 +17,7 @@ import {
   printInvoice,
   shareInvoice,
   whatsappShare,
+  canRecordPayment,
 } from "./Billing.constants";
 import { InvoiceStatusBadge } from "./InvoiceCard";
 
@@ -39,7 +40,7 @@ export default function InvoiceDetailDialog({
 
   const canQuickClose =
     invoice &&
-    !["PAID", "CANCELLED"].includes(invoice.status) &&
+    canRecordPayment(invoice.status) &&
     invoice.paidAmount === 0 &&
     invoice.totalAmount - invoice.paidAmount > 0.01;
 
@@ -229,7 +230,7 @@ export default function InvoiceDetailDialog({
                 Issue Invoice
               </Button>
             )}
-            {!["PAID", "CANCELLED"].includes(invoice.status) && (
+            {canRecordPayment(invoice.status) && (
               <>
                 <Button
                   size="sm"
@@ -254,16 +255,18 @@ export default function InvoiceDetailDialog({
                     <Zap className="h-3.5 w-3.5" /> Quick Close
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-red-300 text-red-700 hover:bg-red-50"
-                  onClick={() => cancelMutation.mutate(invoice.id)}
-                  disabled={cancelMutation.isPending}
-                >
-                  <XCircle className="h-4 w-4 mr-1" /> Cancel
-                </Button>
               </>
+            )}
+            {!["PAID", "CANCELLED"].includes(invoice.status) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                onClick={() => cancelMutation.mutate(invoice.id)}
+                disabled={cancelMutation.isPending}
+              >
+                <XCircle className="h-4 w-4 mr-1" /> Cancel
+              </Button>
             )}
             <Button variant="ghost" size="sm" onClick={onClose}>
               Close

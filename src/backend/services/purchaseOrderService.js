@@ -1461,6 +1461,7 @@ class PurchaseOrderService {
       if (!po) throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
       if (po.status === "RECEIVED") throw new APIError("This PO is already fully received", 400, "PO_ALREADY_RECEIVED");
       if (po.status === "INVOICE_RECEIVED") throw new APIError("Invoice already received for this PO", 400, "PO_INVOICE_RECEIVED");
+      if (po.status === "PAID") throw new APIError("This PO is paid — no further receiving allowed", 400, "PO_PAID");
       if (po.status === "CLOSED") throw new APIError("This PO is closed", 400, "PO_CLOSED");
       if (po.status === "CANCELLED") throw new APIError("Cannot receive a cancelled PO", 400, "PO_CANCELLED");
 
@@ -1473,7 +1474,11 @@ class PurchaseOrderService {
       // Use frontend-computed total (includes tax); fall back to item-level calc if not provided
       const totalValue = parseFloat(receiptData.totalValue) ||
         receiptData.receivedItems.reduce(
-          (sum, item) => sum + ((parseFloat(item.receivedQty) || 0) * (parseFloat(item.unitPrice) || 0)), 0
+          (sum, item) =>
+            sum +
+            (parseFloat(item.receivedQty) || 0) *
+              (parseFloat(item.unitPrice) || parseFloat(po.unitPrice) || 0),
+          0
         );
 
       // Calculate new cumulative received qty across all receipts
@@ -1520,6 +1525,11 @@ class PurchaseOrderService {
           data: {
             receivedQty: newCumulativeReceived,
             status: newPOStatus,
+            ...(totalValue > 0.01 && {
+              totalValue,
+              subtotal: subtotal || totalValue - taxAmount,
+              taxAmount,
+            }),
             ...(receiptData.actualDeliveryDate && { actualDeliveryDate: new Date(receiptData.actualDeliveryDate) }),
             updatedBy: receiptData.createdBy,
           },

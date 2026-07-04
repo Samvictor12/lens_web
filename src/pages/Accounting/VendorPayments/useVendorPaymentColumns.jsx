@@ -1,13 +1,33 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
+import { Eye, ChevronDown, ChevronRight } from "lucide-react";
 import { PAYMENT_METHOD_LABELS } from "./VendorPayments.constants";
 
-/**
- * Column definitions for the Vendor Payments table.
- */
-export const useVendorPaymentColumns = (onView) => {
+export const useVendorPaymentColumns = (onView, { expandedIds = [], onToggleExpand } = {}) => {
+  const hasBreakdown = (p) => (p.items?.length > 0);
+
   return [
+    {
+      accessorKey: "_expand",
+      header: "",
+      sortable: false,
+      cell: (p) =>
+        hasBreakdown(p) ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => onToggleExpand?.(p.id)}
+            aria-label={expandedIds.includes(p.id) ? "Collapse" : "Expand"}
+          >
+            {expandedIds.includes(p.id) ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        ) : null,
+    },
     {
       accessorKey: "voucherNumber",
       header: "Voucher No.",

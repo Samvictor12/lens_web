@@ -1,7 +1,7 @@
 import { Eye, CreditCard, Zap, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fmt, STATUS_CONFIG } from "./Billing.constants";
+import { fmt, STATUS_CONFIG, canRecordPayment } from "./Billing.constants";
 
 // ─── InvoiceStatusBadge (shared, exported for use in dialogs) ─────────────────
 export function InvoiceStatusBadge({ status }) {
@@ -24,7 +24,7 @@ export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuick
       ? Math.min(100, (invoice.paidAmount / invoice.totalAmount) * 100)
       : 0;
   const canQuickClose =
-    !["PAID", "CANCELLED"].includes(invoice.status) &&
+    canRecordPayment(invoice.status) &&
     invoice.paidAmount === 0 &&
     remaining > 0.01;
 
@@ -98,7 +98,7 @@ export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuick
         >
           <FileText className="h-3.5 w-3.5" /> Preview
         </Button>
-        {!["PAID", "CANCELLED"].includes(invoice.status) && (
+        {canRecordPayment(invoice.status) && (
           <Button size="sm" className="flex-1 gap-1" onClick={() => onPay(invoice)}>
             <CreditCard className="h-3.5 w-3.5" /> Pay
           </Button>

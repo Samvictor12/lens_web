@@ -4,7 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
-const canReceive = (po) => ["DRAFT", "RECEIVED"].includes(po.status) && (po.quantity || 0) > (po.receivedQty || 0);
+const canReceive = (po) =>
+  ["DRAFT", "PO_PARTIAL_RECEIVED"].includes(po.status) &&
+  (po.quantity || 0) > (po.receivedQty || 0);
 
 /**
  * PurchaseOrderCard component displays purchase order information in card format

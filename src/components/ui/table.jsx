@@ -138,6 +138,9 @@ const Table = React.forwardRef(
       pagination = true,
       emptyMessage = "No data available",
       getRowClassName,
+      expandedRowIds = [],
+      getRowId = (row) => row.id,
+      renderExpandedRow,
       className,
       ...props
     },
@@ -254,18 +257,31 @@ const Table = React.forwardRef(
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data.map((row, rowIndex) => (
-                    <TableRow key={row.id || rowIndex} className={getRowClassName ? getRowClassName(row) : undefined}>
-                      {columns.map((column, colIndex) => (
-                        <TableCell
-                          key={column.accessorKey || colIndex}
-                          className={getAlignmentClass(column.align)}
-                        >
-                          {renderCell(row, column)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
+                  data.map((row, rowIndex) => {
+                    const rowId = getRowId(row) ?? rowIndex;
+                    const isExpanded = expandedRowIds.includes(rowId);
+                    return (
+                      <React.Fragment key={rowId}>
+                        <TableRow className={getRowClassName ? getRowClassName(row) : undefined}>
+                          {columns.map((column, colIndex) => (
+                            <TableCell
+                              key={column.accessorKey || colIndex}
+                              className={getAlignmentClass(column.align)}
+                            >
+                              {renderCell(row, column)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                        {isExpanded && renderExpandedRow && (
+                          <TableRow className="bg-muted/20 hover:bg-muted/20">
+                            <TableCell colSpan={columns.length} className="p-2">
+                              {renderExpandedRow(row)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </TableBody>
             </table>

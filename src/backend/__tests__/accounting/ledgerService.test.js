@@ -143,12 +143,12 @@ describe('getById()', () => {
 describe('create()', () => {
   it('throws when ledgerName is missing', async () => {
     await expect(svc.create({ ledgerType: 'ASSET' }, USER_ID))
-      .rejects.toThrow('ledgerName and ledgerType are required');
+      .rejects.toThrow('ledgerName is required');
   });
 
-  it('throws when ledgerType is missing', async () => {
+  it('throws when ledgerType and accountGroupId are missing', async () => {
     await expect(svc.create({ ledgerName: 'Cash' }, USER_ID))
-      .rejects.toThrow('ledgerName and ledgerType are required');
+      .rejects.toThrow('ledgerType or accountGroupId is required');
   });
 
   it('auto-generates ledger code when not provided', async () => {
@@ -260,13 +260,15 @@ describe('softDelete()', () => {
 // ── getCashBankLedgers ────────────────────────────────────────────────────────
 
 describe('getCashBankLedgers()', () => {
-  it('queries only ASSET ledgers that are active and not deleted', async () => {
+  it('queries cash/bank posting ledgers only', async () => {
     prisma.ledger.findMany.mockResolvedValue([]);
     await svc.getCashBankLedgers();
     const where = prisma.ledger.findMany.mock.calls[0][0].where;
-    expect(where.ledgerType).toBe('ASSET');
     expect(where.delete_status).toBe(false);
     expect(where.active_status).toBe(true);
+    expect(where.allowsDirectPosting).toBe(true);
+    expect(where.isGroupLedger).toBe(false);
+    expect(where.OR).toBeDefined();
   });
 
   it('returns all matching asset ledgers', async () => {

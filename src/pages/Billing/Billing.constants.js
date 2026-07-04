@@ -30,6 +30,13 @@ export const STATUS_CONFIG = {
   CANCELLED:      { label: "Cancelled",      color: "bg-red-100 text-red-700 border-red-300" },
 };
 
+/** Invoices eligible for payment (Accounting Customer Payments deep-link). */
+export const PAYABLE_INVOICE_STATUSES = ["ISSUED", "PARTIALLY_PAID"];
+
+export function canRecordPayment(status) {
+  return PAYABLE_INVOICE_STATUSES.includes(status);
+}
+
 export const PAYMENT_METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER", "CHECK"];
 export const PAGE_SIZE = 20;
 

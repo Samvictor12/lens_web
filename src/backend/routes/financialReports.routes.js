@@ -12,5 +12,7 @@ router.get('/ledger-statement',...guard, ctrl.getLedgerStatement.bind(ctrl));
 router.get('/trial-balance',   ...guard, ctrl.getTrialBalance.bind(ctrl));
 router.get('/day-book',        ...guard, ctrl.getDayBook.bind(ctrl));
 router.get('/cash-bank-book',  ...guard, ctrl.getCashBankBook.bind(ctrl));
+router.get('/group-summary',   ...guard, ctrl.getGroupSummary.bind(ctrl));
+router.get('/balance-sheet',   ...guard, ctrl.getBalanceSheet.bind(ctrl));
 
 export default router;

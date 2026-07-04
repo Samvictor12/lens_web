@@ -34,14 +34,13 @@ export class InvoiceController {
     }
   }
 
-  /** POST /api/invoices/:id/payments — record a payment */
-  async recordPayment(req, res, next) {
-    try {
-      const invoice = await service.recordPayment(parseInt(req.params.id), req.body, req.user.id, req);
-      res.status(200).json({ success: true, message: 'Payment recorded successfully', data: invoice });
-    } catch (error) {
-      next(error);
-    }
+  /** POST /api/invoices/:id/payments — DEPRECATED: use POST /api/customer-payments */
+  async recordPayment(req, res) {
+    res.status(410).json({
+      success: false,
+      code: 'DEPRECATED_USE_CUSTOMER_PAYMENTS',
+      message: 'Per-invoice payment API is deprecated. Use POST /api/customer-payments instead.',
+    });
   }
 
   /** PATCH /api/invoices/:id/issue — issue invoice (DRAFT → ISSUED) */

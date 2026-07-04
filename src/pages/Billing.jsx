@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Plus, Receipt, CreditCard, XCircle, Eye, CheckCircle2, Clock,
@@ -789,11 +790,11 @@ function DispatchedOrdersTab({ onBillCustomer }) {
 
 // ─── Main Billing Page ────────────────────────────────────────────────────────
 export default function Billing() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dispatched");
   const [createOpen, setCreateOpen] = useState(false);
   const [createForCustomer, setCreateForCustomer] = useState("");
   const [detailId, setDetailId] = useState(null);
-  const [paymentInvoice, setPaymentInvoice] = useState(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -801,6 +802,12 @@ export default function Billing() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  const navigateToPayment = (inv) => {
+    navigate(
+      `/accounts/customer-payments?customerId=${inv.customerId}&invoiceId=${inv.id}&openForm=1`
+    );
+  };
 
   const queryParams = {
     status: statusFilter !== "ALL" ? statusFilter : undefined,
@@ -1015,7 +1022,7 @@ export default function Billing() {
                             <Eye className="h-3.5 w-3.5" /> View
                           </Button>
                           {!["PAID", "CANCELLED"].includes(inv.status) && (
-                            <Button size="sm" className="flex-1 gap-1" onClick={() => setPaymentInvoice(inv)}>
+                            <Button size="sm" className="flex-1 gap-1" onClick={() => navigateToPayment(inv)}>
                               <CreditCard className="h-3.5 w-3.5" /> Pay
                             </Button>
                           )}
@@ -1066,12 +1073,7 @@ export default function Billing() {
         invoiceId={detailId}
         open={!!detailId}
         onClose={() => setDetailId(null)}
-        onPay={(inv) => setPaymentInvoice(inv)}
-      />
-      <RecordPaymentDialog
-        invoice={paymentInvoice}
-        open={!!paymentInvoice}
-        onClose={() => setPaymentInvoice(null)}
+        onPay={(inv) => navigateToPayment(inv)}
       />
     </div>
   );

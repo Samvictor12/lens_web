@@ -1,5 +1,8 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
+import { AccountGroupService } from './accountGroupService.js';
+
+const accountGroupService = new AccountGroupService();
 
 function dateRange(from, to) {
   if (!from && !to) return undefined;
@@ -30,8 +33,11 @@ export class FinancialReportService {
 
     // Fetch all relevant ledgers
     const ledgers = await prisma.ledger.findMany({
-      where: { delete_status: false, ledgerType: { in: ['INCOME', 'EXPENSE'] } },
-      select: { id: true, ledgerCode: true, ledgerName: true, ledgerType: true },
+      where: { delete_status: false, ledgerType: { in: ['INCOME', 'EXPENSE'] }, isGroupLedger: false },
+      select: {
+        id: true, ledgerCode: true, ledgerName: true, ledgerType: true, accountGroupId: true,
+        accountGroup: { select: { pnlClassification: true } },
+      },
     });
     // Ledger → expenseType map, to partition EXPENSE ledgers into Direct (COGS) vs Indirect (Opex)
     const expenseCategoryLedgers = await prisma.expenseCategory.findMany({
@@ -41,6 +47,13 @@ export class FinancialReportService {
     const directLedgerIds = new Set(
       expenseCategoryLedgers.filter(c => c.expenseType === 'DIRECT').map(c => c.ledger_id)
     );
+
+    const isDirectExpense = (l) => {
+      const cls = l.accountGroup?.pnlClassification;
+      if (cls === 'DIRECT_EXPENSE') return true;
+      if (cls === 'INDIRECT_EXPENSE') return false;
+      return directLedgerIds.has(l.id);
+    };
     const gstInputLedger = await prisma.ledger.findFirst({ where: { ledgerCode: 'AC-1005' } });
     const gstOutputLedger = await prisma.ledger.findFirst({ where: { ledgerCode: 'AC-2003' } });
 
@@ -87,12 +100,12 @@ export class FinancialReportService {
 
     // Split expenses: DIRECT (Cost of Goods Sold) vs INDIRECT (Operating Expenses), by ExpenseCategory.expenseType.
     // Ledgers with no linked category (or no category at all) fall back to INDIRECT.
-    const directLedgers = expenseLedgers.filter(l => directLedgerIds.has(l.id));
+    const directLedgers = expenseLedgers.filter(isDirectExpense);
     const cogsAmount = directLedgers.reduce((s, l) => s + parseFloat(expenseNet[l.id] || 0), 0);
     const grossProfit = netRevenue - cogsAmount;
 
     const operatingExpenses = expenseLedgers
-      .filter(l => !directLedgerIds.has(l.id))
+      .filter(l => !isDirectExpense(l))
       .map(l => ({ ledgerCode: l.ledgerCode, ledgerName: l.ledgerName, amount: parseFloat(expenseNet[l.id] || 0).toFixed(2) }));
     const totalOpex = operatingExpenses.reduce((s, e) => s + parseFloat(e.amount), 0);
 
@@ -128,28 +141,131 @@ export class FinancialReportService {
       where: { ledgerId: lid, ...(filter && { transaction: { transactionDate: filter, isPosted: true } }) },
       include: {
         transaction: {
-          select: { id: true, transactionNumber: true, transactionDate: true, description: true, referenceNumber: true, transactionType: true, isReconciled: true },
+          select: {
+            id: true,
+            transactionNumber: true,
+            transactionDate: true,
+            description: true,
+            referenceNumber: true,
+            referenceType: true,
+            referenceId: true,
+            transactionType: true,
+            isReconciled: true,
+          },
         },
       },
       orderBy: { transaction: { transactionDate: 'asc' } },
     });
 
+    const receiptVoucherIds = new Set();
+    const paymentVoucherIds = new Set();
+    for (const e of entries) {
+      const txn = e.transaction;
+      if (txn.transactionType === 'RECEIPT' && txn.referenceType === 'RECEIPT' && txn.referenceId) {
+        receiptVoucherIds.add(txn.referenceId);
+      } else if (txn.transactionType === 'PAYMENT' && txn.referenceId) {
+        paymentVoucherIds.add(txn.referenceId);
+      }
+    }
+
+    const [customerItems, vendorItems] = await Promise.all([
+      receiptVoucherIds.size
+        ? prisma.customerPaymentVoucherItem.findMany({
+            where: { voucherId: { in: [...receiptVoucherIds] } },
+            include: { invoice: { select: { id: true, invoiceNo: true, dueDate: true } } },
+          })
+        : [],
+      paymentVoucherIds.size
+        ? prisma.vendorPaymentVoucherItem.findMany({
+            where: { voucherId: { in: [...paymentVoucherIds] } },
+            include: { purchaseOrder: { select: { id: true, poNumber: true, orderDate: true } } },
+          })
+        : [],
+    ]);
+
+    const receiptItemsByVoucher = {};
+    for (const item of customerItems) {
+      if (!receiptItemsByVoucher[item.voucherId]) receiptItemsByVoucher[item.voucherId] = [];
+      receiptItemsByVoucher[item.voucherId].push({
+        id: item.id,
+        invoiceId: item.invoiceId,
+        allocatedAmount: item.allocatedAmount,
+        invoice: item.invoice,
+      });
+    }
+
+    const paymentItemsByVoucher = {};
+    for (const item of vendorItems) {
+      if (!paymentItemsByVoucher[item.voucherId]) paymentItemsByVoucher[item.voucherId] = [];
+      paymentItemsByVoucher[item.voucherId].push({
+        id: item.id,
+        purchaseOrderId: item.purchaseOrderId,
+        allocatedAmount: item.allocatedAmount,
+        purchaseOrder: item.purchaseOrder,
+      });
+    }
+
+    const advanceByVoucher = {};
+    if (receiptVoucherIds.size) {
+      const vouchers = await prisma.customerPaymentVoucher.findMany({
+        where: { id: { in: [...receiptVoucherIds] } },
+        select: { id: true, receiptNumber: true, advanceAmount: true },
+      });
+      for (const v of vouchers) {
+        advanceByVoucher[v.id] = { receiptNumber: v.receiptNumber, advanceAmount: v.advanceAmount };
+      }
+    }
+
     const isDebitNormal = ['ASSET', 'EXPENSE'].includes(ledger.ledgerType);
     let running = parseFloat(ledger.openingBalance);
 
     const rows = entries.map(e => {
+      const txn = e.transaction;
       const amt = parseFloat(e.amount);
       if (e.entryType === 'DEBIT') running = isDebitNormal ? running + amt : running - amt;
       else running = isDebitNormal ? running - amt : running + amt;
+
+      let breakdown = null;
+      if (txn.transactionType === 'RECEIPT' && txn.referenceType === 'RECEIPT' && txn.referenceId) {
+        const advance = advanceByVoucher[txn.referenceId];
+        breakdown = {
+          type: 'customer',
+          documentNumber: txn.referenceNumber || advance?.receiptNumber,
+          totalAmount: amt,
+          advanceAmount: advance?.advanceAmount || 0,
+          items: receiptItemsByVoucher[txn.referenceId] || [],
+        };
+      } else if (txn.transactionType === 'PAYMENT' && txn.referenceId) {
+        breakdown = {
+          type: 'vendor',
+          documentNumber: txn.referenceNumber,
+          totalAmount: amt,
+          items: paymentItemsByVoucher[txn.referenceId] || [],
+        };
+      } else if (txn.transactionType === 'RECEIPT' && txn.referenceType === 'INVOICE' && txn.referenceId) {
+        breakdown = {
+          type: 'customer',
+          documentNumber: txn.referenceNumber,
+          totalAmount: amt,
+          items: [{
+            id: `legacy-${txn.referenceId}`,
+            invoiceId: txn.referenceId,
+            allocatedAmount: amt,
+            invoice: { id: txn.referenceId, invoiceNo: txn.referenceNumber },
+          }],
+        };
+      }
+
       return {
-        date: e.transaction.transactionDate,
-        transactionNumber: e.transaction.transactionNumber,
-        referenceNumber: e.transaction.referenceNumber,
-        narration: e.transaction.description,
+        date: txn.transactionDate,
+        transactionNumber: txn.transactionNumber,
+        referenceNumber: txn.referenceNumber,
+        narration: txn.description,
         debit: e.entryType === 'DEBIT' ? amt.toFixed(2) : '0.00',
         credit: e.entryType === 'CREDIT' ? amt.toFixed(2) : '0.00',
         balance: running.toFixed(2),
-        isReconciled: e.transaction.isReconciled,
+        isReconciled: txn.isReconciled,
+        breakdown,
       };
     });
 
@@ -244,8 +360,55 @@ export class FinancialReportService {
   // ── Cash / Bank Book ─────────────────────────────────────────
 
   async getCashBankBook({ ledgerId, from, to }) {
-    // Delegates to ledger statement — same structure + isReconciled per row
     return this.getLedgerStatement({ ledgerId, from, to });
+  }
+
+  // ── Group Summary ────────────────────────────────────────────
+
+  async getGroupSummary({ groupId, asOf }) {
+    return accountGroupService.getSummary({ groupId, asOf });
+  }
+
+  // ── Balance Sheet (grouped) ──────────────────────────────────
+
+  async getBalanceSheet({ asOf }) {
+    const rootCodes = ['GRP-ASSETS', 'GRP-LIABILITIES', 'GRP-CAPITAL'];
+    const roots = await prisma.accountGroup.findMany({
+      where: { groupCode: { in: rootCodes }, delete_status: false },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const sections = [];
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+    let totalCapital = 0;
+
+    for (const root of roots) {
+      const summary = await accountGroupService.getSummary({ groupId: root.id, asOf });
+      const total = parseFloat(summary.totalBalance || 0);
+      sections.push({
+        groupCode: root.groupCode,
+        groupName: root.groupName,
+        nature: root.nature,
+        totalBalance: summary.totalBalance,
+        childGroups: summary.childGroups,
+        ledgers: summary.ledgers,
+      });
+      if (root.groupCode === 'GRP-ASSETS') totalAssets = total;
+      else if (root.groupCode === 'GRP-LIABILITIES') totalLiabilities = total;
+      else if (root.groupCode === 'GRP-CAPITAL') totalCapital = total;
+    }
+
+    const liabPlusCapital = totalLiabilities + totalCapital;
+    return {
+      asOf: asOf || null,
+      sections,
+      totalAssets: totalAssets.toFixed(2),
+      totalLiabilities: totalLiabilities.toFixed(2),
+      totalCapital: totalCapital.toFixed(2),
+      totalLiabilitiesAndCapital: liabPlusCapital.toFixed(2),
+      isBalanced: Math.abs(totalAssets - liabPlusCapital) < 0.02,
+    };
   }
 
   // ── Dashboard Summary ────────────────────────────────────────

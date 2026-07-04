@@ -101,4 +101,40 @@ Represents the physical organization. A Location (warehouse/room) contains multi
 Represents sales orders placed by Customers. Triggers stock reservations via `reserveInventoryForSale()` during the Pre-QC workflow transition.
 
 ### 5. Customer
-Represents customer accounts. Tracks credit limits and exposure dynamically using `credit_limit`, `outstanding_credit`, and the new `reserved_amount` field (which stores reserved amounts for active/uninvoiced Sale Orders).
+Represents customer accounts. Tracks credit limits and exposure dynamically using `credit_limit`, `outstanding_credit`, `reserved_amount` (uninvoiced SO exposure), and **`advance_credit`** (prepaid balance from customer payment vouchers with `advanceAmount > 0`, added 2026-07-05).
+
+### 6. Customer Payment Voucher (2026-07-05)
+Header table for consolidated customer receipts. One voucher → one `FinancialTransaction` (`RECEIPT`). Lines in `CustomerPaymentVoucherItem` allocate amounts to invoices; subsidiary `Payment` rows link via `Payment.voucherId`.
+
+```
+CustomerPaymentVoucher ||--o{ CustomerPaymentVoucherItem : "allocates"
+CustomerPaymentVoucher }o--|| Customer : "belongs to"
+CustomerPaymentVoucherItem }o--|| Invoice : "clears"
+Payment }o--o| CustomerPaymentVoucher : "voucherId"
+```
+
+### 7. Vendor Payment Voucher
+Existing model; enhanced 2026-07-05 with outstanding PO queue and FIFO allocation. `VendorPaymentVoucherItem` links payments to `PurchaseOrder` rows; partially paid POs remain payable until outstanding reaches zero.
+
+### 8. Account Groups & Ledger Classification (2026-07-05)
+
+Industry COA hierarchy for Balance Sheet and P&L reporting.
+
+```
+AccountGroup ||--o{ AccountGroup : "parentGroupId (self-relation)"
+AccountGroup ||--o{ Ledger : "accountGroupId"
+Ledger ||--o{ Ledger : "parentLedgerId (AR/AP sub-ledgers)"
+```
+
+**`AccountGroup`** — `groupCode` (unique), `groupName`, `nature` (`LedgerType`), `parentGroupId`, `reportSection` (`BALANCE_SHEET` | `PROFIT_LOSS` | `NONE`), `pnlClassification` (`DIRECT_EXPENSE`, `INDIRECT_EXPENSE`, etc.), `isSystemGroup`, `sortOrder`.
+
+**`Ledger` extensions:**
+- `accountGroupId` — links posting ledger to its account group
+- `isGroupLedger` — true for control ledgers (AC-1003, AC-2001)
+- `allowsDirectPosting` — false blocks manual/auto posting to control ledgers
+
+**Seeded groups (19):** Assets → Current Assets → Cash-in-Hand, Bank Accounts, Sundry Debtors, Inventory, GST Input; Liabilities → Current Liabilities → Sundry Creditors, GST Output, TDS; Capital; Income/Expense Direct & Indirect sub-groups.
+
+**Seed script:** `node prisma/seed/account-groups-seed.js` (run after migration `20260705140000_account_groups`).
+
+**Customer/vendor sub-ledgers** (`AC-1003-C*`, `AC-2001-V*`) inherit `accountGroupId` from Sundry Debtors / Sundry Creditors on create.

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,65 +20,113 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createVendorPayment, getOutstandingPOs } from "@/services/vendorPayment";
+import { previewAllocations } from "../CustomerPayments/CustomerPayments.constants";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, emptyPaymentForm } from "./VendorPayments.constants";
+
+function fmt(n) {
+  return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+}
 
 export default function CreateVendorPaymentDialog({
   open,
   onOpenChange,
   vendors,
   bankLedgers,
+  preselectedVendorId = "",
+  preselectedPoIds = [],
+  preselectedPOs = [],
   onCreated,
 }) {
   const { toast } = useToast();
   const [form, setForm] = useState(emptyPaymentForm);
   const [saving, setSaving] = useState(false);
-
-  // Outstanding POs for selected vendor
   const [outstandingPOs, setOutstandingPOs] = useState([]);
   const [loadingPOs, setLoadingPOs] = useState(false);
-  const [allocations, setAllocations] = useState({}); // { poId: amountString }
+  const [allocations, setAllocations] = useState({});
+  const [manualOverrides, setManualOverrides] = useState({});
+
+  const lockedVendor = !!preselectedVendorId;
+
+  const selectedPOs = useMemo(() => {
+    if (preselectedPOs.length && preselectedPoIds.length) {
+      return preselectedPOs.filter((po) => preselectedPoIds.includes(po.purchaseOrderId));
+    }
+    if (preselectedPoIds.length) {
+      return outstandingPOs.filter((po) => preselectedPoIds.includes(po.id));
+    }
+    return outstandingPOs;
+  }, [preselectedPOs, preselectedPoIds, outstandingPOs]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  // Load outstanding POs when vendor changes
   useEffect(() => {
-    if (!form.vendorId) {
+    if (!open) return;
+    setForm({
+      ...emptyPaymentForm,
+      vendorId: preselectedVendorId ? String(preselectedVendorId) : "",
+      paymentDate: new Date().toISOString().split("T")[0],
+    });
+    setManualOverrides({});
+    setAllocations({});
+  }, [open, preselectedVendorId]);
+
+  useEffect(() => {
+    const vid = form.vendorId || preselectedVendorId;
+    if (!vid) {
       setOutstandingPOs([]);
-      setAllocations({});
       return;
     }
     setLoadingPOs(true);
-    getOutstandingPOs(form.vendorId)
+    getOutstandingPOs(vid)
       .then((res) => {
         const pos = (res.data?.purchaseOrders || [])
-          .filter((po) => parseFloat(po.outstanding || 0) > 0)
+          .filter((po) => parseFloat(po.outstanding || 0) > 0 || po.needsPricing)
           .map((po) => ({
             id: po.purchaseOrderId,
+            purchaseOrderId: po.purchaseOrderId,
             poNumber: po.poNumber,
             orderDate: po.orderDate,
-            outstandingAmount: po.outstanding,
+            expectedDeliveryDate: po.expectedDeliveryDate,
+            outstanding: parseFloat(po.outstanding),
             totalValue: po.totalValue,
+            paidAmount: po.paidAmount,
+            status: po.status,
+            needsPricing: po.needsPricing,
           }));
         setOutstandingPOs(pos);
-        const init = {};
-        pos.forEach((po) => {
-          init[po.id] = String(parseFloat(po.outstandingAmount || 0).toFixed(2));
-        });
-        setAllocations(init);
       })
       .catch(() => {
         toast({ variant: "destructive", title: "Failed to load outstanding POs" });
       })
       .finally(() => setLoadingPOs(false));
-  }, [form.vendorId]);
+  }, [form.vendorId, preselectedVendorId]);
 
-  const setAllocation = (poId, val) =>
-    setAllocations((prev) => ({ ...prev, [poId]: val }));
+  const paymentAmount = parseFloat(form.totalAmount) || 0;
 
-  const totalAllocated = outstandingPOs.reduce((sum, po) => {
-    const v = parseFloat(allocations[po.id] || 0);
-    return sum + (isNaN(v) ? 0 : v);
-  }, 0);
+  const invoiceLikePOs = selectedPOs.map((po) => ({
+    id: po.id ?? po.purchaseOrderId,
+    outstanding:
+      po.needsPricing && paymentAmount > 0
+        ? paymentAmount
+        : (po.outstanding ?? po.outstandingAmount ?? 0),
+    dueDate: po.expectedDeliveryDate,
+    orderDate: po.orderDate,
+    invoiceNo: po.poNumber,
+  }));
+
+  const { allocations: preview } = useMemo(() => {
+    if (!paymentAmount || !invoiceLikePOs.length) return { allocations: {} };
+    return previewAllocations(invoiceLikePOs, paymentAmount, manualOverrides);
+  }, [invoiceLikePOs, paymentAmount, manualOverrides]);
+
+  useEffect(() => {
+    setAllocations(preview);
+  }, [preview]);
+
+  const totalAllocated = Object.values(allocations).reduce(
+    (s, v) => s + (parseFloat(v) || 0),
+    0
+  );
 
   const handleSave = async () => {
     if (!form.vendorId) {
@@ -89,16 +137,20 @@ export default function CreateVendorPaymentDialog({
       toast({ variant: "destructive", title: "Please select a payment account" });
       return;
     }
-    if (totalAllocated <= 0) {
-      toast({ variant: "destructive", title: "Total payment amount must be greater than zero" });
+    if (paymentAmount <= 0) {
+      toast({ variant: "destructive", title: "Payment amount must be greater than zero" });
       return;
     }
 
-    const items = outstandingPOs
-      .filter((po) => parseFloat(allocations[po.id] || 0) > 0)
-      .map((po) => ({
-        purchaseOrderId: po.id,
-        allocatedAmount: parseFloat(allocations[po.id]),
+    const poIds = preselectedPoIds.length
+      ? preselectedPoIds
+      : selectedPOs.map((po) => po.id ?? po.purchaseOrderId);
+
+    const items = poIds
+      .filter((id) => (allocations[id] || 0) > 0)
+      .map((id) => ({
+        purchaseOrderId: id,
+        allocatedAmount: parseFloat(allocations[id]),
       }));
 
     setSaving(true);
@@ -110,13 +162,13 @@ export default function CreateVendorPaymentDialog({
         paymentMethod: form.paymentMethod,
         referenceNo: form.referenceNumber || undefined,
         notes: form.notes || undefined,
-        totalAmount: totalAllocated,
+        totalAmount: paymentAmount,
         items,
       });
       toast({ title: "Payment recorded" });
       setForm(emptyPaymentForm);
       setAllocations({});
-      onCreated();
+      onCreated?.();
       onOpenChange(false);
     } catch (e) {
       toast({ variant: "destructive", title: e?.message || "Failed to record payment" });
@@ -128,13 +180,12 @@ export default function CreateVendorPaymentDialog({
   const handleClose = () => {
     setForm(emptyPaymentForm);
     setAllocations({});
+    setManualOverrides({});
     setOutstandingPOs([]);
     onOpenChange(false);
   };
 
-  // Map vendors to react-select options (id/name)
   const vendorOptions = vendors.map((v) => ({ id: v.id, name: v.name }));
-  const selectedVendor = vendorOptions.find((v) => String(v.id) === String(form.vendorId)) || null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -143,22 +194,33 @@ export default function CreateVendorPaymentDialog({
           <DialogTitle>Record Vendor Payment</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          {/* Vendor select (searchable) */}
           <div className="space-y-1">
             <Label>Vendor *</Label>
             <FormSelect
               options={vendorOptions}
-              value={selectedVendor}
-              onChange={(opt) => set("vendorId", opt ? String(opt.id) : "")}
+              value={form.vendorId || null}
+              onChange={(val) => set("vendorId", val != null && val !== "" ? String(val) : "")}
               placeholder="Search vendor..."
-              isSearchable={true}
-              isClearable={true}
+              isSearchable
+              isClearable={!lockedVendor}
+              disabled={lockedVendor}
               menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
               menuPosition="fixed"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Payment Amount *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.totalAmount}
+                onChange={(e) => set("totalAmount", e.target.value)}
+                placeholder="Amount paid"
+              />
+            </div>
             <div className="space-y-1">
               <Label>Payment Date *</Label>
               <Input
@@ -167,6 +229,9 @@ export default function CreateVendorPaymentDialog({
                 onChange={(e) => set("paymentDate", e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Payment Method *</Label>
               <Select value={form.paymentMethod} onValueChange={(v) => set("paymentMethod", v)}>
@@ -182,9 +247,6 @@ export default function CreateVendorPaymentDialog({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Payment Account *</Label>
               <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
@@ -200,25 +262,25 @@ export default function CreateVendorPaymentDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label>Reference No.</Label>
-              <Input
-                value={form.referenceNumber}
-                onChange={(e) => set("referenceNumber", e.target.value)}
-                placeholder="Cheque / transaction ref"
-              />
-            </div>
           </div>
 
-          {/* Outstanding POs */}
-          {form.vendorId && (
+          <div className="space-y-1">
+            <Label>Reference No.</Label>
+            <Input
+              value={form.referenceNumber}
+              onChange={(e) => set("referenceNumber", e.target.value)}
+              placeholder="Cheque / transaction ref"
+            />
+          </div>
+
+          {(form.vendorId || preselectedVendorId) && (
             <div className="space-y-2">
-              <Label>Allocate to Purchase Orders</Label>
+              <Label>Allocate to Purchase Orders (FIFO)</Label>
               {loadingPOs ? (
                 <p className="text-xs text-muted-foreground py-2">Loading outstanding POs...</p>
-              ) : outstandingPOs.length === 0 ? (
+              ) : selectedPOs.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">
-                  No outstanding purchase orders for this vendor. POs must be received (goods receipt recorded) before payment can be allocated.
+                  No outstanding purchase orders for this vendor.
                 </p>
               ) : (
                 <div className="border rounded-md divide-y text-xs">
@@ -227,38 +289,40 @@ export default function CreateVendorPaymentDialog({
                     <span className="text-right pr-2">Outstanding</span>
                     <span className="w-28 text-right">Allocate</span>
                   </div>
-                  {outstandingPOs.map((po) => (
-                    <div
-                      key={po.id}
-                      className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2"
-                    >
-                      <div>
-                        <p className="font-medium">{po.poNumber}</p>
-                        <p className="text-muted-foreground">
-                          {new Date(po.orderDate).toLocaleDateString("en-IN")}
-                        </p>
+                  {selectedPOs.map((po) => {
+                    const id = po.id ?? po.purchaseOrderId;
+                    const outstanding = po.outstanding ?? po.outstandingAmount;
+                    return (
+                      <div
+                        key={id}
+                        className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2"
+                      >
+                        <div>
+                          <p className="font-medium">{po.poNumber}</p>
+                          <p className="text-muted-foreground">
+                            {po.orderDate
+                              ? new Date(po.orderDate).toLocaleDateString("en-IN")
+                              : "—"}
+                          </p>
+                        </div>
+                        <span className="text-right pr-2 font-mono">{fmt(outstanding)}</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          max={outstanding}
+                          className="w-28 h-7 text-xs text-right"
+                          value={allocations[id] ?? ""}
+                          onChange={(e) =>
+                            setManualOverrides((prev) => ({ ...prev, [id]: e.target.value }))
+                          }
+                        />
                       </div>
-                      <span className="text-right pr-2 font-mono">
-                        ₹{parseFloat(po.outstandingAmount || 0).toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </span>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        max={po.outstandingAmount}
-                        className="w-28 h-7 text-xs text-right"
-                        value={allocations[po.id] || ""}
-                        onChange={(e) => setAllocation(po.id, e.target.value)}
-                      />
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 bg-muted/20 font-semibold">
-                    <span>Total Payment</span>
-                    <span className="font-mono pr-0">
-                      ₹{totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </span>
+                    <span>Total Allocated</span>
+                    <span className="font-mono pr-0">{fmt(totalAllocated)}</span>
                   </div>
                 </div>
               )}
@@ -279,8 +343,8 @@ export default function CreateVendorPaymentDialog({
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || totalAllocated <= 0}>
-            {saving ? "Saving..." : `Record ₹${totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
+          <Button onClick={handleSave} disabled={saving || paymentAmount <= 0}>
+            {saving ? "Saving..." : `Record ${fmt(paymentAmount)}`}
           </Button>
         </DialogFooter>
       </DialogContent>

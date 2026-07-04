@@ -18,6 +18,7 @@ function formatPermissions(dbPermissions) {
     { key: 'chart_of_accounts', label: 'Chart of Accounts', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'expenses', label: 'Expenses', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'vendor_payments', label: 'Vendor Payments', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
+    { key: 'customer_payments', label: 'Customer Payments', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'bank_reconciliation', label: 'Bank Reconciliation', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'financial_reports', label: 'Financial Reports', actions: { Screen: false } },
     { key: 'reports', label: 'Reports', actions: { Screen: false } },

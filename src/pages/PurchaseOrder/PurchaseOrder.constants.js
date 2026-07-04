@@ -52,12 +52,13 @@ export const defaultPurchaseOrder = {
   activeStatus: true,
 };
 
-// Purchase order status options
+// Purchase order status options (system-driven after DRAFT; shown read-only in form)
 export const statusOptions = [
-  { value: "DRAFT", label: "Draft (Pending)" },
-
-  { value: "RECEIVED", label: "Received" },
-  { value: "INVOICE_RECEIVED", label: "Invoice Received" },
+  { value: "DRAFT", label: "Pending" },
+  { value: "PO_PARTIAL_RECEIVED", label: "Partial Received" },
+  { value: "RECEIVED", label: "Full Received" },
+  { value: "INVOICE_RECEIVED", label: "Full Received" },
+  { value: "PAID", label: "Paid" },
   { value: "CLOSED", label: "Closed" },
   { value: "CANCELLED", label: "Cancelled" },
 ];
@@ -80,30 +81,24 @@ export const activeStatusOptions = [
   { value: false, label: "Inactive" },
 ];
 
-// Status display labels (DRAFT shows as Pending)
-export const getStatusLabel = (status) => {
-  switch (status) {
-    case "DRAFT": return "Pending";
+import { getPoStageLabel } from "@/constants/purchaseOrderStatus";
 
-    case "RECEIVED": return "Received";
-    case "INVOICE_RECEIVED": return "Invoice Received";
-    case "CLOSED": return "Closed";
-    case "CANCELLED": return "Cancelled";
-    default: return status || "";
-  }
-};
+// Status display labels (pipeline: Pending → Partial Received → Full Received → Paid)
+export const getStatusLabel = (status) => getPoStageLabel(status);
 
 // Status badge colors
 export const getStatusColor = (status) => {
   switch (status) {
     case "DRAFT":
       return "bg-yellow-50 text-yellow-700 border-yellow-200";
+    case "PO_PARTIAL_RECEIVED":
     case "PARTIALLY_RECEIVED":
       return "bg-blue-50 text-blue-700 border-blue-200";
     case "RECEIVED":
-      return "bg-green-50 text-green-700 border-green-200";
     case "INVOICE_RECEIVED":
-      return "bg-purple-50 text-purple-700 border-purple-200";
+      return "bg-green-50 text-green-700 border-green-200";
+    case "PAID":
+      return "bg-emerald-50 text-emerald-800 border-emerald-200";
     case "CLOSED":
       return "bg-gray-100 text-gray-600 border-gray-300";
     case "CANCELLED":

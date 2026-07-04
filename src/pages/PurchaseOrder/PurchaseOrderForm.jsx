@@ -33,6 +33,7 @@ import {
 } from "@/services/saleOrder";
 import { defaultPurchaseOrder, activeStatusOptions, statusOptions, purchaseTypeOptions, orderTypeOptions, poQuantityFromEyes } from "./PurchaseOrder.constants";
 import BulkLensSelection from "./BulkLensSelection";
+import PurchaseOrderStatusBar from "@/components/purchase-order/PurchaseOrderStatusBar";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
 
@@ -694,20 +695,20 @@ export default function PurchaseOrderForm() {
   const canReceivePo =
     mode === "view" &&
     !isEditing &&
-    formData.status === "DRAFT" &&
+    ["DRAFT", "PO_PARTIAL_RECEIVED"].includes(formData.status) &&
     (formData.quantity || 0) > (formData.receivedQty || 0);
 
-  // Once PO is received, Cancel PO action should not be available
+  // Once PO is received or paid, Cancel PO action should not be available
   const canCancelPo =
     mode === "view" &&
     !isEditing &&
     formData.saleOrderId &&
-    !["RECEIVED", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
+    !["PO_PARTIAL_RECEIVED", "RECEIVED", "INVOICE_RECEIVED", "PAID", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
     (formData.receivedQty || 0) === 0;
 
   const canEditPo =
     mode === "view" &&
-    !["RECEIVED", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
+    !["PO_PARTIAL_RECEIVED", "RECEIVED", "INVOICE_RECEIVED", "PAID", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
     (formData.receivedQty || 0) === 0;
 
   const handleCancelPo = async () => {
@@ -1580,6 +1581,10 @@ export default function PurchaseOrderForm() {
           )}
         </div>
       </div>
+
+      {mode !== "add" && formData.status && (
+        <PurchaseOrderStatusBar status={formData.status} className="flex-shrink-0" />
+      )}
 
       {/* Sale Order source banner */}
       {mode === "add" && location.state?.fromSaleOrder && (

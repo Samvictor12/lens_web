@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { closeVendorPayment } from "@/services/vendorPayment";
+import PaymentBreakdownTree from "@/components/accounting/PaymentBreakdownTree";
 import {
   PAYMENT_METHOD_LABELS,
   printVendorPaymentVoucher,
@@ -38,11 +39,6 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment,
       setIsClosing(false);
     }
   };
-
-  const totalAllocated = (payment.items || []).reduce(
-    (s, i) => s + parseFloat(i.allocatedAmount || 0),
-    0
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,46 +101,18 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment,
           )}
         </div>
 
-        {/* PO Allocations */}
         {payment.items?.length > 0 && (
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              PO Allocations
+              Payment Breakdown
             </p>
-            <div className="border rounded-md divide-y text-xs">
-              <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-1.5 bg-muted/40 font-medium text-muted-foreground">
-                <span>PO Number</span>
-                <span className="text-right">Amount</span>
-              </div>
-              {payment.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-[1fr_auto] gap-2 items-center px-3 py-2"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {item.purchaseOrder?.poNumber || `PO #${item.purchaseOrderId}`}
-                    </p>
-                    {item.purchaseOrder?.orderDate && (
-                      <p className="text-muted-foreground">
-                        {new Date(item.purchaseOrder.orderDate).toLocaleDateString("en-IN")}
-                      </p>
-                    )}
-                  </div>
-                  <span className="font-mono font-semibold">
-                    ₹{parseFloat(item.allocatedAmount || 0).toLocaleString("en-IN", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              ))}
-              <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 bg-muted/20 font-semibold">
-                <span>Total</span>
-                <span className="font-mono">
-                  ₹{totalAllocated.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
+            <PaymentBreakdownTree
+              type="vendor"
+              documentNumber={payment.voucherNumber}
+              totalAmount={payment.totalAmount}
+              items={payment.items || []}
+              onBeforeNavigate={() => onOpenChange(false)}
+            />
           </div>
         )}
 

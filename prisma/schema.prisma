@@ -134,11 +134,15 @@ model User {
   printerConfigsUpdated          PrinterConfig[]        @relation("printerConfigUpdatedBy")
   vpvCreatedBy                   VendorPaymentVoucher[] @relation("vpvCreatedBy")
   vpvUpdatedBy                   VendorPaymentVoucher[] @relation("vpvUpdatedBy")
+  cpvCreatedBy                   CustomerPaymentVoucher[] @relation("cpvCreatedBy")
+  cpvUpdatedBy                   CustomerPaymentVoucher[] @relation("cpvUpdatedBy")
   expCatCreatedBy                ExpenseCategory[]      @relation("expCatCreatedBy")
   expCatUpdatedBy                ExpenseCategory[]      @relation("expCatUpdatedBy")
   expenseCreatedBy               Expense[]              @relation("expenseCreatedBy")
   expenseUpdatedBy               Expense[]              @relation("expenseUpdatedBy")
   expLogCreatedBy                ExpenseLog[]           @relation("expLogCreatedBy")
+  accountGroupCreatedBy          AccountGroup[]         @relation("accountGroupCreatedBy")
+  accountGroupUpdatedBy          AccountGroup[]         @relation("accountGroupUpdatedBy")
 }
 
 model Role {
@@ -211,6 +215,7 @@ model Customer {
   gstin               String?
   credit_limit        Int?
   outstanding_credit  Int?
+  advance_credit      Float             @default(0) // Prepaid balance from advance customer payments
   reserved_amount     Float             @default(0) // Amount reserved for active (uninvoiced) sale orders
   notes               String?
   sale_person_id      Int?
@@ -242,6 +247,7 @@ model Customer {
   dispatchCopies      DispatchCopy[]
   priceMappings       PriceMapping[]
   invoices            Invoice[]
+  paymentVouchers     CustomerPaymentVoucher[]
 }
 
 model Vendor {
@@ -658,7 +664,8 @@ model Invoice {
   paidAmount  Float         @default(0)
   dueDate     DateTime
   notes       String?
-  payments    Payment[]
+  payments         Payment[]
+  paymentVoucherItems CustomerPaymentVoucherItem[]
   // Audit Fields
   taxAmount    Decimal   @default(0) @db.Decimal(15, 2)
   bankLedgerId Int?
@@ -677,12 +684,16 @@ model Payment {
   id          Int           @id @default(autoincrement())
   invoiceId   Int
   invoice     Invoice       @relation(fields: [invoiceId], references: [id])
+  voucherId   Int?
+  voucher     CustomerPaymentVoucher? @relation(fields: [voucherId], references: [id])
   amount      Float
   method      PaymentMethod
   referenceNo String? // For UPI/Card/Bank transactions
   notes       String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  @@index([voucherId])
 }
 
 enum POStatus {
@@ -690,6 +701,7 @@ enum POStatus {
   PO_PARTIAL_RECEIVED
   RECEIVED
   INVOICE_RECEIVED
+  PAID
   CLOSED
   CANCELLED
 }
@@ -1393,12 +1405,59 @@ enum ExpenseClassification {
   INDIRECT // general overhead → Operating Expenses
 }
 
+enum ReportSection {
+  BALANCE_SHEET
+  PROFIT_LOSS
+  NONE
+}
+
+enum PnlClassification {
+  DIRECT_INCOME
+  INDIRECT_INCOME
+  DIRECT_EXPENSE
+  INDIRECT_EXPENSE
+  NOT_APPLICABLE
+}
+
+// Industry-standard account group (Tally-style classification layer)
+model AccountGroup {
+  id                Int               @id @default(autoincrement())
+  groupCode         String            @unique
+  groupName         String
+  nature            LedgerType
+  parentGroupId     Int?
+  parentGroup       AccountGroup?     @relation("AccountGroupHierarchy", fields: [parentGroupId], references: [id])
+  childGroups       AccountGroup[]    @relation("AccountGroupHierarchy")
+  reportSection     ReportSection     @default(NONE)
+  pnlClassification PnlClassification @default(NOT_APPLICABLE)
+  isSystemGroup     Boolean           @default(false)
+  sortOrder         Int               @default(0)
+  active_status     Boolean           @default(true)
+  delete_status     Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  createdBy         Int
+  updatedAt         DateTime          @updatedAt
+  updatedBy         Int?
+  createdByUser     User              @relation("accountGroupCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser     User?             @relation("accountGroupUpdatedBy", fields: [updatedBy], references: [id])
+  ledgers           Ledger[]
+
+  @@index([parentGroupId])
+  @@index([nature])
+}
+
 // Chart of Accounts - Ledger Master
 model Ledger {
   id         Int        @id @default(autoincrement())
   ledgerCode String     @unique // e.g., AC-1001, AC-2001
   ledgerName String // e.g., "Cash in Hand", "Sales Revenue"
   ledgerType LedgerType // ASSET, LIABILITY, INCOME, EXPENSE, EQUITY
+
+  // Account group classification (industry COA)
+  accountGroupId      Int?
+  accountGroup        AccountGroup? @relation(fields: [accountGroupId], references: [id])
+  isGroupLedger       Boolean       @default(false)
+  allowsDirectPosting Boolean       @default(true)
 
   // Hierarchical Structure (for parent-child ledger grouping)
   parentLedgerId Int?
@@ -1431,12 +1490,14 @@ model Ledger {
   expenseCategories     ExpenseCategory[]          @relation("expCategoryLedger")
   expenses              Expense[]                  @relation("expenseBankLedger")
   vpvBankLedger         VendorPaymentVoucher[]     @relation("vpvBankLedger")
+  cpvBankLedger         CustomerPaymentVoucher[]   @relation("cpvBankLedger")
   invoicePayments       Invoice[]                  @relation("invoicePaymentLedger")
   vendor                Vendor?                    @relation("vendorLedger")
   customer              Customer?                  @relation("customerLedger")
 
   @@index([ledgerType])
   @@index([parentLedgerId])
+  @@index([accountGroupId])
 }
 
 enum TransactionType {
@@ -1656,6 +1717,48 @@ model VendorPaymentVoucherItem {
   notes           String?
   voucher         VendorPaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   purchaseOrder   PurchaseOrder        @relation("poPaymentItems", fields: [purchaseOrderId], references: [id])
+
+  @@index([voucherId])
+}
+
+model CustomerPaymentVoucher {
+  id            Int      @id @default(autoincrement())
+  receiptNumber String   @unique
+  customerId    Int
+  paymentDate   DateTime @default(now())
+  totalAmount   Decimal  @db.Decimal(15, 2)
+  advanceAmount Decimal  @default(0) @db.Decimal(15, 2)
+  paymentMethod PaymentMethod
+  bankLedgerId  Int
+  referenceNo   String?
+  notes         String?
+  active_status Boolean  @default(true)
+  delete_status Boolean  @default(false)
+  closedStatus  Boolean  @default(false)
+  closedAt      DateTime?
+  createdAt     DateTime @default(now())
+  createdBy     Int
+  updatedAt     DateTime @updatedAt
+  updatedBy     Int?
+  customer      Customer @relation(fields: [customerId], references: [id])
+  bankLedger    Ledger   @relation("cpvBankLedger", fields: [bankLedgerId], references: [id])
+  createdByUser User     @relation("cpvCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("cpvUpdatedBy", fields: [updatedBy], references: [id])
+  items         CustomerPaymentVoucherItem[]
+  payments      Payment[]
+
+  @@index([customerId])
+  @@index([paymentDate])
+}
+
+model CustomerPaymentVoucherItem {
+  id              Int                    @id @default(autoincrement())
+  voucherId       Int
+  invoiceId       Int
+  allocatedAmount Decimal                @db.Decimal(15, 2)
+  notes           String?
+  voucher         CustomerPaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  invoice         Invoice                @relation(fields: [invoiceId], references: [id])
 
   @@index([voucherId])
 }

@@ -75,6 +75,7 @@ import ExpenseCategories from "./pages/ExpenseCategory/ExpenseCategoryMain";
 import ExpenseCategoryForm from "./pages/ExpenseCategory/ExpenseCategoryForm";
 import ExpensesMain from "./pages/Accounting/Expenses/ExpensesMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
+import CustomerPayments from "./pages/Accounting/CustomerPayments/CustomerPaymentsMain";
 import FinancialReports from "./pages/Accounting/FinancialReports";
 import BankReconciliation from "./pages/Accounting/BankReconciliation/BankReconciliationMain";
 
@@ -195,6 +196,7 @@ const AppRoutes = () => (
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
 
       <Route path="/accounts/expenses" element={<ProtectedRoute><ExpensesMain /></ProtectedRoute>} />
+      <Route path="/accounts/customer-payments" element={<ProtectedRoute><CustomerPayments /></ProtectedRoute>} />
       <Route path="/accounts/vendor-payments" element={<ProtectedRoute><VendorPayments /></ProtectedRoute>} />
       <Route path="/accounts/bank-reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
       <Route path="/accounts/ledgers" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />

@@ -10,7 +10,13 @@ export class VendorPaymentController {
     try { res.json({ success: true, data: await service.getById(parseInt(req.params.id)) }); } catch (e) { next(e); }
   }
   async getOutstanding(req, res, next) {
-    try { res.json({ success: true, data: await service.getOutstanding(req.query.vendorId) }); } catch (e) { next(e); }
+    try {
+      if (req.query.vendorId) {
+        res.json({ success: true, data: await service.getOutstanding(req.query.vendorId) });
+      } else {
+        res.json({ success: true, data: await service.listOutstandingGrouped() });
+      }
+    } catch (e) { next(e); }
   }
   async create(req, res, next) {
     try { res.status(201).json({ success: true, data: await service.create(req.body, req.user.id), message: 'Payment voucher created' }); } catch (e) { next(e); }

@@ -114,6 +114,7 @@ const navItems = [
     subItems: [
       { title: "Chart of Accounts", url: "/accounts/ledgers", icon: BookOpen, key: "chart_of_accounts" },
       { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown, key: "expenses" },
+      { title: "Customer Payments", url: "/accounts/customer-payments", icon: CreditCard, key: "customer_payments" },
       { title: "Vendor Payments", url: "/accounts/vendor-payments", icon: CreditCard, key: "vendor_payments" },
       { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw, key: "bank_reconciliation" },
       { title: "Financial Reports", url: "/accounts/reports", icon: Scale, key: "financial_reports" },

@@ -41,11 +41,14 @@ graph TD
 * **Accounting entry posted now** (2026-07-03): `postInvoice()` fires → `FinancialTransaction` type `SALE`: Dr Customer AR / Cr Sales Revenue (AC-3001) / Cr GST Output (AC-2003 if tax > 0).
 * Revenue is recognised at issue, not at draft creation.
 
-### C. Payment Recorded
-* Reduces `outstanding_credit` by the payment amount.
-* If fully paid, sets the Sale Order status to `COMPLETED`.
-* **Accounting entry required (enforced since 2026-07-03):** Every payment (partial or full) must specify a `bankLedgerId` (cash/bank ledger). The backend `invoiceService.recordPayment()` calls `postClientPayment()` when `bankLedgerId` is present → creates a `FinancialTransaction` (Dr Bank/Cash, Cr Customer AR). The `RecordPaymentDialog` UI now fetches available ledgers and requires one to be selected before the submit button is enabled.
-* **Status gate (enforced since 2026-07-03):** Payments are only accepted on invoices in `ISSUED` or `PARTIALLY_PAID` status. Attempting to pay a `DRAFT` invoice returns HTTP 400 (`INVOICE_NOT_ISSUED`). Invoices must be explicitly issued via the "Issue Invoice" action before any payment can be recorded.
+### C. Payment Recorded (via Accounting Customer Payments — 2026-07-05)
+* All customer payments are recorded through **Accounting → Customer Payments** (`CustomerPaymentVoucher`), not per-invoice from Billing.
+* Reduces `outstanding_credit` by the **invoice allocation sum** (not advance portion).
+* Overpayment excess may be marked **Advance payment** → increments `customer.advance_credit`.
+* If fully paid, sets linked Sale Orders to `COMPLETED`.
+* **Accounting:** One `FinancialTransaction` (`RECEIPT`) per voucher via `postCustomerPaymentReceipt()` — Dr Bank/Cash, Cr Customer AR for full receipt amount. No per-invoice `postClientPayment()` calls.
+* **Status gate:** Payments only on `ISSUED` or `PARTIALLY_PAID` invoices.
+* **Allocation:** FIFO by invoice **due date** (ascending); manual override allowed.
 
 ### D. Reversals (Delete / Cancel)
 * **Delete Sale Order:** Decrements `reserved_amount` by the SO total (only if uninvoiced).
@@ -66,10 +69,10 @@ The "Calculate Price" button in `SaleOrderForm.jsx` requires `customerId`, `lens
 ## Billing UI — "Awaiting Invoice" Tab
 The second tab in the Billing page (`/billing`) was renamed from "Dispatch Orders" to **"Awaiting Invoice"** (2026-07-03). It lists all Sale Orders in `DELIVERED` status with `invoiceId: null` — i.e. delivered but not yet billed. Clicking "Create Bill" from this tab opens `CreateInvoiceDialog` pre-filtered to the selected customer.
 
-## Quick Close — Payment Dialog Routing
-The legacy "Quick Close" shortcut (which previously called `recordPayment()` directly with `method: CASH` and no bank ledger, bypassing accounting) has been replaced. Quick Close now opens `RecordPaymentDialog` with the remaining balance pre-filled and the amount field locked (read-only). The user must still select the receiving bank/cash ledger from the "Received Into" dropdown before confirming. This ensures all payment paths — partial, full, and quick-close — produce a `FinancialTransaction` entry.
+## Quick Close — Payment Routing (2026-07-05)
+Record Payment and Quick Close on Billing invoices **navigate to Accounting Customer Payments** (`/accounts/customer-payments?customerId=&invoiceId=&openForm=1`) with the invoice pre-selected. The legacy `RecordPaymentDialog` is no longer the entry point. `POST /api/invoices/:id/payments` returns HTTP 410.
 
 ## Linkages & Dependencies
-* **CRM Module:** References `Customer` records and updates credit fields (`reserved_amount`, `outstanding_credit`).
-* **Accounting Module:** Posts client payment receipts (Dr Bank/Cash, Cr Customer AR) via `postClientPayment()` in `accountingService.js`. Requires a valid `bankLedgerId` from `GET /api/ledgers/cash-bank`.
+* **CRM Module:** References `Customer` records and updates credit fields (`reserved_amount`, `outstanding_credit`, `advance_credit`).
+* **Accounting Module:** Customer payment receipts via `CustomerPaymentVoucher` + `postCustomerPaymentReceipt()` in `accountingService.js`. Requires `bankLedgerId` from `GET /api/ledgers/cash-bank`.
 * **Logistics Module:** Sale Orders must reach `DELIVERED` status (via Dispatch flow) before they appear in the Awaiting Invoice tab and can be invoiced.

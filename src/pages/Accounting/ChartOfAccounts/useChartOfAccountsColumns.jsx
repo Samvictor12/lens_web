@@ -41,6 +41,16 @@ export const useChartOfAccountsColumns = (onEdit, onDelete) => {
       ),
     },
     {
+      accessorKey: "accountGroup",
+      header: "Account Group",
+      sortable: false,
+      cell: (l) => (
+        <span className="text-xs text-muted-foreground">
+          {l.accountGroup?.groupName ?? "—"}
+        </span>
+      ),
+    },
+    {
       accessorKey: "openingBalance",
       header: "Opening Bal.",
       sortable: false,

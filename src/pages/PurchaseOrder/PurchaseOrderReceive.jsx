@@ -13,6 +13,7 @@ import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRat
 import { getPurchaseOrderById, getPOReceipts, receivePurchaseOrder, updatePOReceipt, getPOReceiptLogs } from "@/services/purchaseOrder";
 import { FormSelect } from "@/components/ui/form-select";
 import { getStatusColor, getStatusLabel, buildSinglePoReceiveRows } from "./PurchaseOrder.constants";
+import PurchaseOrderStatusBar from "@/components/purchase-order/PurchaseOrderStatusBar";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -394,7 +395,7 @@ export default function PurchaseOrderReceive() {
 
   // In edit mode, unlock RECEIVED status so fields can be edited
   // Locked when fully received or in terminal status (RECEIVED is still editable/receivable if pendingQty > 0)
-  const isLocked = ["INVOICE_RECEIVED", "CLOSED", "CANCELLED"].includes(po.status)
+  const isLocked = ["INVOICE_RECEIVED", "PAID", "CLOSED", "CANCELLED"].includes(po.status)
     || (!isEditMode && pendingQty <= 0);
 
   // The specific receipt being edited (needed for inward-warning check)
@@ -440,6 +441,8 @@ export default function PurchaseOrderReceive() {
           </Button>
         </div>
       </div>
+
+      <PurchaseOrderStatusBar status={po.status} className="flex-shrink-0" />
 
       <div className="flex flex-col md:flex-row gap-3 flex-1 min-h-0">
         {/* ── Left: PO Summary + Receipt meta ── */}
@@ -682,8 +685,9 @@ export default function PurchaseOrderReceive() {
               <CardContent className="p-3 text-xs text-destructive">
                 {po.status === "RECEIVED" ? "This PO has already been fully received."
                   : po.status === "INVOICE_RECEIVED" ? "Invoice has been received for this PO. No further receiving allowed."
-                    : po.status === "CLOSED" ? "This PO is closed."
-                      : "This PO has been cancelled and cannot be received."}
+                    : po.status === "PAID" ? "This PO is paid. No further receiving allowed."
+                      : po.status === "CLOSED" ? "This PO is closed."
+                        : "This PO has been cancelled and cannot be received."}
               </CardContent>
             </Card>
           )}

@@ -21,4 +21,10 @@ export class FinancialReportController {
   async getCashBankBook(req, res, next) {
     try { res.json({ success: true, data: await service.getCashBankBook(req.query) }); } catch (e) { next(e); }
   }
+  async getGroupSummary(req, res, next) {
+    try { res.json({ success: true, data: await service.getGroupSummary(req.query) }); } catch (e) { next(e); }
+  }
+  async getBalanceSheet(req, res, next) {
+    try { res.json({ success: true, data: await service.getBalanceSheet(req.query) }); } catch (e) { next(e); }
+  }
 }

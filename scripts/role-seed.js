@@ -33,7 +33,7 @@ const DEFAULT_ROLES = [
 const MODULE_KEYS = [
   'dashboard', 'sale_orders', 'inventory', 'purchase_orders', 'dispatch',
   'fitting', 'pre_qc', 'post_qc', 'billing', 'chart_of_accounts',
-  'expenses', 'vendor_payments', 'bank_reconciliation', 'financial_reports',
+  'expenses', 'customer_payments', 'vendor_payments', 'bank_reconciliation', 'financial_reports',
   'reports', 'business_categories', 'expense_categories', 'customers',
   'vendors', 'departments', 'users', 'check_sheets', 'lens_indexes',
   'lens_diameters', 'lens_categories', 'lens_materials', 'lens_coatings',
@@ -124,6 +124,7 @@ async function main() {
     { mod: 'chart_of_accounts', acts: ['Screen', 'Create', 'Edit', 'View', 'Delete'] },
     { mod: 'expenses', acts: ['Screen', 'Create', 'Edit', 'View', 'Delete'] },
     { mod: 'expense_categories', acts: ['Screen', 'Create', 'Edit', 'View', 'Delete'] },
+    { mod: 'customer_payments', acts: ['Screen', 'Create', 'Edit', 'View', 'Delete'] },
     { mod: 'vendor_payments', acts: ['Screen', 'Create', 'Edit', 'View', 'Delete'] },
     { mod: 'bank_reconciliation', acts: ['Screen', 'Create', 'Edit', 'View', 'Delete'] },
     { mod: 'financial_reports', acts: ['Screen'] },

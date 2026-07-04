@@ -25,6 +25,17 @@ export async function generateVoucherNumber() {
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
+export async function generateReceiptNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `CRV-${year}-`;
+  const last = await prisma.customerPaymentVoucher.findFirst({
+    where: { receiptNumber: { startsWith: prefix } },
+    orderBy: { receiptNumber: 'desc' },
+  });
+  const next = last ? parseInt(last.receiptNumber.split('-').pop()) + 1 : 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
 export async function generateExpenseNumber() {
   const year = new Date().getFullYear();
   const prefix = `EXP-${year}-`;
@@ -90,6 +101,19 @@ export async function postTransaction(tx, { transactionType, referenceType, refe
   }
   if (Math.abs(totalDr - totalCr) > 0.01) {
     throw new APIError(`Transaction not balanced. Dr: ${totalDr}, Cr: ${totalCr}`, 400, 'UNBALANCED_TRANSACTION');
+  }
+
+  // Reject posting to group control / non-posting ledgers
+  for (const e of entries) {
+    const ledger = await tx.ledger.findUnique({ where: { id: e.ledgerId } });
+    if (!ledger) throw new APIError(`Ledger id ${e.ledgerId} not found`, 500, 'LEDGER_NOT_FOUND');
+    if (ledger.isGroupLedger || ledger.allowsDirectPosting === false) {
+      throw new APIError(
+        `Cannot post to control ledger ${ledger.ledgerCode}. Post to a sub-ledger instead.`,
+        400,
+        'NON_POSTING_LEDGER'
+      );
+    }
   }
 
   const txnNumber = await generateTransactionNumber();
@@ -255,6 +279,29 @@ export async function postClientPayment(tx, { invoiceId, invoiceNo, amount, bank
   }, [
     { ledgerId: bankLedger.id, entryType: 'DEBIT', amount, description: `Client payment — ${invoiceNo}` },
     { ledgerId: arLedger.id, entryType: 'CREDIT', amount, description: `AR cleared — ${invoiceNo}` },
+  ], userId);
+}
+
+/**
+ * Auto-post on customer payment receipt voucher.
+ * Dr Cash/Bank (bankLedgerId), Cr customer's AR ledger (child of AC-1003)
+ */
+export async function postCustomerPaymentReceipt(tx, { voucherId, receiptNumber, totalAmount, bankLedgerId, customer }, userId) {
+  const [bankLedger, arLedger] = await Promise.all([
+    tx.ledger.findUnique({ where: { id: bankLedgerId } }),
+    getOwnedLedger(tx, customer, 'Customer'),
+  ]);
+  if (!bankLedger) throw new APIError('Selected bank/cash ledger not found', 400, 'LEDGER_NOT_FOUND');
+
+  return postTransaction(tx, {
+    transactionType: 'RECEIPT',
+    referenceType: 'RECEIPT',
+    referenceId: voucherId,
+    referenceNumber: receiptNumber,
+    description: `Customer payment receipt — ${receiptNumber}`,
+  }, [
+    { ledgerId: bankLedger.id, entryType: 'DEBIT', amount: totalAmount, description: `Receipt — ${receiptNumber}` },
+    { ledgerId: arLedger.id, entryType: 'CREDIT', amount: totalAmount, description: `AR cleared — ${receiptNumber}` },
   ], userId);
 }
 

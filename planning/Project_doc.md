@@ -11,7 +11,7 @@ The application provides a comprehensive ERP and management system for an optica
 * **Sales & Logistics:** Sale order (SO) forms, SO workflows, invoicing/billing, and dispatch/delivery agent routing.
 * **Inventory Management:** Physical stock items, tray allocation, FIFO stock-picking, inventory transactions, and stock-level alerting.
 * **Quality & Shop Floor:** Check sheets, production operators, quality operator screens, and barcode/QR wedge scanning interfaces.
-* **Financial Accounting:** Ledger, Chart of Accounts, Bank Reconciliation, Expense Category tracking, and Profit & Loss (P&L) reporting.
+* **Financial Accounting:** Ledger, **Account Groups & industry Chart of Accounts**, **Customer & Vendor Payment Vouchers** (with allocation breakdown traceability), Bank Reconciliation, Expense Category tracking, Group Summary / Balance Sheet / Profit & Loss reporting.
 * **Admin Controls:** User profiles, role-based access control, settings (printers, metadata), and system logs.
 
 ---
@@ -57,10 +57,13 @@ The application provides a comprehensive ERP and management system for an optica
 | Discount Management | Sales | DONE | [DiscountManagement](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Sales.md) |
 | Inventory (items, stock, transactions, alerts) | Inventory | IN_PROGRESS | [Inventory](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Inventory.md) |
 | Tray Master / Location Master | Inventory | DONE | [Inventory](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Inventory.md) |
+| Accounting — Account Groups & COA Tree | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
+| Accounting — Payment Traceability Tree | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Chart of Accounts, Ledger, Financial Reports | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Bank Reconciliation | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Expenses / Expense Category | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Vendor Payment Vouchers | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
+| Accounting — Customer Payment Receipts | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Check Sheet (QA) | Quality | DONE | [Quality](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Quality.md) |
 | Production / Quality Operator | Production | DONE | [Production](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Production.md) |
 | Business Category / Department | Admin | DONE | [Admin](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Admin.md) |

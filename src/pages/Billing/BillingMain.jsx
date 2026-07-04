@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   Plus,
@@ -20,12 +21,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getInvoices, getInvoiceStats } from "@/services/invoice";
 
-import { fmt, PAGE_SIZE, billingFilters } from "./Billing.constants";
+import { fmt, PAGE_SIZE, billingFilters, canRecordPayment } from "./Billing.constants";
 import BillingFilter from "./BillingFilter";
 import BillingDashboard from "./BillingDashboard";
 import InvoiceCard, { InvoiceStatusBadge } from "./InvoiceCard";
 import CreateInvoiceDialog from "./CreateInvoiceDialog";
-import RecordPaymentDialog from "./RecordPaymentDialog";
 import InvoiceDetailDialog from "./InvoiceDetailDialog";
 import InvoicePreviewDialog from "./InvoicePreviewDialog";
 import DispatchedOrdersTab from "./DispatchedOrdersTab";
@@ -119,7 +119,7 @@ function useBillingColumns(onView, onPay) {
           >
             <Eye className="h-3 w-3" /> View
           </Button>
-          {!["PAID", "CANCELLED"].includes(row.status) && (
+          {canRecordPayment(row.status) && (
             <Button size="xs" className="h-7 gap-1" onClick={() => onPay(row)}>
               <CreditCard className="h-3 w-3" /> Pay
             </Button>
@@ -132,13 +132,42 @@ function useBillingColumns(onView, onPay) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BillingMain() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [createOpen, setCreateOpen] = useState(false);
   const [createForCustomer, setCreateForCustomer] = useState("");
   const [detailId, setDetailId] = useState(null);
-  const [paymentInvoice, setPaymentInvoice] = useState(null);
-  const [amountLocked, setAmountLocked] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState(null);
+
+  useEffect(() => {
+    const invoiceId = searchParams.get("invoiceId");
+    const openDetail = searchParams.get("openDetail");
+    if (invoiceId && openDetail === "1") {
+      setDetailId(parseInt(invoiceId, 10));
+      setActiveTab("invoices");
+      const next = new URLSearchParams(searchParams);
+      next.delete("openDetail");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const navigateToPayment = (inv, lockAmount = false) => {
+    if (!canRecordPayment(inv.status)) {
+      toast.error("Invoice must be issued before recording payment.");
+      return;
+    }
+    const params = new URLSearchParams({
+      customerId: String(inv.customerId),
+      invoiceId: String(inv.id),
+      openForm: "1",
+    });
+    if (lockAmount) {
+      const outstanding = Math.max(0, inv.totalAmount - inv.paidAmount);
+      params.set("amount", String(outstanding.toFixed(2)));
+    }
+    navigate(`/accounts/customer-payments?${params.toString()}`);
+  };
 
   // Invoice list controls
   const [view, setView] = useState("table");
@@ -246,7 +275,7 @@ export default function BillingMain() {
 
   const columns = useBillingColumns(
     (id) => setDetailId(id),
-    (inv) => setPaymentInvoice(inv)
+    (inv) => navigateToPayment(inv)
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -405,11 +434,8 @@ export default function BillingMain() {
                     invoice={inv}
                     onView={(id) => setDetailId(id)}
                     onPreview={(inv) => setPreviewInvoice(inv)}
-                    onPay={(inv) => setPaymentInvoice(inv)}
-                    onQuickClose={(inv) => {
-                      setPaymentInvoice(inv);
-                      setAmountLocked(true);
-                    }}
+                    onPay={(inv) => navigateToPayment(inv)}
+                    onQuickClose={(inv) => navigateToPayment(inv, true)}
                   />
                 )}
                 isLoading={isLoading}
@@ -444,23 +470,13 @@ export default function BillingMain() {
         onClose={() => setDetailId(null)}
         onPay={(inv) => {
           setDetailId(null);
-          setPaymentInvoice(inv);
+          navigateToPayment(inv);
         }}
         onQuickClose={(inv) => {
           setDetailId(null);
-          setPaymentInvoice(inv);
-          setAmountLocked(true);
+          navigateToPayment(inv, true);
         }}
         onPreview={(inv) => setPreviewInvoice(inv)}
-      />
-      <RecordPaymentDialog
-        invoice={paymentInvoice}
-        open={!!paymentInvoice}
-        amountLocked={amountLocked}
-        onClose={() => {
-          setPaymentInvoice(null);
-          setAmountLocked(false);
-        }}
       />
       <InvoicePreviewDialog
         invoice={previewInvoice}
