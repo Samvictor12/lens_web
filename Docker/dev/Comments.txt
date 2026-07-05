@@ -3,4 +3,4 @@ scp -r D:\Personal\workspace\Lens_Project\Sources\lens_web\Docker\prod root@187.
 scp  D:\Personal\workspace\Lens_Project\Sources\lens_web\Docker\prod\clair.tar root@187.127.182.76:~/Clair
 
 Form server to Local
-scp root@187.127.182.76:/Clair/backups/lens_prod_backup_2026-07-03_005718.sql D:\Personal\workspace\Lens_Project\Sources\lens_web\Docker\dev\backups
+scp root@187.127.182.76:~/Clair/backups/lens_prod_backup_2026-07-03_005718.sql D:\Personal\workspace\Lens_Project\Sources\lens_web\Docker\dev\backups

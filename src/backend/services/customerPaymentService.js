@@ -242,6 +242,8 @@ export class CustomerPaymentService {
           bankLedgerId: parseInt(bankLedgerId),
           referenceNo: referenceNo || null,
           notes: notes || null,
+          closedStatus: true,
+          closedAt: new Date(),
           createdBy: userId,
           items: {
             create: allocations

@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Printer, Lock } from "lucide-react";
+import { Printer } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,36 +8,14 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { closeCustomerPayment } from "@/services/customerPayment";
 import PaymentBreakdownTree from "@/components/accounting/PaymentBreakdownTree";
 import {
   PAYMENT_METHOD_LABELS,
   printCustomerPaymentReceipt,
 } from "./CustomerPayments.constants";
 
-export default function CustomerPaymentDetailDialog({ open, onOpenChange, payment, onClosed }) {
-  const { toast } = useToast();
-  const [isClosing, setIsClosing] = useState(false);
-
+export default function CustomerPaymentDetailDialog({ open, onOpenChange, payment }) {
   if (!payment) return null;
-
-  const handleClose = async () => {
-    setIsClosing(true);
-    try {
-      await closeCustomerPayment(payment.id);
-      toast({ title: "Receipt closed" });
-      onClosed?.();
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Failed to close receipt",
-        description: err?.message,
-      });
-    } finally {
-      setIsClosing(false);
-    }
-  };
 
   const advance = parseFloat(payment.advanceAmount || 0);
 
@@ -46,19 +23,7 @@ export default function CustomerPaymentDetailDialog({ open, onOpenChange, paymen
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Receipt — {payment.receiptNumber}
-            <Badge
-              variant="outline"
-              className={
-                payment.closedStatus
-                  ? "text-xs font-normal bg-gray-100 text-gray-700 border-gray-300"
-                  : "text-xs font-normal bg-green-100 text-green-700 border-green-300"
-              }
-            >
-              {payment.closedStatus ? "Closed" : "Open"}
-            </Badge>
-          </DialogTitle>
+          <DialogTitle>Receipt — {payment.receiptNumber}</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm py-2">
@@ -135,17 +100,6 @@ export default function CustomerPaymentDetailDialog({ open, onOpenChange, paymen
           >
             <Printer className="h-4 w-4" /> Print Receipt
           </Button>
-          {!payment.closedStatus && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
-              onClick={handleClose}
-              disabled={isClosing}
-            >
-              <Lock className="h-4 w-4" /> Close Receipt
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

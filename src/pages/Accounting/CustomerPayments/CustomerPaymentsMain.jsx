@@ -308,10 +308,6 @@ export default function CustomerPaymentsMain() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         payment={loadingDetail ? null : selectedPayment}
-        onClosed={() => {
-          handleView(selectedPayment);
-          fetchPayments();
-        }}
       />
     </div>
   );

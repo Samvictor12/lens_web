@@ -1682,19 +1682,23 @@ model CompanySettings {
 // ============================================================
 
 model VendorPaymentVoucher {
-  id            Int      @id @default(autoincrement())
-  voucherNumber String   @unique
-  vendorId      Int
-  paymentDate   DateTime @default(now())
-  totalAmount   Decimal  @db.Decimal(15, 2)
-  paymentMethod PaymentMethod
-  bankLedgerId  Int
-  referenceNo   String?
-  notes         String?
-  active_status Boolean  @default(true)
-  delete_status Boolean  @default(false)
-  closedStatus  Boolean   @default(false)
-  closedAt      DateTime?
+  id               Int      @id @default(autoincrement())
+  voucherNumber    String   @unique
+  vendorId         Int
+  paymentDate      DateTime @default(now())
+  totalAmount      Decimal  @db.Decimal(15, 2)
+  subtotalAmount   Decimal? @db.Decimal(15, 2)
+  taxAmount        Decimal? @db.Decimal(15, 2)
+  vendorInvoiceNo  String?
+  invoiceCopyPath  String?
+  paymentMethod    PaymentMethod
+  bankLedgerId     Int
+  referenceNo      String?
+  notes            String?
+  active_status    Boolean  @default(true)
+  delete_status    Boolean  @default(false)
+  closedStatus     Boolean  @default(true)
+  closedAt         DateTime?
   createdAt     DateTime @default(now())
   createdBy     Int
   updatedAt     DateTime @updatedAt
@@ -1713,6 +1717,8 @@ model VendorPaymentVoucherItem {
   id              Int                  @id @default(autoincrement())
   voucherId       Int
   purchaseOrderId Int
+  subtotalAmount  Decimal?             @db.Decimal(15, 2)
+  taxAmount       Decimal?             @db.Decimal(15, 2)
   allocatedAmount Decimal              @db.Decimal(15, 2)
   notes           String?
   voucher         VendorPaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
@@ -1734,7 +1740,7 @@ model CustomerPaymentVoucher {
   notes         String?
   active_status Boolean  @default(true)
   delete_status Boolean  @default(false)
-  closedStatus  Boolean  @default(false)
+  closedStatus  Boolean  @default(true)
   closedAt      DateTime?
   createdAt     DateTime @default(now())
   createdBy     Int

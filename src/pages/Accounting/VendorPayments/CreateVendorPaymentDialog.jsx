@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { FileText, Upload, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,12 +21,21 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createVendorPayment, getOutstandingPOs } from "@/services/vendorPayment";
-import { previewAllocations } from "../CustomerPayments/CustomerPayments.constants";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, emptyPaymentForm } from "./VendorPayments.constants";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
+
+function round2(n) {
+  return Math.round(parseFloat(n || 0) * 100) / 100;
+}
+
+const emptyPoLine = () => ({
+  subtotalAmount: "",
+  taxAmount: "",
+  allocatedAmount: "",
+});
 
 export default function CreateVendorPaymentDialog({
   open,
@@ -38,12 +48,13 @@ export default function CreateVendorPaymentDialog({
   onCreated,
 }) {
   const { toast } = useToast();
+  const fileInputRef = useRef(null);
   const [form, setForm] = useState(emptyPaymentForm);
   const [saving, setSaving] = useState(false);
   const [outstandingPOs, setOutstandingPOs] = useState([]);
   const [loadingPOs, setLoadingPOs] = useState(false);
-  const [allocations, setAllocations] = useState({});
-  const [manualOverrides, setManualOverrides] = useState({});
+  const [poLines, setPoLines] = useState({});
+  const [invoiceFile, setInvoiceFile] = useState(null);
 
   const lockedVendor = !!preselectedVendorId;
 
@@ -66,8 +77,8 @@ export default function CreateVendorPaymentDialog({
       vendorId: preselectedVendorId ? String(preselectedVendorId) : "",
       paymentDate: new Date().toISOString().split("T")[0],
     });
-    setManualOverrides({});
-    setAllocations({});
+    setPoLines({});
+    setInvoiceFile(null);
   }, [open, preselectedVendorId]);
 
   useEffect(() => {
@@ -101,32 +112,79 @@ export default function CreateVendorPaymentDialog({
       .finally(() => setLoadingPOs(false));
   }, [form.vendorId, preselectedVendorId]);
 
-  const paymentAmount = parseFloat(form.totalAmount) || 0;
-
-  const invoiceLikePOs = selectedPOs.map((po) => ({
-    id: po.id ?? po.purchaseOrderId,
-    outstanding:
-      po.needsPricing && paymentAmount > 0
-        ? paymentAmount
-        : (po.outstanding ?? po.outstandingAmount ?? 0),
-    dueDate: po.expectedDeliveryDate,
-    orderDate: po.orderDate,
-    invoiceNo: po.poNumber,
-  }));
-
-  const { allocations: preview } = useMemo(() => {
-    if (!paymentAmount || !invoiceLikePOs.length) return { allocations: {} };
-    return previewAllocations(invoiceLikePOs, paymentAmount, manualOverrides);
-  }, [invoiceLikePOs, paymentAmount, manualOverrides]);
-
   useEffect(() => {
-    setAllocations(preview);
-  }, [preview]);
+    if (!selectedPOs.length) return;
+    setPoLines((prev) => {
+      const next = { ...prev };
+      for (const po of selectedPOs) {
+        const id = po.id ?? po.purchaseOrderId;
+        if (!next[id]) next[id] = emptyPoLine();
+      }
+      return next;
+    });
+  }, [selectedPOs]);
 
-  const totalAllocated = Object.values(allocations).reduce(
-    (s, v) => s + (parseFloat(v) || 0),
-    0
-  );
+  const updatePoLine = (poId, field, value) => {
+    setPoLines((prev) => {
+      const line = { ...(prev[poId] || emptyPoLine()), [field]: value };
+      if (field === "subtotalAmount" || field === "taxAmount") {
+        const sub = parseFloat(field === "subtotalAmount" ? value : line.subtotalAmount) || 0;
+        const tax = parseFloat(field === "taxAmount" ? value : line.taxAmount) || 0;
+        if (!line.allocatedAmount || field !== "allocatedAmount") {
+          line.allocatedAmount = sub + tax > 0 ? String(round2(sub + tax)) : "";
+        }
+      }
+      return { ...prev, [poId]: line };
+    });
+  };
+
+  const poTotals = useMemo(() => {
+    let subtotal = 0;
+    let tax = 0;
+    let allocated = 0;
+    for (const po of selectedPOs) {
+      const id = po.id ?? po.purchaseOrderId;
+      const line = poLines[id] || {};
+      subtotal += parseFloat(line.subtotalAmount) || 0;
+      tax += parseFloat(line.taxAmount) || 0;
+      allocated += parseFloat(line.allocatedAmount) || 0;
+    }
+    return {
+      subtotal: round2(subtotal),
+      tax: round2(tax),
+      allocated: round2(allocated),
+      invoiceTotal: round2(subtotal + tax),
+    };
+  }, [selectedPOs, poLines]);
+
+  const invoiceTotal = useMemo(() => {
+    const sub = parseFloat(form.subtotalAmount) || 0;
+    const tax = parseFloat(form.taxAmount) || 0;
+    return round2(sub + tax);
+  }, [form.subtotalAmount, form.taxAmount]);
+
+  const handleInvoiceFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      toast({ variant: "destructive", title: "Only PDF or image files are allowed" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File must be under 10 MB" });
+      return;
+    }
+    setInvoiceFile(file);
+  };
+
+  const syncTotalsFromPoLines = () => {
+    setForm((f) => ({
+      ...f,
+      subtotalAmount: poTotals.subtotal ? String(poTotals.subtotal) : "",
+      taxAmount: poTotals.tax ? String(poTotals.tax) : "",
+    }));
+  };
 
   const handleSave = async () => {
     if (!form.vendorId) {
@@ -137,41 +195,82 @@ export default function CreateVendorPaymentDialog({
       toast({ variant: "destructive", title: "Please select a payment account" });
       return;
     }
-    if (paymentAmount <= 0) {
-      toast({ variant: "destructive", title: "Payment amount must be greater than zero" });
+    if (!form.vendorInvoiceNo?.trim()) {
+      toast({ variant: "destructive", title: "Vendor invoice number is required" });
+      return;
+    }
+    if (!invoiceFile) {
+      toast({ variant: "destructive", title: "Please upload the vendor invoice copy" });
+      return;
+    }
+    if (!selectedPOs.length) {
+      toast({ variant: "destructive", title: "Select at least one purchase order" });
       return;
     }
 
-    const poIds = preselectedPoIds.length
-      ? preselectedPoIds
-      : selectedPOs.map((po) => po.id ?? po.purchaseOrderId);
+    const subtotal = round2(form.subtotalAmount || poTotals.subtotal);
+    const tax = round2(form.taxAmount || poTotals.tax);
+    const total = invoiceTotal;
 
-    const items = poIds
-      .filter((id) => (allocations[id] || 0) > 0)
-      .map((id) => ({
+    if (total <= 0) {
+      toast({ variant: "destructive", title: "Invoice total must be greater than zero" });
+      return;
+    }
+    if (Math.abs(poTotals.subtotal - subtotal) > 0.01 || Math.abs(poTotals.tax - tax) > 0.01) {
+      toast({
+        variant: "destructive",
+        title: "PO line subtotals/GST must match invoice totals",
+      });
+      return;
+    }
+    if (Math.abs(poTotals.allocated - total) > 0.01) {
+      toast({
+        variant: "destructive",
+        title: "Sum of PO payment amounts must equal total payment",
+      });
+      return;
+    }
+
+    const items = selectedPOs.map((po) => {
+      const id = po.id ?? po.purchaseOrderId;
+      const line = poLines[id] || {};
+      return {
         purchaseOrderId: id,
-        allocatedAmount: parseFloat(allocations[id]),
-      }));
+        subtotalAmount: round2(line.subtotalAmount),
+        taxAmount: round2(line.taxAmount),
+        allocatedAmount: round2(line.allocatedAmount),
+      };
+    });
 
     setSaving(true);
     try {
-      await createVendorPayment({
-        vendorId: parseInt(form.vendorId),
-        bankLedgerId: parseInt(form.bankLedgerId),
-        paymentDate: form.paymentDate,
-        paymentMethod: form.paymentMethod,
-        referenceNo: form.referenceNumber || undefined,
-        notes: form.notes || undefined,
-        totalAmount: paymentAmount,
-        items,
-      });
-      toast({ title: "Payment recorded" });
+      await createVendorPayment(
+        {
+          vendorId: parseInt(form.vendorId),
+          bankLedgerId: parseInt(form.bankLedgerId),
+          paymentDate: form.paymentDate,
+          paymentMethod: form.paymentMethod,
+          referenceNo: form.referenceNumber || undefined,
+          vendorInvoiceNo: form.vendorInvoiceNo.trim(),
+          notes: form.notes || undefined,
+          subtotalAmount: subtotal,
+          taxAmount: tax,
+          totalAmount: total,
+          items,
+        },
+        invoiceFile
+      );
+      toast({ title: "Payment voucher created" });
       setForm(emptyPaymentForm);
-      setAllocations({});
+      setPoLines({});
+      setInvoiceFile(null);
       onCreated?.();
       onOpenChange(false);
     } catch (e) {
-      toast({ variant: "destructive", title: e?.message || "Failed to record payment" });
+      toast({
+        variant: "destructive",
+        title: e?.message || e?.error?.message || "Failed to record payment",
+      });
     } finally {
       setSaving(false);
     }
@@ -179,8 +278,8 @@ export default function CreateVendorPaymentDialog({
 
   const handleClose = () => {
     setForm(emptyPaymentForm);
-    setAllocations({});
-    setManualOverrides({});
+    setPoLines({});
+    setInvoiceFile(null);
     setOutstandingPOs([]);
     onOpenChange(false);
   };
@@ -189,7 +288,7 @@ export default function CreateVendorPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!w-[80vw] !max-w-[80vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Record Vendor Payment</DialogTitle>
         </DialogHeader>
@@ -211,14 +310,11 @@ export default function CreateVendorPaymentDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Payment Amount *</Label>
+              <Label>Vendor Invoice No. *</Label>
               <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.totalAmount}
-                onChange={(e) => set("totalAmount", e.target.value)}
-                placeholder="Amount paid"
+                value={form.vendorInvoiceNo}
+                onChange={(e) => set("vendorInvoiceNo", e.target.value)}
+                placeholder="Invoice number from vendor"
               />
             </div>
             <div className="space-y-1">
@@ -228,6 +324,87 @@ export default function CreateVendorPaymentDialog({
                 value={form.paymentDate}
                 onChange={(e) => set("paymentDate", e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Vendor Invoice Copy * (PDF or image)</Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleInvoiceFile}
+            />
+            {invoiceFile ? (
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate flex-1">{invoiceFile.name}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => {
+                    setInvoiceFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" /> Upload invoice copy
+              </Button>
+            )}
+          </div>
+
+          <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-semibold">Invoice Amounts (from vendor invoice)</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={syncTotalsFromPoLines}>
+                Sync from PO lines
+              </Button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Subtotal</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.subtotalAmount}
+                  onChange={(e) => set("subtotalAmount", e.target.value)}
+                  placeholder="Before GST"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">GST</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.taxAmount}
+                  onChange={(e) => set("taxAmount", e.target.value)}
+                  placeholder="Total GST"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Total Payment</Label>
+                <Input
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  className="bg-muted font-semibold"
+                  value={invoiceTotal > 0 ? fmt(invoiceTotal) : "—"}
+                />
+              </div>
             </div>
           </div>
 
@@ -275,54 +452,81 @@ export default function CreateVendorPaymentDialog({
 
           {(form.vendorId || preselectedVendorId) && (
             <div className="space-y-2">
-              <Label>Allocate to Purchase Orders (FIFO)</Label>
+              <Label>PO Invoice Breakdown *</Label>
+              <p className="text-xs text-muted-foreground">
+                Enter subtotal and GST per PO from the vendor invoice. These values are saved to the PO and used for payment tracking.
+              </p>
               {loadingPOs ? (
-                <p className="text-xs text-muted-foreground py-2">Loading outstanding POs...</p>
+                <p className="text-xs text-muted-foreground py-2">Loading purchase orders...</p>
               ) : selectedPOs.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">
-                  No outstanding purchase orders for this vendor.
+                  No purchase orders selected. Select POs from the Outstanding tab first.
                 </p>
               ) : (
-                <div className="border rounded-md divide-y text-xs">
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                <div className="border rounded-md divide-y text-xs overflow-x-auto">
+                  <div className="grid grid-cols-[1fr_repeat(4,7rem)] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[36rem]">
                     <span>PO Number</span>
-                    <span className="text-right pr-2">Outstanding</span>
-                    <span className="w-28 text-right">Allocate</span>
+                    <span className="text-right">Subtotal</span>
+                    <span className="text-right">GST</span>
+                    <span className="text-right">PO Total</span>
+                    <span className="text-right">Pay Now</span>
                   </div>
                   {selectedPOs.map((po) => {
                     const id = po.id ?? po.purchaseOrderId;
-                    const outstanding = po.outstanding ?? po.outstandingAmount;
+                    const line = poLines[id] || emptyPoLine();
+                    const lineTotal = round2(
+                      (parseFloat(line.subtotalAmount) || 0) + (parseFloat(line.taxAmount) || 0)
+                    );
                     return (
                       <div
                         key={id}
-                        className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2"
+                        className="grid grid-cols-[1fr_repeat(4,7rem)] gap-2 items-center px-3 py-2 min-w-[36rem]"
                       >
                         <div>
                           <p className="font-medium">{po.poNumber}</p>
                           <p className="text-muted-foreground">
-                            {po.orderDate
-                              ? new Date(po.orderDate).toLocaleDateString("en-IN")
-                              : "—"}
+                            {po.needsPricing
+                              ? "Awaiting invoice values"
+                              : `Outstanding ${fmt(po.outstanding)}`}
                           </p>
                         </div>
-                        <span className="text-right pr-2 font-mono">{fmt(outstanding)}</span>
                         <Input
                           type="number"
                           min="0"
                           step="0.01"
-                          max={outstanding}
-                          className="w-28 h-7 text-xs text-right"
-                          value={allocations[id] ?? ""}
-                          onChange={(e) =>
-                            setManualOverrides((prev) => ({ ...prev, [id]: e.target.value }))
-                          }
+                          className="h-7 text-xs text-right"
+                          value={line.subtotalAmount}
+                          onChange={(e) => updatePoLine(id, "subtotalAmount", e.target.value)}
+                          placeholder="0.00"
+                        />
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="h-7 text-xs text-right"
+                          value={line.taxAmount}
+                          onChange={(e) => updatePoLine(id, "taxAmount", e.target.value)}
+                          placeholder="0.00"
+                        />
+                        <span className="text-right font-mono pr-1">{fmt(lineTotal)}</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="h-7 text-xs text-right"
+                          value={line.allocatedAmount}
+                          onChange={(e) => updatePoLine(id, "allocatedAmount", e.target.value)}
+                          placeholder="0.00"
                         />
                       </div>
                     );
                   })}
-                  <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 bg-muted/20 font-semibold">
-                    <span>Total Allocated</span>
-                    <span className="font-mono pr-0">{fmt(totalAllocated)}</span>
+                  <div className="grid grid-cols-[1fr_repeat(4,7rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
+                    <span>PO Totals</span>
+                    <span className="text-right font-mono">{fmt(poTotals.subtotal)}</span>
+                    <span className="text-right font-mono">{fmt(poTotals.tax)}</span>
+                    <span className="text-right font-mono">{fmt(poTotals.invoiceTotal)}</span>
+                    <span className="text-right font-mono">{fmt(poTotals.allocated)}</span>
                   </div>
                 </div>
               )}
@@ -343,8 +547,11 @@ export default function CreateVendorPaymentDialog({
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || paymentAmount <= 0}>
-            {saving ? "Saving..." : `Record ${fmt(paymentAmount)}`}
+          <Button
+            onClick={handleSave}
+            disabled={saving || !selectedPOs.length || !invoiceFile || invoiceTotal <= 0}
+          >
+            {saving ? "Creating voucher..." : `Create Voucher ${invoiceTotal > 0 ? fmt(invoiceTotal) : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

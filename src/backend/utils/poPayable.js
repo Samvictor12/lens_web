@@ -4,38 +4,9 @@ export function round2(n) {
   return Math.round(parseFloat(n) * 100) / 100;
 }
 
-function sumReceiptItems(receivedItems) {
-  if (!Array.isArray(receivedItems)) return 0;
-  return receivedItems.reduce(
-    (sum, item) => sum + (parseFloat(item.receivedQty) || 0) * (parseFloat(item.unitPrice) || 0),
-    0
-  );
-}
-
-/** Payable base: PO header → receipt totals → line economics → qty × unit price */
-export function computePayableAmount(po, receipts = []) {
-  const header = round2(parseFloat(po.totalValue) || 0);
-  if (header > 0.01) return header;
-
-  let fromReceipts = 0;
-  for (const r of receipts) {
-    let rv = parseFloat(r.totalValue) || 0;
-    if (rv <= 0.01) rv = sumReceiptItems(r.receivedItems);
-    if (rv <= 0.01) rv = (parseFloat(r.subtotal) || 0) + (parseFloat(r.taxAmount) || 0);
-    fromReceipts += rv;
-  }
-  fromReceipts = round2(fromReceipts);
-  if (fromReceipts > 0.01) return fromReceipts;
-
-  const poSubtotal = round2(parseFloat(po.subtotal) || 0);
-  const poTax = round2(parseFloat(po.taxAmount) || 0);
-  if (poSubtotal + poTax > 0.01) return round2(poSubtotal + poTax);
-
-  const qty = parseFloat(po.receivedQty) || parseFloat(po.quantity) || 0;
-  const unit = parseFloat(po.unitPrice) || 0;
-  if (qty * unit > 0.01) return round2(qty * unit);
-
-  return 0;
+/** Payable for vendor payment — PO header value set at payment time, not from receipts. */
+export function computePayableAmount(po) {
+  return round2(parseFloat(po.totalValue) || 0);
 }
 
 export const PO_PAYABLE_SELECT = {
@@ -71,20 +42,10 @@ export async function syncPoPaidStatus(tx, poIds, userId) {
 
   if (!pos.length) return;
 
-  const [allocations, receipts] = await Promise.all([
+  const [allocations] = await Promise.all([
     tx.vendorPaymentVoucherItem.findMany({
       where: { purchaseOrderId: { in: uniqueIds } },
       select: { purchaseOrderId: true, allocatedAmount: true },
-    }),
-    tx.purchaseOrderReceipt.findMany({
-      where: { purchaseOrderId: { in: uniqueIds }, deleteStatus: false },
-      select: {
-        purchaseOrderId: true,
-        totalValue: true,
-        subtotal: true,
-        taxAmount: true,
-        receivedItems: true,
-      },
     }),
   ]);
 
@@ -93,17 +54,11 @@ export async function syncPoPaidStatus(tx, poIds, userId) {
     return acc;
   }, {});
 
-  const receiptsByPo = receipts.reduce((acc, r) => {
-    if (!acc[r.purchaseOrderId]) acc[r.purchaseOrderId] = [];
-    acc[r.purchaseOrderId].push(r);
-    return acc;
-  }, {});
-
   for (const po of pos) {
     if (po.status === 'PAID' || po.status === 'CANCELLED') continue;
     if (!PO_PAYMENT_ELIGIBLE_STATUSES.includes(po.status)) continue;
 
-    const payable = computePayableAmount(po, receiptsByPo[po.id] || []);
+    const payable = computePayableAmount(po);
     const paid = paidByPo[po.id] || 0;
 
     if (payable > 0.01 && paid >= payable - 0.01) {

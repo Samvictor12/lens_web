@@ -78,6 +78,15 @@ export const errorHandler = (error, req, res, next) => {
     });
   }
 
+  // Handle multer upload errors
+  if (error.name === 'MulterError' || error.message?.includes('Only PDF and image')) {
+    return res.status(400).json({
+      status: 'error',
+      code: 'UPLOAD_ERROR',
+      message: error.message || 'File upload failed.',
+    });
+  }
+
   // Handle custom API errors
   if (error instanceof APIError) {
     return res.status(error.statusCode).json({

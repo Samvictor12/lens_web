@@ -115,8 +115,6 @@ export function printCustomerPaymentReceipt(payment) {
       <div style="text-align:right">
         <div class="lbl">Payment Date</div>
         <div class="val">${new Date(payment.paymentDate).toLocaleDateString("en-IN")}</div>
-        <div class="lbl" style="margin-top:8px">Status</div>
-        <div class="val">${payment.closedStatus ? "Closed" : "Open"}</div>
       </div>
     </div>
     <div style="display:flex;gap:40px;margin-bottom:20px;flex-wrap:wrap">

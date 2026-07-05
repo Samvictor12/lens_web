@@ -88,20 +88,11 @@ export const useVendorPaymentColumns = (onView, { expandedIds = [], onToggleExpa
       ),
     },
     {
-      accessorKey: "closedStatus",
-      header: "Status",
+      accessorKey: "vendorInvoiceNo",
+      header: "Vendor Inv.",
       sortable: false,
       cell: (p) => (
-        <Badge
-          variant="outline"
-          className={
-            p.closedStatus
-              ? "text-xs font-normal bg-gray-100 text-gray-700 border-gray-300"
-              : "text-xs font-normal bg-green-100 text-green-700 border-green-300"
-          }
-        >
-          {p.closedStatus ? "Closed" : "Open"}
-        </Badge>
+        <span className="text-xs text-muted-foreground">{p.vendorInvoiceNo || "—"}</span>
       ),
     },
     {

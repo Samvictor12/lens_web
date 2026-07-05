@@ -1,7 +1,6 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { generateVoucherNumber, postVendorPayment } from './accountingService.js';
-import { distributePayment } from '../utils/paymentAllocation.js';
 import {
   round2,
   computePayableAmount,
@@ -9,6 +8,7 @@ import {
   PO_PAYMENT_ELIGIBLE_STATUSES,
   syncPoPaidStatus,
 } from '../utils/poPayable.js';
+import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
 
 const ELIGIBLE_PO_STATUSES = PO_PAYMENT_ELIGIBLE_STATUSES;
 
@@ -88,41 +88,22 @@ export class VendorPaymentService {
     if (!pos.length) return [];
 
     const poIds = pos.map((p) => p.id);
-    const [allocations, receipts] = await Promise.all([
-      prisma.vendorPaymentVoucherItem.findMany({
-        where: { purchaseOrderId: { in: poIds } },
-        select: { purchaseOrderId: true, allocatedAmount: true },
-      }),
-      prisma.purchaseOrderReceipt.findMany({
-        where: { purchaseOrderId: { in: poIds }, deleteStatus: false },
-        select: {
-          purchaseOrderId: true,
-          totalValue: true,
-          subtotal: true,
-          taxAmount: true,
-          receivedItems: true,
-        },
-      }),
-    ]);
+    const allocations = await prisma.vendorPaymentVoucherItem.findMany({
+      where: { purchaseOrderId: { in: poIds } },
+      select: { purchaseOrderId: true, allocatedAmount: true },
+    });
 
     const paidByPo = allocations.reduce((acc, a) => {
       acc[a.purchaseOrderId] = (acc[a.purchaseOrderId] || 0) + parseFloat(a.allocatedAmount);
       return acc;
     }, {});
 
-    const receiptsByPo = receipts.reduce((acc, r) => {
-      if (!acc[r.purchaseOrderId]) acc[r.purchaseOrderId] = [];
-      acc[r.purchaseOrderId].push(r);
-      return acc;
-    }, {});
-
     return pos
       .map((po) => {
         const paid = paidByPo[po.id] || 0;
-        const payable = computePayableAmount(po, receiptsByPo[po.id] || []);
-        const outstanding = round2(Math.max(0, payable - paid));
-        const receivedQty = parseFloat(po.receivedQty) || 0;
-        const needsPricing = payable <= 0.01 && receivedQty > 0.01;
+        const payable = computePayableAmount(po);
+        const needsPricing = payable <= 0.01;
+        const outstanding = needsPricing ? 0 : round2(Math.max(0, payable - paid));
 
         return {
           purchaseOrderId: po.id,
@@ -130,12 +111,12 @@ export class VendorPaymentService {
           status: po.status,
           orderDate: po.orderDate,
           expectedDeliveryDate: po.expectedDeliveryDate,
-          totalValue: payable > 0.01 ? payable : round2(parseFloat(po.totalValue) || 0),
+          totalValue: payable,
           payableAmount: payable,
           paidAmount: round2(paid),
-          outstanding: needsPricing ? 0 : outstanding,
+          outstanding,
           needsPricing,
-          receivedQty,
+          receivedQty: parseFloat(po.receivedQty) || 0,
         };
       })
       .filter((p) => p.outstanding > 0.01 || p.needsPricing);
@@ -200,20 +181,54 @@ export class VendorPaymentService {
     return { groups: Array.from(groupMap.values()) };
   }
 
-  async create({ vendorId, paymentDate, paymentMethod, bankLedgerId, referenceNo, notes, totalAmount, items, poIds }, userId) {
+  async create(payload, userId, invoiceFile) {
+    const {
+      vendorId,
+      paymentDate,
+      paymentMethod,
+      bankLedgerId,
+      referenceNo,
+      notes,
+      totalAmount,
+      subtotalAmount,
+      taxAmount,
+      vendorInvoiceNo,
+      items,
+      poIds,
+    } = payload;
+
     if (!vendorId || !paymentMethod || !bankLedgerId) {
       throw new APIError('vendorId, paymentMethod, bankLedgerId required', 400, 'VALIDATION_ERROR');
     }
+    if (!invoiceFile) {
+      throw new APIError('Vendor invoice copy (PDF or image) is required', 400, 'INVOICE_COPY_REQUIRED');
+    }
+    if (!vendorInvoiceNo?.trim()) {
+      throw new APIError('Vendor invoice number is required', 400, 'VALIDATION_ERROR');
+    }
 
     const total = round2(totalAmount);
+    const subtotal = round2(subtotalAmount);
+    const tax = round2(taxAmount);
+
     if (total <= 0) throw new APIError('Total amount must be greater than zero', 400, 'VALIDATION_ERROR');
+    if (subtotal < 0 || tax < 0) {
+      throw new APIError('Subtotal and GST must be zero or greater', 400, 'VALIDATION_ERROR');
+    }
+    if (Math.abs(subtotal + tax - total) > 0.01) {
+      throw new APIError(
+        `Invoice subtotal (${subtotal}) + GST (${tax}) must equal total (${total})`,
+        400,
+        'INVOICE_TOTAL_MISMATCH'
+      );
+    }
 
     let lineItems = items || [];
     if (!lineItems.length && poIds?.length) {
-      lineItems = poIds.map((id) => ({ purchaseOrderId: parseInt(id) }));
+      throw new APIError('Each PO must include subtotal, GST, and payment amount', 400, 'VALIDATION_ERROR');
     }
     if (!lineItems.length) {
-      throw new APIError('items[] or poIds[] required', 400, 'VALIDATION_ERROR');
+      throw new APIError('At least one PO line is required', 400, 'VALIDATION_ERROR');
     }
 
     const poIdsResolved = lineItems.map((i) => parseInt(i.purchaseOrderId));
@@ -232,64 +247,87 @@ export class VendorPaymentService {
       }
     }
 
-    const outstandingRows = await this._buildOutstandingForPos(pos);
     const outstandingMap = Object.fromEntries(
-      outstandingRows.map((r) => [r.purchaseOrderId, r.outstanding])
-    );
-    const needsPricingMap = Object.fromEntries(
-      outstandingRows.map((r) => [r.purchaseOrderId, r.needsPricing])
+      (await this._buildOutstandingForPos(pos)).map((r) => [r.purchaseOrderId, r])
     );
 
-    const allocationItems = pos.map((po) => ({
-      id: po.id,
-      outstanding:
-        needsPricingMap[po.id] && total > 0.01
-          ? total
-          : outstandingMap[po.id] || 0,
-      dueDate: po.expectedDeliveryDate,
-      orderDate: po.orderDate,
-      documentNo: po.poNumber,
-    }));
+    const normalizedItems = [];
+    let itemsSubtotal = 0;
+    let itemsTax = 0;
+    let itemsAllocated = 0;
 
-    const overrides = {};
-    let hasExplicit = false;
     for (const item of lineItems) {
       const poId = parseInt(item.purchaseOrderId);
-      if (item.allocatedAmount != null && item.allocatedAmount !== '') {
-        overrides[poId] = parseFloat(item.allocatedAmount);
-        hasExplicit = true;
+      const po = pos.find((p) => p.id === poId);
+      const lineSubtotal = round2(item.subtotalAmount);
+      const lineTax = round2(item.taxAmount);
+      const lineTotal = round2(lineSubtotal + lineTax);
+      const allocated = round2(item.allocatedAmount ?? lineTotal);
+
+      if (lineSubtotal < 0 || lineTax < 0) {
+        throw new APIError(`Invalid amounts for PO ${po?.poNumber || poId}`, 400, 'VALIDATION_ERROR');
       }
-    }
+      if (Math.abs(lineTotal - (lineSubtotal + lineTax)) > 0.01) {
+        throw new APIError(`PO ${po?.poNumber || poId}: subtotal + GST must equal line total`, 400, 'PO_LINE_MISMATCH');
+      }
+      if (allocated > lineTotal + 0.01) {
+        throw new APIError(`Payment for PO ${po?.poNumber || poId} exceeds invoice line total`, 400, 'OVER_ALLOCATION');
+      }
+      if (allocated <= 0) {
+        throw new APIError(`Payment amount required for PO ${po?.poNumber || poId}`, 400, 'VALIDATION_ERROR');
+      }
 
-    const { allocations, remaining } = distributePayment({
-      items: allocationItems,
-      totalAmount: total,
-      overrides: hasExplicit ? overrides : {},
-    });
-
-    if (remaining > 0.01) {
-      throw new APIError(`Payment exceeds PO outstanding by ₹${remaining.toFixed(2)}`, 400, 'EXCESS_PAYMENT');
-    }
-
-    const allocationSum = round2(allocations.reduce((s, a) => s + a.amount, 0));
-    if (Math.abs(allocationSum - total) > 0.01) {
-      throw new APIError(`Allocations (${allocationSum}) must equal total (${total})`, 400, 'ALLOCATION_MISMATCH');
-    }
-
-    for (const alloc of allocations) {
-      const po = pos.find((p) => p.id === alloc.id);
-      const recordedOutstanding = outstandingMap[alloc.id] || 0;
-      const maxOutstanding =
-        needsPricingMap[alloc.id] && total > 0.01
-          ? total
-          : recordedOutstanding;
-      if (alloc.amount > maxOutstanding + 0.01) {
+      const row = outstandingMap[poId];
+      if (row?.needsPricing) {
+        if (allocated > lineTotal + 0.01) {
+          throw new APIError(
+            `Allocation for ${po?.poNumber || poId} exceeds declared PO invoice total`,
+            400,
+            'OVER_ALLOCATION'
+          );
+        }
+      } else if (allocated > (row?.outstanding ?? 0) + 0.01) {
         throw new APIError(
-          `Allocation for ${po?.poNumber || alloc.id} exceeds PO outstanding`,
+          `Allocation for ${po?.poNumber || poId} exceeds PO outstanding`,
           400,
           'OVER_ALLOCATION'
         );
       }
+
+      itemsSubtotal = round2(itemsSubtotal + lineSubtotal);
+      itemsTax = round2(itemsTax + lineTax);
+      itemsAllocated = round2(itemsAllocated + allocated);
+
+      normalizedItems.push({
+        purchaseOrderId: poId,
+        subtotalAmount: lineSubtotal,
+        taxAmount: lineTax,
+        allocatedAmount: allocated,
+        poInvoiceTotal: lineTotal,
+        notes: item.notes || null,
+      });
+    }
+
+    if (Math.abs(itemsSubtotal - subtotal) > 0.01) {
+      throw new APIError(
+        `Sum of PO subtotals (${itemsSubtotal}) must equal invoice subtotal (${subtotal})`,
+        400,
+        'SUBTOTAL_MISMATCH'
+      );
+    }
+    if (Math.abs(itemsTax - tax) > 0.01) {
+      throw new APIError(
+        `Sum of PO GST (${itemsTax}) must equal invoice GST (${tax})`,
+        400,
+        'TAX_MISMATCH'
+      );
+    }
+    if (Math.abs(itemsAllocated - total) > 0.01) {
+      throw new APIError(
+        `Sum of PO payments (${itemsAllocated}) must equal total payment (${total})`,
+        400,
+        'ALLOCATION_MISMATCH'
+      );
     }
 
     const vendor = await prisma.vendor.findUnique({
@@ -299,27 +337,50 @@ export class VendorPaymentService {
     if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
 
     const voucherNumber = await generateVoucherNumber();
+    const invoiceCopyPath = `${UPLOADS_PUBLIC_PREFIX}/${invoiceFile.filename}`;
+    const now = new Date();
 
     return prisma.$transaction(async (tx) => {
+      for (const item of normalizedItems) {
+        const po = pos.find((p) => p.id === item.purchaseOrderId);
+        await tx.purchaseOrder.update({
+          where: { id: item.purchaseOrderId },
+          data: {
+            subtotal: item.subtotalAmount,
+            taxAmount: item.taxAmount,
+            totalValue: item.poInvoiceTotal,
+            supplierInvoiceNo: vendorInvoiceNo.trim(),
+            status: po?.status === 'PAID' ? 'PAID' : 'INVOICE_RECEIVED',
+            updatedBy: userId,
+          },
+        });
+      }
+
       const voucher = await tx.vendorPaymentVoucher.create({
         data: {
           voucherNumber,
           vendorId: parseInt(vendorId),
-          paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+          paymentDate: paymentDate ? new Date(paymentDate) : now,
           totalAmount: total,
+          subtotalAmount: subtotal,
+          taxAmount: tax,
+          vendorInvoiceNo: vendorInvoiceNo.trim(),
+          invoiceCopyPath,
           paymentMethod,
           bankLedgerId: parseInt(bankLedgerId),
           referenceNo: referenceNo || null,
           notes: notes || null,
+          closedStatus: true,
+          closedAt: now,
           createdBy: userId,
           items: {
-            create: allocations
-              .filter((a) => a.amount > 0)
-              .map((a) => ({
-                purchaseOrderId: a.id,
-                allocatedAmount: a.amount,
-                notes: lineItems.find((i) => parseInt(i.purchaseOrderId) === a.id)?.notes || null,
-              })),
+            create: normalizedItems.map((item) => ({
+              purchaseOrderId: item.purchaseOrderId,
+              subtotalAmount: item.subtotalAmount,
+              taxAmount: item.taxAmount,
+              allocatedAmount: item.allocatedAmount,
+              notes: item.notes,
+            })),
           },
         },
         include: { items: true },
@@ -335,7 +396,7 @@ export class VendorPaymentService {
 
       await syncPoPaidStatus(
         tx,
-        allocations.filter((a) => a.amount > 0).map((a) => a.id),
+        normalizedItems.map((i) => i.purchaseOrderId),
         userId
       );
 

@@ -24,8 +24,10 @@ export const emptyPaymentForm = {
   paymentDate: new Date().toISOString().split("T")[0],
   paymentMethod: "BANK_TRANSFER",
   referenceNumber: "",
+  vendorInvoiceNo: "",
   notes: "",
-  totalAmount: "",
+  subtotalAmount: "",
+  taxAmount: "",
   items: [],
 };
 
@@ -70,8 +72,6 @@ export function printVendorPaymentVoucher(payment) {
       <div style="text-align:right">
         <div class="lbl">Payment Date</div>
         <div class="val">${new Date(payment.paymentDate).toLocaleDateString("en-IN")}</div>
-        <div class="lbl" style="margin-top:8px">Status</div>
-        <div class="val">${payment.closedStatus ? "Closed" : "Open"}</div>
       </div>
     </div>
     <div style="display:flex;gap:40px;margin-bottom:20px">
@@ -80,6 +80,11 @@ export function printVendorPaymentVoucher(payment) {
         <div class="val">${payment.vendor?.name || "—"}</div>
         ${payment.vendor?.code ? `<div style="color:#6b7280;font-size:12px">${payment.vendor.code}</div>` : ""}
       </div>
+      ${
+        payment.vendorInvoiceNo
+          ? `<div><div class="lbl">Vendor Invoice</div><div class="val">${payment.vendorInvoiceNo}</div></div>`
+          : ""
+      }
       <div>
         <div class="lbl">Payment Method</div>
         <div class="val">${(payment.paymentMethod || "").replace(/_/g, " ")}</div>
@@ -93,6 +98,14 @@ export function printVendorPaymentVoucher(payment) {
     <div style="font-size:20px;font-weight:700;margin-bottom:10px;">
       ₹${parseFloat(payment.totalAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
     </div>
+    ${
+      payment.subtotalAmount != null || payment.taxAmount != null
+        ? `<div style="display:flex;gap:24px;margin-bottom:10px;font-size:12px">
+            <div><span class="lbl">Subtotal</span><br/>₹${parseFloat(payment.subtotalAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+            <div><span class="lbl">GST</span><br/>₹${parseFloat(payment.taxAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+          </div>`
+        : ""
+    }
     ${
       payment.items?.length
         ? `<div class="sec">PO Allocations</div>
