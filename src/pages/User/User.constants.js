@@ -33,14 +33,6 @@ export const bloodGroupOptions = [
   { value: "O-", label: "O-" },
 ];
 
-// Dummy role options (not connected to API yet)
-export const roleOptions = [
-  { id: 1, name: "Admin" },
-  { id: 2, name: "Sales" },
-  { id: 3, name: "Inventory" },
-  { id: 4, name: "Accounts" },
-];
-
 // Active status options
 export const activeStatusOptions = [
   { value: true, label: "Active" },

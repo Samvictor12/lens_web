@@ -19,7 +19,7 @@ import {
   enableUserLogin,
   updateUserLogin,
 } from "@/services/user";
-import { roleOptions } from "./User.constants";
+import { getRolesDropdown } from "@/services/role";
 
 export default function UserLoginDialog({
   open,
@@ -33,12 +33,35 @@ export default function UserLoginDialog({
   const [errors, setErrors] = useState({});
   const [isLoginEnabled, setIsLoginEnabled] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [roles, setRoles] = useState([]);
   const [loginData, setLoginData] = useState({
     username: "",
     password: "",
     role_id: null,
     is_login: false,
   });
+
+  // Fetch roles when dialog opens
+  useEffect(() => {
+    const fetchRoles = async () => {
+      if (!open) return;
+      try {
+        const response = await getRolesDropdown();
+        if (response.success) {
+          setRoles(response.data || []);
+        }
+      } catch (error) {
+        console.error("Error fetching roles:", error);
+        toast({
+          title: "Warning",
+          description: "Failed to load roles",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchRoles();
+  }, [open]);
 
   // Fetch login credentials when user changes or dialog opens
   useEffect(() => {
@@ -226,7 +249,7 @@ export default function UserLoginDialog({
                     setErrors((prev) => ({ ...prev, role_id: "" }));
                   }
                 }}
-                options={roleOptions}
+                options={roles}
                 required
                 error={errors.role_id}
                 placeholder="Select role"

@@ -2,11 +2,22 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert, Home, ArrowLeft } from 'lucide-react';
+import { useRolePermissionsContextOptional } from '@/contexts/RolePermissionsContext';
+import { resolveHomePath } from '@/constants/homeRoutes';
 
 export default function PermissionRoute({ allowed, children }) {
   const navigate = useNavigate();
+  const perms = useRolePermissionsContextOptional();
 
   if (!allowed) {
+    const goHome = () => {
+      if (perms?.has) {
+        navigate(resolveHomePath((key) => perms.has(key, 'Screen')), { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    };
+
     return (
       <div className="flex min-h-svh items-center justify-center bg-background p-4 w-full">
         <div className="text-center space-y-6 max-w-md">
@@ -30,9 +41,9 @@ export default function PermissionRoute({ allowed, children }) {
               <ArrowLeft className="h-4 w-4" />
               Go Back
             </Button>
-            <Button onClick={() => navigate("/dashboard")} className="gap-2">
+            <Button onClick={goHome} className="gap-2">
               <Home className="h-4 w-4" />
-              Dashboard
+              Go to Home
             </Button>
           </div>
         </div>

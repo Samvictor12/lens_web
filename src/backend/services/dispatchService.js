@@ -32,7 +32,7 @@ const DISPATCH_COPY_INCLUDE = {
   createdByUser: { select: { id: true, name: true } },
   saleOrders: {
     select: {
-      id: true, orderNo: true, status: true, dispatchStatus: true,
+      id: true, orderNo: true, customerRefNo: true, status: true, dispatchStatus: true,
       lensProduct: { select: { id: true, lens_name: true } },
       coating: { select: { id: true, name: true } },
     },

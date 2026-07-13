@@ -8,7 +8,7 @@ export const STATUS_LABELS = {
   PRE_QC: 'Pre-QC',
   PRE_QC_REJECTED: 'Pre-QC Rejected',
   PRE_QC_SCRAPPED: 'Pre-QC Scrapped',
-  FITTING_READY: 'Fitting Ready',
+  FITTING_READY: 'Fitting In',
   IN_FITTING: 'In Fitting',
   ON_HOLD: 'Fitting (On Hold)',
   AWAITING_QUALITY: 'Post-QC',

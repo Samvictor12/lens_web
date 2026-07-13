@@ -52,15 +52,16 @@ export const usePurchaseOrderColumns = (
       header: "PO Number",
       sortable: true,
       cell: (po) => (
-        <button
-          type="button"
-          onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, '_blank')}
+        <a
+          href={`/masters/purchase-orders/view/${po.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>
             <div className="font-medium text-xs text-primary">{po.poNumber}</div>
           </div>
-        </button>
+        </a>
       ),
     },
     {

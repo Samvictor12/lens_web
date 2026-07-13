@@ -499,7 +499,7 @@ export default function PurchaseOrders() {
             <div className="h-full overflow-y-auto pr-1 space-y-3">
               {dashboardStats.recentActivity.map((po) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                  onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}>
+                  onClick={() => window.open(`${window.location.origin}/masters/purchase-orders/view/${po.id}`, "_blank")}>
                   <div className="flex-1">
                     <div className="font-medium">{po.poNumber}</div>
                     <div className="text-sm text-muted-foreground">
@@ -581,10 +581,12 @@ export default function PurchaseOrders() {
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => navigate("/masters/purchase-orders/add")}
+            asChild
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Purchase Order</span>
+            <a href="/masters/purchase-orders/add" target="_blank" rel="noopener noreferrer">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add Purchase Order</span>
+            </a>
           </Button>
         </div>
       </div>

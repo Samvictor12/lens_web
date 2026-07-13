@@ -928,6 +928,7 @@ export class UserMasterService {
           name: true,
           usercode: true,
           email: true,
+          phonenumber: true,
           departmentDetails: {
             select: {
               id: true,
@@ -947,6 +948,7 @@ export class UserMasterService {
         name: user.name,
         usercode: user.usercode,
         email: user.email,
+        phonenumber: user.phonenumber || "",
         department: user.departmentDetails?.department,
       }));
     } catch (error) {

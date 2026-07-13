@@ -118,8 +118,8 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeli
         <div className="flex flex-col gap-3 pb-6">
             {/* Controls row — Card-wrapped like PO */}
             <Card className="p-1 sm:p-1 flex-shrink-0">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <div className="relative flex-1">
+                <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1 min-w-0">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
                             className="pl-9 h-8 text-sm"
@@ -128,20 +128,17 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeli
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">Group by:</span>
-                        <div className="w-40">
-                            <FormSelect
-                                options={GROUP_BY_OPTIONS}
-                                value={groupBy}
-                                onChange={(value) => setGroupBy(value)}
-                                placeholder="Select grouping"
-                                isSearchable={false}
-                                isClearable={false}
-                            />
-                        </div>
-                        <Refresh onClick={fetchOrders} />
+                    <div className="w-[7.5rem] sm:w-40 shrink-0">
+                        <FormSelect
+                            options={GROUP_BY_OPTIONS}
+                            value={groupBy}
+                            onChange={(value) => setGroupBy(value)}
+                            placeholder="Group"
+                            isSearchable={false}
+                            isClearable={false}
+                        />
                     </div>
+                    <Refresh onClick={fetchOrders} />
                 </div>
             </Card>
 

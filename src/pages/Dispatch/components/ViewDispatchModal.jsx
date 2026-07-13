@@ -56,11 +56,18 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                     setDeliveryPersons(list.map((u) => ({
                         value: u.value ?? u.id,
                         label: u.label ?? u.name,
+                        phonenumber: u.phonenumber || "",
                     })));
                 })
                 .catch(() => {});
         }
     }, [open]);
+
+    const handleDeliveryPersonChange = (value) => {
+        const person = deliveryPersons.find((u) => String(u.value) === String(value));
+        setDeliveryPersonId(value || "");
+        setDriverContact(person?.phonenumber || "");
+    };
 
     if (!dispatch) return null;
 
@@ -95,19 +102,19 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
     };
 
     return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <div className="flex items-center justify-between">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Truck className="h-5 w-5 text-primary" />
-                            Dispatch Record — {dispatch.dcNumber}
+        <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose?.(); }}>
+            <DialogContent className="max-w-2xl max-h-[90vh] !flex flex-col gap-0 overflow-hidden p-0">
+                <DialogHeader className="flex-shrink-0 space-y-0 border-b px-6 py-4 pr-12">
+                    <div className="flex items-center justify-between gap-3">
+                        <DialogTitle className="flex items-center gap-2 text-left">
+                            <Truck className="h-5 w-5 text-primary shrink-0" />
+                            <span className="truncate">Dispatch Record — {dispatch.dcNumber}</span>
                         </DialogTitle>
-                        <Badge className={`${cfg.className} border text-xs`}>{cfg.label}</Badge>
+                        <Badge className={`${cfg.className} border text-xs shrink-0`}>{cfg.label}</Badge>
                     </div>
                 </DialogHeader>
 
-                <div className="space-y-4 py-2">
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
                     {/* Customer Info (read-only) */}
                     <div className="rounded-lg border p-3 bg-muted/20">
                         <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
@@ -174,7 +181,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                             <FormSelect
                                 options={deliveryPersons}
                                 value={deliveryPersonId}
-                                onChange={(v) => setDeliveryPersonId(v || "")}
+                                onChange={handleDeliveryPersonChange}
                                 placeholder="Select delivery person"
                                 isSearchable
                                 isClearable
@@ -261,7 +268,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                     )}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="flex-shrink-0 border-t bg-background px-6 py-4 sm:space-x-2">
                     {!isEditing ? (
                         <>
                             <Button variant="outline" onClick={onClose}>Close</Button>

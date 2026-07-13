@@ -14,7 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { getDepartmentDropdown } from "@/services/department";
-import { roleOptions } from "./User.constants";
+import { getRolesDropdown } from "@/services/role";
 
 export default function UserFilter({
   filters,
@@ -28,21 +28,28 @@ export default function UserFilter({
   onCancelFilters,
 }) {
   const [departments, setDepartments] = useState([]);
+  const [roles, setRoles] = useState([]);
 
-  // Fetch departments on mount
+  // Fetch departments and roles on mount
   useEffect(() => {
-    const fetchDepartments = async () => {
+    const fetchDropdowns = async () => {
       try {
-        const response = await getDepartmentDropdown();
-        if (response.success) {
-          setDepartments(response.data);
+        const [deptResponse, rolesResponse] = await Promise.all([
+          getDepartmentDropdown(),
+          getRolesDropdown(),
+        ]);
+        if (deptResponse.success) {
+          setDepartments(deptResponse.data);
+        }
+        if (rolesResponse.success) {
+          setRoles(rolesResponse.data || []);
         }
       } catch (error) {
-        console.error("Error fetching departments:", error);
+        console.error("Error fetching filter dropdowns:", error);
       }
     };
 
-    fetchDepartments();
+    fetchDropdowns();
   }, []);
 
   // Active status options for dropdown
@@ -131,7 +138,7 @@ export default function UserFilter({
                 </Label>
                 <FormSelect
                   name="role_id"
-                  options={roleOptions}
+                  options={roles}
                   value={tempFilters.role_id}
                   onChange={(value) => {
                     setTempFilters({

@@ -11,6 +11,7 @@ function formatPermissions(dbPermissions) {
     { key: 'inventory', label: 'Inventory', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'purchase_orders', label: 'Purchase Orders', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'dispatch', label: 'Dispatch', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
+    { key: 'dispatch_window', label: 'Dispatch Window', actions: { Screen: false, View: false } },
     { key: 'fitting', label: 'Fitting', actions: { Screen: false } },
     { key: 'pre_qc', label: 'Pre-QC', actions: { Screen: false } },
     { key: 'post_qc', label: 'Post-QC', actions: { Screen: false } },

@@ -146,7 +146,7 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => window.open(`/sales/orders/view/${order.id}`, '_blank')}
+          onClick={() => window.open(`${window.location.origin}/sales/orders/view/${order.id}`, "_blank")}
         >
           View SO
         </Button>

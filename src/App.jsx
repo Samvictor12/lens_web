@@ -23,6 +23,7 @@ import PurchaseOrderForm from "./pages/PurchaseOrder/PurchaseOrderForm";
 import PurchaseOrderReceive from "./pages/PurchaseOrder/PurchaseOrderReceive";
 import POInwardToInventory from "./pages/PurchaseOrder/POInwardToInventory";
 import Dispatch from "./pages/Dispatch/DispatchMain";
+import DispatchWindow from "./pages/DispatchWindow/DispatchWindowMain";
 import Billing from "./pages/Billing/BillingMain";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
@@ -66,6 +67,8 @@ import { FittingOperatorList, FittingOrderDetail } from "./pages/FittingOperator
 import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
 import { PreQcOperatorList, PreQcOrderDetail } from "./pages/PreQcOperator";
 import NotFound from "./pages/NotFound";
+import NoAccess from "./pages/NoAccess";
+import HomeRedirect from "./components/layout/HomeRedirect";
 import CustomerPortalLogin from "./pages/CustomerPortal/CustomerPortalLogin";
 import CustomerPortalDashboard from "./pages/CustomerPortal/CustomerPortalDashboard";
 import CheckSheetMain from "./pages/CheckSheet/CheckSheetMain";
@@ -154,8 +157,9 @@ const AppRoutes = () => (
     <SessionExpiryHandler />
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/" element={<ProtectedRoute><HomeRedirect /></ProtectedRoute>} />
+      <Route path="/no-access" element={<ProtectedRoute><NoAccess /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute allowedPermission="dashboard"><Dashboard /></ProtectedRoute>} />
       <Route path="/sales/orders" element={<ProtectedRoute><SaleOrders /></ProtectedRoute>} />
       <Route path="/sales/orders/dif/:mode" element={<ProtectedRoute><SaleOrderForm /></ProtectedRoute>} />
       <Route path="/sales/orders/:mode" element={<div className="flex overflow-auto h-svh w-full"><SaleOrderForm /></div>} />
@@ -185,6 +189,7 @@ const AppRoutes = () => (
       <Route path="/masters/purchase-orders/receive/:id/edit/:receiptId" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderReceive /></div>} />
       <Route path="/masters/purchase-orders/receive/:id/inward/:receiptId" element={<div className="flex overflow-auto h-svh w-full"><POInwardToInventory /></div>} />
       <Route path="/dispatch" element={<ProtectedRoute><Dispatch /></ProtectedRoute>} />
+      <Route path="/dispatch/window" element={<ProtectedRoute allowedPermission="dispatch_window"><DispatchWindow /></ProtectedRoute>} />
       <Route path="/production/operator" element={<LegacyFittingOperatorRedirect />} />
       <Route path="/production/operator/:id" element={<LegacyFittingOperatorRedirect />} />
       <Route path="/fitting/operator" element={<ProtectedRoute><FittingOperatorList /></ProtectedRoute>} />

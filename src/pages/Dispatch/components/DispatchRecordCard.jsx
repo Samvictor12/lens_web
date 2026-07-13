@@ -46,7 +46,15 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
         try {
             setIsUpdating(action);
             await updateDispatchStatus(dispatch.id, action);
-            toast({ title: "Updated", description: `Dispatch marked as ${action === "PICKUP" ? "Dispatched" : action}` });
+            toast({
+                title: "Updated",
+                description:
+                    action === "PICKUP"
+                        ? "Dispatch picked up — now In Transit"
+                        : action === "ON_HOLD"
+                            ? "Dispatch put on hold"
+                            : `Dispatch marked as ${action}`,
+            });
             onStatusUpdated?.();
         } catch (err) {
             toast({ title: "Error", description: err?.message || String(err), variant: "destructive" });
@@ -148,7 +156,7 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
                                 ) : (
                                     <Truck className="h-3 w-3" />
                                 )}
-                                Dispatch
+                                Pickup
                             </Button>
                         )}
                         {dispatch.status === "IN_TRANSIT" && (

@@ -31,29 +31,52 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
         deliveryNotes: "",
     });
 
-    // Pre-fill delivery person from customer's default
-    useEffect(() => {
-        if (open && customer?.delivery_person_id) {
-            setForm((f) => ({ ...f, deliveryPersonId: String(customer.delivery_person_id) }));
-        }
-    }, [open, customer]);
-
+    // Reset form and pre-fill delivery person + phone from customer's default
     useEffect(() => {
         if (!open) return;
+        const defaultPersonId = customer?.delivery_person_id
+            ? String(customer.delivery_person_id)
+            : "";
+        setForm({
+            deliveryPersonId: defaultPersonId,
+            expectedDeliveryDate: "",
+            notes: "",
+            vehicleNumber: "",
+            driverName: "",
+            driverContact: "",
+            deliveryNotes: "",
+        });
         getDeliveryPersonsDropdown()
             .then((res) => {
                 const list = res?.data || [];
-                setUsers(list.map((u) => ({
+                const mapped = list.map((u) => ({
                     value: u.value ?? u.id,
                     label: u.label ?? u.name,
-                })));
+                    phonenumber: u.phonenumber || "",
+                }));
+                setUsers(mapped);
+                if (defaultPersonId) {
+                    const person = mapped.find((u) => String(u.value) === defaultPersonId);
+                    if (person?.phonenumber) {
+                        setForm((f) => ({ ...f, driverContact: person.phonenumber }));
+                    }
+                }
             })
             .catch(() => {
                 toast({ title: "Error", description: "Failed to load delivery persons", variant: "destructive" });
             });
-    }, [open]);
+    }, [open, customer]);
 
     const handleChange = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+    const handleDeliveryPersonChange = (value) => {
+        const person = users.find((u) => String(u.value) === String(value));
+        setForm((f) => ({
+            ...f,
+            deliveryPersonId: value || "",
+            driverContact: person?.phonenumber || "",
+        }));
+    };
 
     const handleSubmit = async () => {
         if (!customer?.id) {
@@ -142,7 +165,7 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
                         <FormSelect
                             options={users}
                             value={form.deliveryPersonId}
-                            onChange={(v) => handleChange("deliveryPersonId", v)}
+                            onChange={handleDeliveryPersonChange}
                             placeholder="Select delivery person"
                             isClearable
                         />

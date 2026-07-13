@@ -250,10 +250,12 @@ export default function SaleOrderMain() {
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => window.open("/sales/orders/add", "_blank")}
+            asChild
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Order</span>
+            <a href="/sales/orders/add" target="_blank" rel="noopener noreferrer">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add Order</span>
+            </a>
           </Button>
         </div>
       </div>
