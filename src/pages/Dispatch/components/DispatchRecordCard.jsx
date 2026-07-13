@@ -5,12 +5,7 @@ import { updateDispatchStatus } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
-const STATUS_CONFIG = {
-    PENDING:     { label: "Ready for Pickup", className: "border-amber-300 bg-amber-50 text-amber-800" },
-    IN_TRANSIT:  { label: "In Transit",  className: "border-blue-300 bg-blue-50 text-blue-800" },
-    DELIVERED:   { label: "Delivered",   className: "border-green-300 bg-green-50 text-green-800" },
-    ON_HOLD:     { label: "On Hold",     className: "border-red-300 bg-red-50 text-red-800" },
-};
+import { DISPATCH_STATUS_CONFIG as STATUS_CONFIG } from "../dispatchStatusConfig";
 
 /**
  * Card for a DispatchCopy record in the Dispatch List tab.
@@ -66,7 +61,7 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
     const isActionLoading = (action) => isUpdating === action;
 
     return (
-        <div className={`rounded-lg border ${cfg.className} bg-card transition-shadow hover:shadow-sm`}>
+        <div className={`rounded-lg border bg-card transition-shadow hover:shadow-sm ${cfg.borderClass || ""}`}>
             {/* Header row */}
             <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
@@ -112,9 +107,9 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
                 )}
             </div>
 
-            {/* Orders preview */}
+            {/* Orders preview — Sale Order No + Customer Ref */}
             {orderCount > 0 && (
-                <div className="px-3 pb-2">
+                <div className="px-3 pb-2 space-y-1.5">
                     <div className="flex flex-wrap gap-1">
                         {dispatch.saleOrders.slice(0, 4).map((o) => (
                             <span key={o.id} className="text-[10px] px-1.5 py-0.5 rounded bg-background border font-medium">
@@ -127,6 +122,34 @@ export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatu
                             </span>
                         )}
                     </div>
+                    {(() => {
+                        const refs = [
+                            ...new Set(
+                                (dispatch.saleOrders || [])
+                                    .map((o) => o.customerRefNo)
+                                    .filter(Boolean)
+                            ),
+                        ];
+                        if (refs.length === 0) return null;
+                        return (
+                            <div className="flex flex-wrap gap-1 items-center">
+                                <span className="text-[10px] text-muted-foreground">Ref:</span>
+                                {refs.slice(0, 4).map((ref) => (
+                                    <span
+                                        key={ref}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 border font-medium"
+                                    >
+                                        {ref}
+                                    </span>
+                                ))}
+                                {refs.length > 4 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                        +{refs.length - 4}
+                                    </span>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
 

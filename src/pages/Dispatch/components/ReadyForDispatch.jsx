@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/ui/form-select";
 import { Refresh } from "@/components/ui/Refresh";
-import { Search, Package2, Truck, X } from "lucide-react";
+import { Search, Package2, Truck, X, MapPin } from "lucide-react";
 import { getReadyForDispatch } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 import DispatchGroupSection from "./DispatchGroupSection";
@@ -123,7 +123,7 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeli
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
                             className="pl-9 h-8 text-sm"
-                            placeholder="Search orders or customer..."
+                            placeholder="Search order, customer, customer ref..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -196,11 +196,13 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeli
                         const groupIds = groupOrds.map((o) => o.id);
                         const allSelected = groupIds.every((id) => selectedIds.has(id));
                         const someSelected = groupIds.some((id) => selectedIds.has(id));
+                        const customer = groupOrds[0]?.customer;
 
                         return (
                             <SelectableGroupSection
                                 key={label}
                                 label={label}
+                                customer={groupBy === "customer" ? customer : null}
                                 orders={groupOrds}
                                 selectedIds={selectedIds}
                                 onToggleOrder={toggleOrder}
@@ -227,37 +229,57 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeli
 
 // ─── Selectable group section ─────────────────────────────────────────────────
 
-function SelectableGroupSection({ label, orders, selectedIds, onToggleOrder, onToggleGroup, allSelected, someSelected }) {
+function SelectableGroupSection({ label, customer, orders, selectedIds, onToggleOrder, onToggleGroup, allSelected, someSelected }) {
     const [open, setOpen] = useState(true);
+    const address = customer
+        ? [customer.address, customer.city, customer.state].filter(Boolean).join(", ")
+        : null;
+    const phone = customer?.phone;
 
     return (
         <div className="rounded-lg border border-border overflow-hidden">
-            {/* Header */}
+            {/* Header — customer identity clearly on accordion */}
             <button
                 type="button"
                 className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/40 hover:bg-muted/70 transition-colors"
                 onClick={() => setOpen((v) => !v)}
             >
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">{label}</span>
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 py-0">
-                        {orders.length}
-                    </Badge>
+                <div className="flex items-start gap-2 min-w-0 text-left">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-foreground">{label}</span>
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 py-0">
+                                {orders.length}
+                            </Badge>
+                            {customer?.city && (
+                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {customer.city}
+                                </span>
+                            )}
+                        </div>
+                        {address && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{address}</p>
+                        )}
+                        {phone && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{phone}</p>
+                        )}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox
                             checked={allSelected ? true : someSelected ? "indeterminate" : false}
                             onCheckedChange={() => onToggleGroup(orders)}
                             className="h-3.5 w-3.5"
                         />
-                        <span className="text-xs text-muted-foreground">Select all</span>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">Select all</span>
                     </label>
                     <span className="text-muted-foreground text-xs">{open ? "▲" : "▼"}</span>
                 </div>
             </button>
 
-            {/* Body */}
+            {/* Body — SO #, customer ref, etc. on each card */}
             {open && (
                 <div className="bg-background p-2 flex flex-col gap-2">
                     {orders.map((order) => (

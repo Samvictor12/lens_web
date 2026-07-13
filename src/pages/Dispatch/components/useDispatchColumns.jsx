@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Eye,
@@ -10,12 +9,7 @@ import { updateDispatchStatus } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
-const STATUS_CONFIG = {
-  PENDING: { label: "Ready for Pickup", className: "border-amber-300 bg-amber-50 text-amber-800" },
-  IN_TRANSIT: { label: "In Transit", className: "border-blue-300 bg-blue-50 text-blue-800" },
-  DELIVERED: { label: "Delivered", className: "border-green-300 bg-green-50 text-green-800" },
-  ON_HOLD: { label: "On Hold", className: "border-red-300 bg-red-50 text-red-800" },
-};
+import { DISPATCH_STATUS_CONFIG as STATUS_CONFIG } from "../dispatchStatusConfig";
 
 function DispatchRowActions({
   dispatch,
@@ -167,6 +161,68 @@ export const useDispatchColumns = ({
       ),
     },
     {
+      accessorKey: "customerRefNo",
+      header: "Customer Ref No",
+      sortable: false,
+      cell: (row) => {
+        const refs = [
+          ...new Set(
+            (row.saleOrders || [])
+              .map((o) => o.customerRefNo)
+              .filter(Boolean)
+          ),
+        ];
+        if (refs.length === 0) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1 max-w-[160px]">
+            {refs.slice(0, 3).map((ref) => (
+              <span
+                key={ref}
+                className="text-[10px] px-1 py-0.5 rounded bg-muted border font-medium"
+              >
+                {ref}
+              </span>
+            ))}
+            {refs.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{refs.length - 3}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "saleOrderNo",
+      header: "Sale Order No",
+      sortable: false,
+      cell: (row) => {
+        const orders = row.saleOrders || [];
+        if (orders.length === 0) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1 max-w-[180px]">
+            {orders.slice(0, 3).map((o) => (
+              <span
+                key={o.id}
+                className="text-[10px] px-1 py-0.5 rounded bg-muted border font-medium"
+              >
+                {o.orderNo}
+              </span>
+            ))}
+            {orders.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{orders.length - 3}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "status",
       header: "Status",
       sortable: false,
@@ -191,34 +247,6 @@ export const useDispatchColumns = ({
       cell: (row) => (
         <span className="text-xs">{row.deliveryPerson?.name || "—"}</span>
       ),
-    },
-    {
-      accessorKey: "saleOrders",
-      header: "Orders",
-      sortable: false,
-      cell: (row) => {
-        const orders = row.saleOrders || [];
-        return (
-          <div className="flex flex-wrap gap-1 max-w-[180px]">
-            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-              {orders.length}
-            </Badge>
-            {orders.slice(0, 2).map((o) => (
-              <span
-                key={o.id}
-                className="text-[10px] px-1 py-0.5 rounded bg-muted border"
-              >
-                {o.orderNo}
-              </span>
-            ))}
-            {orders.length > 2 && (
-              <span className="text-[10px] text-muted-foreground">
-                +{orders.length - 2}
-              </span>
-            )}
-          </div>
-        );
-      },
     },
     {
       accessorKey: "expectedDeliveryDate",

@@ -183,7 +183,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
                             className="pl-9 h-8 text-sm"
-                            placeholder="Search DC number or customer..."
+                            placeholder="Search DC, customer, customer ref, sale order no…"
                             value={search}
                             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                         />
@@ -360,7 +360,8 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
                 open={!!viewDispatch}
                 onClose={() => setViewDispatch(null)}
                 dispatch={viewDispatch}
-                onUpdated={() => {
+                onUpdated={(updated) => {
+                    if (updated) setViewDispatch(updated);
                     fetchList();
                     onStatusUpdated?.();
                 }}

@@ -105,7 +105,6 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
                 <th className="p-3">Tray</th>
                 <th className="p-3">Location</th>
                 <th className="p-3 text-right">Available Qty</th>
-                <th className="p-3 text-right">Cost Price</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -164,9 +163,6 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
                     )}
                   </td>
                   <td className="p-3 text-right font-medium text-slate-700">{item.quantity}</td>
-                  <td className="p-3 text-right text-slate-600 font-mono">
-                    ₹{parseFloat(item.costPrice || 0).toFixed(2)}
-                  </td>
                 </tr>
               ))}
             </tbody>

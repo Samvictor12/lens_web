@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FormSelect } from "@/components/ui/form-select";
 import { Calendar, User, Truck, MapPin, Phone, Package, Clock } from "lucide-react";
-import { updateDispatchStatus } from "@/services/dispatch";
+import { updateDispatch } from "@/services/dispatch";
 import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 
@@ -57,6 +57,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                         value: u.value ?? u.id,
                         label: u.label ?? u.name,
                         phonenumber: u.phonenumber || "",
+                        vehicleNumber: u.vehicleNumber || "",
                     })));
                 })
                 .catch(() => {});
@@ -67,6 +68,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
         const person = deliveryPersons.find((u) => String(u.value) === String(value));
         setDeliveryPersonId(value || "");
         setDriverContact(person?.phonenumber || "");
+        setVehicleNumber(person?.vehicleNumber || "");
     };
 
     if (!dispatch) return null;
@@ -75,14 +77,36 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
     const orderCount = dispatch.saleOrders?.length ?? 0;
 
     const handleSave = async () => {
+        if (!deliveryPersonId) {
+            toast({ title: "Validation", description: "Delivery person is required", variant: "destructive" });
+            return;
+        }
         try {
             setIsSaving(true);
-            // For now, we call a placeholder update — you can extend the backend to support PATCH /dispatch/:id
-            // with body: { expectedDeliveryDate, deliveryPersonId, vehicleNumber, driverContact, deliveryNotes, notes }
-            // For this demo, we'll just show success and call onUpdated
+            const res = await updateDispatch(dispatch.id, {
+                deliveryPersonId: Number(deliveryPersonId),
+                expectedDeliveryDate: expectedDate || null,
+                vehicleNumber: vehicleNumber || null,
+                driverContact: driverContact || null,
+                deliveryNotes: deliveryNotes || null,
+                notes: notes || null,
+            });
             toast({ title: "Saved", description: "Dispatch record updated successfully" });
             setIsEditing(false);
-            onUpdated?.();
+            if (res?.data) {
+                // Keep modal in sync with saved record
+                setExpectedDate(
+                    res.data.expectedDeliveryDate
+                        ? new Date(res.data.expectedDeliveryDate).toISOString().split("T")[0]
+                        : ""
+                );
+                setDeliveryPersonId(res.data.deliveryPersonId || "");
+                setVehicleNumber(res.data.vehicleNumber || "");
+                setDriverContact(res.data.driverContact || "");
+                setDeliveryNotes(res.data.deliveryNotes || "");
+                setNotes(res.data.notes || "");
+            }
+            onUpdated?.(res?.data);
         } catch (err) {
             toast({ title: "Error", description: err?.message || String(err), variant: "destructive" });
         } finally {
@@ -151,6 +175,11 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                                 {dispatch.saleOrders.map((o) => (
                                     <span key={o.id} className="text-xs px-2 py-1 rounded bg-background border font-medium">
                                         {o.orderNo}
+                                        {o.customerRefNo ? (
+                                            <span className="text-muted-foreground font-normal">
+                                                {" "}· Ref {o.customerRefNo}
+                                            </span>
+                                        ) : null}
                                     </span>
                                 ))}
                             </div>
@@ -176,7 +205,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                         <div className="grid gap-1.5">
                             <Label className="text-xs flex items-center gap-1">
                                 <User className="h-3 w-3" />
-                                Delivery Person
+                                Delivery Person <span className="text-red-500">*</span>
                             </Label>
                             <FormSelect
                                 options={deliveryPersons}
@@ -184,7 +213,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                                 onChange={handleDeliveryPersonChange}
                                 placeholder="Select delivery person"
                                 isSearchable
-                                isClearable
+                                isClearable={false}
                                 disabled={!isEditing}
                             />
                         </div>

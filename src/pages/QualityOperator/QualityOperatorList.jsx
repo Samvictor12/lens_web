@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, RefreshCw, ClipboardCheck, AlertCircle } from "lucide-react";
+import { Search, ClipboardCheck, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { ScanInput } from "@/components/ui/ScanInput";
+import { Card } from "@/components/ui/card";
+import { Refresh } from "@/components/ui/Refresh";
+import { QrScanButton } from "@/components/ui/QrScanButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSaleOrders } from "@/services/saleOrder";
 import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
+import { parseSaleOrderScanPayload } from "@/utils/parseSaleOrderScanPayload";
 
 function OrderCard({ order, onClick, statusLabel }) {
   const statusClass = statusColors[order.status] || "bg-gray-100 text-gray-800 border-gray-200";
@@ -34,11 +37,17 @@ function OrderCard({ order, onClick, statusLabel }) {
         {order.customer?.shopname || order.customer?.name || "—"}
       </div>
 
+      {order.customerRefNo && (
+        <div className="text-xs text-gray-500 truncate">
+          Ref: {order.customerRefNo}
+        </div>
+      )}
+
       {/* Row 3: Lens + Coating */}
       <div className="flex items-center gap-1.5 text-sm text-gray-500">
         <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate">
-          {order.lensProduct?.lens_name || "—"}
+          {order.lensType?.name || order.type || order.lensProduct?.lens_name || "—"}
           {order.coating?.short_name ? ` · ${order.coating.short_name}` : ""}
         </span>
       </div>
@@ -105,7 +114,7 @@ export default function QualityOperatorList({
     } finally {
       setIsLoading(false);
     }
-  }, [search]);
+  }, [search, statusFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -116,30 +125,52 @@ export default function QualityOperatorList({
     setSearch(searchInput.trim());
   };
 
-  const handleScan = async (scannedOrderNo) => {
+  // Type-to-search (same feel as Purchase Order list)
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const handleScan = async (scannedRaw) => {
+    const { orderNo, customerRefNo } = parseSaleOrderScanPayload(scannedRaw);
+    const searchTerm = orderNo || customerRefNo || String(scannedRaw || "").trim();
+    if (!searchTerm) return;
+
     try {
       const response = await getSaleOrders(
         1,
-        1,
-        scannedOrderNo,
+        10,
+        searchTerm,
         { statuses: statusFilter },
         "updatedAt",
         "asc"
       );
       const results = response?.data || [];
-      if (
-        response?.success &&
-        results.length === 1 &&
-        results[0].orderNo === scannedOrderNo
-      ) {
+      const exact =
+        results.find(
+          (o) =>
+            orderNo &&
+            o.orderNo?.toLowerCase() === orderNo.toLowerCase()
+        ) ||
+        results.find(
+          (o) =>
+            customerRefNo &&
+            o.customerRefNo?.toLowerCase() === customerRefNo.toLowerCase()
+        );
+
+      if (response?.success && exact) {
+        navigate(`${basePath}/${exact.id}`);
+        return;
+      }
+      if (response?.success && results.length === 1) {
         navigate(`${basePath}/${results[0].id}`);
         return;
       }
     } catch {
       // fall through to manual search behavior below
     }
-    setSearchInput(scannedOrderNo);
-    setSearch(scannedOrderNo);
+    setSearchInput(searchTerm);
+    setSearch(searchTerm);
   };
 
   return (
@@ -147,33 +178,29 @@ export default function QualityOperatorList({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">{title}</h1>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={fetchOrders}
-          disabled={isLoading}
-          aria-label="Refresh"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-        </Button>
       </div>
 
-      {/* Search */}
-      <form onSubmit={handleSearchSubmit} className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <Input
-            placeholder="Search order, customer…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Button type="submit" variant="outline" size="sm">Search</Button>
-      </form>
-
-      {/* Scan */}
-      <ScanInput placeholder="Scan order barcode/QR…" onScan={handleScan} />
+      {/* Search · Refresh · Scan — same order as Purchase Order */}
+      <Card className="p-1 sm:p-1">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+        >
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search order, customer, customer ref…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-9 h-8 text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Refresh onClick={fetchOrders} disabled={isLoading} />
+            <QrScanButton onScan={handleScan} label="Scan" className="h-8" />
+          </div>
+        </form>
+      </Card>
 
       {/* Count */}
       {!isLoading && orders.length > 0 && (

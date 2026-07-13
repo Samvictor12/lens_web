@@ -162,7 +162,7 @@ const FormSelect = React.forwardRef(
           {/* Label */}
           {label && (
             <Label htmlFor={inputId} className="text-xs min-w-[60px] w-[180px]">
-              {label} {required && <span className="text-destructive">*</span>}
+              {label}{required && <span className="text-red-500"> *</span>}
             </Label>
           )}
 

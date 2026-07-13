@@ -413,7 +413,7 @@ export default function ChartOfAccountsMain() {
           <div className="space-y-4 py-2">
             {!editing && (
               <div className="space-y-1">
-                <Label>Account Group *</Label>
+                <Label>Account Group <span className="text-red-500">*</span></Label>
                 <Select
                   value={form.accountGroupId}
                   onValueChange={(v) => {
@@ -487,7 +487,7 @@ export default function ChartOfAccountsMain() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Ledger Name *</Label>
+              <Label>Ledger Name <span className="text-red-500">*</span></Label>
               <Input
                 value={form.ledgerName}
                 onChange={(e) =>
@@ -533,7 +533,7 @@ export default function ChartOfAccountsMain() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>Parent Group *</Label>
+              <Label>Parent Group <span className="text-red-500">*</span></Label>
               <Select
                 value={groupForm.parentGroupId}
                 onValueChange={(v) => {
@@ -567,7 +567,7 @@ export default function ChartOfAccountsMain() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Group Name *</Label>
+              <Label>Group Name <span className="text-red-500">*</span></Label>
               <Input
                 value={groupForm.groupName}
                 onChange={(e) =>

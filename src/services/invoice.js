@@ -16,6 +16,10 @@ export const getInvoiceStats = () =>
 export const getDispatchedOrders = (params = {}) =>
   apiClient("get", `${BASE}/dispatched-orders`, { params });
 
+/** Customers who currently have delivered, un-billed orders (Awaiting Invoice queue) */
+export const getAwaitingInvoiceCustomers = () =>
+  apiClient("get", `${BASE}/awaiting-customers`);
+
 /** Get single invoice by ID */
 export const getInvoiceById = (id) =>
   apiClient("get", `${BASE}/${id}`);

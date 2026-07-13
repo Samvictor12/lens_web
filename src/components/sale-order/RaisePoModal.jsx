@@ -157,7 +157,7 @@ export default function RaisePoModal({
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">
-              Vendor <span className="text-destructive">*</span>
+              Vendor <span className="text-red-500">*</span>
             </Label>
             <FormSelect
               name="vendorId"

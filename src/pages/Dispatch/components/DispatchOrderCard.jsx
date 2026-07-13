@@ -60,6 +60,12 @@ export default function DispatchOrderCard({ order, selectable, selected, onToggl
                         </Badge>
                     </div>
 
+                    {order.customerRefNo && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                            Ref: <span className="font-medium text-foreground">{order.customerRefNo}</span>
+                        </div>
+                    )}
+
                     {/* Row 2: Customer */}
                     <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                         <User className="h-3 w-3 shrink-0" />

@@ -20,7 +20,7 @@ function applyFavicon(base64Logo) {
       document.head.appendChild(link);
     }
 
-    link.href = base64Logo || "/favicon.ico";
+    link.href = base64Logo || "/icons/icon-192.png";
   } catch (e) {
     // Non-critical — silently ignore
   }

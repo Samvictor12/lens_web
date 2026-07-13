@@ -55,10 +55,10 @@ function PrescriptionTable({ order }) {
     return <p className="text-sm text-gray-400 py-3">No prescription data.</p>;
   }
 
-  const renderRow = (label, sph, cyl, axis, add, dia) => (
+  const renderRow = (label, sph, cyl, axis, add) => (
     <tr className="border-b border-gray-100 last:border-0">
       <td className="py-2 pr-3 text-xs font-semibold text-gray-500 w-8">{label}</td>
-      {[sph, cyl, axis, add, dia].map((v, i) => (
+      {[sph, cyl, axis, add].map((v, i) => (
         <td key={i} className="py-2 pr-2 text-sm text-gray-900 font-medium text-center">
           {v || "—"}
         </td>
@@ -71,7 +71,7 @@ function PrescriptionTable({ order }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b-2 border-gray-200">
-            {["Eye", "Sph", "Cyl", "Axis", "Add", "Dia"].map((h) => (
+            {["Eye", "Sph", "Cyl", "Axis", "Add"].map((h) => (
               <th
                 key={h}
                 className="py-1.5 pr-2 text-xs font-semibold text-gray-400 text-center first:text-left"
@@ -88,8 +88,7 @@ function PrescriptionTable({ order }) {
               order.rightSpherical,
               order.rightCylindrical,
               order.rightAxis,
-              order.rightAdd,
-              order.rightDia
+              order.rightAdd
             )}
           {hasLeft &&
             renderRow(
@@ -97,8 +96,7 @@ function PrescriptionTable({ order }) {
               order.leftSpherical,
               order.leftCylindrical,
               order.leftAxis,
-              order.leftAdd,
-              order.leftDia
+              order.leftAdd
             )}
         </tbody>
       </table>
@@ -219,7 +217,7 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
   const rejectScrapStatus = mode === "pre" ? "PRE_QC_SCRAPPED" : "POST_QC_SCRAPPED";
 
   return (
-    <div className="max-w-4xl mx-auto pb-24">
+    <div className="max-w-4xl mx-auto pb-4">
       {/* Sticky header */}
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
       <div className="px-3 py-3 flex items-center gap-3">
@@ -260,7 +258,7 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
               year: "numeric",
             })}
           />
-          <InfoRow label="Type" value={order.type} />
+          <InfoRow label="Type" value={order.lensType?.name || order.type} />
           {order.deliverySchedule && (
             <InfoRow
               label="Delivery Schedule"
@@ -287,7 +285,6 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
           <InfoRow label="Coating" value={order.coating?.name} />
           <InfoRow label="Fitting" value={order.fitting?.name} />
           <InfoRow label="Tinting" value={order.tinting?.name} />
-          <InfoRow label="Diameter" value={order.dia?.name} />
         </SectionCard>
 
         {/* Prescription */}
@@ -315,10 +312,10 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
         )}
       </div>
 
-      {/* Action bar */}
+      {/* Action bar — content-scoped (not viewport-fixed) */}
       {isQCPending ? (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
+        <div className="sticky bottom-0 mt-4 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] rounded-t-lg">
+          <div className="px-3 sm:px-4 py-3 flex gap-3">
           <Button
             variant="outline"
             className="flex-1 h-12 text-base font-semibold border-red-400 text-red-600 hover:bg-red-50"
@@ -337,8 +334,8 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
           </div>
         </div>
       ) : (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 z-50">
-          <div className="max-w-4xl mx-auto px-4 py-3 text-center">
+        <div className="sticky bottom-0 mt-4 bg-gray-50 border-t border-gray-200 rounded-t-lg">
+          <div className="px-3 sm:px-4 py-3 text-center">
           <p className="text-sm text-gray-400">
             Order is{" "}
             <span className="font-medium">{STATUS_LABELS[order.status] || order.status}</span> — no
@@ -353,12 +350,12 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
         setRejectDialogOpen(open);
         if (!open) setRejectRemark("");
       }}>
-        <DialogContent className="max-w-sm mx-4">
-          <DialogHeader>
+        <DialogContent className="max-w-xl w-[min(100%,36rem)] mx-4 max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b">
             <DialogTitle>Reject Order</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-gray-500">
+          <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 min-h-0">
+            <p className="text-sm text-muted-foreground">
               Choose reject type. SO person must confirm reset to Draft before re-processing.
             </p>
             <Textarea
@@ -369,9 +366,10 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
               className="resize-none"
             />
           </div>
-          <DialogFooter className="flex gap-2">
+          <DialogFooter className="px-4 py-3 border-t shrink-0 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setRejectDialogOpen(false);
                 setRejectRemark("");
@@ -381,14 +379,14 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
             </Button>
             <Button
               variant="outline"
-              className="border-amber-500 text-amber-700"
+              className="w-full sm:w-auto border-amber-500 text-amber-700"
               disabled={!rejectRemark.trim()}
               onClick={() => handleReject(rejectInventoryStatus)}
             >
               Reject → Inventory
             </Button>
             <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
               disabled={!rejectRemark.trim()}
               onClick={() => handleReject(rejectScrapStatus)}
             >

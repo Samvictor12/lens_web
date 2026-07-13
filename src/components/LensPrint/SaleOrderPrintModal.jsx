@@ -385,13 +385,15 @@ export function SaleOrderPrintModal({
         }
 
         const orderId = saleOrder?.id || saleOrder?.order_number || "0";
-        const orderCode = saleOrder?.order_number || `SO-${orderId}`;
+        const orderCode = saleOrder?.orderNo || saleOrder?.order_number || `SO-${orderId}`;
+        const customerRef = saleOrder?.customerRefNo?.trim();
+        const barcodeSerial = customerRef ? `${orderCode} | ${customerRef}` : String(orderCode);
         const customer = saleOrder?.customer_name || saleOrder?.customer?.name || "Order";
 
         await printBarcodeLabels({
           printerName: barcodePrinter,
           topLabel: customer,
-          barcodeSerials: [String(orderId)],
+          barcodeSerials: [barcodeSerial],
           bottomLabels: [orderCode],
           labelWidth: 180,
         });

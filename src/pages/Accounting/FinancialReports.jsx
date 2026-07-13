@@ -163,7 +163,7 @@ function LedgerStatement() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-end">
         <div className="space-y-1 w-56">
-          <Label className="text-xs">Ledger *</Label>
+          <Label className="text-xs">Ledger <span className="text-red-500">*</span></Label>
           <Select value={ledgerId} onValueChange={setLedgerId}>
             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select ledger" /></SelectTrigger>
             <SelectContent>{ledgers.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.ledgerCode} — {l.ledgerName}</SelectItem>)}</SelectContent>
@@ -434,7 +434,7 @@ function CashBankBook() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-end">
         <div className="space-y-1 w-56">
-          <Label className="text-xs">Account *</Label>
+          <Label className="text-xs">Account <span className="text-red-500">*</span></Label>
           <Select value={ledgerId} onValueChange={setLedgerId}>
             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select account" /></SelectTrigger>
             <SelectContent>{ledgers.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.ledgerCode} — {l.ledgerName}</SelectItem>)}</SelectContent>
@@ -529,7 +529,7 @@ function GroupSummary() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-end">
         <div className="space-y-1 w-64">
-          <Label className="text-xs">Account Group *</Label>
+          <Label className="text-xs">Account Group <span className="text-red-500">*</span></Label>
           <Select value={groupId} onValueChange={setGroupId}>
             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select group" /></SelectTrigger>
             <SelectContent>

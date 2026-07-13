@@ -18,7 +18,7 @@ const SALE_ORDER_INCLUDE = {
   lensProduct: { select: { id: true, lens_name: true } },
   coating: { select: { id: true, name: true } },
   fitting: { select: { id: true, name: true } },
-  assignedPerson: { select: { id: true, name: true, phonenumber: true } },
+  assignedPerson: { select: { id: true, name: true, phonenumber: true, vehicleNumber: true } },
 };
 
 const DISPATCH_COPY_INCLUDE = {
@@ -28,7 +28,7 @@ const DISPATCH_COPY_INCLUDE = {
       city: true, state: true, address: true, pincode: true, phone: true,
     },
   },
-  deliveryPerson: { select: { id: true, name: true, phonenumber: true } },
+  deliveryPerson: { select: { id: true, name: true, phonenumber: true, vehicleNumber: true } },
   createdByUser: { select: { id: true, name: true } },
   saleOrders: {
     select: {
@@ -128,6 +128,7 @@ export const getReadyForDispatch = async (userId, roleName, filters = {}) => {
   if (search) {
     where.OR = [
       { orderNo: { contains: search, mode: 'insensitive' } },
+      { customerRefNo: { contains: search, mode: 'insensitive' } },
       { customer: { name: { contains: search, mode: 'insensitive' } } },
       { customer: { shopname: { contains: search, mode: 'insensitive' } } },
     ];
@@ -162,6 +163,9 @@ export const createDispatch = async (payload, userId) => {
   }
   if (!customerId) {
     throw new APIError('Customer is required', 400, 'INVALID_INPUT');
+  }
+  if (!deliveryPersonId) {
+    throw new APIError('Delivery person is required', 400, 'INVALID_INPUT');
   }
 
   // Verify all sale orders exist, belong to this customer, and are READY_FOR_DISPATCH
@@ -256,6 +260,20 @@ export const getDispatchList = async (userId, roleName, filters = {}) => {
       { dcNumber: { contains: search, mode: 'insensitive' } },
       { customer: { name: { contains: search, mode: 'insensitive' } } },
       { customer: { shopname: { contains: search, mode: 'insensitive' } } },
+      {
+        saleOrders: {
+          some: {
+            customerRefNo: { contains: search, mode: 'insensitive' },
+          },
+        },
+      },
+      {
+        saleOrders: {
+          some: {
+            orderNo: { contains: search, mode: 'insensitive' },
+          },
+        },
+      },
     ];
   }
 
@@ -273,6 +291,72 @@ export const getDispatchList = async (userId, roleName, filters = {}) => {
   ]);
 
   return { dispatches, total, page: Number(page), limit: Number(limit) };
+};
+
+// ─── Update Dispatch Record (details) ─────────────────────────────────────────
+
+export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
+  const {
+    deliveryPersonId,
+    expectedDeliveryDate,
+    vehicleNumber,
+    driverName,
+    driverContact,
+    deliveryNotes,
+    notes,
+  } = payload;
+
+  const dispatch = await prisma.dispatchCopy.findUnique({
+    where: { id: Number(dispatchId) },
+    include: { saleOrders: { select: { id: true } } },
+  });
+
+  if (!dispatch) {
+    throw new APIError('Dispatch record not found', 404, 'NOT_FOUND');
+  }
+
+  if (dispatch.status === 'DELIVERED') {
+    throw new APIError('Delivered dispatches cannot be edited', 400, 'INVALID_STATUS');
+  }
+
+  if (isDeliveryPerson(roleName) && dispatch.deliveryPersonId !== userId) {
+    throw new APIError('Unauthorized: this dispatch is not assigned to you', 403, 'UNAUTHORIZED');
+  }
+
+  if (!deliveryPersonId) {
+    throw new APIError('Delivery person is required', 400, 'INVALID_INPUT');
+  }
+
+  const nextDeliveryPersonId = Number(deliveryPersonId);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedDispatch = await tx.dispatchCopy.update({
+      where: { id: Number(dispatchId) },
+      data: {
+        deliveryPersonId: nextDeliveryPersonId,
+        expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+        vehicleNumber: vehicleNumber?.trim() || null,
+        driverName: driverName?.trim() || null,
+        driverContact: driverContact?.trim() || null,
+        deliveryNotes: deliveryNotes?.trim() || null,
+        notes: notes?.trim() || null,
+        updatedBy: userId,
+      },
+      include: DISPATCH_COPY_INCLUDE,
+    });
+
+    // Keep linked sale orders' assigned delivery person in sync
+    if (dispatch.saleOrders.length > 0) {
+      await tx.saleOrder.updateMany({
+        where: { id: { in: dispatch.saleOrders.map((o) => o.id) } },
+        data: { assignedPerson_id: nextDeliveryPersonId },
+      });
+    }
+
+    return updatedDispatch;
+  });
+
+  return updated;
 };
 
 // ─── Update Dispatch Status ───────────────────────────────────────────────────

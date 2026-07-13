@@ -48,6 +48,22 @@ export const getDispatchList = async (req, res, next) => {
   }
 };
 
+// PATCH /api/v1/dispatch/:id
+export const updateDispatch = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const dispatch = await dispatchService.updateDispatch(
+      id,
+      req.body,
+      req.user?.id,
+      req.user?.role?.name
+    );
+    res.json({ success: true, data: dispatch, message: 'Dispatch record updated' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // PATCH /api/v1/dispatch/:id/status
 export const updateDispatchStatus = async (req, res, next) => {
   try {

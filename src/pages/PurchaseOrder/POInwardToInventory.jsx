@@ -76,8 +76,17 @@ export default function POInwardToInventory() {
       return "/inventory/inward";
     }
 
-    return `/masters/purchase-orders/receive/${id}/edit/${receiptId}`;
-  }, [id, location.pathname, receiptId]);
+    // From PO list inward popup: go back to list — never Edit Receipt
+    return "/masters/purchase-orders";
+  }, [location.pathname]);
+
+  const handleClose = () => {
+    if (window.opener) {
+      window.close();
+      return;
+    }
+    navigate(closeRoute);
+  };
 
   // ── Data loading ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -467,7 +476,7 @@ export default function POInwardToInventory() {
             variant="outline"
             size="xs"
             className="h-8 gap-1.5"
-            onClick={() => navigate(closeRoute)}
+            onClick={handleClose}
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Close
           </Button>

@@ -385,20 +385,27 @@ export class InvoiceService {
     const where = {
       status: 'DELIVERED',
       deleteStatus: false,
-      // Include SOs with no invoice OR SOs whose invoice was cancelled (available for re-invoicing)
-      OR: [
-        { invoiceId: null },
-        { invoice: { status: 'CANCELLED' } },
+      AND: [
+        {
+          OR: [
+            { invoiceId: null },
+            { invoice: { status: 'CANCELLED' } },
+          ],
+        },
       ],
       ...(customerId && { customerId: parseInt(customerId) }),
-      ...(search && {
+    };
+
+    if (search) {
+      where.AND.push({
         OR: [
           { orderNo: { contains: search, mode: 'insensitive' } },
+          { customerRefNo: { contains: search, mode: 'insensitive' } },
           { customer: { name: { contains: search, mode: 'insensitive' } } },
           { customer: { code: { contains: search, mode: 'insensitive' } } },
         ],
-      }),
-    };
+      });
+    }
 
     const [data, total] = await Promise.all([
       prisma.saleOrder.findMany({
@@ -407,7 +414,7 @@ export class InvoiceService {
         take: parseInt(limit),
         orderBy: { orderDate: 'desc' },
         select: {
-          id: true, orderNo: true, orderDate: true, status: true,
+          id: true, orderNo: true, orderDate: true, status: true, customerRefNo: true,
           lensPrice: true, fittingPrice: true, tintingPrice: true,
           rightEyeExtra: true, leftEyeExtra: true, discount: true, additionalPrice: true,
           customer: { select: { id: true, name: true, code: true, phone: true } },
@@ -461,6 +468,40 @@ export class InvoiceService {
   }
 
   // ──────────────────────────────────────────────────────────
+  // Distinct customers who have DELIVERED un-billed orders
+  // ──────────────────────────────────────────────────────────
+  async getAwaitingInvoiceCustomers() {
+    const rows = await prisma.saleOrder.findMany({
+      where: {
+        status: 'DELIVERED',
+        deleteStatus: false,
+        OR: [
+          { invoiceId: null },
+          { invoice: { status: 'CANCELLED' } },
+        ],
+      },
+      select: {
+        customerId: true,
+        customer: {
+          select: { id: true, name: true, shopname: true, code: true },
+        },
+      },
+      distinct: ['customerId'],
+      orderBy: { customerId: 'asc' },
+    });
+
+    return rows
+      .filter((r) => r.customer)
+      .map((r) => ({
+        id: r.customer.id,
+        name: r.customer.name,
+        shopname: r.customer.shopname || null,
+        code: r.customer.code || null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Get delivered (unbilled) orders for a specific customer
   // ──────────────────────────────────────────────────────────
   async getDeliveredOrders(customerId) {
@@ -476,7 +517,7 @@ export class InvoiceService {
         ],
       },
       select: {
-        id: true, orderNo: true, orderDate: true, status: true,
+        id: true, orderNo: true, orderDate: true, status: true, customerRefNo: true,
         lensPrice: true, fittingPrice: true, tintingPrice: true,
         rightEyeExtra: true, leftEyeExtra: true, discount: true, additionalPrice: true,
         lensProduct: { select: { lens_name: true } },

@@ -90,6 +90,7 @@ export default function UserForm() {
               email: user.email || "",
               phonenumber: user.phonenumber || "",
               alternatenumber: user.alternatenumber || "",
+              vehicleNumber: user.vehicleNumber || "",
               bloodgroup: user.bloodgroup || null,
               address: user.address || "",
               city: user.city || "",
@@ -448,7 +449,7 @@ export default function UserForm() {
                 />
               </div>
 
-              {/* Row 3: Alternate Number, Blood Group */}
+              {/* Row 3: Alternate Number, Vehicle Number */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormInput
                   label="Alternate Number"
@@ -456,9 +457,21 @@ export default function UserForm() {
                   value={formData.alternatenumber}
                   onChange={handleChange}
                   disabled={isReadOnly}
-                  //   maxLength={10}
                   error={errors.alternatenumber}
                 />
+                <FormInput
+                  label="Vehicle Number"
+                  name="vehicleNumber"
+                  value={formData.vehicleNumber}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  placeholder="e.g. MH12AB1234"
+                  error={errors.vehicleNumber}
+                />
+              </div>
+
+              {/* Row 4: Blood Group, Department */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormSelect
                   label="Blood Group"
                   name="bloodgroup"
@@ -482,10 +495,6 @@ export default function UserForm() {
                   disabled={isReadOnly}
                   error={errors.bloodgroup}
                 />
-              </div>
-
-              {/* Row 4: Department */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormSelect
                   label="Department"
                   name="department_id"
@@ -594,7 +603,7 @@ export default function UserForm() {
                 <Alert className="bg-primary/5 border-primary/20">
                   <AlertDescription className="text-xs">
                     Fields marked with{" "}
-                    <span className="text-destructive">*</span> are required.
+                    <span className="text-red-500">*</span> are required.
                     Login credentials will be set separately using the Login
                     Settings button.
                   </AlertDescription>

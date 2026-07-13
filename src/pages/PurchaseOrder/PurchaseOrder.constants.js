@@ -33,6 +33,7 @@ export const defaultPurchaseOrder = {
   leftBled: "",
   quantity: 0,
   unitPrice: 0,
+  totalPrice: 0,
   subtotal: 0,
   taxType: "Amount",
   taxPercentage: 0,

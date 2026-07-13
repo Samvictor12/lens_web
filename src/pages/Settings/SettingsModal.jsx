@@ -52,10 +52,18 @@ const TABS = [
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
-function FieldRow({ label, children, hint }) {
+function FieldRow({ label, children, hint, required }) {
+  const isRequired = required || (typeof label === "string" && label.trim().endsWith("*"));
+  const displayLabel =
+    typeof label === "string" && label.trim().endsWith("*")
+      ? label.replace(/\s*\*$/, "")
+      : label;
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm font-medium">{label}</Label>
+      <Label className="text-sm font-medium">
+        {displayLabel}
+        {isRequired && <span className="text-red-500"> *</span>}
+      </Label>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>

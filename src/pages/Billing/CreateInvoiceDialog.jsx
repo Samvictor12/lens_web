@@ -9,20 +9,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormInput } from "@/components/ui/form-input";
+import { FormTextarea } from "@/components/ui/form-textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { getDeliveredOrdersForCustomer, createInvoice } from "@/services/invoice";
-import { getCustomers } from "@/services/customer";
+import {
+  getDeliveredOrdersForCustomer,
+  getAwaitingInvoiceCustomers,
+  createInvoice,
+} from "@/services/invoice";
 import { fmt, orderTotal } from "./Billing.constants";
 
 export default function CreateInvoiceDialog({ open, onClose, initialCustomerId = "" }) {
@@ -32,20 +28,26 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Sync state when dialog opens with a pre-filled customer
+  // Sync state when dialog opens — always start with 0 orders selected
   useEffect(() => {
     if (open) {
       setCustomerId(initialCustomerId || "");
       setSelectedOrderIds([]);
+      setDueDate("");
+      setNotes("");
     }
   }, [open, initialCustomerId]);
 
-  const { data: customersRes } = useQuery({
-    queryKey: ["customers-dropdown"],
-    queryFn: () => getCustomers(1, 500, "", {}, "name", "asc"),
+  // Only customers currently in the Awaiting Invoice queue
+  const { data: customersRes, isLoading: customersLoading } = useQuery({
+    queryKey: ["awaiting-invoice-customers"],
+    queryFn: getAwaitingInvoiceCustomers,
     enabled: open,
   });
-  const customers = customersRes?.data || [];
+  const customers = (customersRes?.data || []).map((c) => ({
+    id: c.id,
+    name: `${c.name}${c.shopname ? ` (${c.shopname})` : ""}`,
+  }));
 
   const { data: ordersRes, isLoading: ordersLoading } = useQuery({
     queryKey: ["delivered-orders", customerId],
@@ -61,6 +63,7 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["invoices-stats"] });
       qc.invalidateQueries({ queryKey: ["dispatched-orders"] });
+      qc.invalidateQueries({ queryKey: ["awaiting-invoice-customers"] });
       handleClose();
     },
     onError: (err) => toast.error(err?.message || "Failed to create invoice"),
@@ -91,53 +94,57 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) handleClose();
+      }}
+    >
+      <DialogContent className="max-w-2xl max-h-[90vh] !flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-4 pt-4 pb-3 pr-12 border-b shrink-0 space-y-0">
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5" /> Create Invoice / Bill
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <Label>
-              Customer <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={customerId}
-              onValueChange={(v) => {
-                setCustomerId(v);
-                setSelectedOrderIds([]);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select customer…" />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name} {c.shopName ? `(${c.shopName})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
+          <FormSelect
+            label="Customer"
+            name="customerId"
+            options={customers}
+            value={customerId}
+            onChange={(v) => {
+              setCustomerId(v || "");
+              setSelectedOrderIds([]);
+            }}
+            placeholder={
+              customersLoading
+                ? "Loading customers…"
+                : customers.length === 0
+                  ? "No customers awaiting invoice"
+                  : "Select customer…"
+            }
+            isSearchable
+            isClearable
+            required
+            helperText="Only customers with delivered, unbilled orders"
+          />
 
           {customerId && (
-            <div className="space-y-1">
-              <Label>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">
                 Delivered Orders (select to include){" "}
                 <span className="text-red-500">*</span>
-              </Label>
+              </p>
               {ordersLoading ? (
                 <p className="text-sm text-muted-foreground py-2">Loading orders…</p>
               ) : deliveredOrders.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No un-billed orders for this customer. Orders must be in <strong>DELIVERED</strong> status and not already linked to an invoice.
+                  No un-billed orders for this customer. Orders must be in{" "}
+                  <strong>DELIVERED</strong> status and not already linked to an invoice.
                 </p>
               ) : (
-                <div className="border rounded-md divide-y max-h-56 overflow-y-auto">
+                <div className="border rounded-md divide-y">
                   {deliveredOrders.map((o) => (
                     <label
                       key={o.id}
@@ -149,6 +156,11 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
                       />
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-sm">{o.orderNo}</span>
+                        {o.customerRefNo && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            Ref: {o.customerRefNo}
+                          </span>
+                        )}
                         <span className="text-xs text-muted-foreground ml-2">
                           {o.lensProduct?.lens_name || "—"} · {o.coating?.name || "—"}
                         </span>
@@ -168,36 +180,32 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
             </div>
           )}
 
-          {selectedOrderIds.length > 0 && (
-            <div className="flex justify-between items-center bg-muted px-3 py-2 rounded-md text-sm font-medium">
-              <span>{selectedOrderIds.length} order(s) selected</span>
-              <span className="text-base font-bold">{fmt(selectedTotal)}</span>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <Label>
-              Due Date <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
+          {/* Always show selection summary — defaults to 0 */}
+          <div className="flex justify-between items-center bg-muted px-3 py-2 rounded-md text-sm font-medium">
+            <span>{selectedOrderIds.length} order(s) selected</span>
+            <span className="text-base font-bold">{fmt(selectedTotal)}</span>
           </div>
 
-          <div className="space-y-1">
-            <Label>Notes (optional)</Label>
-            <Textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any remarks…"
-            />
-          </div>
+          <FormInput
+            label="Due Date"
+            name="dueDate"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            required
+          />
+
+          <FormTextarea
+            label="Notes (optional)"
+            name="notes"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Any remarks…"
+          />
         </div>
 
-        <DialogFooter className="gap-2 pt-2">
+        <DialogFooter className="px-4 py-3 border-t shrink-0 gap-2 bg-background sm:justify-end">
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>

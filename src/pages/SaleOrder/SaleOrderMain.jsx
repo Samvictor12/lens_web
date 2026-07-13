@@ -266,7 +266,7 @@ export default function SaleOrderMain() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search orders by order number, customer..."
+              placeholder="Search order no, customer, customer ref..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);

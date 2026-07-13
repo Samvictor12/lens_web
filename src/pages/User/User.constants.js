@@ -11,6 +11,7 @@ export const defaultUser = {
   email: "",
   phonenumber: "",
   alternatenumber: "",
+  vehicleNumber: "",
   bloodgroup: null,
   address: "",
   city: "",

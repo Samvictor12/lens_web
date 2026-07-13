@@ -48,12 +48,12 @@ function PrescriptionTable({ order }) {
     return <p className="text-sm text-gray-400 py-3">No prescription data.</p>;
   }
 
-  const headers = ["Eye", "Sph", "Cyl", "Axis", "Add", "Dia"];
+  const headers = ["Eye", "Sph", "Cyl", "Axis", "Add"];
 
-  const renderRow = (label, sph, cyl, axis, add, dia) => (
+  const renderRow = (label, sph, cyl, axis, add) => (
     <tr className="border-b border-gray-100 last:border-0">
       <td className="py-2 pr-3 text-xs font-semibold text-gray-500 w-8">{label}</td>
-      {[sph, cyl, axis, add, dia].map((v, i) => (
+      {[sph, cyl, axis, add].map((v, i) => (
         <td key={i} className="py-2 pr-2 text-sm text-gray-900 font-medium text-center">
           {v || "—"}
         </td>
@@ -80,8 +80,7 @@ function PrescriptionTable({ order }) {
               order.rightSpherical,
               order.rightCylindrical,
               order.rightAxis,
-              order.rightAdd,
-              order.rightDia
+              order.rightAdd
             )}
           {hasLeft &&
             renderRow(
@@ -89,8 +88,7 @@ function PrescriptionTable({ order }) {
               order.leftSpherical,
               order.leftCylindrical,
               order.leftAxis,
-              order.leftAdd,
-              order.leftDia
+              order.leftAdd
             )}
         </tbody>
       </table>
@@ -113,45 +111,43 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
     </Button>
   );
 
+  const wrap = (children) => (
+    <div className="sticky bottom-0 mt-4 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] rounded-t-lg">
+      <div className="px-3 sm:px-4 py-3 flex gap-3">{children}</div>
+    </div>
+  );
+
   // FITTING_READY: skip "Start" — show Direct Complete + Hold
   if (status === "FITTING_READY") {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-area-bottom">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
-          {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
-          {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
-        </div>
-      </div>
+    return wrap(
+      <>
+        {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
+        {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
+      </>
     );
   }
 
   // IN_FITTING (legacy orders already in this state): same buttons
   if (status === "IN_FITTING") {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
-          {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
-          {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
-        </div>
-      </div>
+    return wrap(
+      <>
+        {btn("Hold", "ON_HOLD", "outline", "border-orange-400 text-orange-600 hover:bg-orange-50")}
+        {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
+      </>
     );
   }
 
   // ON_HOLD: force complete only (no Resume)
   if (status === "ON_HOLD") {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-3">
-          {btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}
-        </div>
-      </div>
+    return wrap(
+      <>{btn("Complete", "AWAITING_QUALITY", "default", "bg-green-600 hover:bg-green-700")}</>
     );
   }
 
   // Read-only for other statuses
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 z-50">
-      <div className="max-w-4xl mx-auto px-4 py-3 text-center">
+    <div className="sticky bottom-0 mt-4 bg-gray-50 border-t border-gray-200 rounded-t-lg">
+      <div className="px-3 sm:px-4 py-3 text-center">
         <p className="text-sm text-gray-400">
           Order is <span className="font-medium">{STATUS_LABELS[status] || status}</span> — no actions available.
         </p>
@@ -258,7 +254,7 @@ export default function FittingOrderDetail() {
   const statusClass = statusColors[order.status] || "bg-gray-100 text-gray-800 border-gray-200";
 
   return (
-    <div className="max-w-4xl mx-auto pb-24">
+    <div className="max-w-4xl mx-auto pb-4">
       {/* Sticky header */}
       <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
       <div className="px-3 py-3 flex items-center gap-3">
@@ -299,7 +295,7 @@ export default function FittingOrderDetail() {
               year: "numeric",
             })}
           />
-          <InfoRow label="Type" value={order.type} />
+          <InfoRow label="Type" value={order.lensType?.name || order.type} />
           {order.deliverySchedule && (
             <InfoRow
               label="Delivery Schedule"
@@ -326,7 +322,6 @@ export default function FittingOrderDetail() {
           <InfoRow label="Coating" value={order.coating?.name} />
           <InfoRow label="Fitting" value={order.fitting?.name} />
           <InfoRow label="Tinting" value={order.tinting?.name} />
-          <InfoRow label="Diameter" value={order.dia?.name} />
         </SectionCard>
 
         {/* Prescription */}

@@ -366,7 +366,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormSelect
-                  label="Product *"
+                  label="Product"
                   name="product"
                   value={lens_id || null}
                   onChange={(v) => { setLensId(v ? String(v) : ""); }}
@@ -374,6 +374,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   placeholder="Choose product..."
                   isSearchable
                   isLoading={isLoading}
+                  required
                 />
 
                 <FormSelect
@@ -406,7 +407,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2 border-r pr-4 last:border-0">
-                    <label className="text-xs font-semibold text-muted-foreground">Spherical *</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Spherical <span className="text-red-500">*</span></label>
                     <div className="flex gap-2">
                       <input
                         type="number"

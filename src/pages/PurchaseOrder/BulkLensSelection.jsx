@@ -377,7 +377,7 @@ export default function BulkLensSelection({
               {/* Coating select — required before Display Grid (mirrors lensId guard) */}
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
                 <div>
-                  <Label className="text-xs">Coating *</Label>
+                  <Label className="text-xs">Coating <span className="text-red-500">*</span></Label>
                   <FormSelect
                     name="coating_id"
                     value={coatingId || null}

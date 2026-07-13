@@ -38,6 +38,7 @@ import {
 } from "@/services/purchaseOrder";
 import { purchaseOrderFilters } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
+import { openAppWindow } from "@/utils/openAppWindow";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
 import PurchaseOrderCard from "./PurchaseOrderCard";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
@@ -115,7 +116,7 @@ export default function PurchaseOrders() {
         const sorted = [...res.data.receipts].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
-        navigate(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`);
+        openAppWindow(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`);
         return;
       }
 
@@ -610,7 +611,7 @@ export default function PurchaseOrders() {
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search purchase orders..."
+                  placeholder="Search PO, vendor, customer ref..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 h-8 text-sm"

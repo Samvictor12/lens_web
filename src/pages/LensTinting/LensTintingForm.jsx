@@ -337,7 +337,7 @@ export default function LensTintingForm() {
                 <Alert className="bg-primary/5 border-primary/20">
                   <AlertDescription className="text-xs">
                     Fields marked with{" "}
-                    <span className="text-destructive">*</span> are required.
+                    <span className="text-red-500">*</span> are required.
                     This tinting will be available for sale order assignment.
                   </AlertDescription>
                 </Alert>

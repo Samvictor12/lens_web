@@ -16,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Refresh } from "@/components/ui/Refresh";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +30,20 @@ import { getDispatchList, updateDispatchStatus } from "@/services/dispatch";
 import SignatureModal from "@/pages/Dispatch/components/SignatureModal";
 import DispatchOrderDetailsModal from "@/pages/Dispatch/components/DispatchOrderDetailsModal";
 import { cn } from "@/lib/utils";
+
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 const STATUS_LABEL = {
   PENDING: "Ready for Pickup",
@@ -136,8 +157,10 @@ function CustomerGroup({
   onToggle,
   onSelectAllInGroup,
   onView,
+  isMobile,
+  onOpenMobileCustomer,
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(!isMobile);
   const customerName = group.customer?.shopname || group.customer?.name || "Unknown Customer";
   const city = group.customer?.city;
   const address = [group.customer?.address, group.customer?.city, group.customer?.state]
@@ -149,6 +172,34 @@ function CustomerGroup({
   const selectedInGroup = groupIds.filter((id) => selectedIds.has(id));
   const allSelected = groupIds.length > 0 && selectedInGroup.length === groupIds.length;
   const someSelected = selectedInGroup.length > 0 && !allSelected;
+
+  if (isMobile) {
+    return (
+      <button
+        type="button"
+        className="w-full rounded-lg border bg-card px-3 py-3 text-left hover:bg-muted/40 transition-colors"
+        onClick={() => onOpenMobileCustomer?.(group)}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="font-semibold text-sm truncate">{customerName}</span>
+            </div>
+            {city && (
+              <p className="text-[11px] text-muted-foreground mt-0.5 pl-5 flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {city}
+              </p>
+            )}
+          </div>
+          <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
+            {group.dispatches.length} DC{group.dispatches.length !== 1 ? "s" : ""}
+          </Badge>
+        </div>
+      </button>
+    );
+  }
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
@@ -232,10 +283,13 @@ function PhasePanel({
   onRequestDeliver,
   onBulkPickup,
   isActing,
+  isMobile,
 }) {
   const { toast } = useToast();
   const [dispatches, setDispatches] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [mobileGroup, setMobileGroup] = useState(null);
+  const [mobileSelected, setMobileSelected] = useState(new Set());
 
   const fetchList = useCallback(async () => {
     try {
@@ -291,6 +345,41 @@ function PhasePanel({
     });
   };
 
+  const openMobileCustomer = (group) => {
+    setMobileGroup(group);
+    setMobileSelected(new Set());
+  };
+
+  const toggleMobile = (id) => {
+    setMobileSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const mobileSelectedDispatches =
+    mobileGroup?.dispatches.filter((d) => mobileSelected.has(d.id)) || [];
+
+  const handleMobileNext = () => {
+    if (!mobileSelectedDispatches.length) return;
+    const ids = mobileSelectedDispatches.map((d) => d.id);
+    if (phase === "pickup") {
+      onBulkPickup?.(ids, () => {
+        fetchList();
+        setMobileGroup(null);
+        setMobileSelected(new Set());
+      });
+    } else {
+      onRequestDeliver?.(mobileSelectedDispatches, () => {
+        fetchList();
+        setMobileGroup(null);
+        setMobileSelected(new Set());
+      });
+    }
+  };
+
   const selectedDispatches = dispatches.filter((d) => selectedIds.has(d.id));
   const selectedCount = selectedDispatches.length;
   const selectedOrderCount = selectedDispatches.reduce(
@@ -328,13 +417,16 @@ function PhasePanel({
     );
   }
 
+  const customerName =
+    mobileGroup?.customer?.shopname || mobileGroup?.customer?.name || "Customer";
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-3 pb-3">
         <p className="text-xs text-muted-foreground">
           {groups.length} customer{groups.length !== 1 ? "s" : ""} · {dispatches.length} DC
           {dispatches.length !== 1 ? "s" : ""}
-          {selectedCount > 0 ? ` · ${selectedCount} selected` : ""}
+          {!isMobile && selectedCount > 0 ? ` · ${selectedCount} selected` : ""}
         </p>
         {groups.map((group) => (
           <CustomerGroup
@@ -345,12 +437,14 @@ function PhasePanel({
             onToggle={toggle}
             onSelectAllInGroup={selectAllInGroup}
             onView={onView}
+            isMobile={isMobile}
+            onOpenMobileCustomer={openMobileCustomer}
           />
         ))}
       </div>
 
-      {/* Action bar — content area only (not over sidebar) */}
-      {selectedCount > 0 && (
+      {/* Desktop action bar */}
+      {!isMobile && selectedCount > 0 && (
         <div className="flex-shrink-0 border-t bg-background px-3 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="text-sm">
             <span className="font-semibold">{selectedCount}</span> DC
@@ -395,6 +489,67 @@ function PhasePanel({
           </div>
         </div>
       )}
+
+      {/* Mobile: customer → multi-select orders → next */}
+      <Dialog
+        open={!!mobileGroup}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMobileGroup(null);
+            setMobileSelected(new Set());
+          }
+        }}
+      >
+        <DialogContent className="max-w-md mx-3 max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+            <DialogTitle className="text-base">{customerName}</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Select orders to {phase === "pickup" ? "pick up" : "deliver"}
+            </p>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-1">
+            {mobileGroup?.dispatches.map((d) => (
+              <DispatchListRow
+                key={d.id}
+                dispatch={d}
+                selected={mobileSelected.has(d.id)}
+                onToggle={toggleMobile}
+                onView={onView}
+              />
+            ))}
+          </div>
+          <DialogFooter className="px-4 py-3 border-t shrink-0 flex-row gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setMobileGroup(null);
+                setMobileSelected(new Set());
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className={phase === "delivery" ? "bg-green-600 hover:bg-green-700 gap-1.5" : "gap-1.5"}
+              disabled={isActing || mobileSelected.size === 0}
+              onClick={handleMobileNext}
+            >
+              {phase === "pickup" ? (
+                <>
+                  <Truck className="h-3.5 w-3.5" />
+                  Next · Pickup
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Next · Sign & Deliver
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -403,6 +558,7 @@ export default function DispatchWindowMain() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isDeliveryPerson = user?.roleName === "Delivery Person";
+  const isMobile = useIsMobile();
 
   const [activeTab, setActiveTab] = useState("pickup");
   const [search, setSearch] = useState("");
@@ -410,6 +566,8 @@ export default function DispatchWindowMain() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [viewDispatch, setViewDispatch] = useState(null);
   const [isActing, setIsActing] = useState(false);
+  const [pickupConfirmOpen, setPickupConfirmOpen] = useState(false);
+  const [pendingPickup, setPendingPickup] = useState({ ids: [], refreshFn: null });
 
   // Bulk deliver signature state
   const [signatureOpen, setSignatureOpen] = useState(false);
@@ -427,7 +585,14 @@ export default function DispatchWindowMain() {
     setSelectedIds(new Set());
   }, [activeTab]);
 
-  const handleBulkPickup = async (ids, refreshFn) => {
+  const handleBulkPickup = (ids, refreshFn) => {
+    if (!ids?.length) return;
+    setPendingPickup({ ids, refreshFn });
+    setPickupConfirmOpen(true);
+  };
+
+  const confirmPickup = async () => {
+    const { ids, refreshFn } = pendingPickup;
     if (!ids?.length) return;
     try {
       setIsActing(true);
@@ -437,6 +602,8 @@ export default function DispatchWindowMain() {
         description: `${ids.length} dispatch${ids.length !== 1 ? "es" : ""} marked In Transit`,
       });
       setSelectedIds(new Set());
+      setPickupConfirmOpen(false);
+      setPendingPickup({ ids: [], refreshFn: null });
       refreshFn?.();
       setRefreshKey((k) => k + 1);
     } catch (err) {
@@ -505,7 +672,7 @@ export default function DispatchWindowMain() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               className="pl-9 h-8 text-sm"
-              placeholder="Search DC number or customer..."
+              placeholder="Search DC, customer, customer ref..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -538,6 +705,7 @@ export default function DispatchWindowMain() {
             onView={setViewDispatch}
             onBulkPickup={handleBulkPickup}
             isActing={isActing}
+            isMobile={isMobile}
           />
         </TabsContent>
 
@@ -555,9 +723,35 @@ export default function DispatchWindowMain() {
             onView={setViewDispatch}
             onRequestDeliver={handleRequestDeliver}
             isActing={isActing}
+            isMobile={isMobile}
           />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={pickupConfirmOpen} onOpenChange={setPickupConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirm Pickup</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Mark {pendingPickup.ids.length} dispatch
+            {pendingPickup.ids.length !== 1 ? "es" : ""} as picked up (In Transit)?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPickupConfirmOpen(false)}
+              disabled={isActing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmPickup} disabled={isActing} className="gap-1.5">
+              <Truck className="h-3.5 w-3.5" />
+              Confirm Pickup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SignatureModal
         open={signatureOpen}
