@@ -87,6 +87,7 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     .reduce((s, o) => s + orderTotal(o), 0);
 
   const handleSubmit = () => {
+    if (mutation.isPending) return;
     if (!customerId) return toast.error("Please select a customer");
     if (!selectedOrderIds.length) return toast.error("Select at least one sale order");
     if (!dueDate) return toast.error("Please set a due date");

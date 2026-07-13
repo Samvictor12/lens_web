@@ -1,7 +1,5 @@
-import { Eye, CreditCard, Zap, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { fmt, STATUS_CONFIG, canRecordPayment } from "./Billing.constants";
+import { fmt, STATUS_CONFIG } from "./Billing.constants";
 
 // ─── InvoiceStatusBadge (shared, exported for use in dialogs) ─────────────────
 export function InvoiceStatusBadge({ status }) {
@@ -16,24 +14,31 @@ export function InvoiceStatusBadge({ status }) {
 }
 
 // ─── InvoiceCard ──────────────────────────────────────────────────────────────
-export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuickClose }) {
+export default function InvoiceCard({ invoice, onView }) {
   const isCancelled = invoice.status === "CANCELLED";
   const remaining = invoice.totalAmount - invoice.paidAmount;
   const pct =
     invoice.totalAmount > 0
       ? Math.min(100, (invoice.paidAmount / invoice.totalAmount) * 100)
       : 0;
-  const canQuickClose =
-    canRecordPayment(invoice.status) &&
-    invoice.paidAmount === 0 &&
-    remaining > 0.01;
 
   return (
     <Card className="hover:shadow-md transition-shadow flex flex-col h-full">
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-base">{invoice.invoiceNo}</CardTitle>
+            <CardTitle className="text-base">
+              <a
+                href={`#invoice-${invoice.id}`}
+                className="text-primary hover:underline cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onView?.(invoice.id);
+                }}
+              >
+                {invoice.invoiceNo}
+              </a>
+            </CardTitle>
             <p className="text-sm text-muted-foreground mt-0.5">{invoice.customer?.name}</p>
             {invoice.customer?.code && (
               <p className="text-xs text-muted-foreground">{invoice.customer.code}</p>
@@ -81,39 +86,8 @@ export default function InvoiceCard({ invoice, onView, onPreview, onPay, onQuick
         </div>
       </CardContent>
 
-      <div className="flex gap-2 px-6 pb-4 mt-auto">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 gap-1"
-          onClick={() => onView(invoice.id)}
-        >
-          <Eye className="h-3.5 w-3.5" /> View
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 gap-1"
-          onClick={() => onPreview(invoice)}
-        >
-          <FileText className="h-3.5 w-3.5" /> Preview
-        </Button>
-        {canRecordPayment(invoice.status) && (
-          <Button size="sm" className="flex-1 gap-1" onClick={() => onPay(invoice)}>
-            <CreditCard className="h-3.5 w-3.5" /> Pay
-          </Button>
-        )}
-        {canQuickClose && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 gap-1"
-            onClick={() => onQuickClose(invoice)}
-          >
-            <Zap className="h-3.5 w-3.5" /> Quick Close
-          </Button>
-        )}
-      </div>
+      {/* Action buttons commented — open via Invoice No. link */}
+      {/* <div className="flex gap-2 px-6 pb-4 mt-auto">...</div> */}
     </Card>
   );
 }

@@ -19,10 +19,10 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Auto-number generation
   // ──────────────────────────────────────────────────────────
-  async generateInvoiceNo() {
+  async generateInvoiceNo(db = prisma) {
     const year = new Date().getFullYear();
     const prefix = `INV-${year}-`;
-    const last = await prisma.invoice.findFirst({
+    const last = await db.invoice.findFirst({
       where: { invoiceNo: { startsWith: prefix } },
       orderBy: { invoiceNo: 'desc' },
     });
@@ -39,80 +39,79 @@ export class InvoiceService {
         throw new APIError('At least one sale order is required', 400, 'NO_ORDERS');
       }
 
-      // Fetch all requested sale orders (include invoice status to detect cancelled-invoice SOs)
-      const orders = await prisma.saleOrder.findMany({
-        where: { id: { in: saleOrderIds }, deleteStatus: false },
-        include: {
-          customer: { select: { id: true, name: true, code: true } },
-          invoice: { select: { status: true } },
-        },
-      });
-
-      if (orders.length !== saleOrderIds.length) {
-        throw new APIError('One or more sale orders not found', 404, 'ORDERS_NOT_FOUND');
-      }
-
-      // All must be DELIVERED before billing
-      const nonDelivered = orders.filter(o => o.status !== 'DELIVERED');
-      if (nonDelivered.length) {
-        throw new APIError(
-          `Sale orders must be DELIVERED before billing. Not ready: ${nonDelivered.map(o => `${o.orderNo} (${o.status})`).join(', ')}`,
-          400,
-          'ORDERS_NOT_DELIVERED'
-        );
-      }
-
-      // All must belong to the same customer
-      const customerIds = [...new Set(orders.map(o => o.customerId))];
-      if (customerIds.length > 1) {
-        throw new APIError(
-          'All sale orders in an invoice must belong to the same customer',
-          400,
-          'MULTIPLE_CUSTOMERS'
-        );
-      }
-
-      // None should already be linked to an active (non-cancelled) invoice
-      const alreadyBilled = orders.filter(
-        o => o.invoiceId !== null && o.invoice?.status !== 'CANCELLED'
-      );
-      if (alreadyBilled.length) {
-        throw new APIError(
-          `Some orders are already on an invoice: ${alreadyBilled.map(o => o.orderNo).join(', ')}`,
-          400,
-          'ALREADY_INVOICED'
-        );
-      }
-
-      const customerId = customerIds[0];
-      const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { id: true, code: true, ledgerId: true } });
-      if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
-
-      // Calculate total from individual order amounts
-      const totalAmount = orders.reduce((sum, o) => {
-        const lensPrice = o.lensPrice || 0;
-        const extras = (o.fittingPrice || 0) + (o.tintingPrice || 0)
-          + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
-        // Discount applies to lens price only (not fitting, tinting, or extras)
-        const discountAmt = lensPrice * ((o.discount || 0) / 100);
-        // additionalPrice is a JSON array [{ label, amount }]
-        const additional = Array.isArray(o.additionalPrice)
-          ? o.additionalPrice.reduce((a, x) => a + (x.amount || 0), 0)
-          : 0;
-        return sum + (lensPrice - discountAmt + extras + additional);
-      }, 0);
-
-      const invoiceNo = await this.generateInvoiceNo();
-
+      const uniqueIds = [...new Set(saleOrderIds.map(Number))];
       const taxAmount = parseFloat(req?.body?.taxAmount || 0);
 
+      // All validation + writes happen in one transaction so a concurrent/duplicate
+      // create cannot commit an invoice and then return ALREADY_INVOICED (or leave orphans).
       const invoice = await prisma.$transaction(async (tx) => {
-        // Create invoice
+        const orders = await tx.saleOrder.findMany({
+          where: { id: { in: uniqueIds }, deleteStatus: false },
+          include: {
+            customer: { select: { id: true, name: true, code: true } },
+            invoice: { select: { status: true } },
+          },
+        });
+
+        if (orders.length !== uniqueIds.length) {
+          throw new APIError('One or more sale orders not found', 404, 'ORDERS_NOT_FOUND');
+        }
+
+        const nonDelivered = orders.filter((o) => o.status !== 'DELIVERED');
+        if (nonDelivered.length) {
+          throw new APIError(
+            `Sale orders must be DELIVERED before billing. Not ready: ${nonDelivered.map((o) => `${o.orderNo} (${o.status})`).join(', ')}`,
+            400,
+            'ORDERS_NOT_DELIVERED'
+          );
+        }
+
+        const customerIds = [...new Set(orders.map((o) => o.customerId))];
+        if (customerIds.length > 1) {
+          throw new APIError(
+            'All sale orders in an invoice must belong to the same customer',
+            400,
+            'MULTIPLE_CUSTOMERS'
+          );
+        }
+
+        const alreadyBilled = orders.filter(
+          (o) => o.invoiceId !== null && o.invoice?.status !== 'CANCELLED'
+        );
+        if (alreadyBilled.length) {
+          throw new APIError(
+            `Some orders are already on an invoice: ${alreadyBilled.map((o) => o.orderNo).join(', ')}`,
+            400,
+            'ALREADY_INVOICED'
+          );
+        }
+
+        const customerId = customerIds[0];
+        const customer = await tx.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, code: true, ledgerId: true },
+        });
+        if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+
+        const totalAmount = orders.reduce((sum, o) => {
+          const lensPrice = o.lensPrice || 0;
+          const extras = (o.fittingPrice || 0) + (o.tintingPrice || 0)
+            + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
+          const discountAmt = lensPrice * ((o.discount || 0) / 100);
+          const additional = Array.isArray(o.additionalPrice)
+            ? o.additionalPrice.reduce((a, x) => a + (x.amount || 0), 0)
+            : 0;
+          return sum + (lensPrice - discountAmt + extras + additional);
+        }, 0);
+
+        const invoicedTotal = Math.round(totalAmount * 100) / 100;
+        const invoiceNo = await this.generateInvoiceNo(tx);
+
         const created = await tx.invoice.create({
           data: {
             invoiceNo,
             customerId,
-            totalAmount: Math.round(totalAmount * 100) / 100,
+            totalAmount: invoicedTotal,
             taxAmount,
             paidAmount: 0,
             dueDate: new Date(dueDate),
@@ -123,15 +122,28 @@ export class InvoiceService {
           },
         });
 
-        // Link all sale orders to this invoice (overwrites any prior cancelled-invoice link)
-        await tx.saleOrder.updateMany({
-          where: { id: { in: saleOrderIds } },
+        // Only claim orders that are still unbilled / on a cancelled invoice.
+        // If another request already claimed them, count < expected → rollback this invoice.
+        const linked = await tx.saleOrder.updateMany({
+          where: {
+            id: { in: uniqueIds },
+            deleteStatus: false,
+            OR: [
+              { invoiceId: null },
+              { invoice: { status: 'CANCELLED' } },
+            ],
+          },
           data: { invoiceId: created.id, updatedBy: userId },
         });
 
-        // Move SO amounts from reserved_amount → outstanding_credit
-        // (the invoiced amount is now owed by the customer, no longer just reserved)
-        const invoicedTotal = Math.round(totalAmount * 100) / 100;
+        if (linked.count !== uniqueIds.length) {
+          throw new APIError(
+            `Some orders are already on an invoice: ${orders.map((o) => o.orderNo).join(', ')}`,
+            400,
+            'ALREADY_INVOICED'
+          );
+        }
+
         await tx.customer.update({
           where: { id: customerId },
           data: {
@@ -140,19 +152,19 @@ export class InvoiceService {
           },
         });
 
-        return created;
+        return { created, invoiceNo, customerId, totalAmount: invoicedTotal };
       });
 
       await logCreate({
         userId,
         entity: 'Invoice',
-        entityId: invoice.id,
-        newValues: { invoiceNo, customerId, totalAmount, saleOrderIds },
+        entityId: invoice.created.id,
+        newValues: { invoiceNo: invoice.invoiceNo, customerId: invoice.customerId, totalAmount: invoice.totalAmount, saleOrderIds: uniqueIds },
         req,
         metadata: { operation: 'createInvoice' },
-      });
+      }).catch(() => {});
 
-      return this.getInvoiceById(invoice.id);
+      return this.getInvoiceById(invoice.created.id);
     } catch (error) {
       if (error instanceof APIError) throw error;
       await logDatabaseError({ error, userId, req, metadata: { operation: 'createInvoice' } }).catch(() => {});

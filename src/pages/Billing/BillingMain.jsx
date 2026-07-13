@@ -7,8 +7,6 @@ import {
   PackageCheck,
   LayoutDashboard,
   Search,
-  Eye,
-  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +41,18 @@ function useBillingColumns(onView, onPay) {
       accessorKey: "invoiceNo",
       header: "Invoice No.",
       sortable: true,
-      cell: (row) => <span className="font-medium">{row.invoiceNo}</span>,
+      cell: (row) => (
+        <a
+          href={`#invoice-${row.id}`}
+          className="font-medium text-primary hover:underline cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault();
+            onView(row.id);
+          }}
+        >
+          {row.invoiceNo}
+        </a>
+      ),
     },
     {
       accessorKey: "customer",
@@ -111,28 +120,29 @@ function useBillingColumns(onView, onPay) {
       align: "center",
       cell: (row) => row._count?.saleOrders || 0,
     },
-    {
-      accessorKey: "actions",
-      header: "Actions",
-      align: "right",
-      cell: (row) => (
-        <div className="flex gap-1.5 justify-end">
-          <Button
-            variant="outline"
-            size="xs"
-            className="h-7 gap-1"
-            onClick={() => onView(row.id)}
-          >
-            <Eye className="h-3 w-3" /> View
-          </Button>
-          {canRecordPayment(row.status) && (
-            <Button size="xs" className="h-7 gap-1" onClick={() => onPay(row)}>
-              <CreditCard className="h-3 w-3" /> Pay
-            </Button>
-          )}
-        </div>
-      ),
-    },
+    // Actions column commented — open invoice via Invoice No. link
+    // {
+    //   accessorKey: "actions",
+    //   header: "Actions",
+    //   align: "right",
+    //   cell: (row) => (
+    //     <div className="flex gap-1.5 justify-end">
+    //       <Button
+    //         variant="outline"
+    //         size="xs"
+    //         className="h-7 gap-1"
+    //         onClick={() => onView(row.id)}
+    //       >
+    //         <Eye className="h-3 w-3" /> View
+    //       </Button>
+    //       {canRecordPayment(row.status) && (
+    //         <Button size="xs" className="h-7 gap-1" onClick={() => onPay(row)}>
+    //           <CreditCard className="h-3 w-3" /> Pay
+    //         </Button>
+    //       )}
+    //     </div>
+    //   ),
+    // },
   ];
 }
 
