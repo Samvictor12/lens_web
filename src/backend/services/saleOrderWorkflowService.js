@@ -4,6 +4,11 @@ import saleOrderStatusService from './saleOrderStatusService.js';
 import { INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
 import InventoryService from './inventory.service.js';
 import SaleOrderService from './saleOrderService.js';
+import {
+  createClaimPool,
+  softAllocateOrder,
+  resolvePoEyes,
+} from './softAllocationHelper.js';
 
 const inventoryService = new InventoryService();
 const saleOrderService = new SaleOrderService();
@@ -36,11 +41,80 @@ function specsMatch(so, po) {
   return true;
 }
 
-function requiredPoQty(order) {
+function requiredPoQty(order, eyeOverride) {
+  if (eyeOverride && (eyeOverride.rightEye || eyeOverride.leftEye)) {
+    let qty = 0;
+    if (eyeOverride.rightEye) qty += 1;
+    if (eyeOverride.leftEye) qty += 1;
+    return qty || 1;
+  }
   let qty = 0;
   if (order.rightEye) qty += 1;
   if (order.leftEye) qty += 1;
   return qty || 1;
+}
+
+/**
+ * Run FIFO soft allocation across all waiting queue SOs (oldest first).
+ * Returns per-SO result map + aggregate softReservedQty.
+ * Does not write reservedStock.
+ */
+export async function computeQueueSoftAllocation() {
+  const waitingOrders = await prisma.saleOrder.findMany({
+    where: {
+      deleteStatus: false,
+      status: { in: INVENTORY_QUEUE_STATUSES },
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      rightEye: true,
+      leftEye: true,
+      createdAt: true,
+    },
+  });
+
+  const pool = createClaimPool();
+  const byOrderId = new Map();
+  let softReservedQty = 0;
+
+  for (const order of waitingOrders) {
+    try {
+      const matches = await saleOrderService.getMatchingInventoryFIFO(order.id, {
+        applySoftClaims: false,
+      });
+      const result = softAllocateOrder(
+        order,
+        matches.rightEyeMatches || [],
+        matches.leftEyeMatches || [],
+        pool
+      );
+      softReservedQty += result.claimedQty;
+      byOrderId.set(order.id, result);
+    } catch (e) {
+      console.error(`Soft allocation failed for SO ${order.id}:`, e);
+      byOrderId.set(order.id, {
+        isStockAvailable: false,
+        shortageRight: Boolean(order.rightEye),
+        shortageLeft: Boolean(order.leftEye),
+        claimedQty: 0,
+      });
+    }
+  }
+
+  return { byOrderId, softReservedQty };
+}
+
+/**
+ * Shortage eyes for a single SO under queue-wide FIFO soft allocation.
+ */
+async function getSoftShortageForSaleOrder(saleOrderId) {
+  const { byOrderId } = await computeQueueSoftAllocation();
+  const result = byOrderId.get(saleOrderId);
+  if (!result) {
+    return { shortageRight: false, shortageLeft: false, isStockAvailable: false };
+  }
+  return result;
 }
 
 export class SaleOrderWorkflowService {
@@ -77,7 +151,7 @@ export class SaleOrderWorkflowService {
       ];
     }
 
-    const [orders, total] = await Promise.all([
+    const [orders, total, softAlloc] = await Promise.all([
       prisma.saleOrder.findMany({
         where,
         skip,
@@ -97,37 +171,44 @@ export class SaleOrderWorkflowService {
         },
       }),
       prisma.saleOrder.count({ where }),
+      computeQueueSoftAllocation(),
     ]);
 
-    const enrichedOrders = await Promise.all(
-      orders.map(async (order) => {
-        try {
-          const matches = await saleOrderService.getMatchingInventoryFIFO(order.id);
-          const hasRightStock = !order.rightEye || matches.rightEyeMatches.length > 0;
-          const hasLeftStock = !order.leftEye || matches.leftEyeMatches.length > 0;
-          return {
-            ...order,
-            isStockAvailable: hasRightStock && hasLeftStock,
-          };
-        } catch (e) {
-          console.error(`Failed to check stock availability for SO ${order.id}:`, e);
-          return {
-            ...order,
-            isStockAvailable: false,
-          };
-        }
-      })
-    );
+    const enrichedOrders = orders.map((order) => {
+      const alloc = softAlloc.byOrderId.get(order.id);
+      if (!alloc) {
+        return {
+          ...order,
+          isStockAvailable: false,
+          shortageRight: Boolean(order.rightEye),
+          shortageLeft: Boolean(order.leftEye),
+        };
+      }
+      return {
+        ...order,
+        isStockAvailable: alloc.isStockAvailable,
+        shortageRight: alloc.shortageRight,
+        shortageLeft: alloc.shortageLeft,
+      };
+    });
 
-    return { data: enrichedOrders, total, page: parsedPage, limit: parsedLimit };
+    return {
+      data: enrichedOrders,
+      softReservedQty: softAlloc.softReservedQty,
+      total,
+      page: parsedPage,
+      limit: parsedLimit,
+    };
   }
 
   async raisePoFromSo(saleOrderId, userId, options = {}) {
-    const { source = 'USER', vendorId } = options;
+    const { source = 'USER', vendorId, rightEye: eyeRightOpt, leftEye: eyeLeftOpt } = options;
     const parsedVendorId = parseInt(vendorId, 10);
     if (!parsedVendorId) {
       throw new APIError('Vendor is required to raise PO', 400, 'VENDOR_REQUIRED');
     }
+
+    const shortage = await getSoftShortageForSaleOrder(saleOrderId);
 
     return prisma.$transaction(async (tx) => {
       const so = await tx.saleOrder.findUnique({
@@ -146,6 +227,18 @@ export class SaleOrderWorkflowService {
         throw new APIError('An active purchase order already exists for this sale order', 400, 'PO_EXISTS');
       }
 
+      let poEyes;
+      try {
+        poEyes = resolvePoEyes(so, {
+          rightEye: eyeRightOpt,
+          leftEye: eyeLeftOpt,
+          shortageRight: shortage.shortageRight,
+          shortageLeft: shortage.shortageLeft,
+        });
+      } catch (e) {
+        throw new APIError(e.message || 'Invalid eye selection', 400, e.code || 'INVALID_EYE_SELECTION');
+      }
+
       const year = new Date().getFullYear();
       const prefix = `PO-${year}-`;
       const last = await tx.purchaseOrder.findFirst({
@@ -155,7 +248,7 @@ export class SaleOrderWorkflowService {
       const next = last ? parseInt(last.poNumber.split('-')[2], 10) + 1 : 1;
       const poNumber = `${prefix}${String(next).padStart(3, '0')}`;
 
-      const qty = requiredPoQty(so);
+      const qty = requiredPoQty(so, poEyes);
       const po = await tx.purchaseOrder.create({
         data: {
           poNumber,
@@ -168,18 +261,18 @@ export class SaleOrderWorkflowService {
           fitting_id: so.fitting_id,
           coating_id: so.coating_id,
           tinting_id: so.tinting_id,
-          rightEye: so.rightEye,
-          leftEye: so.leftEye,
-          rightSpherical: so.rightSpherical,
-          rightCylindrical: so.rightCylindrical,
-          rightAxis: so.rightAxis,
-          rightAdd: so.rightAdd,
-          rightDia: so.rightDia,
-          leftSpherical: so.leftSpherical,
-          leftCylindrical: so.leftCylindrical,
-          leftAxis: so.leftAxis,
-          leftAdd: so.leftAdd,
-          leftDia: so.leftDia,
+          rightEye: poEyes.rightEye,
+          leftEye: poEyes.leftEye,
+          rightSpherical: poEyes.rightEye ? so.rightSpherical : null,
+          rightCylindrical: poEyes.rightEye ? so.rightCylindrical : null,
+          rightAxis: poEyes.rightEye ? so.rightAxis : null,
+          rightAdd: poEyes.rightEye ? so.rightAdd : null,
+          rightDia: poEyes.rightEye ? so.rightDia : null,
+          leftSpherical: poEyes.leftEye ? so.leftSpherical : null,
+          leftCylindrical: poEyes.leftEye ? so.leftCylindrical : null,
+          leftAxis: poEyes.leftEye ? so.leftAxis : null,
+          leftAdd: poEyes.leftEye ? so.leftAdd : null,
+          leftDia: poEyes.leftEye ? so.leftDia : null,
           quantity: qty,
           unitPrice: 0,
           subtotal: 0,

@@ -47,6 +47,7 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   const customers = (customersRes?.data || []).map((c) => ({
     id: c.id,
     name: `${c.name}${c.shopname ? ` (${c.shopname})` : ""}`,
+    creditDays: c.creditDays ?? c.credit_days ?? 0,
   }));
 
   const { data: ordersRes, isLoading: ordersLoading } = useQuery({
@@ -55,6 +56,21 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     enabled: !!customerId,
   });
   const deliveredOrders = ordersRes?.data || [];
+
+  // Auto-fill Due Date = today + customer creditDays when customer changes
+  useEffect(() => {
+    if (!open || !customerId) return;
+    const list = customersRes?.data || [];
+    const cust = list.find((c) => String(c.id) === String(customerId));
+    if (!cust && list.length === 0) return;
+    const days = Number(cust?.creditDays ?? cust?.credit_days ?? 0) || 0;
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    setDueDate(`${yyyy}-${mm}-${dd}`);
+  }, [open, customerId, customersRes?.data]);
 
   const mutation = useMutation({
     mutationFn: createInvoice,

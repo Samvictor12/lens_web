@@ -172,6 +172,16 @@ export default function CustomerPaymentsMain() {
     setCreateOpen(true);
   };
 
+  /** New Payment uses the same OutstandingInvoicesQueue List UI for invoice selection. */
+  const handleNewPayment = () => {
+    setSelectedInvoiceIds([]);
+    setActiveTab("outstanding");
+    toast({
+      title: "Select invoices",
+      description: "Choose invoices from the list, then click Record Payment.",
+    });
+  };
+
   const clearDeepLink = () => {
     if (urlCustomerId || urlInvoiceId || urlOpenForm) {
       setSearchParams({});
@@ -198,14 +208,7 @@ export default function CustomerPaymentsMain() {
             <CreditCard className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Record Payment</span>
           </Button>
-          <Button
-            size="xs"
-            className="gap-1.5 h-8"
-            onClick={() => {
-              setSelectedInvoiceIds([]);
-              setCreateOpen(true);
-            }}
-          >
+          <Button size="xs" className="gap-1.5 h-8" onClick={handleNewPayment}>
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">New Payment</span>
           </Button>

@@ -52,16 +52,12 @@ export default function CreateCustomerPaymentDialog({
 
   const lockedCustomer = !!preselectedCustomerId;
 
+  // Invoice selection is OutstandingInvoicesQueue List UI — dialog only allocates preselected
   const selectedInvoices = useMemo(() => {
     const pool = preselectedInvoices || [];
-    if (preselectedInvoiceIds.length) {
-      return pool.filter((inv) => preselectedInvoiceIds.includes(inv.id));
-    }
-    if (form.customerId) {
-      return pool.filter((inv) => inv.customerId === parseInt(form.customerId));
-    }
-    return [];
-  }, [preselectedInvoices, preselectedInvoiceIds, form.customerId]);
+    if (!preselectedInvoiceIds.length) return [];
+    return pool.filter((inv) => preselectedInvoiceIds.includes(inv.id));
+  }, [preselectedInvoices, preselectedInvoiceIds]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 

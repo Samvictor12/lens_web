@@ -4,6 +4,7 @@ vi.mock('../../config/prisma.js', () => ({
   default: {
     saleOrder: {
       findUnique: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     inventoryItem: {
       findMany: vi.fn(),
@@ -96,6 +97,7 @@ describe('getMatchingInventoryFIFO() with visibility updates', () => {
     };
 
     prisma.saleOrder.findUnique.mockResolvedValue(mockSaleOrder);
+    prisma.saleOrder.findMany.mockResolvedValue([]);
 
     // Mock physical inventory
     prisma.inventoryItem.findMany.mockResolvedValue([

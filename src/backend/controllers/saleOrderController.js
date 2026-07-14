@@ -436,7 +436,22 @@ export class SaleOrderController {
       }
       const source = req.body?.source === 'INVENTORY' ? 'INVENTORY' : 'USER';
       const vendorId = req.body?.vendorId;
-      const po = await saleOrderWorkflowService.raisePoFromSo(validation.data, userId, { source, vendorId });
+      const options = { source, vendorId };
+      if (req.body?.rightEye !== undefined && req.body?.rightEye !== null) {
+        options.rightEye = Boolean(req.body.rightEye);
+      }
+      if (req.body?.leftEye !== undefined && req.body?.leftEye !== null) {
+        options.leftEye = Boolean(req.body.leftEye);
+      }
+      // When only one eye key is sent, treat the other as explicitly false
+      if (
+        (options.rightEye !== undefined && options.leftEye === undefined) ||
+        (options.leftEye !== undefined && options.rightEye === undefined)
+      ) {
+        if (options.rightEye === undefined) options.rightEye = false;
+        if (options.leftEye === undefined) options.leftEye = false;
+      }
+      const po = await saleOrderWorkflowService.raisePoFromSo(validation.data, userId, options);
       res.status(201).json({ success: true, message: 'PO raised', data: po });
     } catch (error) {
       next(error);

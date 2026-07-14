@@ -89,7 +89,7 @@ export class InvoiceService {
         const customerId = customerIds[0];
         const customer = await tx.customer.findUnique({
           where: { id: customerId },
-          select: { id: true, code: true, ledgerId: true },
+          select: { id: true, code: true, ledgerId: true, credit_days: true },
         });
         if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
@@ -107,6 +107,17 @@ export class InvoiceService {
         const invoicedTotal = Math.round(totalAmount * 100) / 100;
         const invoiceNo = await this.generateInvoiceNo(tx);
 
+        // Due date: client override, else invoiceDate + customer.credit_days (default 0)
+        const invoiceDate = new Date();
+        let resolvedDueDate;
+        if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '') {
+          resolvedDueDate = new Date(dueDate);
+        } else {
+          const creditDays = customer.credit_days ?? 0;
+          resolvedDueDate = new Date(invoiceDate);
+          resolvedDueDate.setDate(resolvedDueDate.getDate() + (Number.isFinite(creditDays) ? creditDays : 0));
+        }
+
         const created = await tx.invoice.create({
           data: {
             invoiceNo,
@@ -114,7 +125,7 @@ export class InvoiceService {
             totalAmount: invoicedTotal,
             taxAmount,
             paidAmount: 0,
-            dueDate: new Date(dueDate),
+            dueDate: resolvedDueDate,
             status: 'DRAFT',
             notes: notes || null,
             createdBy: userId,
@@ -179,16 +190,28 @@ export class InvoiceService {
     const invoice = await prisma.invoice.findUnique({
       where: { id },
       include: {
-        customer: { select: { id: true, code: true, name: true, shopname: true, phone: true } },
+        customer: {
+          select: {
+            id: true, code: true, name: true, shopname: true, phone: true,
+            address: true, city: true, state: true, pincode: true, gstin: true,
+            credit_days: true, credit_limit: true,
+          },
+        },
         saleOrders: {
           where: { deleteStatus: false },
           select: {
-            id: true, orderNo: true, status: true, orderDate: true,
+            id: true, orderNo: true, status: true, orderDate: true, customerRefNo: true,
+            rightEye: true, leftEye: true,
+            rightSpherical: true, rightCylindrical: true, rightAxis: true, rightAdd: true, rightDia: true,
+            leftSpherical: true, leftCylindrical: true, leftAxis: true, leftAdd: true, leftDia: true,
             lensPrice: true, fittingPrice: true, tintingPrice: true,
             rightEyeExtra: true, leftEyeExtra: true, discount: true, additionalPrice: true,
             lensProduct: { select: { lens_name: true } },
             coating: { select: { name: true } },
             category: { select: { name: true } },
+            fitting: { select: { name: true } },
+            tinting: { select: { name: true } },
+            dia: { select: { name: true } },
           },
         },
         payments: { orderBy: { createdAt: 'asc' } },
@@ -200,7 +223,10 @@ export class InvoiceService {
     if (!invoice || invoice.deleteStatus) {
       throw new APIError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
     }
-    return invoice;
+
+    // Attach company settings for Tax Invoice print/preview (PAN/bank via customAttributes)
+    const company = await prisma.companySettings.findFirst();
+    return { ...invoice, company: company || null };
   }
 
   // ──────────────────────────────────────────────────────────
@@ -495,7 +521,7 @@ export class InvoiceService {
       select: {
         customerId: true,
         customer: {
-          select: { id: true, name: true, shopname: true, code: true },
+          select: { id: true, name: true, shopname: true, code: true, credit_days: true },
         },
       },
       distinct: ['customerId'],
@@ -509,6 +535,8 @@ export class InvoiceService {
         name: r.customer.name,
         shopname: r.customer.shopname || null,
         code: r.customer.code || null,
+        creditDays: r.customer.credit_days ?? 0,
+        credit_days: r.customer.credit_days ?? 0,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }

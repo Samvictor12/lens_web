@@ -215,6 +215,7 @@ model Customer {
   businessCategory_id Int?
   gstin               String?
   credit_limit        Int?
+  credit_days         Int?              // Days added to invoice date for due date
   outstanding_credit  Int?
   advance_credit      Float             @default(0) // Prepaid balance from advance customer payments
   reserved_amount     Float             @default(0) // Amount reserved for active (uninvoiced) sale orders
@@ -1795,6 +1796,7 @@ model Expense {
   paymentMethod PaymentMethod
   bankLedgerId  Int
   expenseDate   DateTime        @default(now())
+  dueDate       DateTime?
   description   String
   referenceNo   String?
   paidTo        String?

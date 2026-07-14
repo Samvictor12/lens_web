@@ -8,10 +8,16 @@ import {
   logBusinessError 
 } from '../utils/errorLogger.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
-import { isSoLocked, SALE_ORDER_STATUSES } from '../constants/saleOrderStatus.js';
+import { isSoLocked, SALE_ORDER_STATUSES, INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
 import { InventoryService } from './inventory.service.js';
+import {
+  createClaimPool,
+  softAllocateOrder,
+  filterMatchesByPool,
+} from './softAllocationHelper.js';
 const inventoryService = new InventoryService();
 
+/** Generic string/number normalize (no null→0). Kept for non-optical specs (Axis/Dia). */
 const normalizeSpecValue = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -25,11 +31,21 @@ const normalizeSpecValue = (value) => {
   return text.toUpperCase();
 };
 
-const specVariants = (value) => {
+/** SPH/CYL/ADD FIFO match only: null / undefined / empty ≡ "0". */
+const normalizeOpticalSpecValue = (value) => {
   const normalized = normalizeSpecValue(value);
-  if (normalized === null) return [];
+  return normalized === null ? '0' : normalized;
+};
 
-  const variants = new Set([String(value).trim(), normalized]);
+const opticalSpecVariants = (value) => {
+  const normalized = normalizeOpticalSpecValue(value);
+  const variants = new Set([normalized]);
+
+  if (value !== null && value !== undefined) {
+    const text = String(value).trim();
+    if (text) variants.add(text);
+  }
+
   const numeric = Number(normalized);
   if (!Number.isNaN(numeric)) {
     variants.add(numeric.toFixed(1));
@@ -44,8 +60,24 @@ const specVariants = (value) => {
 };
 
 const addSpecMatch = (where, field, value) => {
-  const variants = specVariants(value);
+  const variants = opticalSpecVariants(value);
   if (variants.length === 0) return;
+
+  const numeric = Number(normalizeOpticalSpecValue(value));
+  const isZero = !Number.isNaN(numeric) && numeric === 0;
+
+  // Effective 0 must also match SQL NULL on the inventory/PO column
+  if (isZero) {
+    if (!where.AND) where.AND = [];
+    where.AND.push({
+      OR: [
+        { [field]: { in: variants } },
+        { [field]: null },
+      ],
+    });
+    return;
+  }
+
   if (variants.length === 1) {
     where[field] = variants[0];
     return;
@@ -1222,7 +1254,14 @@ export class SaleOrderService {
    * @param {number} saleOrderId - Sale order ID
    * @returns {Promise<Object>} Object containing rightEyeMatches and leftEyeMatches arrays
    */
-  async getMatchingInventoryFIFO(saleOrderId) {
+  /**
+   * @param {number} saleOrderId
+   * @param {{ applySoftClaims?: boolean }} [options]
+   *   When applySoftClaims is true (default), units soft-claimed by earlier
+   *   waiting queue SOs are excluded so Issue cannot double-claim.
+   */
+  async getMatchingInventoryFIFO(saleOrderId, options = {}) {
+    const { applySoftClaims = true } = options;
     try {
       const saleOrder = await prisma.saleOrder.findUnique({
         where: { id: saleOrderId, deleteStatus: false },
@@ -1258,7 +1297,7 @@ export class SaleOrderService {
         };
 
         if (saleOrder.lens_id) where.lens_id = saleOrder.lens_id;
-        if (saleOrder.Type_id) where.Type_id = saleOrder.Type_id;
+        // Type_id is not used for SO↔stock FIFO matching (stock often has null Type_id).
         if (saleOrder.coating_id) where.coating_id = saleOrder.coating_id;
         if (saleOrder.category_id) where.category_id = saleOrder.category_id;
 
@@ -1302,7 +1341,7 @@ export class SaleOrderService {
         };
 
         if (saleOrder.lens_id) poWhere.lens_id = saleOrder.lens_id;
-        if (saleOrder.Type_id) poWhere.Type_id = saleOrder.Type_id;
+        // Type_id is not used for SO↔PO receipt FIFO matching (same as physical stock).
         if (saleOrder.coating_id) poWhere.coating_id = saleOrder.coating_id;
         if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
 
@@ -1435,10 +1474,52 @@ export class SaleOrderService {
         results.leftEyeMatches = [...formattedPhysical, ...formattedReceipts];
       }
 
+      let rightEyeMatches = results.rightEyeMatches;
+      let leftEyeMatches = results.leftEyeMatches;
+
+      // Exclude units soft-claimed by earlier waiting SOs (display-only pool; no DB write).
+      if (applySoftClaims) {
+        const earlierWaiting = await prisma.saleOrder.findMany({
+          where: {
+            deleteStatus: false,
+            status: { in: INVENTORY_QUEUE_STATUSES },
+            id: { not: saleOrderId },
+            OR: [
+              { createdAt: { lt: saleOrder.createdAt } },
+              {
+                AND: [
+                  { createdAt: saleOrder.createdAt },
+                  { id: { lt: saleOrderId } },
+                ],
+              },
+            ],
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, rightEye: true, leftEye: true, createdAt: true },
+        });
+
+        if (earlierWaiting.length > 0) {
+          const pool = createClaimPool();
+          for (const earlier of earlierWaiting) {
+            const earlierMatches = await this.getMatchingInventoryFIFO(earlier.id, {
+              applySoftClaims: false,
+            });
+            softAllocateOrder(
+              earlier,
+              earlierMatches.rightEyeMatches || [],
+              earlierMatches.leftEyeMatches || [],
+              pool
+            );
+          }
+          rightEyeMatches = filterMatchesByPool(rightEyeMatches, pool);
+          leftEyeMatches = filterMatchesByPool(leftEyeMatches, pool);
+        }
+      }
+
       return {
         saleOrder,
-        rightEyeMatches: results.rightEyeMatches,
-        leftEyeMatches: results.leftEyeMatches
+        rightEyeMatches,
+        leftEyeMatches,
       };
     } catch (error) {
       console.error('Error in getMatchingInventoryFIFO:', error);

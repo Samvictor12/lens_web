@@ -101,7 +101,7 @@ Represents the physical organization. A Location (warehouse/room) contains multi
 Represents sales orders placed by Customers. Triggers stock reservations via `reserveInventoryForSale()` during the Pre-QC workflow transition.
 
 ### 5. Customer
-Represents customer accounts. Tracks credit limits and exposure dynamically using `credit_limit`, `outstanding_credit`, `reserved_amount` (uninvoiced SO exposure), and **`advance_credit`** (prepaid balance from customer payment vouchers with `advanceAmount > 0`, added 2026-07-05).
+Represents customer accounts. Tracks credit limits and exposure dynamically using `credit_limit`, `outstanding_credit`, `reserved_amount` (uninvoiced SO exposure), **`advance_credit`** (prepaid balance from customer payment vouchers with `advanceAmount > 0`, added 2026-07-05), and **`credit_days`** (integer payment terms; invoice `dueDate` = invoice date + credit days when not overridden, added 2026-07-14).
 
 ### 6. Customer Payment Voucher (2026-07-05)
 Header table for consolidated customer receipts. One voucher → one `FinancialTransaction` (`RECEIPT`). Lines in `CustomerPaymentVoucherItem` allocate amounts to invoices; subsidiary `Payment` rows link via `Payment.voucherId`.
@@ -138,3 +138,6 @@ Ledger ||--o{ Ledger : "parentLedgerId (AR/AP sub-ledgers)"
 **Seed script:** `node prisma/seed/account-groups-seed.js` (run after migration `20260705140000_account_groups`).
 
 **Customer/vendor sub-ledgers** (`AC-1003-C*`, `AC-2001-V*`) inherit `accountGroupId` from Sundry Debtors / Sundry Creditors on create.
+
+### 9. Expense (2026-07-14)
+`Expense.dueDate` (`DateTime?`) stores optional payment due date distinct from `expenseDate`. Category still drives DIRECT/INDIRECT via `ExpenseCategory.expenseType`.

@@ -66,6 +66,18 @@ export const useCustomerColumns = (navigate, onDelete, onActions) => {
       ),
     },
     {
+      accessorKey: "creditDays",
+      header: "Credit Days",
+      sortable: true,
+      cell: (customer) => (
+        <span className="text-xs">
+          {customer.creditDays !== undefined && customer.creditDays !== null
+            ? customer.creditDays
+            : "—"}
+        </span>
+      ),
+    },
+    {
       accessorKey: "outstandingBalance",
       header: "Outstanding",
       sortable: true,

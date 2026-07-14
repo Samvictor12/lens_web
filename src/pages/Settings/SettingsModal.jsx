@@ -343,16 +343,26 @@ function CompanyTab() {
     companyName: "", gstin: "", logo: "", address: "",
     city: "", state: "", pincode: "", phone: "", email: "", website: "", tagline: "",
     gstRates: DEFAULT_GST_RATES,
+    pan: "", stateCode: "", bankAccountNo: "", bankName: "", ifsc: "", electronicRefNo: "",
   });
   const logoInputRef = useRef(null);
 
   useEffect(() => {
     if (company) {
-      const rates = company.customAttributes?.gstRates;
+      const attrs = company.customAttributes && typeof company.customAttributes === "object"
+        ? company.customAttributes
+        : {};
+      const rates = attrs.gstRates;
       setForm((prev) => ({
         ...prev,
         ...company,
         gstRates: Array.isArray(rates) && rates.length > 0 ? rates : DEFAULT_GST_RATES,
+        pan: attrs.pan || "",
+        stateCode: attrs.stateCode || "",
+        bankAccountNo: attrs.bankAccountNo || "",
+        bankName: attrs.bankName || "",
+        ifsc: attrs.ifsc || "",
+        electronicRefNo: attrs.electronicRefNo || "",
       }));
     }
   }, [company]);
@@ -387,10 +397,21 @@ function CompanyTab() {
     }
     setSaving(true);
     try {
-      const { gstRates, ...companyFields } = form;
+      const {
+        gstRates, pan, stateCode, bankAccountNo, bankName, ifsc, electronicRefNo,
+        ...companyFields
+      } = form;
       const res = await updateCompanySettings({
         ...companyFields,
-        customAttributes: { gstRates },
+        customAttributes: {
+          gstRates,
+          pan: (pan || "").trim(),
+          stateCode: (stateCode || "").trim(),
+          bankAccountNo: (bankAccountNo || "").trim(),
+          bankName: (bankName || "").trim(),
+          ifsc: (ifsc || "").trim().toUpperCase(),
+          electronicRefNo: (electronicRefNo || "").trim(),
+        },
       });
       if (res.success) {
         updateCompanyLocal(res.data);
@@ -483,6 +504,59 @@ function CompanyTab() {
       </div>
 
       <div className="space-y-3 border rounded-lg p-4">
+        <Label className="text-sm font-medium">Tax Invoice — Seller details</Label>
+        <p className="text-xs text-muted-foreground">
+          Shown on invoice preview/print (PAN, state code, bank footer). Stored in company custom attributes.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FieldRow label="PAN">
+            <Input
+              value={form.pan || ""}
+              onChange={set("pan")}
+              placeholder="e.g. AOOPM2698N"
+              className="uppercase"
+            />
+          </FieldRow>
+          <FieldRow label="State Code" hint="GST state code, e.g. 33 for Tamil Nadu">
+            <Input
+              value={form.stateCode || ""}
+              onChange={set("stateCode")}
+              placeholder="e.g. 33"
+            />
+          </FieldRow>
+          <FieldRow label="Bank A/C No">
+            <Input
+              value={form.bankAccountNo || ""}
+              onChange={set("bankAccountNo")}
+              placeholder="e.g. 1085102000014401"
+            />
+          </FieldRow>
+          <FieldRow label="Bank Name">
+            <Input
+              value={form.bankName || ""}
+              onChange={set("bankName")}
+              placeholder="e.g. IDBI Bank"
+            />
+          </FieldRow>
+          <FieldRow label="IFSC">
+            <Input
+              value={form.ifsc || ""}
+              onChange={set("ifsc")}
+              placeholder="e.g. IBKL0001085"
+              className="uppercase"
+            />
+          </FieldRow>
+          <FieldRow label="Electronic Reference No" hint="Optional footer field on Tax Invoice">
+            <Input
+              value={form.electronicRefNo || ""}
+              onChange={set("electronicRefNo")}
+              placeholder="Optional"
+            />
+          </FieldRow>
+        </div>
+      </div>
+
+      <div className="space-y-3 border rounded-lg p-4">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">GST Rates (for Purchase Orders)</Label>
           <Button
@@ -545,7 +619,7 @@ function CompanyTab() {
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          Used as dropdown options when receiving purchase orders. Include 0% if no tax applies.
+          Used as dropdown options for PO receive and vendor payment GST %. Include 0% if no tax applies.
         </p>
       </div>
 

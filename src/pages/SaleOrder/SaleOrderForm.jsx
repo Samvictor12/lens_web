@@ -1806,7 +1806,7 @@ export default function SaleOrderForm() {
         setIsRaisePoModalOpen(true);
     };
 
-    const handleRaisePoConfirm = async (vendorId) => {
+    const handleRaisePoConfirm = async (vendorId, eyes = {}) => {
         try {
             setIsSaving(true);
             let soId = formData.id;
@@ -1825,7 +1825,12 @@ export default function SaleOrderForm() {
                 soId = response.data?.id || parseInt(id, 10);
             }
 
-            const res = await raisePoFromSo(soId, { vendorId, source: "USER" });
+            const res = await raisePoFromSo(soId, {
+                vendorId,
+                source: "USER",
+                rightEye: eyes.rightEye,
+                leftEye: eyes.leftEye,
+            });
             if (res.success) {
                 window.alert(`PO ${res.data.poNumber} raised successfully!`);
                 setIsRaisePoModalOpen(false);
