@@ -3470,6 +3470,7 @@ export default function SaleOrderForm() {
                                                 <tr>
                                                     <th className="p-3 w-12 text-center">Select</th>
                                                     <th className="p-3">Inward Date (FIFO)</th>
+                                                    <th className="p-3">Source</th>
                                                     <th className="p-3">Tray</th>
                                                     <th className="p-3">Location</th>
                                                     <th className="p-3 text-right">Available Qty</th>
@@ -3481,7 +3482,7 @@ export default function SaleOrderForm() {
                                                     <tr
                                                         key={item.id}
                                                         onClick={() => setSelectedFifoItems(prev => ({ ...prev, rightEyeItemId: item.id }))}
-                                                        className={`hover:bg-slate-50/50 cursor-pointer ${selectedFifoItems.rightEyeItemId === item.id ? "bg-blue-50/30 font-medium" : ""}`}
+                                                        className={`hover:bg-slate-50/50 cursor-pointer transition-colors ${selectedFifoItems.rightEyeItemId === item.id ? item.isReceipt ? "bg-purple-50/40 border-purple-200 font-medium" : "bg-blue-50/30 border-blue-200 font-medium" : item.isReceipt ? "bg-purple-50/10 hover:bg-purple-50/20" : ""}`}
                                                     >
                                                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                                                             <input
@@ -3493,20 +3494,48 @@ export default function SaleOrderForm() {
                                                             />
                                                         </td>
                                                         <td className="p-3 text-slate-700 flex items-center gap-2">
-                                                            {idx === 0 && (
+                                                            {idx === 0 && !item.isReceipt && (
                                                                 <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
                                                             )}
-                                                            {new Date(item.inwardDate).toLocaleDateString("en-IN", {
+                                                            {item.isReceipt && (
+                                                                <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border border-purple-200 text-[10px] py-0 px-1.5 uppercase font-bold">Inward Queue</Badge>
+                                                            )}
+                                                            {item.inwardDate ? new Date(item.inwardDate).toLocaleDateString("en-IN", {
                                                                 day: "2-digit",
                                                                 month: "short",
                                                                 year: "numeric"
-                                                            })}
+                                                            }) : "—"}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            {item.sourceType === 'RX' ? (
+                                                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border border-green-200 text-[10px] py-0 px-1.5 font-bold uppercase">
+                                                                    RX {item.poNumber ? `(${item.poNumber})` : ''}
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200 text-[10px] py-0 px-1.5 font-bold uppercase">
+                                                                    Stock
+                                                                </Badge>
+                                                            )}
                                                         </td>
                                                         <td className="p-3 font-semibold text-slate-800">
-                                                            {item.tray ? `${item.tray.name} (Cap: ${item.tray.capacity})` : "N/A"}
+                                                            {item.isReceipt ? (
+                                                                <span className="text-purple-700 bg-purple-50/70 px-2 py-0.5 rounded border border-purple-100 text-[11px] font-medium">
+                                                                    Pending Inward
+                                                                </span>
+                                                            ) : item.tray ? (
+                                                                `${item.tray.name} (Cap: ${item.tray.capacity})`
+                                                            ) : (
+                                                                "N/A"
+                                                            )}
                                                         </td>
                                                         <td className="p-3 text-slate-600">
-                                                            {item.location ? item.location.name : "N/A"}
+                                                            {item.isReceipt ? (
+                                                                <span className="text-purple-600 font-semibold">Inward Queue</span>
+                                                            ) : item.location ? (
+                                                                item.location.name
+                                                            ) : (
+                                                                "N/A"
+                                                            )}
                                                         </td>
                                                         <td className="p-3 text-right font-medium text-slate-700">
                                                             {item.quantity}
@@ -3554,6 +3583,7 @@ export default function SaleOrderForm() {
                                                 <tr>
                                                     <th className="p-3 w-12 text-center">Select</th>
                                                     <th className="p-3">Inward Date (FIFO)</th>
+                                                     <th className="p-3">Source</th>
                                                     <th className="p-3">Tray</th>
                                                     <th className="p-3">Location</th>
                                                     <th className="p-3 text-right">Available Qty</th>
@@ -3563,42 +3593,63 @@ export default function SaleOrderForm() {
                                             <tbody className="divide-y">
                                                 {fifoMatches.leftEyeMatches.map((item, idx) => (
                                                     <tr
-                                                        key={item.id}
-                                                        onClick={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
-                                                        className={`hover:bg-slate-50/50 cursor-pointer ${selectedFifoItems.leftEyeItemId === item.id ? "bg-purple-50/30 font-medium" : ""}`}
-                                                    >
-                                                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                            <input
-                                                                type="radio"
-                                                                name="leftEyeItem"
-                                                                checked={selectedFifoItems.leftEyeItemId === item.id}
-                                                                onChange={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
-                                                                className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500"
-                                                            />
-                                                        </td>
-                                                        <td className="p-3 text-slate-700 flex items-center gap-2">
-                                                            {idx === 0 && (
-                                                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
-                                                            )}
-                                                            {new Date(item.inwardDate).toLocaleDateString("en-IN", {
-                                                                day: "2-digit",
-                                                                month: "short",
-                                                                year: "numeric"
-                                                            })}
-                                                        </td>
-                                                        <td className="p-3 font-semibold text-slate-800">
-                                                            {item.tray ? `${item.tray.name} (Cap: ${item.tray.capacity})` : "N/A"}
-                                                        </td>
-                                                        <td className="p-3 text-slate-600">
-                                                            {item.location ? item.location.name : "N/A"}
-                                                        </td>
-                                                        <td className="p-3 text-right font-medium text-slate-700">
-                                                            {item.quantity}
-                                                        </td>
-                                                        <td className="p-3 text-right text-slate-600 font-mono">
-                                                            ₹{parseFloat(item.costPrice).toFixed(2)}
-                                                        </td>
-                                                    </tr>
+                                                         key={item.id}
+                                                         onClick={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
+                                                         className={`hover:bg-slate-50/50 cursor-pointer transition-colors ${selectedFifoItems.leftEyeItemId === item.id ? item.isReceipt ? "bg-purple-50/40 border-purple-200 font-medium" : "bg-blue-50/30 border-blue-200 font-medium" : item.isReceipt ? "bg-purple-50/10 hover:bg-purple-50/20" : ""}`}
+                                                     >
+                                                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                             <input
+                                                                 type="radio"
+                                                                 name="leftEyeItem"
+                                                                 checked={selectedFifoItems.leftEyeItemId === item.id}
+                                                                 onChange={() => setSelectedFifoItems(prev => ({ ...prev, leftEyeItemId: item.id }))}
+                                                                 className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500"
+                                                             />
+                                                         </td>
+                                                         <td className="p-3 text-slate-700 flex items-center gap-2">
+                                                             {idx === 0 && !item.isReceipt && (
+                                                                 <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
+                                                             )}
+                                                             {item.isReceipt && (
+                                                                 <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border border-purple-200 text-[10px] py-0 px-1.5 uppercase font-bold">Inward Queue</Badge>
+                                                             )}
+                                                             {item.inwardDate ? new Date(item.inwardDate).toLocaleDateString("en-IN", {
+                                                                 day: "2-digit",
+                                                                 month: "short",
+                                                                 year: "numeric"
+                                                             }) : "—"}
+                                                         </td>
+                                                         <td className="p-3">
+                                                             {item.sourceType === 'RX' ? (
+                                                                 <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border border-green-200 text-[10px] py-0 px-1.5 font-bold uppercase">
+                                                                     RX {item.poNumber ? `(${item.poNumber})` : ''}
+                                                                 </Badge>
+                                                             ) : (
+                                                                 <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200 text-[10px] py-0 px-1.5 font-bold uppercase">
+                                                                     Stock
+                                                                 </Badge>
+                                                             )}
+                                                         </td>
+                                                         <td className="p-3 font-semibold text-slate-800">
+                                                             {item.isReceipt ? (
+                                                                 <span className="text-purple-700 bg-purple-50/70 px-2 py-0.5 rounded border border-purple-100 text-[11px] font-medium">
+                                                                     Pending Inward
+                                                                 </span>
+                                                             ) : item.tray ? (
+                                                                 `${item.tray.name} (Cap: ${item.tray.capacity})`
+                                                             ) : (
+                                                                 "N/A"
+                                                             )}
+                                                         </td>
+                                                         <td className="p-3 text-slate-600">
+                                                             {item.isReceipt ? (
+                                                                 <span className="text-purple-600 font-semibold">Inward Queue</span>
+                                                             ) : item.location ? (
+                                                                 item.location.name
+                                                             ) : (
+                                                                 "N/A"
+                                                             )}
+                                                         </td>
                                                 ))}
                                             </tbody>
                                         </table>

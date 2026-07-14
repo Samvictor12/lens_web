@@ -493,7 +493,15 @@ export const validateUpdateStatus = (data) => {
     data: errors.length === 0 ? {
       status: data.status,
       ...(data.remark !== undefined && { remark: data.remark }),
-      ...(data.inventoryItemIds !== undefined && { inventoryItemIds: data.inventoryItemIds.map(Number) })
+      ...(data.inventoryItemIds !== undefined && {
+        inventoryItemIds: data.inventoryItemIds.map(item => {
+          if (typeof item === 'string' && (item.startsWith('rec_') || item.startsWith('inv_'))) {
+            return item;
+          }
+          const num = Number(item);
+          return isNaN(num) ? item : num;
+        })
+      })
     } : null
   };
 };
