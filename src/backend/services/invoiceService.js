@@ -192,7 +192,7 @@ export class InvoiceService {
       include: {
         customer: {
           select: {
-            id: true, code: true, name: true, shopname: true, phone: true,
+            id: true, code: true, name: true, shopname: true, phone: true, alternatephone: true,
             address: true, city: true, state: true, pincode: true, gstin: true,
             credit_days: true, credit_limit: true,
           },
@@ -206,7 +206,14 @@ export class InvoiceService {
             leftSpherical: true, leftCylindrical: true, leftAxis: true, leftAdd: true, leftDia: true,
             lensPrice: true, fittingPrice: true, tintingPrice: true,
             rightEyeExtra: true, leftEyeExtra: true, discount: true, additionalPrice: true,
-            lensProduct: { select: { lens_name: true } },
+            lensProduct: {
+              select: {
+                lens_name: true,
+                product_code: true,
+                range_text: true,
+                brand: { select: { name: true } },
+              },
+            },
             coating: { select: { name: true } },
             category: { select: { name: true } },
             fitting: { select: { name: true } },

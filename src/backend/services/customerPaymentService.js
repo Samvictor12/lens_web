@@ -7,6 +7,19 @@ function round2(n) {
   return Math.round(parseFloat(n) * 100) / 100;
 }
 
+/** Map UI aliases to Prisma PaymentMethod enum. */
+function normalizePaymentMethod(method) {
+  const aliases = {
+    CHEQUE: 'CHECK',
+    CHEQUEUE: 'CHECK',
+    NEFT: 'BANK_TRANSFER',
+    RTGS: 'BANK_TRANSFER',
+    IMPS: 'BANK_TRANSFER',
+  };
+  const key = String(method || '').trim().toUpperCase();
+  return aliases[key] || key;
+}
+
 export class CustomerPaymentService {
 
   async list({ customerId, from, to, paymentMethod, page = 1, limit = 20 }) {
@@ -133,6 +146,7 @@ export class CustomerPaymentService {
     { customerId, paymentDate, paymentMethod, bankLedgerId, referenceNo, notes, totalAmount, items, advanceAmount = 0, acceptAdvance },
     userId
   ) {
+    paymentMethod = normalizePaymentMethod(paymentMethod);
     if (!customerId || !paymentMethod || !bankLedgerId || !items?.length) {
       throw new APIError('customerId, paymentMethod, bankLedgerId, items[] required', 400, 'VALIDATION_ERROR');
     }

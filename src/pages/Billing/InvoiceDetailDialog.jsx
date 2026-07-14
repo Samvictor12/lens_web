@@ -1,5 +1,5 @@
+import { Receipt, Printer, Share2, FileText, XCircle, MessageSquare, FileDown } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Receipt, Printer, Share2, MessageSquare, CreditCard, XCircle, Zap, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,15 +9,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { getInvoiceById, issueInvoice, cancelInvoice } from "@/services/invoice";
+import { useCompany } from "@/contexts/CompanyContext";
 import {
   fmt,
   orderTotal,
   printInvoice,
-  shareInvoice,
-  whatsappShare,
-  canRecordPayment,
+  whatsappShareInvoiceMessage,
+  whatsappShareInvoicePdf,
 } from "./Billing.constants";
 import { InvoiceStatusBadge } from "./InvoiceCard";
 
@@ -25,11 +31,10 @@ export default function InvoiceDetailDialog({
   invoiceId,
   open,
   onClose,
-  onPay,
-  onQuickClose,
   onPreview,
 }) {
   const qc = useQueryClient();
+  const { company } = useCompany();
 
   const { data: res, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -37,12 +42,7 @@ export default function InvoiceDetailDialog({
     enabled: open && !!invoiceId,
   });
   const invoice = res?.data;
-
-  const canQuickClose =
-    invoice &&
-    canRecordPayment(invoice.status) &&
-    invoice.paidAmount === 0 &&
-    invoice.totalAmount - invoice.paidAmount > 0.01;
+  const companyForPrint = invoice?.company || company;
 
   const issueMutation = useMutation({
     mutationFn: issueInvoice,
@@ -185,9 +185,8 @@ export default function InvoiceDetailDialog({
         )}
 
         {invoice && (
-          <DialogFooter className="flex flex-wrap gap-2 pt-2">
-            {/* Action buttons commented — view only */}
-            {/* <Button
+          <DialogFooter className="flex flex-wrap gap-2 pt-2 sm:justify-start">
+            <Button
               variant="outline"
               size="sm"
               onClick={() => onPreview(invoice)}
@@ -198,28 +197,29 @@ export default function InvoiceDetailDialog({
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => printInvoice(invoice)}
+              onClick={() => printInvoice(invoice, companyForPrint)}
             >
               <Printer className="h-4 w-4" /> Print
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => shareInvoice(invoice)}
-            >
-              <Share2 className="h-4 w-4" /> Share
-            </Button>
-            {invoice.customer?.phone && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => whatsappShare(invoice)}
-              >
-                <MessageSquare className="h-4 w-4" /> WhatsApp
-              </Button>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Share2 className="h-4 w-4" /> Share
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  onClick={() => whatsappShareInvoicePdf(invoice, companyForPrint)}
+                >
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Invoice PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => whatsappShareInvoiceMessage(invoice)}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Invoice Message
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {invoice.status === "DRAFT" && (
               <Button
                 variant="outline"
@@ -231,33 +231,6 @@ export default function InvoiceDetailDialog({
                 Issue Invoice
               </Button>
             )}
-            {canRecordPayment(invoice.status) && (
-              <>
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => {
-                    onClose();
-                    onPay(invoice);
-                  }}
-                >
-                  <CreditCard className="h-3.5 w-3.5" /> Record Payment
-                </Button>
-                {canQuickClose && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => {
-                      onClose();
-                      onQuickClose(invoice);
-                    }}
-                  >
-                    <Zap className="h-3.5 w-3.5" /> Quick Close
-                  </Button>
-                )}
-              </>
-            )}
             {!["PAID", "CANCELLED"].includes(invoice.status) && (
               <Button
                 variant="outline"
@@ -268,7 +241,8 @@ export default function InvoiceDetailDialog({
               >
                 <XCircle className="h-4 w-4 mr-1" /> Cancel
               </Button>
-            )} */}
+            )}
+            {/* Record Payment / Quick Close intentionally omitted */}
             <Button variant="ghost" size="sm" onClick={onClose}>
               Close
             </Button>

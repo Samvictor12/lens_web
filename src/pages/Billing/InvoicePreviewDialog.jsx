@@ -13,9 +13,8 @@ import { buildInvoiceHtml, printInvoice } from "./Billing.constants";
 
 /**
  * InvoicePreviewDialog
- * Shows a read-only, print-formatted preview of an invoice (same layout
- * printInvoice() would print/export) inside an isolated iframe, so the
- * embedded @page/@media print CSS never leaks into app styles.
+ * Same A4 HTML as print. Scroll happens inside the iframe (viewport-sized),
+ * not via a stretched iframe — that pattern traps wheel events and blocks scroll.
  */
 export default function InvoicePreviewDialog({ invoice, open, onClose }) {
   const { company } = useCompany();
@@ -23,33 +22,28 @@ export default function InvoicePreviewDialog({ invoice, open, onClose }) {
   const html = invoice ? buildInvoiceHtml(invoice, companyForPrint) : "";
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={onClose} size="wide">
+      <DialogContent className="!flex h-[92vh] max-h-[92vh] flex-col gap-3 overflow-hidden p-4 sm:p-6">
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>
             Tax Invoice Preview{invoice ? ` - ${invoice.invoiceNo}` : ""}
           </DialogTitle>
           <DialogDescription>
-            Review the tax invoice in its final, print-ready layout before finalizing.
+            A4 print layout (210 × 297 mm) — same sheet as Print / Save as PDF.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Preview Container */}
-        <div className="flex justify-center bg-gray-100 p-4 rounded border border-gray-300 overflow-auto">
-          <div
-            className="bg-white shadow-lg"
-            style={{ width: "210mm", minHeight: "297mm" }}
-          >
-            <iframe
-              srcDoc={html}
-              title="Invoice preview"
-              className="w-full border-0"
-              style={{ height: "297mm" }}
-            />
-          </div>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-slate-300/70">
+          <iframe
+            key={invoice?.id || invoice?.invoiceNo || "preview"}
+            srcDoc={html}
+            title="Invoice preview"
+            className="block h-full w-full border-0 bg-slate-300/70"
+            style={{ minHeight: 0 }}
+          />
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="shrink-0 gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
             <X className="h-4 w-4 mr-2" />
             Close

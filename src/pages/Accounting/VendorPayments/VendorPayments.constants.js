@@ -2,18 +2,20 @@ import { toast } from "sonner";
 
 export const PAYMENT_METHODS = [
   "CASH",
-  "BANK_TRANSFER",
-  "CHEQUE",
   "UPI",
-  "NEFT",
-  "RTGS",
+  "CARD",
+  "BANK_TRANSFER",
+  "CHECK",
 ];
 
 export const PAYMENT_METHOD_LABELS = {
   CASH: "Cash",
-  BANK_TRANSFER: "Bank Transfer",
-  CHEQUE: "Cheque",
   UPI: "UPI",
+  CARD: "Card",
+  BANK_TRANSFER: "Bank Transfer",
+  CHECK: "Cheque",
+  // legacy aliases still shown if old rows exist
+  CHEQUE: "Cheque",
   NEFT: "NEFT",
   RTGS: "RTGS",
 };

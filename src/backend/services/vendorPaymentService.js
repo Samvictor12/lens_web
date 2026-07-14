@@ -12,6 +12,19 @@ import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
 
 const ELIGIBLE_PO_STATUSES = PO_PAYMENT_ELIGIBLE_STATUSES;
 
+/** Map UI aliases to Prisma PaymentMethod enum. */
+function normalizePaymentMethod(method) {
+  const aliases = {
+    CHEQUE: 'CHECK',
+    CHEQUEUE: 'CHECK',
+    NEFT: 'BANK_TRANSFER',
+    RTGS: 'BANK_TRANSFER',
+    IMPS: 'BANK_TRANSFER',
+  };
+  const key = String(method || '').trim().toUpperCase();
+  return aliases[key] || key;
+}
+
 export class VendorPaymentService {
 
   async generateVoucherNo() {
@@ -185,7 +198,6 @@ export class VendorPaymentService {
     const {
       vendorId,
       paymentDate,
-      paymentMethod,
       bankLedgerId,
       referenceNo,
       notes,
@@ -196,6 +208,7 @@ export class VendorPaymentService {
       items,
       poIds,
     } = payload;
+    const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
 
     if (!vendorId || !paymentMethod || !bankLedgerId) {
       throw new APIError('vendorId, paymentMethod, bankLedgerId required', 400, 'VALIDATION_ERROR');
