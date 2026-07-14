@@ -162,7 +162,11 @@ export default function InventoryTransactionForm({
         newErrors.toLocationId = 'Destination location is required for transfer';
       }
       if (formData.fromLocationId === formData.toLocationId) {
-        newErrors.toLocationId = 'Destination must be different from source location';
+        if (!formData.fromTrayId && !formData.toTrayId) {
+          newErrors.toLocationId = 'Destination location must be different from source location';
+        } else if (formData.fromTrayId === formData.toTrayId) {
+          newErrors.toTrayId = 'Destination tray must be different from source tray';
+        }
       }
     }
 

@@ -9,7 +9,7 @@ The application provides a comprehensive ERP and management system for an optica
 * **CRM (Customer Management):** Customer profile management and customer portals.
 * **Procurement:** Vendor records, purchase orders (PO), vendor payment processing, and inward receipt queues.
 * **Sales & Logistics:** Sale order (SO) forms, SO workflows, invoicing/billing, and dispatch/delivery agent routing.
-* **Inventory Management:** Physical stock items, tray allocation, FIFO stock-picking, inventory transactions, and stock-level alerting.
+* **Inventory Management:** Physical stock items, tray allocation, FIFO stock-picking (STOCK-type PO items are general stock; RX-type PO items are reserved to their SO), stock-type Inward Queue filtering, tray-to-tray transfers (including same-location / partial qty), inventory transactions, and stock-level alerting.
 * **Quality & Shop Floor:** Check sheets, production operators, quality operator screens, and barcode/QR wedge scanning interfaces.
 * **Financial Accounting:** Ledger, **Account Groups & industry Chart of Accounts**, **Customer & Vendor Payment Vouchers** (with allocation breakdown traceability), Bank Reconciliation, Expense Category tracking, Group Summary / Balance Sheet / Profit & Loss reporting.
 * **Admin Controls:** User profiles, role-based access control, settings (printers, metadata), and system logs.

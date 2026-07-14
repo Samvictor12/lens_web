@@ -7,6 +7,9 @@ import {
   SALE_ORDER_STATUSES,
   STATUS_LABELS,
 } from '../constants/saleOrderStatus.js';
+import { InventoryService } from './inventory.service.js';
+
+const inventoryService = new InventoryService();
 
 const defaultSourceForStatus = (status) => {
   const sourceByStatus = {
@@ -233,6 +236,60 @@ export class SaleOrderStatusService {
           customer: { select: { id: true, code: true, name: true } },
         },
       });
+
+      // Consume reserved stock if transitioning to finished states
+      if (['DISPATCHED', 'DELIVERED', 'INVOICED', 'COMPLETED'].includes(toStatus)) {
+        const reservedItems = await tx.inventoryItem.findMany({
+          where: {
+            saleOrderId: saleOrderId,
+            status: 'RESERVED',
+            deleteStatus: false
+          }
+        });
+        for (const item of reservedItems) {
+          await inventoryService.updateInventoryStock(item, item.quantity || 1, 'CONSUME_RESERVED', tx);
+          await tx.inventoryItem.update({
+            where: { id: item.id },
+            data: {
+              deleteStatus: true,
+              updatedBy: userId ?? null,
+              updatedAt: new Date()
+            }
+          });
+        }
+      }
+
+      // Revert reservation if transitioning back to DRAFT
+      if (toStatus === 'DRAFT') {
+        const reservedItems = await tx.inventoryItem.findMany({
+          where: {
+            saleOrderId: saleOrderId,
+            status: 'RESERVED',
+            deleteStatus: false
+          }
+        });
+        for (const item of reservedItems) {
+          await tx.inventoryItem.update({
+            where: { id: item.id },
+            data: {
+              status: 'AVAILABLE',
+              quantity: 1, // restore to 1
+              saleOrderId: null,
+              reservedDate: null,
+              updatedBy: userId ?? null,
+              updatedAt: new Date()
+            }
+          });
+          await inventoryService.updateInventoryStock(item, 1, 'UNRESERVE', tx);
+        }
+        // Delete OUTWARD_SALE inventory transactions linked to this sale order
+        await tx.inventoryTransaction.deleteMany({
+          where: {
+            saleOrderId: saleOrderId,
+            type: 'OUTWARD_SALE'
+          }
+        });
+      }
 
       await this.appendLog(tx, {
         saleOrderId,

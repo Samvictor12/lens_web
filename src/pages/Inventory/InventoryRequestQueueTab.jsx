@@ -88,7 +88,9 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
   const badge = queueBadge(order.status);
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
   const canRaisePo =
-    ['DRAFT', 'PO_CANCELLED'].includes(order.status) && !hasActiveLinkedPo(order);
+    ['DRAFT', 'PO_CANCELLED'].includes(order.status) &&
+    !hasActiveLinkedPo(order) &&
+    !order.isStockAvailable;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200 flex flex-col">
@@ -116,6 +118,18 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">Procurement:</span>
               <ProcurementBadge type={order.procurementType} />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+              <span className="font-semibold text-foreground">Stock Status:</span>
+              {order.isStockAvailable ? (
+                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                  In Stock
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                  Out of Stock
+                </Badge>
+              )}
             </div>
             <DetailRow label="Product" value={order.lensProduct?.lens_name} />
             <DetailRow label="Category" value={order.category?.name || order.lensCategory?.name} />

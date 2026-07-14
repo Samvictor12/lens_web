@@ -1252,6 +1252,7 @@ export class SaleOrderService {
           OR: [
             { purchaseOrderId: null },
             { purchaseOrder: { saleOrderId: null } },
+            { purchaseOrder: { saleOrder: { procurementType: 'STOCK' } } },
             { purchaseOrder: { saleOrderId: saleOrderId } }
           ]
         };
@@ -1266,9 +1267,25 @@ export class SaleOrderService {
           addSpecMatch(where, 'rightCylindrical', saleOrder.rightCylindrical);
           if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'rightAdd', saleOrder.rightAdd);
         } else {
-          addSpecMatch(where, 'leftSpherical', saleOrder.leftSpherical);
-          addSpecMatch(where, 'leftCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'leftAdd', saleOrder.leftAdd);
+          const leftSpecWhere = {};
+          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+
+          const rightSpecWhere = {
+            leftSpherical: null
+          };
+          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+
+          if (!where.AND) where.AND = [];
+          where.AND.push({
+            OR: [
+              leftSpecWhere,
+              rightSpecWhere
+            ]
+          });
         }
 
         return where;
@@ -1279,6 +1296,7 @@ export class SaleOrderService {
           deleteStatus: false,
           OR: [
             { saleOrderId: null },
+            { saleOrder: { procurementType: 'STOCK' } },
             { saleOrderId: saleOrderId }
           ]
         };
@@ -1293,9 +1311,25 @@ export class SaleOrderService {
           addSpecMatch(poWhere, 'rightCylindrical', saleOrder.rightCylindrical);
           if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'rightAdd', saleOrder.rightAdd);
         } else {
-          addSpecMatch(poWhere, 'leftSpherical', saleOrder.leftSpherical);
-          addSpecMatch(poWhere, 'leftCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'leftAdd', saleOrder.leftAdd);
+          const leftSpecWhere = {};
+          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+
+          const rightSpecWhere = {
+            leftSpherical: null
+          };
+          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+
+          if (!poWhere.AND) poWhere.AND = [];
+          poWhere.AND.push({
+            OR: [
+              leftSpecWhere,
+              rightSpecWhere
+            ]
+          });
         }
 
         return poWhere;

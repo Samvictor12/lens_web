@@ -3652,6 +3652,13 @@ export default function SaleOrderForm() {
                                                                  "N/A"
                                                              )}
                                                          </td>
+                                                         <td className="p-3 text-right font-medium text-slate-700">
+                                                             {item.quantity}
+                                                         </td>
+                                                         <td className="p-3 text-right text-slate-600 font-mono">
+                                                             ₹{parseFloat(item.costPrice).toFixed(2)}
+                                                         </td>
+                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>

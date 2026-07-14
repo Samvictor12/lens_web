@@ -1,12 +1,18 @@
 import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
 
-// Excludes InventoryItems sourced from an RX-linked PurchaseOrder (saleOrderId set),
-// while keeping manually-initialized items (purchaseOrderId null) and stock-type PO items.
-// NOT{ purchaseOrder: { saleOrderId: { not: null } } } — not the simpler
-// { purchaseOrder: { saleOrderId: null } } form, which would also drop rows with no PO at all.
+// Excludes InventoryItems sourced from an RX-linked PurchaseOrder (linked to an RX sale order),
+// while keeping manually-initialized items (purchaseOrderId null) and stock-type PO items (including STOCK-type SO purchases).
+// NOT: { purchaseOrder: { saleOrder: { procurementType: 'RX' } } } — not the simpler
+// { purchaseOrder: { saleOrder: { procurementType: null } } } form, which would drop rows with no PO.
 const RX_SOURCE_EXCLUSION_FILTER = {
-  NOT: { purchaseOrder: { saleOrderId: { not: null } } },
+  NOT: {
+    purchaseOrder: {
+      saleOrder: {
+        procurementType: 'RX'
+      }
+    }
+  },
 };
 
 /**
@@ -222,7 +228,14 @@ export class InventoryService {
           deleteStatus: false,
           purchaseOrder: {
             deleteStatus: false,
-            saleOrderId: null, // Exclude RX POs that were raised from a Sale Order
+            OR: [
+              { saleOrderId: null },
+              {
+                saleOrder: {
+                  procurementType: 'STOCK'
+                }
+              }
+            ]
           },
         },
         include: {
@@ -553,7 +566,7 @@ export class InventoryService {
     try {
       return await prisma.$transaction(async (prisma) => {
         // Generate transaction number
-        const transactionNo = await this.generateTransactionNumber();
+        const transactionNo = await this.generateTransactionNumber(prisma);
         
         // Get current inventory item
         const inventoryItem = await prisma.inventoryItem.findUnique({
@@ -565,32 +578,97 @@ export class InventoryService {
         }
 
         if (transactionData.type === 'TRANSFER') {
+          const transferQty = Math.abs(transactionData.quantity);
+          if (transferQty <= 0) {
+            throw new APIError("Transfer quantity must be greater than zero", 400, "INVALID_QUANTITY");
+          }
+          if (transferQty > inventoryItem.quantity) {
+            throw new APIError(`Transfer quantity (${transferQty}) cannot exceed available quantity (${inventoryItem.quantity})`, 400, "INSUFFICIENT_STOCK");
+          }
+
+          const isFullTransfer = Math.abs(transferQty - inventoryItem.quantity) < 0.001;
+
+          // Create the transfer transaction record
           const transaction = await prisma.inventoryTransaction.create({
             data: {
               ...transactionData,
               transactionNo,
-              quantity: Math.abs(transactionData.quantity),
-              balanceAfter: inventoryItem.quantity, // unchanged
+              quantity: transferQty,
+              balanceAfter: isFullTransfer ? 0 : (inventoryItem.quantity - transferQty),
               totalValue: null,
             },
           });
 
-          await prisma.inventoryItem.update({
-            where: { id: transactionData.inventoryItemId },
-            data: {
-              location_id: transactionData.toLocationId,
-              tray_id: transactionData.toTrayId,
-              updatedAt: new Date(),
-              updatedBy: transactionData.createdBy,
-            },
-          });
+          if (isFullTransfer) {
+            // Full transfer: just move the item to the new location/tray
+            await prisma.inventoryItem.update({
+              where: { id: transactionData.inventoryItemId },
+              data: {
+                location_id: transactionData.toLocationId,
+                tray_id: transactionData.toTrayId,
+                updatedAt: new Date(),
+                updatedBy: transactionData.createdBy,
+              },
+            });
+          } else {
+            // Partial transfer: decrement source quantity, and create new item at destination
+            await prisma.inventoryItem.update({
+              where: { id: transactionData.inventoryItemId },
+              data: {
+                quantity: inventoryItem.quantity - transferQty,
+                updatedAt: new Date(),
+                updatedBy: transactionData.createdBy,
+              },
+            });
 
-          // Move totals from source bucket to destination bucket
-          await this.updateInventoryStock(inventoryItem, Math.abs(transactionData.quantity), 'SUBTRACT');
+            // Create new inventory item at destination
+            await prisma.inventoryItem.create({
+              data: {
+                batchNo: inventoryItem.batchNo,
+                serialNo: inventoryItem.serialNo,
+                lens_id: inventoryItem.lens_id,
+                category_id: inventoryItem.category_id,
+                Type_id: inventoryItem.Type_id,
+                coating_id: inventoryItem.coating_id,
+                dia_id: inventoryItem.dia_id,
+                fitting_id: inventoryItem.fitting_id,
+                tinting_id: inventoryItem.tinting_id,
+                location_id: transactionData.toLocationId,
+                tray_id: transactionData.toTrayId,
+                quantity: transferQty,
+                costPrice: inventoryItem.costPrice,
+                sellingPrice: inventoryItem.sellingPrice,
+                rightEye: inventoryItem.rightEye,
+                leftEye: inventoryItem.leftEye,
+                rightSpherical: inventoryItem.rightSpherical,
+                rightCylindrical: inventoryItem.rightCylindrical,
+                rightAxis: inventoryItem.rightAxis,
+                rightAdd: inventoryItem.rightAdd,
+                leftSpherical: inventoryItem.leftSpherical,
+                leftCylindrical: inventoryItem.leftCylindrical,
+                leftAxis: inventoryItem.leftAxis,
+                leftAdd: inventoryItem.leftAdd,
+                status: inventoryItem.status,
+                expiryDate: inventoryItem.expiryDate,
+                manufactureDate: inventoryItem.manufactureDate,
+                inwardDate: inventoryItem.inwardDate,
+                purchaseOrderId: inventoryItem.purchaseOrderId,
+                purchaseReceiptId: inventoryItem.purchaseReceiptId,
+                vendorId: inventoryItem.vendorId,
+                qualityGrade: inventoryItem.qualityGrade,
+                notes: inventoryItem.notes,
+                createdBy: transactionData.createdBy,
+              },
+            });
+          }
+
+          // Move totals from source bucket to destination bucket in InventoryStock
+          await this.updateInventoryStock(inventoryItem, transferQty, 'SUBTRACT', prisma);
           await this.updateInventoryStock(
             { ...inventoryItem, location_id: transactionData.toLocationId, tray_id: transactionData.toTrayId },
-            Math.abs(transactionData.quantity),
-            'ADD'
+            transferQty,
+            'ADD',
+            prisma
           );
 
           return transaction;
@@ -628,7 +706,8 @@ export class InventoryService {
         await this.updateInventoryStock(
           inventoryItem,
           transactionData.quantity,
-          transactionData.type === 'DAMAGE' ? 'DAMAGE' : (transactionData.quantity > 0 ? 'ADD' : 'SUBTRACT')
+          transactionData.type === 'DAMAGE' ? 'DAMAGE' : (transactionData.quantity > 0 ? 'ADD' : 'SUBTRACT'),
+          prisma
         );
 
         return transaction;
@@ -868,7 +947,7 @@ export class InventoryService {
         where: stockKey
       });
 
-      if (!existingStock && (operation === 'RESERVE' || operation === 'UNRESERVE')) {
+      if (!existingStock && (operation === 'RESERVE' || operation === 'UNRESERVE' || operation === 'CONSUME_RESERVED')) {
         // A stock bucket should already exist from the original inward —
         // do not fabricate one with reservedStock but zero totalStock.
         console.error(
@@ -904,6 +983,10 @@ export class InventoryService {
         } else if (operation === 'UNRESERVE') {
           updateData.availableStock = existingStock.availableStock + Math.abs(quantity);
           updateData.reservedStock = Math.max(0, existingStock.reservedStock - Math.abs(quantity));
+        } else if (operation === 'CONSUME_RESERVED') {
+          updateData.totalStock = Math.max(0, existingStock.totalStock - Math.abs(quantity));
+          updateData.reservedStock = Math.max(0, existingStock.reservedStock - Math.abs(quantity));
+          updateData.lastOutwardDate = new Date();
         } else if (operation === 'DAMAGE') {
           updateData.totalStock = Math.max(0, existingStock.totalStock - Math.abs(quantity));
           updateData.availableStock = Math.max(0, existingStock.availableStock - Math.abs(quantity));

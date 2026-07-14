@@ -3,8 +3,10 @@ import { APIError } from '../middleware/errorHandler.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
 import { INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
 import InventoryService from './inventory.service.js';
+import SaleOrderService from './saleOrderService.js';
 
 const inventoryService = new InventoryService();
+const saleOrderService = new SaleOrderService();
 
 const ACTIVE_PO_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
@@ -97,7 +99,27 @@ export class SaleOrderWorkflowService {
       prisma.saleOrder.count({ where }),
     ]);
 
-    return { data: orders, total, page: parsedPage, limit: parsedLimit };
+    const enrichedOrders = await Promise.all(
+      orders.map(async (order) => {
+        try {
+          const matches = await saleOrderService.getMatchingInventoryFIFO(order.id);
+          const hasRightStock = !order.rightEye || matches.rightEyeMatches.length > 0;
+          const hasLeftStock = !order.leftEye || matches.leftEyeMatches.length > 0;
+          return {
+            ...order,
+            isStockAvailable: hasRightStock && hasLeftStock,
+          };
+        } catch (e) {
+          console.error(`Failed to check stock availability for SO ${order.id}:`, e);
+          return {
+            ...order,
+            isStockAvailable: false,
+          };
+        }
+      })
+    );
+
+    return { data: enrichedOrders, total, page: parsedPage, limit: parsedLimit };
   }
 
   async raisePoFromSo(saleOrderId, userId, options = {}) {

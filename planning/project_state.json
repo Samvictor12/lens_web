@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Inventory Issue Stock - Inward Queue, Tray, RX & Stock Visibility & Gap Alignment",
+  "feature": null,
   "active_feature_file": "planning/feature.md",
   "phase": "DONE",
-  "HUMAN_APPROVED": true,
-  "state_tag": "SUCCESS",
-  "last_agent": "reviewer",
-  "at": "2026-07-14T06:30:00+05:30"
+  "HUMAN_APPROVED": false,
+  "state_tag": "IDLE",
+  "last_agent": "orchestrator",
+  "at": "2026-07-14T11:25:00+05:30"
 }
