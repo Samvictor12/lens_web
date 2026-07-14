@@ -12,11 +12,10 @@ import { DISPATCH_STATUS_CONFIG as STATUS_CONFIG } from "../dispatchStatusConfig
  *
  * Props:
  *   dispatch      — DispatchCopy object (with customer, deliveryPerson, saleOrders)
- *   isDeliveryPerson — boolean
  *   onStatusUpdated — () => void — refresh callback
  *   onSignatureRequest — (dispatchId) => void — triggers signature modal for DELIVERED
  */
-export default function DispatchRecordCard({ dispatch, isDeliveryPerson, onStatusUpdated, onSignatureRequest, onView }) {
+export default function DispatchRecordCard({ dispatch, onStatusUpdated, onSignatureRequest, onView }) {
     const { toast } = useToast();
     const [isUpdating, setIsUpdating] = useState(null); // action string being processed
 

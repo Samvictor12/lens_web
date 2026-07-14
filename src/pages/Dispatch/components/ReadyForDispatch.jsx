@@ -52,7 +52,7 @@ function groupOrders(orders, groupBy) {
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
 }
 
-export default function ReadyForDispatch({ refreshKey, onDispatchCreated, isDeliveryPerson, user }) {
+export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
     const { toast } = useToast();
     const [orders, setOrders] = useState([]);
     const [isLoading, setIsLoading] = useState(false);

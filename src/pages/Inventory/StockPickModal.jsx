@@ -44,9 +44,28 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
           const leftMatches = matches.leftEyeMatches || [];
           setFifoMatches({ rightEyeMatches: rightMatches, leftEyeMatches: leftMatches });
 
+          // Prefer distinct stock lines for RE/LE. Same FIFO row for both eyes
+          // fails when that line only has qty 1 (first reserve consumes it).
+          const usedCount = {};
+          const takeNext = (eyeMatches) => {
+            for (const m of eyeMatches) {
+              const available = Number(m.quantity) || 0;
+              const used = usedCount[m.id] || 0;
+              if (used < available) {
+                usedCount[m.id] = used + 1;
+                return m.id;
+              }
+            }
+            return eyeMatches[0]?.id;
+          };
+
           const initialSelections = {};
-          if (wantsRight && rightMatches.length > 0) initialSelections.rightEyeItemId = rightMatches[0].id;
-          if (wantsLeft && leftMatches.length > 0) initialSelections.leftEyeItemId = leftMatches[0].id;
+          if (wantsRight && rightMatches.length > 0) {
+            initialSelections.rightEyeItemId = takeNext(rightMatches);
+          }
+          if (wantsLeft && leftMatches.length > 0) {
+            initialSelections.leftEyeItemId = takeNext(leftMatches);
+          }
           setSelectedFifoItems(initialSelections);
         }
       } catch (error) {
@@ -67,6 +86,30 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
     const itemIds = [];
     if (selectedFifoItems.rightEyeItemId) itemIds.push(selectedFifoItems.rightEyeItemId);
     if (selectedFifoItems.leftEyeItemId) itemIds.push(selectedFifoItems.leftEyeItemId);
+
+    // Same stock line for RE + LE only works if that line still has qty ≥ 2
+    if (
+      wantsRight &&
+      wantsLeft &&
+      selectedFifoItems.rightEyeItemId &&
+      selectedFifoItems.rightEyeItemId === selectedFifoItems.leftEyeItemId
+    ) {
+      const sharedId = selectedFifoItems.rightEyeItemId;
+      const match =
+        fifoMatches.rightEyeMatches.find((m) => m.id === sharedId) ||
+        fifoMatches.leftEyeMatches.find((m) => m.id === sharedId);
+      const available = Number(match?.quantity) || 0;
+      if (available < 2) {
+        toast({
+          title: "Select different stock for each eye",
+          description:
+            "The selected line only has 1 unit. Pick a separate RE and LE stock row (or a line with qty ≥ 2).",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     try {
       setIsConfirming(true);
       await onConfirm?.(itemIds);

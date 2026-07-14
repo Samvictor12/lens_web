@@ -1577,13 +1577,26 @@ export default function SaleOrderForm() {
                         leftEyeMatches: leftMatches,
                     });
 
-                    // Pre-select the first match (FIFO) for each required eye
+                    // Prefer distinct stock lines for RE/LE (same qty-1 row for both fails reserve)
+                    const usedCount = {};
+                    const takeNext = (eyeMatches) => {
+                        for (const m of eyeMatches) {
+                            const available = Number(m.quantity) || 0;
+                            const used = usedCount[m.id] || 0;
+                            if (used < available) {
+                                usedCount[m.id] = used + 1;
+                                return m.id;
+                            }
+                        }
+                        return eyeMatches[0]?.id;
+                    };
+
                     const initialSelections = {};
                     if (formData.rightEye && rightMatches.length > 0) {
-                        initialSelections.rightEyeItemId = rightMatches[0].id;
+                        initialSelections.rightEyeItemId = takeNext(rightMatches);
                     }
                     if (formData.leftEye && leftMatches.length > 0) {
-                        initialSelections.leftEyeItemId = leftMatches[0].id;
+                        initialSelections.leftEyeItemId = takeNext(leftMatches);
                     }
 
                     setSelectedFifoItems(initialSelections);
@@ -1829,11 +1842,8 @@ export default function SaleOrderForm() {
             if (res.success) {
                 window.alert(`PO ${res.data.poNumber} raised successfully!`);
                 setIsRaisePoModalOpen(false);
-                if (mode === "add") {
-                    navigate(`/sales/orders/view/${soId}`);
-                } else {
-                    window.location.reload();
-                }
+                // Hard reload so the view shows SO status/PO link immediately after OK
+                window.location.assign(`/sales/orders/view/${soId}`);
             }
         } catch (error) {
             window.alert(`Failed to raise PO:\n${error.message || "Could not save sale order and raise PO"}`);

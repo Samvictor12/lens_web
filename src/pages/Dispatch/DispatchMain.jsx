@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/contexts/AuthContext";
 import { Refresh } from "@/components/ui/Refresh";
 import { useToast } from "@/hooks/use-toast";
 import DispatchDashboard from "./components/DispatchDashboard";
@@ -8,12 +7,9 @@ import ReadyForDispatch from "./components/ReadyForDispatch";
 import DispatchList from "./components/DispatchList";
 
 export default function DispatchMain() {
-    const { user } = useAuth();
     const { toast } = useToast();
-    const isDeliveryPerson = user?.roleName === "Delivery Person";
 
     const [activeTab, setActiveTab] = useState("dashboard");
-    // Shared refresh keys so tab data refreshes after actions
     const [readyRefreshKey, setReadyRefreshKey] = useState(0);
     const [listRefreshKey, setListRefreshKey] = useState(0);
     const [dashRefreshKey, setDashRefreshKey] = useState(0);
@@ -36,14 +32,11 @@ export default function DispatchMain() {
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
-            {/* Page Header */}
             <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                     <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Dispatch Management</h1>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                        {isDeliveryPerson
-                            ? "Manage your assigned deliveries"
-                            : "Track and manage all orders and deliveries"}
+                        Track and manage all orders and deliveries
                     </p>
                 </div>
                 <Refresh onClick={handleRefresh} />
@@ -67,8 +60,6 @@ export default function DispatchMain() {
                     <ReadyForDispatch
                         refreshKey={readyRefreshKey}
                         onDispatchCreated={refreshAll}
-                        isDeliveryPerson={isDeliveryPerson}
-                        user={user}
                     />
                 </TabsContent>
 
@@ -76,11 +67,9 @@ export default function DispatchMain() {
                     <DispatchList
                         refreshKey={listRefreshKey}
                         onStatusUpdated={refreshAll}
-                        isDeliveryPerson={isDeliveryPerson}
                     />
                 </TabsContent>
             </Tabs>
         </div>
     );
 }
-

@@ -41,7 +41,9 @@ const DISPATCH_COPY_INCLUDE = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const isDeliveryPerson = (roleName) => roleName === 'Delivery Person';
+function truthy(value) {
+  return value === true || value === 'true' || value === '1' || value === 1;
+}
 
 async function generateDcNumber() {
   const year = new Date().getFullYear();
@@ -58,39 +60,42 @@ async function generateDcNumber() {
   return `DC-${year}-${String(seq).padStart(4, '0')}`;
 }
 
+/** Ensure the DC is assigned to this user (assignment check, not role). */
+function assertAssignedToUser(dispatch, userId) {
+  if (dispatch.deliveryPersonId !== userId) {
+    throw new APIError('Unauthorized: this dispatch is not assigned to you', 403, 'UNAUTHORIZED');
+  }
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export const getDispatchDashboard = async (userId, roleName) => {
-  const deliveryPersonFilter = isDeliveryPerson(roleName)
-    ? { deliveryPersonId: userId }
-    : {};
+export const getDispatchDashboard = async (user, filters = {}) => {
+  const userId = user?.id;
+  const mine = truthy(filters.mine);
+  const deliveryPersonFilter = mine && userId ? { deliveryPersonId: userId } : {};
+  const assignedFilter = mine && userId ? { assignedPerson_id: userId } : {};
 
   const [readyCount, inTransitCount, deliveredCount, totalPending, recentDispatches] = await Promise.all([
-    // Ready for dispatch (not yet assigned to a dispatch copy)
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
         status: 'READY_FOR_DISPATCH',
-        ...(isDeliveryPerson(roleName) ? { assignedPerson_id: userId } : {}),
+        ...assignedFilter,
       },
     }),
-    // In Transit dispatch copies
     prisma.dispatchCopy.count({
       where: { status: 'IN_TRANSIT', ...deliveryPersonFilter },
     }),
-    // Delivered dispatch copies
     prisma.dispatchCopy.count({
       where: { status: 'DELIVERED', ...deliveryPersonFilter },
     }),
-    // Active dispatch workload (ready for dispatch, awaiting pickup, or out for delivery)
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
         status: { in: DISPATCH_PIPELINE_STATUSES },
-        ...(isDeliveryPerson(roleName) ? { assignedPerson_id: userId } : {}),
+        ...assignedFilter,
       },
     }),
-    // Recent dispatch copies created (last 10)
     prisma.dispatchCopy.findMany({
       where: { ...deliveryPersonFilter },
       include: DISPATCH_COPY_INCLUDE,
@@ -104,8 +109,8 @@ export const getDispatchDashboard = async (userId, roleName) => {
 
 // ─── Ready for Dispatch (Sale Orders) ────────────────────────────────────────
 
-export const getReadyForDispatch = async (userId, roleName, filters = {}) => {
-  const { customerId, assignedPersonId, dateFrom, dateTo, search } = filters;
+export const getReadyForDispatch = async (user, filters = {}) => {
+  const { customerId, assignedPersonId, dateFrom, dateTo, search, mine } = filters;
 
   const where = {
     deleteStatus: false,
@@ -113,13 +118,14 @@ export const getReadyForDispatch = async (userId, roleName, filters = {}) => {
     dispatchCopyId: null,
   };
 
-  // Delivery Person: default to their assigned orders; can be filtered by customer
-  if (isDeliveryPerson(roleName)) {
-    where.assignedPerson_id = userId;
+  // Dispatch Window / "my orders": assignedPerson_id = current user (no role check)
+  if (truthy(mine) && user?.id) {
+    where.assignedPerson_id = user.id;
+  } else if (assignedPersonId) {
+    where.assignedPerson_id = Number(assignedPersonId);
   }
 
   if (customerId) where.customerId = Number(customerId);
-  if (assignedPersonId) where.assignedPerson_id = Number(assignedPersonId);
   if (dateFrom || dateTo) {
     where.estimatedDate = {};
     if (dateFrom) where.estimatedDate.gte = new Date(dateFrom);
@@ -134,13 +140,11 @@ export const getReadyForDispatch = async (userId, roleName, filters = {}) => {
     ];
   }
 
-  const orders = await prisma.saleOrder.findMany({
+  return prisma.saleOrder.findMany({
     where,
     include: SALE_ORDER_INCLUDE,
     orderBy: [{ estimatedDate: 'asc' }, { createdAt: 'desc' }],
   });
-
-  return orders;
 };
 
 // ─── Create Dispatch Record ───────────────────────────────────────────────────
@@ -168,7 +172,6 @@ export const createDispatch = async (payload, userId) => {
     throw new APIError('Delivery person is required', 400, 'INVALID_INPUT');
   }
 
-  // Verify all sale orders exist, belong to this customer, and are READY_FOR_DISPATCH
   const saleOrders = await prisma.saleOrder.findMany({
     where: { id: { in: saleOrderIds.map(Number) }, deleteStatus: false },
     select: { id: true, status: true, customerId: true, dispatchCopyId: true },
@@ -192,12 +195,12 @@ export const createDispatch = async (payload, userId) => {
 
   const dcNumber = await generateDcNumber();
 
-  const dispatch = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const created = await tx.dispatchCopy.create({
       data: {
         dcNumber,
         customerId: Number(customerId),
-        deliveryPersonId: deliveryPersonId ? Number(deliveryPersonId) : null,
+        deliveryPersonId: Number(deliveryPersonId),
         expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
         status: 'PENDING',
         notes: notes || null,
@@ -226,30 +229,37 @@ export const createDispatch = async (payload, userId) => {
           dispatchStatus: 'Ready for Pickup',
           dispatchId: dcNumber,
           dispatchCopyId: created.id,
-          assignedPerson_id: deliveryPersonId ? Number(deliveryPersonId) : undefined,
+          assignedPerson_id: Number(deliveryPersonId),
         },
       });
     }
 
     return created;
   });
-
-  return dispatch;
 };
 
 // ─── List Dispatch Records ────────────────────────────────────────────────────
 
-export const getDispatchList = async (userId, roleName, filters = {}) => {
-  const { status, customerId, deliveryPersonId, dateFrom, dateTo, search, page = 1, limit = 20 } = filters;
+/**
+ * List DCs.
+ * - mine=true  → only where deliveryPersonId === logged-in user (Dispatch Window)
+ * - deliveryPersonId filter optional for management screens
+ * No role checks — page access is handled by route permissions.
+ */
+export const getDispatchList = async (user, filters = {}) => {
+  const { status, customerId, deliveryPersonId, dateFrom, dateTo, search, page = 1, limit = 20, mine } = filters;
 
   const where = {};
 
-  if (isDeliveryPerson(roleName)) {
-    where.deliveryPersonId = userId;
+  if (truthy(mine)) {
+    if (!user?.id) throw new APIError('Authentication required', 401, 'UNAUTHORIZED');
+    where.deliveryPersonId = user.id;
+  } else if (deliveryPersonId) {
+    where.deliveryPersonId = Number(deliveryPersonId);
   }
+
   if (status) where.status = status;
   if (customerId) where.customerId = Number(customerId);
-  if (deliveryPersonId && !isDeliveryPerson(roleName)) where.deliveryPersonId = Number(deliveryPersonId);
   if (dateFrom || dateTo) {
     where.expectedDeliveryDate = {};
     if (dateFrom) where.expectedDeliveryDate.gte = new Date(dateFrom);
@@ -295,7 +305,8 @@ export const getDispatchList = async (userId, roleName, filters = {}) => {
 
 // ─── Update Dispatch Record (details) ─────────────────────────────────────────
 
-export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
+export const updateDispatch = async (dispatchId, payload, user) => {
+  const userId = user?.id;
   const {
     deliveryPersonId,
     expectedDeliveryDate,
@@ -304,6 +315,7 @@ export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
     driverContact,
     deliveryNotes,
     notes,
+    mine,
   } = payload;
 
   const dispatch = await prisma.dispatchCopy.findUnique({
@@ -319,8 +331,9 @@ export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
     throw new APIError('Delivered dispatches cannot be edited', 400, 'INVALID_STATUS');
   }
 
-  if (isDeliveryPerson(roleName) && dispatch.deliveryPersonId !== userId) {
-    throw new APIError('Unauthorized: this dispatch is not assigned to you', 403, 'UNAUTHORIZED');
+  // Dispatch Window actions: only the assigned delivery user
+  if (truthy(mine)) {
+    assertAssignedToUser(dispatch, userId);
   }
 
   if (!deliveryPersonId) {
@@ -329,7 +342,7 @@ export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
 
   const nextDeliveryPersonId = Number(deliveryPersonId);
 
-  const updated = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const updatedDispatch = await tx.dispatchCopy.update({
       where: { id: Number(dispatchId) },
       data: {
@@ -345,7 +358,6 @@ export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
       include: DISPATCH_COPY_INCLUDE,
     });
 
-    // Keep linked sale orders' assigned delivery person in sync
     if (dispatch.saleOrders.length > 0) {
       await tx.saleOrder.updateMany({
         where: { id: { in: dispatch.saleOrders.map((o) => o.id) } },
@@ -355,13 +367,14 @@ export const updateDispatch = async (dispatchId, payload, userId, roleName) => {
 
     return updatedDispatch;
   });
-
-  return updated;
 };
 
 // ─── Update Dispatch Status ───────────────────────────────────────────────────
 
-export const updateDispatchStatus = async (dispatchId, action, signature, userId, roleName) => {
+export const updateDispatchStatus = async (dispatchId, action, signature, user, options = {}) => {
+  const userId = user?.id;
+  const mine = truthy(options.mine);
+
   const dispatch = await prisma.dispatchCopy.findUnique({
     where: { id: Number(dispatchId) },
     include: { saleOrders: { select: { id: true } } },
@@ -371,8 +384,9 @@ export const updateDispatchStatus = async (dispatchId, action, signature, userId
     throw new APIError('Dispatch record not found', 404, 'NOT_FOUND');
   }
 
-  if (isDeliveryPerson(roleName) && dispatch.deliveryPersonId !== userId) {
-    throw new APIError('Unauthorized: this dispatch is not assigned to you', 403, 'UNAUTHORIZED');
+  // Dispatch Window: can only pickup/deliver DCs assigned to this user
+  if (mine) {
+    assertAssignedToUser(dispatch, userId);
   }
 
   let newDispatchStatus;
@@ -407,7 +421,7 @@ export const updateDispatchStatus = async (dispatchId, action, signature, userId
 
   const saleOrderIds = dispatch.saleOrders.map((o) => o.id);
 
-  const updated = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const updatedDispatch = await tx.dispatchCopy.update({
       where: { id: Number(dispatchId) },
       data: {
@@ -452,13 +466,11 @@ export const updateDispatchStatus = async (dispatchId, action, signature, userId
 
     return updatedDispatch;
   });
-
-  return updated;
 };
 
 // ─── Legacy: kept for backward compat ────────────────────────────────────────
 
-export const getDispatchOrders = async (userId, roleName) => {
+export const getDispatchOrders = async (user, filters = {}) => {
   const where = {
     deleteStatus: false,
     OR: [
@@ -466,7 +478,9 @@ export const getDispatchOrders = async (userId, roleName) => {
       { AND: [{ status: { not: 'DELIVERED' } }, { dispatchStatus: 'In Transit' }] },
     ],
   };
-  if (isDeliveryPerson(roleName)) where.assignedPerson_id = userId;
+  if (truthy(filters.mine) && user?.id) {
+    where.assignedPerson_id = user.id;
+  }
 
   return prisma.saleOrder.findMany({
     where,
@@ -475,10 +489,11 @@ export const getDispatchOrders = async (userId, roleName) => {
   });
 };
 
-export const bulkMarkPickup = async (orderIds, userId, roleName) => {
+export const bulkMarkPickup = async (orderIds, user, options = {}) => {
+  const userId = user?.id;
   if (!orderIds || orderIds.length === 0) throw new APIError('No order IDs provided', 400, 'INVALID_INPUT');
 
-  if (isDeliveryPerson(roleName)) {
+  if (truthy(options.mine)) {
     const orders = await prisma.saleOrder.findMany({
       where: { id: { in: orderIds }, deleteStatus: false },
       select: { id: true, assignedPerson_id: true },
@@ -507,11 +522,12 @@ export const bulkMarkPickup = async (orderIds, userId, roleName) => {
   return { count };
 };
 
-export const bulkMarkDelivered = async (orderIds, signature, userId, roleName) => {
+export const bulkMarkDelivered = async (orderIds, signature, user, options = {}) => {
+  const userId = user?.id;
   if (!orderIds || orderIds.length === 0) throw new APIError('No order IDs provided', 400, 'INVALID_INPUT');
   if (!signature) throw new APIError('Signature is required', 400, 'SIGNATURE_REQUIRED');
 
-  if (isDeliveryPerson(roleName)) {
+  if (truthy(options.mine)) {
     const orders = await prisma.saleOrder.findMany({
       where: { id: { in: orderIds }, deleteStatus: false },
       select: { id: true, assignedPerson_id: true },

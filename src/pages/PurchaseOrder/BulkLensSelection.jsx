@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { FormSelect } from "@/components/ui/form-select";
 
 /**
  * BulkLensSelection Component
@@ -12,6 +11,8 @@ import { FormSelect } from "@/components/ui/form-select";
  *   Single      → single-eye grid, columns = CYL
  *   Bifocal     → single-eye grid, columns = ADD  (no L/R)
  *   Progressive → R/L grid,        columns = ADD
+ *
+ * Coating is optional and lives on the PO header — not required here.
  */
 export default function BulkLensSelection({
   value = null,
@@ -19,9 +20,6 @@ export default function BulkLensSelection({
   disabled = false,
   categoryName = "",
   lensId = null,
-  coatings = [],
-  coatingId = null,
-  onCoatingChange = () => {},
 }) {
   const lowerCat = (categoryName || "").toLowerCase();
   const isProgressive = lowerCat.includes("prog");
@@ -45,15 +43,7 @@ export default function BulkLensSelection({
   const [selectedCell, setSelectedCell] = useState(null);
   const [showGrid, setShowGrid] = useState(false);
   const [showLensWarning, setShowLensWarning] = useState(false);
-  const [showCoatingWarning, setShowCoatingWarning] = useState(false);
-  const [coatingExpanded, setCoatingExpanded] = useState(true);
-
-  const coatingName = useMemo(
-    () => coatings.find((c) => String(c.id ?? c.value) === String(coatingId))?.name
-      ?? coatings.find((c) => String(c.id ?? c.value) === String(coatingId))?.label
-      ?? "",
-    [coatings, coatingId]
-  );
+  const [specsExpanded, setSpecsExpanded] = useState(true);
 
   // Initialise from existing value on mount only
   useEffect(() => {
@@ -374,22 +364,6 @@ export default function BulkLensSelection({
             </p>
           ) : (
             <>
-              {/* Coating select — required before Display Grid (mirrors lensId guard) */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-                <div>
-                  <Label className="text-xs">Coating <span className="text-red-500">*</span></Label>
-                  <FormSelect
-                    name="coating_id"
-                    value={coatingId || null}
-                    onChange={(v) => onCoatingChange(v ? String(v) : "")}
-                    options={coatings}
-                    placeholder="Select coating"
-                    isSearchable
-                    disabled={disabled || !lensId}
-                  />
-                </div>
-              </div>
-
               {/* Range inputs */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -482,13 +456,7 @@ export default function BulkLensSelection({
                         setTimeout(() => setShowLensWarning(false), 3000);
                         return;
                       }
-                      if (!coatingId) {
-                        setShowCoatingWarning(true);
-                        setTimeout(() => setShowCoatingWarning(false), 3000);
-                        return;
-                      }
                       setShowLensWarning(false);
-                      setShowCoatingWarning(false);
                       setShowGrid(true);
                     }}
                     disabled={disabled}
@@ -498,9 +466,6 @@ export default function BulkLensSelection({
                   </Button>
                   {showLensWarning && (
                     <p className="text-xs text-destructive">Please select a Lens Product first.</p>
-                  )}
-                  {showCoatingWarning && (
-                    <p className="text-xs text-destructive">Please select a Coating first.</p>
                   )}
                 </div>
                 <Button
@@ -533,27 +498,25 @@ export default function BulkLensSelection({
         </Card>
       )}
 
-      {/* Expandable-by-Coating generated list — Product Spec / Qty columns
-          (Tray + Price columns are rendered by InventoryInitializationForm's Step 3
-          per the contract: A3 → 1a assigns Tray/Price to the parent form, not here). */}
+      {/* Expandable selected-specs list */}
       {showGrid && categoryName && generatedRows.length > 0 && (
         <Card>
           <CardHeader className="p-3 pb-2">
             <button
               type="button"
               className="w-full flex items-center justify-between text-left"
-              onClick={() => setCoatingExpanded((v) => !v)}
+              onClick={() => setSpecsExpanded((v) => !v)}
             >
               <CardTitle className="text-sm flex items-center gap-1.5">
-                {coatingExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
-                Coating: {coatingName || "—"}
+                {specsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                Selected Specs
                 <span className="text-xs font-normal text-muted-foreground ml-1">
                   ({generatedRows.length} spec{generatedRows.length !== 1 ? "s" : ""} · {totalGeneratedQty} units)
                 </span>
               </CardTitle>
             </button>
           </CardHeader>
-          {coatingExpanded && (
+          {specsExpanded && (
             <CardContent className="p-0">
               <table className="w-full text-xs">
                 <thead>

@@ -33,6 +33,9 @@ export class AuthService {
             include: {
               permissions: true
             }
+          },
+          departmentDetails: {
+            select: { department: true }
           }
         }
       });
@@ -78,7 +81,9 @@ export class AuthService {
         user: {
           ...userWithoutPassword,
           roleName: role?.name || null,
-          roleId: user.role_id
+          roleId: user.role_id,
+          department: user.departmentDetails?.department || null,
+          permissions: role?.permissions || [],
         },
         accessToken,
         refreshToken,

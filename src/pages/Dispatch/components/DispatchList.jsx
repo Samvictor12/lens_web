@@ -35,7 +35,7 @@ const STATUS_OPTIONS = [
     { value: "ON_HOLD", label: "On Hold" },
 ];
 
-export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPerson }) {
+export default function DispatchList({ refreshKey, onStatusUpdated }) {
     const { toast } = useToast();
     const [dispatches, setDispatches] = useState([]);
     const [total, setTotal] = useState(0);
@@ -325,7 +325,6 @@ export default function DispatchList({ refreshKey, onStatusUpdated, isDeliveryPe
                             renderCard={(d) => (
                                 <DispatchRecordCard
                                     dispatch={d}
-                                    isDeliveryPerson={isDeliveryPerson}
                                     onStatusUpdated={handleStatusUpdated}
                                     onSignatureRequest={(id) => setSignatureDispatchId(id)}
                                     onView={(dispatch) => setViewDispatch(dispatch)}

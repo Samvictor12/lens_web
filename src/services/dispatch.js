@@ -57,10 +57,10 @@ export const updateDispatch = async (dispatchId, payload) => {
  * @param {'PICKUP'|'DELIVERED'|'ON_HOLD'} action
  * @param {string|null} signature - base64 PNG, required for DELIVERED
  */
-export const updateDispatchStatus = async (dispatchId, action, signature = null) => {
+export const updateDispatchStatus = async (dispatchId, action, signature = null, options = {}) => {
     try {
         return await apiClient("patch", `/v1/dispatch/${dispatchId}/status`, {
-            data: { action, signature },
+            data: { action, signature, ...(options.mine ? { mine: true } : {}) },
         });
     } catch (error) {
         throw new Error(error?.message || "Failed to update dispatch status");

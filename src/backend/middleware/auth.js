@@ -37,6 +37,9 @@ export const authenticateToken = async (req, res, next) => {
               select: { action: true, subject: true }
             },
           }
+        },
+        departmentDetails: {
+          select: { department: true }
         }
       }
     });

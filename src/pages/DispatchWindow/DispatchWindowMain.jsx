@@ -24,7 +24,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Refresh } from "@/components/ui/Refresh";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { getDispatchList, updateDispatchStatus } from "@/services/dispatch";
 import SignatureModal from "@/pages/Dispatch/components/SignatureModal";
@@ -298,6 +297,7 @@ function PhasePanel({
         status,
         limit: 200,
         page: 1,
+        mine: true,
         ...(search ? { search } : {}),
       });
       const list = res?.dispatches || [];
@@ -555,9 +555,7 @@ function PhasePanel({
 }
 
 export default function DispatchWindowMain() {
-  const { user } = useAuth();
   const { toast } = useToast();
-  const isDeliveryPerson = user?.roleName === "Delivery Person";
   const isMobile = useIsMobile();
 
   const [activeTab, setActiveTab] = useState("pickup");
@@ -596,7 +594,7 @@ export default function DispatchWindowMain() {
     if (!ids?.length) return;
     try {
       setIsActing(true);
-      await Promise.all(ids.map((id) => updateDispatchStatus(id, "PICKUP")));
+      await Promise.all(ids.map((id) => updateDispatchStatus(id, "PICKUP", null, { mine: true })));
       toast({
         title: "Picked up",
         description: `${ids.length} dispatch${ids.length !== 1 ? "es" : ""} marked In Transit`,
@@ -635,7 +633,9 @@ export default function DispatchWindowMain() {
     try {
       setIsActing(true);
       await Promise.all(
-        pendingDeliverIds.map((id) => updateDispatchStatus(id, "DELIVERED", signature))
+        pendingDeliverIds.map((id) =>
+          updateDispatchStatus(id, "DELIVERED", signature, { mine: true })
+        )
       );
       toast({
         title: "Delivered!",
@@ -659,9 +659,7 @@ export default function DispatchWindowMain() {
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Dispatch Window</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {isDeliveryPerson
-              ? "Select DCs under a customer — pickup or deliver with one action"
-              : "Grouped by customer · multi-select · shared delivery signature"}
+            Your assigned pickups and deliveries — select DCs under a customer
           </p>
         </div>
       </div>
