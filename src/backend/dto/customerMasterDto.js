@@ -116,6 +116,19 @@ export const validateCreateCustomerMaster = (data) => {
         }
     }
 
+    // Normalize creditDays → credit_days (frontend camelCase)
+    if (data.creditDays !== undefined && data.credit_days === undefined) {
+        data.credit_days = data.creditDays;
+    }
+
+    // Validate credit_days if provided (optional integer ≥ 0)
+    if (data.credit_days !== undefined && data.credit_days !== null && data.credit_days !== '') {
+        const creditDays = parseInt(data.credit_days);
+        if (isNaN(creditDays) || creditDays < 0) {
+            errors.push({ field: 'credit_days', message: 'Credit days must be a valid non-negative integer' });
+        }
+    }
+
     // Validate outstanding_credit if provided
     if (data.outstanding_credit !== undefined && data.outstanding_credit !== null && data.outstanding_credit !== '') {
         const outstandingCredit = parseInt(data.outstanding_credit);
@@ -156,6 +169,9 @@ export const validateCreateCustomerMaster = (data) => {
             businessCategory_id: data.businessCategory_id ? parseInt(data.businessCategory_id) : null,
             gstin: data.gstin?.trim() || null,
             credit_limit: data.credit_limit ? parseInt(data.credit_limit) : null,
+            credit_days: (data.credit_days !== undefined && data.credit_days !== null && data.credit_days !== '')
+                ? parseInt(data.credit_days)
+                : null,
             outstanding_credit: data.outstanding_credit ? parseInt(data.outstanding_credit) : null,
             sale_person_id: data.sale_person_id ? parseInt(data.sale_person_id) : null,
             delivery_person_id: data.delivery_person_id ? parseInt(data.delivery_person_id) : null,
@@ -243,6 +259,11 @@ export const validateUpdateCustomerMaster = (data) => {
         errors.push({ field: 'notes', message: 'Notes must not exceed 1000 characters' });
     }
 
+    // Normalize creditDays → credit_days (frontend camelCase)
+    if (data.creditDays !== undefined && data.credit_days === undefined) {
+        data.credit_days = data.creditDays;
+    }
+
     // Validate credit_limit if provided
     if (data.credit_limit !== undefined) {
         if (data.credit_limit === null || data.credit_limit === '') {
@@ -252,6 +273,14 @@ export const validateUpdateCustomerMaster = (data) => {
             if (isNaN(creditLimit) || creditLimit < 0) {
                 errors.push({ field: 'credit_limit', message: 'Credit limit must be a valid positive number' });
             }
+        }
+    }
+
+    // Validate credit_days if provided (optional integer ≥ 0)
+    if (data.credit_days !== undefined && data.credit_days !== null && data.credit_days !== '') {
+        const creditDays = parseInt(data.credit_days);
+        if (isNaN(creditDays) || creditDays < 0) {
+            errors.push({ field: 'credit_days', message: 'Credit days must be a valid non-negative integer' });
         }
     }
 
@@ -281,11 +310,13 @@ export const validateUpdateCustomerMaster = (data) => {
 
     const cleanedData = {};
     Object.keys(data).forEach(key => {
+        // Skip camelCase alias — already normalized to credit_days
+        if (key === 'creditDays') return;
         if (data[key] !== undefined) {
             if (key === 'updatedBy') {
                 cleanedData[key] = parseInt(data[key]);
-            } else if (key === 'credit_limit' || key === 'outstanding_credit' || key === 'businessCategory_id' || key === 'sale_person_id' || key === 'delivery_person_id') {
-                cleanedData[key] = (data[key] ? parseInt(data[key]) : null);
+            } else if (key === 'credit_limit' || key === 'credit_days' || key === 'outstanding_credit' || key === 'businessCategory_id' || key === 'sale_person_id' || key === 'delivery_person_id') {
+                cleanedData[key] = (data[key] !== null && data[key] !== '' ? parseInt(data[key]) : null);
             } else if (typeof data[key] === 'string') {
                 cleanedData[key] = data[key].trim();
                 // Set null for empty strings on optional fields

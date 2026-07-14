@@ -3,6 +3,41 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusColor, formatCurrency, formatDate } from "./Inventory.constants";
 
+function hasSpecValue(value) {
+  return value !== null && value !== undefined && value !== "";
+}
+
+/** Compact power-range text after product name (SPH / CYL / ADD + related). */
+export function formatItemPowerRange(item) {
+  // Prefer flat sph/cyl/add when present (grouped list / pivot-style rows)
+  const flat = [
+    ["SPH", item?.sph ?? item?.spherical],
+    ["CYL", item?.cyl ?? item?.cylindrical],
+    ["ADD", item?.add],
+  ]
+    .filter(([, v]) => hasSpecValue(v))
+    .map(([lbl, v]) => `${lbl} ${v}`);
+  if (flat.length) return flat.join(" · ");
+
+  const parts = [];
+  const pushEye = (label, prefix) => {
+    const fields = [
+      ["SPH", `${prefix}Spherical`],
+      ["CYL", `${prefix}Cylindrical`],
+      ["AXIS", `${prefix}Axis`],
+      ["ADD", `${prefix}Add`],
+      ["DIA", `${prefix}Dia`],
+    ];
+    const eyeParts = fields
+      .map(([lbl, key]) => (hasSpecValue(item?.[key]) ? `${lbl} ${item[key]}` : null))
+      .filter(Boolean);
+    if (eyeParts.length) parts.push(`${label}: ${eyeParts.join(" · ")}`);
+  };
+  pushEye("R", "right");
+  pushEye("L", "left");
+  return parts.join(" | ");
+}
+
 /**
  * Custom hook that returns table column configurations for the inventory item list.
  * Mirrors the pattern of usePurchaseOrderColumns.
@@ -33,14 +68,24 @@ export const useInventoryColumns = (onView, onEdit, onDelete) => {
       accessorKey: "lensProduct",
       header: "Lens Product",
       sortable: false,
-      cell: (item) => (
-        <div>
-          <div className="text-xs font-medium">{item.lensProduct?.lens_name || "-"}</div>
-          {item.category?.name && (
-            <div className="text-xs text-muted-foreground">{item.category.name}</div>
-          )}
-        </div>
-      ),
+      cell: (item) => {
+        const powerRange = formatItemPowerRange(item);
+        return (
+          <div>
+            <div className="text-xs font-medium">
+              {item.lensProduct?.lens_name || "-"}
+              {powerRange ? (
+                <span className="font-normal text-muted-foreground ml-1.5 font-mono">
+                  {powerRange}
+                </span>
+              ) : null}
+            </div>
+            {item.category?.name && (
+              <div className="text-xs text-muted-foreground">{item.category.name}</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "location",

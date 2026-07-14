@@ -6,6 +6,7 @@ import {
   validateIdParam
 } from '../dto/inventoryDto.js';
 import { APIError } from '../middleware/errorHandler.js';
+import { computeQueueSoftAllocation } from '../services/saleOrderWorkflowService.js';
 
 /**
  * Inventory Controller
@@ -334,13 +335,21 @@ export class InventoryController {
   /**
    * Get inventory dashboard statistics
    * @route GET /api/inventory/dashboard
+   * Merges hard reservedItems from InventoryStock with softReservedQty from
+   * queue FIFO soft allocation (display-only; no reservedStock write).
    */
   async getInventoryDashboard(req, res, next) {
     try {
-      const stats = await this.inventoryService.getInventoryDashboardEnhanced();
+      const [stats, softAlloc] = await Promise.all([
+        this.inventoryService.getInventoryDashboardEnhanced(),
+        computeQueueSoftAllocation(),
+      ]);
       res.json({
         success: true,
-        data: stats,
+        data: {
+          ...stats,
+          softReservedQty: softAlloc?.softReservedQty ?? 0,
+        },
       });
     } catch (error) {
       next(error);
@@ -385,6 +394,9 @@ export class InventoryController {
           : null,
         groupBy: req.query.groupBy || null,
         search: req.query.search || "",
+        sph: req.query.sph || null,
+        cyl: req.query.cyl || null,
+        add: req.query.add || null,
       };
 
       const result = await this.inventoryService.getInventoryStockWithGrouping(

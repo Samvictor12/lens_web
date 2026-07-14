@@ -128,9 +128,12 @@ export const getStatusLog = async (id) => {
     }
 };
 
-export const raisePoFromSo = async (id, { vendorId, source = "USER" } = {}) => {
+export const raisePoFromSo = async (id, { vendorId, source = "USER", rightEye, leftEye } = {}) => {
     try {
-        return await apiClient("post", `/sale-orders/${id}/raise-po`, { data: { vendorId, source } });
+        const data = { vendorId, source };
+        if (rightEye !== undefined) data.rightEye = Boolean(rightEye);
+        if (leftEye !== undefined) data.leftEye = Boolean(leftEye);
+        return await apiClient("post", `/sale-orders/${id}/raise-po`, { data });
     } catch (error) {
         throw new Error(error.response?.data?.message || "Failed to raise PO");
     }

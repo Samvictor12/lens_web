@@ -87,6 +87,38 @@ export const useCustomerPaymentColumns = (onView, { expandedIds = [], onToggleEx
       ),
     },
     {
+      accessorKey: "closedStatus",
+      header: "Status",
+      sortable: false,
+      cell: (p) => (
+        <Badge
+          variant="outline"
+          className={`text-xs font-normal ${
+            p.closedStatus
+              ? "border-green-300 text-green-700 bg-green-50"
+              : "border-amber-300 text-amber-700 bg-amber-50"
+          }`}
+        >
+          {p.closedStatus ? "Closed" : "Open"}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "advanceAmount",
+      header: "Advance",
+      sortable: false,
+      align: "right",
+      cell: (p) => {
+        const adv = parseFloat(p.advanceAmount || 0);
+        if (!(adv > 0)) return <span className="text-xs text-muted-foreground">—</span>;
+        return (
+          <span className="text-xs font-medium text-blue-700">
+            ₹{adv.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: "id",
       header: "",
       align: "right",

@@ -20,12 +20,12 @@ This document covers the Financial Accounting domain: Chart of Accounts, custome
 - **`Customer.advance_credit`** — prepaid balance from advance/overpayment portions.
 
 ### Workflow
-1. **Outstanding Invoices** tab — `ISSUED` / `PARTIALLY_PAID` invoices with balance > 0, grouped by customer (default), multi-select with select-all per group.
+1. **Outstanding Invoices** tab — `ISSUED` / `PARTIALLY_PAID` invoices with balance > 0, grouped by customer (default), multi-select with select-all per group. **Record Payment** and **New Payment** both use this Outstanding List UI for invoice selection (2026-07-14); create dialog opens after selection / deep-link preselect.
 2. **Record Payment** — single form: payment amount, bank ledger, FIFO allocation by **due date** (manual override allowed).
 3. **Overpayment** — user selects more invoices OR marks excess as **Advance payment** (`advanceAmount` → `customer.advance_credit`).
 4. **Ledger** — one `FinancialTransaction` (`RECEIPT`) via `postCustomerPaymentReceipt()`: Dr Bank/Cash, Cr Customer AR (full `totalAmount`).
 5. **Print** — `printCustomerPaymentReceipt()` HTML voucher (mirror vendor print pattern).
-
+6. **Payment History (2026-07-14):** Multi-column register — receipt/ref, date, customer, amount, status (Open/Closed), method, reference, advance when &gt; 0.
 ### Billing deep-link
 Billing **Record Payment** / **Quick Close** navigates to:
 `/accounts/customer-payments?customerId={id}&invoiceId={id}&openForm=1`
@@ -47,10 +47,12 @@ Billing **Record Payment** / **Quick Close** navigates to:
 ### Data model
 - **`VendorPaymentVoucher`** / **`VendorPaymentVoucherItem`** — existing; one `PAYMENT` txn via `postVendorPayment()`.
 
-### Workflow (2026-07-05 enhancements)
-1. **Outstanding Payables** tab — POs in `PO_PARTIAL_RECEIVED`, `RECEIVED`, `INVOICE_RECEIVED` with outstanding > 0, grouped by vendor.
+### Workflow (2026-07-05 enhancements; UX 2026-07-14)
+1. **Outstanding Payables** tab — POs in `PO_PARTIAL_RECEIVED`, `RECEIVED`, `INVOICE_RECEIVED` with outstanding > 0, grouped by vendor. **Record Payment** and **New Payment** both use this Outstanding List UI for PO selection (2026-07-14).
 2. **Payment amount** is primary input; FIFO allocation by `expectedDeliveryDate` ?? `orderDate`.
-3. Partially paid POs remain in queue until fully paid (`totalValue − sum(voucher items)`).
+3. **GST % (2026-07-14):** Dropdown from Company Settings (`getGstRatesFromSettings` / same as PO Receive); GST amount = round2(base × % / 100); persist `taxAmount` (percent UI-only).
+4. Partially paid POs remain in queue until fully paid (`totalValue − sum(voucher items)`).
+5. **Payment History (2026-07-14):** Multi-column register — voucher/ref, date, vendor, amount, status (Open/Closed), method, vendor invoice no / reference as available.
 
 ---
 
@@ -172,7 +174,7 @@ graph LR
 | Module | Dependency |
 |--------|------------|
 | **Sales / Billing** | Invoice issue timing (`postInvoice` at ISSUED); payment routed to Customer Payments; invoice detail deep-link from payment breakdown; SO → `COMPLETED` on full invoice pay |
-| **CRM** | `Customer.outstanding_credit`, `Customer.advance_credit`, customer AR sub-ledger with Sundry Debtors `accountGroupId` |
+| **CRM** | `Customer.outstanding_credit`, `Customer.advance_credit`, `Customer.credit_days`, customer AR sub-ledger with Sundry Debtors `accountGroupId` |
 | **Procurement** | PO status gates vendor payables; vendor AP sub-ledger with Sundry Creditors `accountGroupId`; PO navigation from vendor payment breakdown |
 | **Admin / Roles** | `customer_payments`, `vendor_payments`, chart-of-accounts / financial-reports permissions |
 
@@ -193,5 +195,6 @@ graph LR
 | Accounting postings | `src/backend/services/accountingService.js` |
 | Allocation utility | `src/backend/utils/paymentAllocation.js` |
 | Path helpers | `src/constants/accountingPaths.js` |
+| Expenses UI | `src/pages/Accounting/Expenses/` — category from Expense Category (type auto), optional `Expense.dueDate`, Payment Account via `getCashBankLedgers()` array unwrap |
 | Account groups seed | `prisma/seed/account-groups-seed.js` |
 | Role seed | `scripts/role-seed.js` (`customer_payments` in Accounts permissions) |

@@ -1,0 +1,444 @@
+﻿=== RESERVED ITEMS DETAILED INSPECTION ===
+Γ£à Prisma Client connected successfully
+Reserved Items Count: 44
+Item ID: 4
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 2.00, CYL 0.50, ADD 2.50
+  Left Eye: SPH 0.50, CYL 0.50, ADD 2.25
+  Linked SO: SO-2026-009 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 16:50:17 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 16:50:17 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 5
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 2.00, CYL 0.50, ADD 2.50
+  Left Eye: SPH 0.50, CYL 0.50, ADD 2.25
+  Linked SO: SO-2026-009 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 16:50:17 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 16:50:17 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 6
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 0.50, CYL 0.50, ADD 1.50
+  Left Eye: SPH 0.75, CYL 0.50, ADD 1.50
+  Linked SO: SO-2026-010 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 17:26:34 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 17:26:34 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 7
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 0.50, CYL 0.50, ADD 1.50
+  Left Eye: SPH 0.75, CYL 0.50, ADD 1.50
+  Linked SO: SO-2026-010 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 17:26:34 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 17:26:34 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 8
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.50, CYL -2.00, ADD 1.25
+  Left Eye: SPH -1.25, CYL -1.00, ADD 1.25
+  Linked SO: None (Status: N/A)
+  Reserved Date: Mon Jun 29 2026 18:32:35 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:35 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 9
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.50, CYL -2.00, ADD 1.25
+  Left Eye: SPH -1.25, CYL -1.00, ADD 1.25
+  Linked SO: None (Status: N/A)
+  Reserved Date: Mon Jun 29 2026 18:32:35 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:35 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 10
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -3.00, CYL -0.50, ADD 1.50
+  Left Eye: SPH -2.50, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-006 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 18:32:37 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:37 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 11
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -3.00, CYL -0.50, ADD 1.50
+  Left Eye: SPH -2.50, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-006 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 18:32:37 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:37 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 12
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.75, ADD 2.00
+  Left Eye: SPH -2.00, CYL -0.50, ADD 2.00
+  Linked SO: SO-2026-005 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 18:32:41 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:41 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 13
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.75, ADD 2.00
+  Left Eye: SPH -2.00, CYL -0.50, ADD 2.00
+  Linked SO: SO-2026-005 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 18:32:41 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:41 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 14
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -5.00, CYL -1.00, ADD 1.25
+  Left Eye: SPH -2.00, CYL -0.50, ADD 1.25
+  Linked SO: SO-2026-008 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 18:32:44 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:44 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 15
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -5.00, CYL -1.00, ADD 1.25
+  Left Eye: SPH -2.00, CYL -0.50, ADD 1.25
+  Linked SO: SO-2026-008 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 18:32:44 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:44 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 16
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD 2.00
+  Left Eye: SPH -3.00, CYL -0.50, ADD 2.00
+  Linked SO: None (Status: N/A)
+  Reserved Date: Mon Jun 29 2026 18:32:47 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:47 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 17
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD 2.00
+  Left Eye: SPH -3.00, CYL -0.50, ADD 2.00
+  Linked SO: None (Status: N/A)
+  Reserved Date: Mon Jun 29 2026 18:32:47 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 18:32:47 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 18
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.25, CYL -0.75, ADD 1.25
+  Left Eye: SPH -0.75, CYL -0.50, ADD 1.25
+  Linked SO: SO-2026-012 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 21:10:53 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 21:10:53 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 19
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.25, CYL -0.75, ADD 1.25
+  Left Eye: SPH -0.75, CYL -0.50, ADD 1.25
+  Linked SO: SO-2026-012 (Status: COMPLETED)
+  Reserved Date: Mon Jun 29 2026 21:10:53 GMT+0530 (India Standard Time)
+  Created At: Mon Jun 29 2026 21:10:53 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 20
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.50, CYL -0.75, ADD 1.50
+  Left Eye: SPH -0.75, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-014 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 14:13:48 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 14:13:48 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 21
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.50, CYL -0.75, ADD 1.50
+  Left Eye: SPH -0.75, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-014 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 14:13:48 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 14:13:48 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 22
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -3.00, CYL -0.50, ADD 1.00
+  Left Eye: SPH -2.50, CYL -0.50, ADD 1.00
+  Linked SO: SO-2026-013 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 14:13:56 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 14:13:56 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 23
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -3.00, CYL -0.50, ADD 1.00
+  Left Eye: SPH -2.50, CYL -0.50, ADD 1.00
+  Linked SO: SO-2026-013 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 14:13:56 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 14:13:56 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 24
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD 2.00
+  Left Eye: SPH -2.00, CYL -0.75, ADD 3.00
+  Linked SO: SO-2026-015 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 14:45:20 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 14:45:20 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 25
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD 2.00
+  Left Eye: SPH -2.00, CYL -0.75, ADD 3.00
+  Linked SO: SO-2026-015 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 14:45:20 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 14:45:20 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 26
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.25, CYL -0.75, ADD 1.25
+  Left Eye: SPH -0.50, CYL -0.75, ADD 1.25
+  Linked SO: SO-2026-011 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 16:03:21 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 16:03:21 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 27
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.25, CYL -0.75, ADD 1.25
+  Left Eye: SPH -0.50, CYL -0.75, ADD 1.25
+  Linked SO: SO-2026-011 (Status: COMPLETED)
+  Reserved Date: Tue Jun 30 2026 16:03:21 GMT+0530 (India Standard Time)
+  Created At: Tue Jun 30 2026 16:03:21 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 28
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 1.50, CYL 0.50, ADD 1.25
+  Left Eye: SPH 1.25, CYL 0.75, ADD 1.25
+  Linked SO: SO-2026-020 (Status: INVOICED)
+  Reserved Date: Thu Jul 02 2026 10:50:29 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 02 2026 10:50:29 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 29
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 1.50, CYL 0.50, ADD 1.25
+  Left Eye: SPH 1.25, CYL 0.75, ADD 1.25
+  Linked SO: SO-2026-020 (Status: INVOICED)
+  Reserved Date: Thu Jul 02 2026 10:50:29 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 02 2026 10:50:29 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 37
+  Lens: Clair Blupro FSV(-)
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD null
+  Left Eye: SPH -0.50, CYL -0.50, ADD null
+  Linked SO: SO-2026-021 (Status: INVOICED)
+  Reserved Date: Thu Jul 02 2026 19:31:26 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 02 2026 19:31:26 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 38
+  Lens: Clair Blupro FSV(-)
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD null
+  Left Eye: SPH -0.50, CYL -0.50, ADD null
+  Linked SO: SO-2026-021 (Status: INVOICED)
+  Reserved Date: Thu Jul 02 2026 19:31:26 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 02 2026 19:31:26 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 39
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD 1.50
+  Left Eye: SPH -1.50, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-018 (Status: COMPLETED)
+  Reserved Date: Wed Jul 08 2026 11:44:45 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:45 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 40
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -0.50, ADD 1.50
+  Left Eye: SPH -1.50, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-018 (Status: COMPLETED)
+  Reserved Date: Wed Jul 08 2026 11:44:45 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:45 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 41
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.75, CYL -0.50, ADD 1.50
+  Left Eye: SPH -0.75, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-019 (Status: COMPLETED)
+  Reserved Date: Wed Jul 08 2026 11:44:48 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:48 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 42
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.75, CYL -0.50, ADD 1.50
+  Left Eye: SPH -0.75, CYL -0.50, ADD 1.50
+  Linked SO: SO-2026-019 (Status: COMPLETED)
+  Reserved Date: Wed Jul 08 2026 11:44:48 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:48 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 43
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 2.00, CYL -0.50, ADD 1.75
+  Left Eye: SPH 1.50, CYL -0.50, ADD 1.75
+  Linked SO: SO-2026-023 (Status: INVOICED)
+  Reserved Date: Wed Jul 08 2026 11:44:50 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:50 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 44
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 2.00, CYL -0.50, ADD 1.75
+  Left Eye: SPH 1.50, CYL -0.50, ADD 1.75
+  Linked SO: SO-2026-023 (Status: INVOICED)
+  Reserved Date: Wed Jul 08 2026 11:44:50 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:50 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 45
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 2.00, CYL 0.50, ADD 3.00
+  Left Eye: SPH 0.50, CYL 0.50, ADD 1.00
+  Linked SO: SO-2026-028 (Status: INVOICED)
+  Reserved Date: Wed Jul 08 2026 11:44:53 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:53 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 46
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 2.00, CYL 0.50, ADD 3.00
+  Left Eye: SPH 0.50, CYL 0.50, ADD 1.00
+  Linked SO: SO-2026-028 (Status: INVOICED)
+  Reserved Date: Wed Jul 08 2026 11:44:53 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 11:44:53 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 47
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 0.50, CYL 0.75, ADD 1.25
+  Left Eye: SPH 0.75, CYL 0.50, ADD 3.50
+  Linked SO: SO-2026-031 (Status: INVOICED)
+  Reserved Date: Wed Jul 08 2026 19:17:08 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 19:17:08 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 48
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH 0.50, CYL 0.75, ADD 1.25
+  Left Eye: SPH 0.75, CYL 0.50, ADD 3.50
+  Linked SO: SO-2026-031 (Status: INVOICED)
+  Reserved Date: Wed Jul 08 2026 19:17:08 GMT+0530 (India Standard Time)
+  Created At: Wed Jul 08 2026 19:17:08 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 49
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -1.00, ADD 1.25
+  Left Eye: SPH -1.50, CYL -0.75, ADD 1.25
+  Linked SO: SO-2026-032 (Status: INVOICED)
+  Reserved Date: Thu Jul 09 2026 10:27:48 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 09 2026 10:27:48 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 50
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -2.00, CYL -1.00, ADD 1.25
+  Left Eye: SPH -1.50, CYL -0.75, ADD 1.25
+  Linked SO: SO-2026-032 (Status: INVOICED)
+  Reserved Date: Thu Jul 09 2026 10:27:48 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 09 2026 10:27:48 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 51
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -5.00, CYL -1.00, ADD 2.50
+  Left Eye: SPH -3.50, CYL -0.75, ADD 2.50
+  Linked SO: SO-2026-033 (Status: INVOICED)
+  Reserved Date: Thu Jul 09 2026 10:27:51 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 09 2026 10:27:51 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 52
+  Lens: Pristine Digital 1.61 Mr-8 Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -5.00, CYL -1.00, ADD 2.50
+  Left Eye: SPH -3.50, CYL -0.75, ADD 2.50
+  Linked SO: SO-2026-033 (Status: INVOICED)
+  Reserved Date: Thu Jul 09 2026 10:27:51 GMT+0530 (India Standard Time)
+  Created At: Thu Jul 09 2026 10:27:51 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 53
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.75, CYL -0.50, ADD 2.50
+  Left Eye: SPH -0.50, CYL -0.25, ADD 2.5
+  Linked SO: SO-2026-034 (Status: INVOICED)
+  Reserved Date: Mon Jul 13 2026 15:42:25 GMT+0530 (India Standard Time)
+  Created At: Mon Jul 13 2026 15:42:25 GMT+0530 (India Standard Time)
+---------------------------------------------
+Item ID: 54
+  Lens: Pristine Digital Prog
+  Qty: 0 (status: RESERVED)
+  Tray: TRAY 1
+  Right Eye: SPH -0.75, CYL -0.50, ADD 2.50
+  Left Eye: SPH -0.50, CYL -0.25, ADD 2.5
+  Linked SO: SO-2026-034 (Status: INVOICED)
+  Reserved Date: Mon Jul 13 2026 15:42:25 GMT+0530 (India Standard Time)
+  Created At: Mon Jul 13 2026 15:42:25 GMT+0530 (India Standard Time)
+---------------------------------------------
+Prisma Client disconnected

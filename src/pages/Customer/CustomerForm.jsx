@@ -89,6 +89,10 @@ export default function CustomerForm() {
               categoryId: customer.categoryId || null,
               gstNumber: customer.gstNumber || "",
               creditLimit: customer.creditLimit || "",
+              creditDays:
+                customer.creditDays !== undefined && customer.creditDays !== null
+                  ? String(customer.creditDays)
+                  : "",
               salePersonId: customer.salePersonId || null,
               deliveryPersonId: customer.deliveryPersonId || null,
               remarks: customer.remarks || "",
@@ -219,6 +223,12 @@ export default function CustomerForm() {
     // Handle credit limit - allow only numbers
     else if (name === "creditLimit") {
       if (value === "" || (!isNaN(value) && parseFloat(value) >= 0)) {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
+    }
+    // Handle credit days - non-negative integers
+    else if (name === "creditDays") {
+      if (value === "" || (/^\d+$/.test(String(value)) && parseInt(value, 10) >= 0)) {
         setFormData((prev) => ({ ...prev, [name]: value }));
       }
     }
@@ -647,8 +657,8 @@ export default function CustomerForm() {
                 />
               </div>
 
-              {/* GST & Credit Limit */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* GST, Credit Limit & Credit Days */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <FormInput
                   label="GST Number (Optional)"
                   name="gstNumber"
@@ -676,6 +686,21 @@ export default function CustomerForm() {
                   error={errors.creditLimit}
                   helperText={
                     !errors.creditLimit && "Maximum outstanding amount allowed"
+                  }
+                />
+
+                <FormInput
+                  label="Credit Days"
+                  name="creditDays"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.creditDays}
+                  onChange={handleChange}
+                  disabled={isReadOnly}
+                  error={errors.creditDays}
+                  helperText={
+                    !errors.creditDays && "Days added to invoice date for due date"
                   }
                 />
               </div>

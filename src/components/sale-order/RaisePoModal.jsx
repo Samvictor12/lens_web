@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { FormSelect } from "@/components/ui/form-select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getVendorDropdown } from "@/services/vendor";
 import { STATUS_LABELS } from "@/constants/saleOrderStatus";
 import { procurementBadgeStyles } from "@/pages/Inventory/InventoryRequestQueue.constants";
@@ -46,6 +47,19 @@ function SummaryRow({ label, value }) {
   );
 }
 
+function defaultEyeSelection(summary) {
+  const soRight = Boolean(summary?.rightEye);
+  const soLeft = Boolean(summary?.leftEye);
+  const hasShortageMeta =
+    summary?.shortageRight !== undefined || summary?.shortageLeft !== undefined;
+  if (hasShortageMeta) {
+    const right = soRight && Boolean(summary.shortageRight);
+    const left = soLeft && Boolean(summary.shortageLeft);
+    if (right || left) return { rightEye: right, leftEye: left };
+  }
+  return { rightEye: soRight, leftEye: soLeft };
+}
+
 export default function RaisePoModal({
   open,
   onOpenChange,
@@ -64,25 +78,39 @@ export default function RaisePoModal({
   const [vendors, setVendors] = useState([]);
   const [vendorId, setVendorId] = useState(null);
   const [error, setError] = useState("");
+  const [selectRight, setSelectRight] = useState(false);
+  const [selectLeft, setSelectLeft] = useState(false);
+
+  const canRight = Boolean(summary?.rightEye);
+  const canLeft = Boolean(summary?.leftEye);
+  const showEyeSelection = canRight || canLeft;
+  const poQty = (selectRight ? 1 : 0) + (selectLeft ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
     setVendorId(null);
     setError("");
+    const defaults = defaultEyeSelection(summary);
+    setSelectRight(defaults.rightEye);
+    setSelectLeft(defaults.leftEye);
     getVendorDropdown()
       .then((res) => {
         if (res.success) setVendors(res.data || []);
       })
       .catch(() => setVendors([]));
-  }, [open]);
+  }, [open, summary]);
 
   const handleConfirm = () => {
     if (!vendorId) {
       setError("Please select a vendor");
       return;
     }
+    if (showEyeSelection && !selectRight && !selectLeft) {
+      setError("Select at least one eye for the PO");
+      return;
+    }
     setError("");
-    onConfirm(vendorId);
+    onConfirm(vendorId, { rightEye: selectRight, leftEye: selectLeft });
   };
 
   const procurementType = summary?.procurementType || "RX";
@@ -132,6 +160,11 @@ export default function RaisePoModal({
                         R
                       </Badge>
                       <span className="text-xs font-medium text-muted-foreground">Right Eye</span>
+                      {summary.shortageRight && (
+                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px]">
+                          Shortage
+                        </Badge>
+                      )}
                     </div>
                     <p className="font-mono text-xs text-foreground break-words">
                       {formatEyeSpecLine("right", summary)}
@@ -145,6 +178,11 @@ export default function RaisePoModal({
                         L
                       </Badge>
                       <span className="text-xs font-medium text-muted-foreground">Left Eye</span>
+                      {summary.shortageLeft && (
+                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px]">
+                          Shortage
+                        </Badge>
+                      )}
                     </div>
                     <p className="font-mono text-xs text-foreground break-words">
                       {formatEyeSpecLine("left", summary)}
@@ -154,6 +192,50 @@ export default function RaisePoModal({
               </div>
             )}
           </div>
+
+          {showEyeSelection && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Eyes to procure</Label>
+              <p className="text-xs text-muted-foreground">
+                Defaults to shortage eyes only. You can include covered eyes before confirm.
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                {canRight && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={selectRight}
+                      onCheckedChange={(v) => setSelectRight(Boolean(v))}
+                    />
+                    Right
+                  </label>
+                )}
+                {canLeft && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={selectLeft}
+                      onCheckedChange={(v) => setSelectLeft(Boolean(v))}
+                    />
+                    Left
+                  </label>
+                )}
+                {canRight && canLeft && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setSelectRight(true);
+                      setSelectLeft(true);
+                    }}
+                  >
+                    Both
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">PO quantity: {poQty}</p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">

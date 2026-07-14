@@ -162,7 +162,10 @@ flowchart TD
 | QC reject reusable | `PRE_QC_REJECTED` / `POST_QC_REJECTED` → SO confirm reset → `DRAFT` |
 | QC scrap | `PRE_QC_SCRAPPED` / `POST_QC_SCRAPPED` → SO confirm reset → `DRAFT` |
 | Logs | Never cleared |
-| Spec lock | After PO raised, SO specs not editable (Option A) |
+| Earmarked Stock | Exclude from FIFO matching unless earmarked for the same sale order |
+| Inward Queue & Tray Visibility | Show both physical inventory and inward queue items for Stock Pick |
+| Source Type Badge | Display green RX (with PO number) and blue Stock badges in UI tables |
+| Auto-Inward on Issue | Auto-create inventory item, log transaction, update stock, and reserve when transitioning to `IN_FITTING` |
 
 ---
 

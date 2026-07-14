@@ -1,0 +1,96 @@
+﻿=== INVENTORY DIAGNOSTICS ===
+Γ£à Prisma Client connected successfully
+
+Total InventoryStock rows: 11
+Stocks with totalStock > 0 or reservedStock > 0: 11
+- Lens: Pristine Digital Prog (PRV01) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 10 | Reserved: 0 | Available: 10
+- Lens: Clair Blupro FSV(-) (SHV57) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 20 | Reserved: 0 | Available: 20
+- Lens: Clair Blupro FSV(-) (SHV57) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 20 | Reserved: 0 | Available: 20
+- Lens: Clair Blupro FSV(-) (SHV57) | Location: GODOWN 1 | Tray: TRAY 14 | Total: 32 | Reserved: 0 | Available: 32
+- Lens: Pristine Digital 1.61 Mr-8 Prog (PRV161) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 2 | Reserved: 2 | Available: 0
+- Lens: Clair Blupro FSV(-) (SHV57) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 2 | Reserved: 2 | Available: 0
+- Lens: Pristine Digital 1.61 Mr-8 Prog (PRV161) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 10 | Reserved: 10 | Available: 0
+- Lens: Pristine Digital Prog (PRV01) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 4 | Reserved: 4 | Available: 0
+- Lens: Pristine Digital Prog (PRV01) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 12 | Reserved: 12 | Available: 0
+- Lens: Pristine Digital 1.61 Mr-8 Prog (PRV161) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 8 | Reserved: 8 | Available: 0
+- Lens: Pristine Digital Prog (PRV01) | Location: GODOWN 1 | Tray: TRAY 1 | Total: 6 | Reserved: 6 | Available: 0
+
+Sum of reservedStock in InventoryStock: 44
+
+Total InventoryItems with status RESERVED: 44
+- Item ID: 4 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-009 (SO Status: COMPLETED)
+- Item ID: 5 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-009 (SO Status: COMPLETED)
+- Item ID: 6 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-010 (SO Status: COMPLETED)
+- Item ID: 7 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-010 (SO Status: COMPLETED)
+- Item ID: 8 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: NONE (SO Status: N/A)
+- Item ID: 9 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: NONE (SO Status: N/A)
+- Item ID: 10 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-006 (SO Status: COMPLETED)
+- Item ID: 11 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-006 (SO Status: COMPLETED)
+- Item ID: 12 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-005 (SO Status: COMPLETED)
+- Item ID: 13 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-005 (SO Status: COMPLETED)
+- Item ID: 14 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-008 (SO Status: COMPLETED)
+- Item ID: 15 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-008 (SO Status: COMPLETED)
+- Item ID: 16 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: NONE (SO Status: N/A)
+- Item ID: 17 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: NONE (SO Status: N/A)
+- Item ID: 18 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-012 (SO Status: COMPLETED)
+- Item ID: 19 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-012 (SO Status: COMPLETED)
+- Item ID: 20 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-014 (SO Status: COMPLETED)
+- Item ID: 21 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-014 (SO Status: COMPLETED)
+- Item ID: 22 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-013 (SO Status: COMPLETED)
+- Item ID: 23 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-013 (SO Status: COMPLETED)
+- Item ID: 24 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-015 (SO Status: COMPLETED)
+- Item ID: 25 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-015 (SO Status: COMPLETED)
+- Item ID: 26 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-011 (SO Status: COMPLETED)
+- Item ID: 27 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-011 (SO Status: COMPLETED)
+- Item ID: 28 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-020 (SO Status: INVOICED)
+- Item ID: 29 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-020 (SO Status: INVOICED)
+- Item ID: 37 | Lens: Clair Blupro FSV(-) | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-021 (SO Status: INVOICED)
+- Item ID: 38 | Lens: Clair Blupro FSV(-) | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-021 (SO Status: INVOICED)
+- Item ID: 39 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-018 (SO Status: COMPLETED)
+- Item ID: 40 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-018 (SO Status: COMPLETED)
+- Item ID: 41 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-019 (SO Status: COMPLETED)
+- Item ID: 42 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-019 (SO Status: COMPLETED)
+- Item ID: 43 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-023 (SO Status: INVOICED)
+- Item ID: 44 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-023 (SO Status: INVOICED)
+- Item ID: 45 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-028 (SO Status: INVOICED)
+- Item ID: 46 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-028 (SO Status: INVOICED)
+- Item ID: 47 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-031 (SO Status: INVOICED)
+- Item ID: 48 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-031 (SO Status: INVOICED)
+- Item ID: 49 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-032 (SO Status: INVOICED)
+- Item ID: 50 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-032 (SO Status: INVOICED)
+- Item ID: 51 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-033 (SO Status: INVOICED)
+- Item ID: 52 | Lens: Pristine Digital 1.61 Mr-8 Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-033 (SO Status: INVOICED)
+- Item ID: 53 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-034 (SO Status: INVOICED)
+- Item ID: 54 | Lens: Pristine Digital Prog | Qty: 0 | Tray: TRAY 1 | SO Link: SO-2026-034 (SO Status: INVOICED)
+
+Total InventoryItems with status AVAILABLE: 10
+- Item ID: 1 | Lens: Pristine Digital Prog | Qty: 10 | Tray: TRAY 1 | Location: GODOWN 1 | SPH: R -0.50 / L null | CYL: R -0.50 / L null
+- Item ID: 2 | Lens: Clair Blupro FSV(-) | Qty: 10 | Tray: TRAY 1 | Location: GODOWN 1 | SPH: R null / L null | CYL: R null / L null
+- Item ID: 3 | Lens: Clair Blupro FSV(-) | Qty: 10 | Tray: TRAY 1 | Location: GODOWN 1 | SPH: R null / L null | CYL: R null / L null
+- Item ID: 30 | Lens: Clair Blupro FSV(-) | Qty: 4 | Tray: TRAY 14 | Location: GODOWN 1 | SPH: R -6 / L null | CYL: R -2 / L null
+- Item ID: 31 | Lens: Clair Blupro FSV(-) | Qty: 10 | Tray: TRAY 1 | Location: GODOWN 1 | SPH: R -6 / L null | CYL: R -1.75 / L null
+- Item ID: 32 | Lens: Clair Blupro FSV(-) | Qty: 6 | Tray: TRAY 1 | Location: GODOWN 1 | SPH: R -6 / L null | CYL: R -1.5 / L null
+- Item ID: 33 | Lens: Clair Blupro FSV(-) | Qty: 4 | Tray: TRAY 1 | Location: GODOWN 1 | SPH: R -5 / L null | CYL: R 0 / L null
+- Item ID: 34 | Lens: Clair Blupro FSV(-) | Qty: 10 | Tray: TRAY 14 | Location: GODOWN 1 | SPH: R -1 / L null | CYL: R -0.5 / L null
+- Item ID: 35 | Lens: Clair Blupro FSV(-) | Qty: 8 | Tray: TRAY 14 | Location: GODOWN 1 | SPH: R -1 / L null | CYL: R -0.25 / L null
+- Item ID: 36 | Lens: Clair Blupro FSV(-) | Qty: 10 | Tray: TRAY 14 | Location: GODOWN 1 | SPH: R -0.75 / L null | CYL: R -0.75 / L null
+
+Total Active/Pending SaleOrders (excluding finished/cancelled/dispatched): 10
+- SO ID: 7 | Order No: SO-2026-007 | Status: DRAFT | Customer: ABBAS OPTICALS | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.50, CYL:-0.50) | LeftEye: true (SPH:-0.75, CYL:-0.50)
+- SO ID: 16 | Order No: SO-2026-016 | Status: DRAFT | Customer: ABBAS OPTICALS | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.50, CYL:-1.00) | LeftEye: true (SPH:-0.75, CYL:-0.50)
+- SO ID: 17 | Order No: SO-2026-017 | Status: DRAFT | Customer: ABBAS OPTICALS | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.50, CYL:-0.50) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+- SO ID: 22 | Order No: SO-2026-022 | Status: DRAFT | Customer: American Eye Care Centre | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.75, CYL:-0.75) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+- SO ID: 25 | Order No: SO-2026-025 | Status: DRAFT | Customer: American Eye Care Centre | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.75, CYL:-0.75) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+- SO ID: 26 | Order No: SO-2026-026 | Status: DRAFT | Customer: American Eye Care Centre | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.75, CYL:-0.75) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+- SO ID: 27 | Order No: SO-2026-027 | Status: DRAFT | Customer: American Eye Care Centre | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.75, CYL:-0.75) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+- SO ID: 29 | Order No: SO-2026-029 | Status: DRAFT | Customer: American Eye Care Centre | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-1.00, CYL:-0.25) | LeftEye: true (SPH:-1.00, CYL:-0.25)
+- SO ID: 30 | Order No: SO-2026-030 | Status: DRAFT | Customer: American Eye Care Centre | Lens: Clair Blupro FSV(-) | RightEye: true (SPH:-0.75, CYL:-0.75) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+- SO ID: 24 | Order No: SO-2026-024 | Status: PO_RECEIVED | Customer: ABBAS OPTICALS | Lens: Pristine Digital 1.61 Mr-8 Prog | RightEye: true (SPH:-0.75, CYL:-0.75) | LeftEye: true (SPH:-0.75, CYL:-0.75)
+
+Total Pending Receipts in Inward Queue: 1
+- Receipt: REC-0023 | PO: PO-2026-022 | Total Received Qty: 2 | Inwarded Qty: 0
+
+Trays:
+- Tray: TRAY 1 (ID: 1) | Capacity: 50 | Location: GODOWN 1
+- Tray: TRAY 14 (ID: 2) | Capacity: 50 | Location: GODOWN 1
+Prisma Client disconnected

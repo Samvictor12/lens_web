@@ -149,7 +149,7 @@ export class ExpenseService {
     return exp;
   }
 
-  async create({ categoryId, amount, paymentMethod, bankLedgerId, expenseDate, description, referenceNo, paidTo, notes }, userId) {
+  async create({ categoryId, amount, paymentMethod, bankLedgerId, expenseDate, dueDate, description, referenceNo, paidTo, notes }, userId) {
     if (!categoryId || !amount || !paymentMethod || !bankLedgerId || !description)
       throw new APIError('categoryId, amount, paymentMethod, bankLedgerId, description are required', 400, 'VALIDATION_ERROR');
 
@@ -171,6 +171,7 @@ export class ExpenseService {
           paymentMethod,
           bankLedgerId: parseInt(bankLedgerId),
           expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
+          dueDate: dueDate ? new Date(dueDate) : null,
           description,
           referenceNo: referenceNo || null,
           paidTo: paidTo || null,
@@ -237,6 +238,7 @@ export class ExpenseService {
           ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
           ...(body.bankLedgerId !== undefined && { bankLedgerId: newBankLedgerId }),
           ...(body.expenseDate && { expenseDate: new Date(body.expenseDate) }),
+          ...(body.dueDate !== undefined && { dueDate: body.dueDate ? new Date(body.dueDate) : null }),
           ...(body.description && { description: body.description }),
           ...(body.referenceNo !== undefined && { referenceNo: body.referenceNo }),
           ...(body.paidTo !== undefined && { paidTo: body.paidTo }),

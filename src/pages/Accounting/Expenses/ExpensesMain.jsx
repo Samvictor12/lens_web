@@ -92,12 +92,15 @@ export default function ExpensesMain() {
 
   const fetchDialogData = useCallback(async () => {
     try {
-      const [catRes, ledgerRes] = await Promise.all([
+      const [catRes, ledgers] = await Promise.all([
         getExpenseCategories(),
         getCashBankLedgers(),
       ]);
-      if (catRes.success) setCategories(catRes.data || []);
-      if (ledgerRes.success) setBankLedgers(ledgerRes.data || []);
+      // getExpenseCategories returns { success, data }; getCashBankLedgers already unwraps to an array
+      if (catRes?.success) setCategories(catRes.data || []);
+      else if (Array.isArray(catRes)) setCategories(catRes);
+      else if (Array.isArray(catRes?.data)) setCategories(catRes.data);
+      setBankLedgers(Array.isArray(ledgers) ? ledgers : []);
     } catch {
       // Non-critical
     }

@@ -236,11 +236,15 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
     },
     {
       label: "Reserved",
-      value: stats.reservedItems ?? 0,
+      // Primary = waiting-queue soft claims; hard reservedStock as secondary
+      value: stats.softReservedQty ?? 0,
       icon: Layers,
       colorClass: "text-yellow-600",
       iconColorClass: "text-yellow-500",
-      subtitle: "Linked to pending Sale Orders",
+      subtitle:
+        (stats.reservedItems ?? 0) > 0
+          ? `Hard reserved (Issue): ${stats.reservedItems}`
+          : "Queue soft claims (FIFO)",
     },
     {
       label: "Low Stock",

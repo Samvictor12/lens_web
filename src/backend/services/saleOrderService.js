@@ -8,8 +8,16 @@ import {
   logBusinessError 
 } from '../utils/errorLogger.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
-import { isSoLocked, SALE_ORDER_STATUSES } from '../constants/saleOrderStatus.js';
+import { isSoLocked, SALE_ORDER_STATUSES, INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
+import { InventoryService } from './inventory.service.js';
+import {
+  createClaimPool,
+  softAllocateOrder,
+  filterMatchesByPool,
+} from './softAllocationHelper.js';
+const inventoryService = new InventoryService();
 
+/** Generic string/number normalize (no null→0). Kept for non-optical specs (Axis/Dia). */
 const normalizeSpecValue = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -23,11 +31,21 @@ const normalizeSpecValue = (value) => {
   return text.toUpperCase();
 };
 
-const specVariants = (value) => {
+/** SPH/CYL/ADD FIFO match only: null / undefined / empty ≡ "0". */
+const normalizeOpticalSpecValue = (value) => {
   const normalized = normalizeSpecValue(value);
-  if (normalized === null) return [];
+  return normalized === null ? '0' : normalized;
+};
 
-  const variants = new Set([String(value).trim(), normalized]);
+const opticalSpecVariants = (value) => {
+  const normalized = normalizeOpticalSpecValue(value);
+  const variants = new Set([normalized]);
+
+  if (value !== null && value !== undefined) {
+    const text = String(value).trim();
+    if (text) variants.add(text);
+  }
+
   const numeric = Number(normalized);
   if (!Number.isNaN(numeric)) {
     variants.add(numeric.toFixed(1));
@@ -42,8 +60,24 @@ const specVariants = (value) => {
 };
 
 const addSpecMatch = (where, field, value) => {
-  const variants = specVariants(value);
+  const variants = opticalSpecVariants(value);
   if (variants.length === 0) return;
+
+  const numeric = Number(normalizeOpticalSpecValue(value));
+  const isZero = !Number.isNaN(numeric) && numeric === 0;
+
+  // Effective 0 must also match SQL NULL on the inventory/PO column
+  if (isZero) {
+    if (!where.AND) where.AND = [];
+    where.AND.push({
+      OR: [
+        { [field]: { in: variants } },
+        { [field]: null },
+      ],
+    });
+    return;
+  }
+
   if (variants.length === 1) {
     where[field] = variants[0];
     return;
@@ -1052,16 +1086,137 @@ export class SaleOrderService {
         COMPLETED: 'BILLING',
       };
 
-      const existing = await prisma.saleOrder.findUnique({ where: { id, deleteStatus: false } });
+      const existing = await prisma.saleOrder.findUnique({
+        where: { id, deleteStatus: false },
+        include: {
+          purchaseOrders: { where: { deleteStatus: false, status: { not: 'CANCELLED' } } }
+        }
+      });
       if (!existing) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
 
-      const updated = await saleOrderStatusService.transition({
-        saleOrderId: id,
-        toStatus: status,
-        userId,
-        remark,
-        source: sourceByStatus[status] || 'USER',
-      });
+      let updated;
+      if (status === 'IN_FITTING' && inventoryItemIds && inventoryItemIds.length > 0) {
+        updated = await prisma.$transaction(async (tx) => {
+          const requiredEyes = (existing.rightEye ? 1 : 0) + (existing.leftEye ? 1 : 0);
+          if (requiredEyes === 2 && inventoryItemIds.length < 2) {
+            throw new APIError('Both RE and LE inventory items required', 400, 'BOTH_EYES_REQUIRED');
+          }
+
+          for (const itemId of inventoryItemIds) {
+            try {
+              if (typeof itemId === 'string' && itemId.startsWith('rec_')) {
+                const receiptId = parseInt(itemId.replace('rec_', ''), 10);
+                
+                // 1. Fetch receipt
+                const receipt = await tx.purchaseOrderReceipt.findUnique({
+                  where: { id: receiptId },
+                  include: { purchaseOrder: true },
+                });
+                if (!receipt) throw new APIError('Purchase order receipt not found', 404, 'RECEIPT_NOT_FOUND');
+                if (receipt.inwardedQty >= receipt.totalReceivedQty) {
+                  throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
+                }
+
+                // 2. Find location/tray
+                const location = await tx.locationMaster.findFirst({ where: { deleteStatus: false } });
+                if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
+                const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
+                if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
+
+                // 3. Create inventory item
+                const itemData = {
+                  lens_id: existing.lens_id,
+                  category_id: existing.category_id,
+                  Type_id: existing.Type_id,
+                  coating_id: existing.coating_id,
+                  dia_id: existing.dia_id,
+                  fitting_id: existing.fitting_id,
+                  tinting_id: existing.tinting_id,
+                  location_id: location.id,
+                  tray_id: tray.id,
+                  quantity: 1,
+                  costPrice: receipt.unitPrice || 0,
+                  batchNo: receipt.receiptNumber,
+                  purchaseOrderId: receipt.purchaseOrderId,
+                  purchaseReceiptId: receipt.id,
+                  vendorId: receipt.purchaseOrder?.vendorId,
+                  rightEye: existing.rightEye,
+                  leftEye: existing.leftEye,
+                  rightSpherical: existing.rightSpherical,
+                  rightCylindrical: existing.rightCylindrical,
+                  rightAdd: existing.rightAdd,
+                  leftSpherical: existing.leftSpherical,
+                  leftCylindrical: existing.leftCylindrical,
+                  leftAdd: existing.leftAdd,
+                  status: 'AVAILABLE',
+                  createdBy: userId,
+                };
+                const item = await tx.inventoryItem.create({ data: itemData });
+
+                // 4. Record transaction & update stock
+                const transactionNo = await inventoryService.generateTransactionNumber(tx);
+                await tx.inventoryTransaction.create({
+                  data: {
+                    transactionNo,
+                    type: 'INWARD_PO',
+                    inventoryItemId: item.id,
+                    quantity: itemData.quantity,
+                    balanceAfter: itemData.quantity,
+                    unitPrice: itemData.costPrice,
+                    totalValue: itemData.quantity * itemData.costPrice,
+                    toLocationId: itemData.location_id,
+                    toTrayId: itemData.tray_id,
+                    purchaseOrderId: itemData.purchaseOrderId,
+                    vendorId: itemData.vendorId,
+                    batchNo: itemData.batchNo,
+                    reason: 'Auto-inward from Inward Queue for Fitting issue',
+                    createdBy: userId,
+                  },
+                });
+                await inventoryService.updateInventoryStock(item, itemData.quantity, 'ADD', tx);
+
+                // 5. Update receipt
+                await tx.purchaseOrderReceipt.update({
+                  where: { id: receipt.id },
+                  data: {
+                    inwardedQty: { increment: 1 },
+                    updatedBy: userId,
+                  },
+                });
+
+                // 6. Reserve item
+                await inventoryService.reserveInventoryForSale(item.id, 1, existing.id, userId, tx);
+              } else {
+                const inventoryItemId = typeof itemId === 'string' && itemId.startsWith('inv_')
+                  ? parseInt(itemId.replace('inv_', ''), 10)
+                  : parseInt(itemId, 10);
+                await inventoryService.reserveInventoryForSale(inventoryItemId, 1, existing.id, userId, tx);
+              }
+            } catch (err) {
+              const reason = err?.message || 'Failed to reserve inventory item';
+              throw new APIError(`Could not reserve inventory item ${itemId}: ${reason}`, 400, 'RESERVATION_FAILED');
+            }
+          }
+
+          // Transition status inside transaction
+          return await saleOrderStatusService.transition({
+            tx,
+            saleOrderId: id,
+            toStatus: status,
+            userId,
+            remark,
+            source: sourceByStatus[status] || 'USER',
+          });
+        });
+      } else {
+        updated = await saleOrderStatusService.transition({
+          saleOrderId: id,
+          toStatus: status,
+          userId,
+          remark,
+          source: sourceByStatus[status] || 'USER',
+        });
+      }
 
       await logUpdate({
         userId,
@@ -1099,7 +1254,14 @@ export class SaleOrderService {
    * @param {number} saleOrderId - Sale order ID
    * @returns {Promise<Object>} Object containing rightEyeMatches and leftEyeMatches arrays
    */
-  async getMatchingInventoryFIFO(saleOrderId) {
+  /**
+   * @param {number} saleOrderId
+   * @param {{ applySoftClaims?: boolean }} [options]
+   *   When applySoftClaims is true (default), units soft-claimed by earlier
+   *   waiting queue SOs are excluded so Issue cannot double-claim.
+   */
+  async getMatchingInventoryFIFO(saleOrderId, options = {}) {
+    const { applySoftClaims = true } = options;
     try {
       const saleOrder = await prisma.saleOrder.findUnique({
         where: { id: saleOrderId, deleteStatus: false },
@@ -1125,11 +1287,17 @@ export class SaleOrderService {
         const where = {
           status: 'AVAILABLE',
           deleteStatus: false,
-          quantity: { gt: 0 }
+          quantity: { gt: 0 },
+          OR: [
+            { purchaseOrderId: null },
+            { purchaseOrder: { saleOrderId: null } },
+            { purchaseOrder: { saleOrder: { procurementType: 'STOCK' } } },
+            { purchaseOrder: { saleOrderId: saleOrderId } }
+          ]
         };
 
         if (saleOrder.lens_id) where.lens_id = saleOrder.lens_id;
-        if (saleOrder.Type_id) where.Type_id = saleOrder.Type_id;
+        // Type_id is not used for SO↔stock FIFO matching (stock often has null Type_id).
         if (saleOrder.coating_id) where.coating_id = saleOrder.coating_id;
         if (saleOrder.category_id) where.category_id = saleOrder.category_id;
 
@@ -1138,9 +1306,25 @@ export class SaleOrderService {
           addSpecMatch(where, 'rightCylindrical', saleOrder.rightCylindrical);
           if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'rightAdd', saleOrder.rightAdd);
         } else {
-          addSpecMatch(where, 'leftSpherical', saleOrder.leftSpherical);
-          addSpecMatch(where, 'leftCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'leftAdd', saleOrder.leftAdd);
+          const leftSpecWhere = {};
+          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+
+          const rightSpecWhere = {
+            leftSpherical: null
+          };
+          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+
+          if (!where.AND) where.AND = [];
+          where.AND.push({
+            OR: [
+              leftSpecWhere,
+              rightSpecWhere
+            ]
+          });
         }
 
         return where;
@@ -1149,10 +1333,15 @@ export class SaleOrderService {
       const buildPoWhereClause = (eyeType) => {
         const poWhere = {
           deleteStatus: false,
+          OR: [
+            { saleOrderId: null },
+            { saleOrder: { procurementType: 'STOCK' } },
+            { saleOrderId: saleOrderId }
+          ]
         };
 
         if (saleOrder.lens_id) poWhere.lens_id = saleOrder.lens_id;
-        if (saleOrder.Type_id) poWhere.Type_id = saleOrder.Type_id;
+        // Type_id is not used for SO↔PO receipt FIFO matching (same as physical stock).
         if (saleOrder.coating_id) poWhere.coating_id = saleOrder.coating_id;
         if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
 
@@ -1161,9 +1350,25 @@ export class SaleOrderService {
           addSpecMatch(poWhere, 'rightCylindrical', saleOrder.rightCylindrical);
           if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'rightAdd', saleOrder.rightAdd);
         } else {
-          addSpecMatch(poWhere, 'leftSpherical', saleOrder.leftSpherical);
-          addSpecMatch(poWhere, 'leftCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'leftAdd', saleOrder.leftAdd);
+          const leftSpecWhere = {};
+          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+
+          const rightSpecWhere = {
+            leftSpherical: null
+          };
+          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+
+          if (!poWhere.AND) poWhere.AND = [];
+          poWhere.AND.push({
+            OR: [
+              leftSpecWhere,
+              rightSpecWhere
+            ]
+          });
         }
 
         return poWhere;
@@ -1175,13 +1380,19 @@ export class SaleOrderService {
           orderBy: { inwardDate: 'asc' }, // FIFO
           include: {
             location: { select: { id: true, name: true } },
-            tray: { select: { id: true, name: true, capacity: true } }
+            tray: { select: { id: true, name: true, capacity: true } },
+            purchaseOrder: { select: { id: true, poNumber: true, saleOrderId: true } }
           }
         });
-        const formattedPhysical = physical.map(item => ({
-          ...item,
-          id: `inv_${item.id}`
-        }));
+        const formattedPhysical = physical.map(item => {
+          const isRx = item.purchaseOrder?.saleOrderId !== null && item.purchaseOrder?.saleOrderId !== undefined;
+          return {
+            ...item,
+            id: `inv_${item.id}`,
+            sourceType: isRx ? 'RX' : 'STOCK',
+            poNumber: item.purchaseOrder?.poNumber || null
+          };
+        });
 
         const receipts = await prisma.purchaseOrderReceipt.findMany({
           where: {
@@ -1195,15 +1406,20 @@ export class SaleOrderService {
         });
         const formattedReceipts = receipts
           .filter(r => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
-          .map(r => ({
-            id: `rec_${r.id}`,
-            inwardDate: r.receivedDate || r.createdAt,
-            quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
-            costPrice: r.unitPrice || 0,
-            tray: { name: 'Inward Queue (Pending)', capacity: '-' },
-            location: { name: 'Inward Queue' },
-            isReceipt: true
-          }));
+          .map(r => {
+            const isRx = r.purchaseOrder?.saleOrderId !== null && r.purchaseOrder?.saleOrderId !== undefined;
+            return {
+              id: `rec_${r.id}`,
+              inwardDate: r.receivedDate || r.createdAt,
+              quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
+              costPrice: r.unitPrice || 0,
+              tray: { name: 'Inward Queue (Pending)', capacity: '-' },
+              location: { name: 'Inward Queue' },
+              isReceipt: true,
+              sourceType: isRx ? 'RX' : 'STOCK',
+              poNumber: r.purchaseOrder?.poNumber || null
+            };
+          });
 
         results.rightEyeMatches = [...formattedPhysical, ...formattedReceipts];
       }
@@ -1214,13 +1430,19 @@ export class SaleOrderService {
           orderBy: { inwardDate: 'asc' }, // FIFO
           include: {
             location: { select: { id: true, name: true } },
-            tray: { select: { id: true, name: true, capacity: true } }
+            tray: { select: { id: true, name: true, capacity: true } },
+            purchaseOrder: { select: { id: true, poNumber: true, saleOrderId: true } }
           }
         });
-        const formattedPhysical = physical.map(item => ({
-          ...item,
-          id: `inv_${item.id}`
-        }));
+        const formattedPhysical = physical.map(item => {
+          const isRx = item.purchaseOrder?.saleOrderId !== null && item.purchaseOrder?.saleOrderId !== undefined;
+          return {
+            ...item,
+            id: `inv_${item.id}`,
+            sourceType: isRx ? 'RX' : 'STOCK',
+            poNumber: item.purchaseOrder?.poNumber || null
+          };
+        });
 
         const receipts = await prisma.purchaseOrderReceipt.findMany({
           where: {
@@ -1234,23 +1456,70 @@ export class SaleOrderService {
         });
         const formattedReceipts = receipts
           .filter(r => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
-          .map(r => ({
-            id: `rec_${r.id}`,
-            inwardDate: r.receivedDate || r.createdAt,
-            quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
-            costPrice: r.unitPrice || 0,
-            tray: { name: 'Inward Queue (Pending)', capacity: '-' },
-            location: { name: 'Inward Queue' },
-            isReceipt: true
-          }));
+          .map(r => {
+            const isRx = r.purchaseOrder?.saleOrderId !== null && r.purchaseOrder?.saleOrderId !== undefined;
+            return {
+              id: `rec_${r.id}`,
+              inwardDate: r.receivedDate || r.createdAt,
+              quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
+              costPrice: r.unitPrice || 0,
+              tray: { name: 'Inward Queue (Pending)', capacity: '-' },
+              location: { name: 'Inward Queue' },
+              isReceipt: true,
+              sourceType: isRx ? 'RX' : 'STOCK',
+              poNumber: r.purchaseOrder?.poNumber || null
+            };
+          });
 
         results.leftEyeMatches = [...formattedPhysical, ...formattedReceipts];
       }
 
+      let rightEyeMatches = results.rightEyeMatches;
+      let leftEyeMatches = results.leftEyeMatches;
+
+      // Exclude units soft-claimed by earlier waiting SOs (display-only pool; no DB write).
+      if (applySoftClaims) {
+        const earlierWaiting = await prisma.saleOrder.findMany({
+          where: {
+            deleteStatus: false,
+            status: { in: INVENTORY_QUEUE_STATUSES },
+            id: { not: saleOrderId },
+            OR: [
+              { createdAt: { lt: saleOrder.createdAt } },
+              {
+                AND: [
+                  { createdAt: saleOrder.createdAt },
+                  { id: { lt: saleOrderId } },
+                ],
+              },
+            ],
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, rightEye: true, leftEye: true, createdAt: true },
+        });
+
+        if (earlierWaiting.length > 0) {
+          const pool = createClaimPool();
+          for (const earlier of earlierWaiting) {
+            const earlierMatches = await this.getMatchingInventoryFIFO(earlier.id, {
+              applySoftClaims: false,
+            });
+            softAllocateOrder(
+              earlier,
+              earlierMatches.rightEyeMatches || [],
+              earlierMatches.leftEyeMatches || [],
+              pool
+            );
+          }
+          rightEyeMatches = filterMatchesByPool(rightEyeMatches, pool);
+          leftEyeMatches = filterMatchesByPool(leftEyeMatches, pool);
+        }
+      }
+
       return {
         saleOrder,
-        rightEyeMatches: results.rightEyeMatches,
-        leftEyeMatches: results.leftEyeMatches
+        rightEyeMatches,
+        leftEyeMatches,
       };
     } catch (error) {
       console.error('Error in getMatchingInventoryFIFO:', error);

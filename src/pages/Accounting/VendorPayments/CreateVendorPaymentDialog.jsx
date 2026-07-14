@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
+import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
 import { createVendorPayment, getOutstandingPOs } from "@/services/vendorPayment";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, emptyPaymentForm } from "./VendorPayments.constants";
 
@@ -33,6 +35,7 @@ function round2(n) {
 
 const emptyPoLine = () => ({
   subtotalAmount: "",
+  gstPercent: "",
   taxAmount: "",
   allocatedAmount: "",
 });
@@ -48,8 +51,10 @@ export default function CreateVendorPaymentDialog({
   onCreated,
 }) {
   const { toast } = useToast();
+  const { company } = useCompany();
+  const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
   const fileInputRef = useRef(null);
-  const [form, setForm] = useState(emptyPaymentForm);
+  const [form, setForm] = useState({ ...emptyPaymentForm, gstPercent: "" });
   const [saving, setSaving] = useState(false);
   const [outstandingPOs, setOutstandingPOs] = useState([]);
   const [loadingPOs, setLoadingPOs] = useState(false);
@@ -58,14 +63,17 @@ export default function CreateVendorPaymentDialog({
 
   const lockedVendor = !!preselectedVendorId;
 
+  // Primary PO selection is OutstandingPOsQueue List UI — dialog only uses preselected POs
   const selectedPOs = useMemo(() => {
     if (preselectedPOs.length && preselectedPoIds.length) {
-      return preselectedPOs.filter((po) => preselectedPoIds.includes(po.purchaseOrderId));
+      return preselectedPOs.filter((po) =>
+        preselectedPoIds.includes(po.purchaseOrderId ?? po.id)
+      );
     }
     if (preselectedPoIds.length) {
       return outstandingPOs.filter((po) => preselectedPoIds.includes(po.id));
     }
-    return outstandingPOs;
+    return [];
   }, [preselectedPOs, preselectedPoIds, outstandingPOs]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -74,6 +82,7 @@ export default function CreateVendorPaymentDialog({
     if (!open) return;
     setForm({
       ...emptyPaymentForm,
+      gstPercent: "",
       vendorId: preselectedVendorId ? String(preselectedVendorId) : "",
       paymentDate: new Date().toISOString().split("T")[0],
     });
@@ -127,16 +136,34 @@ export default function CreateVendorPaymentDialog({
   const updatePoLine = (poId, field, value) => {
     setPoLines((prev) => {
       const line = { ...(prev[poId] || emptyPoLine()), [field]: value };
-      if (field === "subtotalAmount" || field === "taxAmount") {
+      if (field === "subtotalAmount" || field === "gstPercent" || field === "taxAmount") {
         const sub = parseFloat(field === "subtotalAmount" ? value : line.subtotalAmount) || 0;
-        const tax = parseFloat(field === "taxAmount" ? value : line.taxAmount) || 0;
-        if (!line.allocatedAmount || field !== "allocatedAmount") {
+        const pct =
+          field === "gstPercent"
+            ? parseFloat(value)
+            : parseFloat(line.gstPercent);
+        if (field === "subtotalAmount" || field === "gstPercent") {
+          const tax =
+            Number.isFinite(pct) && pct >= 0 ? round2((sub * pct) / 100) : parseFloat(line.taxAmount) || 0;
+          line.taxAmount = tax > 0 || (Number.isFinite(pct) && pct === 0) ? String(tax) : line.taxAmount;
+        }
+        const tax = parseFloat(line.taxAmount) || 0;
+        if (field !== "allocatedAmount") {
           line.allocatedAmount = sub + tax > 0 ? String(round2(sub + tax)) : "";
         }
       }
       return { ...prev, [poId]: line };
     });
   };
+
+  // Header GST % → recompute taxAmount from subtotal
+  useEffect(() => {
+    const sub = parseFloat(form.subtotalAmount) || 0;
+    const pct = parseFloat(form.gstPercent);
+    if (!Number.isFinite(pct) || form.gstPercent === "") return;
+    const tax = round2((sub * pct) / 100);
+    setForm((f) => (String(f.taxAmount) === String(tax) ? f : { ...f, taxAmount: String(tax) }));
+  }, [form.subtotalAmount, form.gstPercent]);
 
   const poTotals = useMemo(() => {
     let subtotal = 0;
@@ -372,7 +399,7 @@ export default function CreateVendorPaymentDialog({
                 Sync from PO lines
               </Button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Subtotal</Label>
                 <Input
@@ -385,14 +412,26 @@ export default function CreateVendorPaymentDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">GST</Label>
+                <FormSelect
+                  label="GST %"
+                  name="gstPercent"
+                  options={gstRateOptions}
+                  value={form.gstPercent}
+                  onChange={(value) => set("gstPercent", value != null ? String(value) : "")}
+                  placeholder="Select GST rate"
+                  isSearchable={false}
+                  isClearable
+                  singleLine
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">GST Amount</Label>
                 <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.taxAmount}
-                  onChange={(e) => set("taxAmount", e.target.value)}
-                  placeholder="Total GST"
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  className="bg-muted"
+                  value={form.taxAmount !== "" ? fmt(form.taxAmount) : "—"}
                 />
               </div>
               <div className="space-y-1">
@@ -464,10 +503,11 @@ export default function CreateVendorPaymentDialog({
                 </p>
               ) : (
                 <div className="border rounded-md divide-y text-xs overflow-x-auto">
-                  <div className="grid grid-cols-[1fr_repeat(4,7rem)] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[36rem]">
+                  <div className="grid grid-cols-[1fr_repeat(5,6.5rem)] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[42rem]">
                     <span>PO Number</span>
                     <span className="text-right">Subtotal</span>
-                    <span className="text-right">GST</span>
+                    <span className="text-right">GST %</span>
+                    <span className="text-right">GST Amt</span>
                     <span className="text-right">PO Total</span>
                     <span className="text-right">Pay Now</span>
                   </div>
@@ -480,7 +520,7 @@ export default function CreateVendorPaymentDialog({
                     return (
                       <div
                         key={id}
-                        className="grid grid-cols-[1fr_repeat(4,7rem)] gap-2 items-center px-3 py-2 min-w-[36rem]"
+                        className="grid grid-cols-[1fr_repeat(5,6.5rem)] gap-2 items-center px-3 py-2 min-w-[42rem]"
                       >
                         <div>
                           <p className="font-medium">{po.poNumber}</p>
@@ -499,15 +539,24 @@ export default function CreateVendorPaymentDialog({
                           onChange={(e) => updatePoLine(id, "subtotalAmount", e.target.value)}
                           placeholder="0.00"
                         />
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="h-7 text-xs text-right"
-                          value={line.taxAmount}
-                          onChange={(e) => updatePoLine(id, "taxAmount", e.target.value)}
-                          placeholder="0.00"
-                        />
+                        <Select
+                          value={line.gstPercent !== "" ? String(line.gstPercent) : undefined}
+                          onValueChange={(v) => updatePoLine(id, "gstPercent", v)}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="%" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {gstRateOptions.map((opt) => (
+                              <SelectItem key={opt.id} value={String(opt.value)}>
+                                {opt.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-right font-mono pr-1">
+                          {line.taxAmount !== "" ? fmt(line.taxAmount) : "—"}
+                        </span>
                         <span className="text-right font-mono pr-1">{fmt(lineTotal)}</span>
                         <Input
                           type="number"
@@ -521,9 +570,10 @@ export default function CreateVendorPaymentDialog({
                       </div>
                     );
                   })}
-                  <div className="grid grid-cols-[1fr_repeat(4,7rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
+                  <div className="grid grid-cols-[1fr_repeat(5,6.5rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[42rem]">
                     <span>PO Totals</span>
                     <span className="text-right font-mono">{fmt(poTotals.subtotal)}</span>
+                    <span />
                     <span className="text-right font-mono">{fmt(poTotals.tax)}</span>
                     <span className="text-right font-mono">{fmt(poTotals.invoiceTotal)}</span>
                     <span className="text-right font-mono">{fmt(poTotals.allocated)}</span>

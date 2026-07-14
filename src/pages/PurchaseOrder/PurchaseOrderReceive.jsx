@@ -423,7 +423,7 @@ export default function PurchaseOrderReceive() {
     ? receiptsData.receipts.find(r => r.id === parseInt(receiptId))
     : null;
 
-  const isStockPO = po.lensType?.name === "STOCK";
+  const isStockPO = !po.saleOrderId || po.saleOrder?.procurementType === "STOCK";
 
   return (
     <div className="flex flex-col h-full p-2 md:p-3 gap-3 w-full">

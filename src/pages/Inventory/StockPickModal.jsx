@@ -145,6 +145,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
               <tr>
                 <th className="p-3 w-12 text-center">Select</th>
                 <th className="p-3">Inward Date / Receipt Date</th>
+                <th className="p-3">Source</th>
                 <th className="p-3">Tray</th>
                 <th className="p-3">Location</th>
                 <th className="p-3 text-right">Available Qty</th>
@@ -184,6 +185,17 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
                     {item.inwardDate ? new Date(item.inwardDate).toLocaleDateString("en-IN", {
                       day: "2-digit", month: "short", year: "numeric",
                     }) : "—"}
+                  </td>
+                  <td className="p-3">
+                    {item.sourceType === 'RX' ? (
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border border-green-200 text-[10px] py-0 px-1.5 font-bold uppercase">
+                        RX {item.poNumber ? `(${item.poNumber})` : ''}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200 text-[10px] py-0 px-1.5 font-bold uppercase">
+                        Stock
+                      </Badge>
+                    )}
                   </td>
                   <td className="p-3 font-semibold text-slate-800">
                     {item.isReceipt ? (

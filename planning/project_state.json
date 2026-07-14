@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Industry Chart of Accounts, Account Groups & Payment Traceability Tree",
+  "feature": null,
   "active_feature_file": "planning/feature.md",
-  "phase": "COMPLETED",
-  "HUMAN_APPROVED": true,
-  "state_tag": "COMPLETED",
+  "phase": "DONE",
+  "HUMAN_APPROVED": false,
+  "state_tag": "IDLE",
   "last_agent": "orchestrator",
-  "at": "2026-07-05T01:55:00+05:30"
+  "at": "2026-07-14T18:00:00+05:30"
 }

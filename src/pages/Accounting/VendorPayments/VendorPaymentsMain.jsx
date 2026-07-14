@@ -155,6 +155,16 @@ export default function VendorPaymentsMain() {
     setCreateOpen(true);
   };
 
+  /** New Payment uses the same OutstandingPOsQueue List UI for PO selection. */
+  const handleNewPayment = () => {
+    setSelectedPoIds([]);
+    setActiveTab("outstanding");
+    toast({
+      title: "Select purchase orders",
+      description: "Choose POs from the list, then click Record Payment.",
+    });
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -175,7 +185,7 @@ export default function VendorPaymentsMain() {
             <CreditCard className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Record Payment</span>
           </Button>
-          <Button size="xs" className="gap-1.5 h-8" onClick={() => setCreateOpen(true)}>
+          <Button size="xs" className="gap-1.5 h-8" onClick={handleNewPayment}>
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">New Payment</span>
           </Button>

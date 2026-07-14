@@ -1152,6 +1152,7 @@ class PurchaseOrderService {
               orderNo: true,
               customerId: true,
               customerRefNo: true,
+              procurementType: true,
               customer: {
                 select: {
                   id: true,

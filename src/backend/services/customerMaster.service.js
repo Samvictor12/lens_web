@@ -62,6 +62,7 @@ export class CustomerMasterService {
             businessCategory_id: customerData.businessCategory_id,
             gstin: customerData.gstin,
             credit_limit: customerData.credit_limit,
+            credit_days: customerData.credit_days ?? null,
             outstanding_credit: customerData.outstanding_credit,
             sale_person_id: customerData.sale_person_id,
             delivery_person_id: customerData.delivery_person_id,

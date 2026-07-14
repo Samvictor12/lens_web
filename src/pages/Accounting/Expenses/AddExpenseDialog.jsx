@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,21 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
+  const activeCategories = useMemo(
+    () =>
+      (categories || []).filter(
+        (c) => c.active_status !== false && c.delete_status !== true
+      ),
+    [categories]
+  );
+
+  const selectedCategory = useMemo(
+    () => activeCategories.find((c) => String(c.id) === String(form.categoryId)),
+    [activeCategories, form.categoryId]
+  );
+
+  const expenseTypeLabel = selectedCategory?.expenseType || "—";
+
   useEffect(() => {
     if (!open) return;
     if (editing) {
@@ -39,14 +54,22 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
         expenseDate: editing.expenseDate
           ? new Date(editing.expenseDate).toISOString().split("T")[0]
           : emptyExpenseForm.expenseDate,
+        dueDate: editing.dueDate
+          ? new Date(editing.dueDate).toISOString().split("T")[0]
+          : "",
         paidTo: editing.paidTo || "",
         bankLedgerId: String(editing.bankLedgerId ?? editing.bankLedger?.id ?? ""),
+        paymentMethod: editing.paymentMethod || "CASH",
         notes: editing.notes || "",
       });
     } else {
       setForm(emptyExpenseForm);
     }
   }, [open, editing]);
+
+  const handleCategoryChange = (v) => {
+    setForm((f) => ({ ...f, categoryId: v }));
+  };
 
   const handleSave = async () => {
     if (!form.categoryId || !form.amount) {
@@ -57,15 +80,22 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
       toast({ variant: "destructive", title: "Amount must be greater than zero" });
       return;
     }
+    if (!form.bankLedgerId) {
+      toast({ variant: "destructive", title: "Payment Account is required" });
+      return;
+    }
     setSaving(true);
     try {
+      const catName = selectedCategory?.name || "Expense";
       const payload = {
         categoryId: parseInt(form.categoryId),
-        description: form.description || undefined,
+        description: form.description?.trim() || catName,
         amount: parseFloat(form.amount),
         expenseDate: form.expenseDate,
+        dueDate: form.dueDate || undefined,
         paidTo: form.paidTo || undefined,
-        bankLedgerId: form.bankLedgerId ? parseInt(form.bankLedgerId) : undefined,
+        bankLedgerId: parseInt(form.bankLedgerId),
+        paymentMethod: form.paymentMethod || "CASH",
         notes: form.notes || undefined,
       };
       if (isEdit) {
@@ -100,25 +130,52 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Category <span className="text-red-500">*</span></Label>
-              <Select value={form.categoryId} onValueChange={(v) => set("categoryId", v)}>
+              <Select value={form.categoryId} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
+                  {activeCategories.length === 0 ? (
+                    <SelectItem value="__none" disabled>
+                      No expense categories
                     </SelectItem>
-                  ))}
+                  ) : (
+                    activeCategories.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label>Type</Label>
+              <Input
+                value={expenseTypeLabel}
+                readOnly
+                tabIndex={-1}
+                className="bg-muted text-sm"
+                placeholder="Auto from category"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Date <span className="text-red-500">*</span></Label>
               <Input
                 type="date"
                 value={form.expenseDate}
                 onChange={(e) => set("expenseDate", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                value={form.dueDate}
+                onChange={(e) => set("dueDate", e.target.value)}
               />
             </div>
           </div>
@@ -155,17 +212,29 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
           </div>
 
           <div className="space-y-1">
-            <Label>Payment Account</Label>
+            <Label>Payment Account <span className="text-red-500">*</span></Label>
             <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
               <SelectTrigger className="text-sm">
-                <SelectValue placeholder="Cash / Bank account" />
+                <SelectValue
+                  placeholder={
+                    bankLedgers?.length
+                      ? "Cash / Bank account"
+                      : "No cash/bank ledgers found"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {bankLedgers.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>
-                    {l.ledgerName}
+                {(bankLedgers || []).length === 0 ? (
+                  <SelectItem value="__none" disabled>
+                    No cash/bank ledgers available
                   </SelectItem>
-                ))}
+                ) : (
+                  bankLedgers.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.ledgerName}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>

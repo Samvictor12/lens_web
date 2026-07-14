@@ -21,6 +21,12 @@ const mapToBackend = (frontendData) => {
     credit_limit: frontendData.creditLimit
       ? parseInt(frontendData.creditLimit)
       : null,
+    credit_days:
+      frontendData.creditDays !== undefined &&
+      frontendData.creditDays !== null &&
+      frontendData.creditDays !== ""
+        ? parseInt(frontendData.creditDays)
+        : null,
     sale_person_id: frontendData.salePersonId || null,
     delivery_person_id: frontendData.deliveryPersonId || null,
     notes: frontendData.remarks || null,
@@ -50,6 +56,7 @@ const mapFromBackend = (backendData) => {
     categoryId: backendData.businessCategory_id || null,
     gstNumber: backendData.gstin || "",
     creditLimit: backendData.credit_limit || 0,
+    creditDays: backendData.credit_days ?? 0,
     outstandingBalance: backendData.outstanding_credit || 0,
     salePersonId: backendData.sale_person_id || null,
     deliveryPersonId: backendData.delivery_person_id || null,

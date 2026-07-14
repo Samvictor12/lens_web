@@ -4,7 +4,7 @@ This document details the Customer Master and Customer Portal configurations, in
 
 ## Functional Overview
 * **Customer Profile:** Holds general billing, shipping, GSTIN, and contact details.
-* **Credit Tracking:** Houses `credit_limit`, `outstanding_credit`, and `reserved_amount`.
+* **Credit Tracking:** Houses `credit_limit`, `credit_days`, `outstanding_credit`, `reserved_amount`, and `advance_credit`.
 * **Opening Balance Management:** Allows administrators to initialize or adjust a customer's opening balance.
 
 ## Opening Balance Workflow
@@ -19,8 +19,10 @@ To set or update a customer's opening balance:
 ## Database Fields
 * **Customer table:**
   * `credit_limit` (Float): Hard limit for customer exposure.
+  * `credit_days` (Int?, 2026-07-14): Payment terms in days; used to default `Invoice.dueDate` = invoice date + credit days.
   * `outstanding_credit` (Float): Amount currently invoiced but unpaid.
   * `reserved_amount` (Float): Amount reserved for uninvoiced/active Sale Orders.
+  * `advance_credit` (Float): Prepaid / overpayment balance from customer payment vouchers.
   * `ledgerId` (Int): Reference to the customer's AR subsidiary ledger.
 
 ## Linkages & Dependencies

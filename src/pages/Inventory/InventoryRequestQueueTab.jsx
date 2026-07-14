@@ -38,6 +38,8 @@ function buildOrderSummary(order) {
     procurementType: order.procurementType || 'RX',
     rightEye: order.rightEye,
     leftEye: order.leftEye,
+    shortageRight: order.shortageRight,
+    shortageLeft: order.shortageLeft,
     rightSpherical: order.rightSpherical,
     rightCylindrical: order.rightCylindrical,
     rightAxis: order.rightAxis,
@@ -88,7 +90,9 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
   const badge = queueBadge(order.status);
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
   const canRaisePo =
-    ['DRAFT', 'PO_CANCELLED'].includes(order.status) && !hasActiveLinkedPo(order);
+    ['DRAFT', 'PO_CANCELLED'].includes(order.status) &&
+    !hasActiveLinkedPo(order) &&
+    !order.isStockAvailable;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200 flex flex-col">
@@ -116,6 +120,18 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">Procurement:</span>
               <ProcurementBadge type={order.procurementType} />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+              <span className="font-semibold text-foreground">Stock Status:</span>
+              {order.isStockAvailable ? (
+                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                  In Stock
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                  Out of Stock
+                </Badge>
+              )}
             </div>
             <DetailRow label="Product" value={order.lensProduct?.lens_name} />
             <DetailRow label="Category" value={order.category?.name || order.lensCategory?.name} />
@@ -158,6 +174,7 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
 export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   const { toast } = useToast();
   const [orders, setOrders] = useState([]);
+  const [softReservedQty, setSoftReservedQty] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
@@ -191,7 +208,10 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
         orderNo: filters.orderNo?.trim() || undefined,
       };
       const res = await getInventorySoQueue(params);
-      if (res.success) setOrders(res.data || []);
+      if (res.success) {
+        setOrders(res.data || []);
+        setSoftReservedQty(Number(res.softReservedQty) || 0);
+      }
     } catch (e) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
@@ -259,11 +279,16 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
     setRaisePoOrder(null);
   };
 
-  const handleRaisePoConfirm = async (vendorId) => {
+  const handleRaisePoConfirm = async (vendorId, eyes = {}) => {
     if (!raisePoOrder) return;
     setIsRaisingPo(true);
     try {
-      const res = await raisePoFromSo(raisePoOrder.id, { vendorId, source: 'INVENTORY' });
+      const res = await raisePoFromSo(raisePoOrder.id, {
+        vendorId,
+        source: 'INVENTORY',
+        rightEye: eyes.rightEye,
+        leftEye: eyes.leftEye,
+      });
       if (res.success) {
         toast({
           title: 'Success',
@@ -371,6 +396,13 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
           )}
         </div>
       </Card>
+
+      {softReservedQty > 0 && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-800 px-3 py-2 text-xs text-sky-900 dark:text-sky-100 flex-shrink-0">
+          Soft-reserved to queue: <span className="font-semibold">{softReservedQty}</span> unit
+          {softReservedQty === 1 ? '' : 's'} (FIFO display allocation — hard reserve on Issue &amp; Pre-QC)
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {loading ? (
