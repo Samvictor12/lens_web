@@ -631,12 +631,6 @@ export default function POInwardToInventory() {
                   <span className="text-muted-foreground">Units to push</span>
                   <span className="font-semibold">{totalThisBatch}</span>
                 </div>
-                {receipt.unitPrice > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Cost price / unit</span>
-                    <span>₹{receipt.unitPrice}</span>
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}

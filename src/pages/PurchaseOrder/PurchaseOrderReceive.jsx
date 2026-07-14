@@ -299,8 +299,8 @@ export default function PurchaseOrderReceive() {
       toast({ title: "Validation", description: "Actual Delivery Date is required.", variant: "destructive" });
       return false;
     }
-    if (unitPrice > 0 && (taxPercentage === "" || taxPercentage == null)) {
-      toast({ title: "Validation", description: "GST is required when unit price is greater than 0.", variant: "destructive" });
+    if ((parseFloat(totalPrice) || 0) > 0 && (taxPercentage === "" || taxPercentage == null)) {
+      toast({ title: "Validation", description: "GST is required when total price is greater than 0.", variant: "destructive" });
       return false;
     }
     for (const row of rows) {
@@ -614,17 +614,6 @@ export default function PurchaseOrderReceive() {
                 clearZeroOnFocus
               />
 
-              <FormInput
-                label="Unit Price (auto)"
-                name="unitPrice"
-                type="number"
-                value={totalThisQty > 0 ? unitPrice.toFixed(2) : "0.00"}
-                disabled
-                prefix="₹"
-                singleLine
-                helperText={totalThisQty > 0 ? `Total ÷ ${totalThisQty} qty` : "Enter qty to calculate"}
-              />
-
               <FormSelect
                 label="GST / Tax"
                 name="taxPercentage"
@@ -633,10 +622,10 @@ export default function PurchaseOrderReceive() {
                 onChange={(value) => setTaxPercentage(value != null ? String(value) : "")}
                 placeholder="Select GST rate"
                 isSearchable={false}
-                isClearable={unitPrice <= 0}
+                isClearable={(parseFloat(totalPrice) || 0) <= 0}
                 disabled={isLocked}
                 singleLine
-                required={unitPrice > 0}
+                required={(parseFloat(totalPrice) || 0) > 0}
               />
 
               {/* Computed summary — always visible */}

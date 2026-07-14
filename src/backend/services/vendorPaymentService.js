@@ -167,7 +167,18 @@ export class VendorPaymentService {
       where: { deleteStatus: false, status: { in: ELIGIBLE_PO_STATUSES }, vendorId: { not: null } },
       select: {
         ...PO_PAYABLE_SELECT,
-        vendor: { select: { id: true, code: true, name: true } },
+        vendor: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            shopname: true,
+            city: true,
+            phone: true,
+            address: true,
+            state: true,
+          },
+        },
       },
       orderBy: [{ expectedDeliveryDate: 'asc' }, { orderDate: 'asc' }, { poNumber: 'asc' }],
     });
@@ -181,10 +192,15 @@ export class VendorPaymentService {
       if (!vid) continue;
 
       if (!groupMap.has(vid)) {
+        const v = po.vendor || {};
         groupMap.set(vid, {
           vendorId: vid,
-          vendorName: po.vendor?.name || '',
-          vendorCode: po.vendor?.code || '',
+          vendorName: v.shopname || v.name || '',
+          vendorCode: v.code || '',
+          shopname: v.shopname || '',
+          city: v.city || '',
+          phone: v.phone || '',
+          address: [v.address, v.city, v.state].filter(Boolean).join(', '),
           purchaseOrders: [],
         });
       }

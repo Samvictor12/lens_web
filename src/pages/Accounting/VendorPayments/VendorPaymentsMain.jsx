@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { Refresh } from "@/components/ui/Refresh";
 import { getVendorPayments, getVendorPaymentById, getOutstandingPOs } from "@/services/vendorPayment";
@@ -16,6 +17,28 @@ import VendorPaymentDetailDialog from "./VendorPaymentDetailDialog";
 import OutstandingPOsQueue from "./OutstandingPOsQueue";
 import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpandRow";
 
+const OUTSTANDING_GROUP_OPTIONS = [
+  { id: null, name: "No Grouping" },
+  { id: "vendor", name: "Vendor" },
+];
+
+function matchesPOSearch(po, q, group) {
+  if (!q) return true;
+  const hay = [
+    po.poNumber,
+    group?.vendorName,
+    group?.vendorCode,
+    group?.shopname,
+    group?.city,
+    group?.phone,
+    po.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
+}
+
 export default function VendorPaymentsMain() {
   const { toast } = useToast();
 
@@ -24,6 +47,9 @@ export default function VendorPaymentsMain() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [outstandingSearch, setOutstandingSearch] = useState("");
+  const [outstandingVendorId, setOutstandingVendorId] = useState(null);
+  const [groupBy, setGroupBy] = useState("vendor");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
@@ -31,7 +57,6 @@ export default function VendorPaymentsMain() {
 
   const [outstandingGroups, setOutstandingGroups] = useState([]);
   const [flatPOs, setFlatPOs] = useState([]);
-  const [groupedView, setGroupedView] = useState(true);
   const [loadingOutstanding, setLoadingOutstanding] = useState(false);
   const [selectedPoIds, setSelectedPoIds] = useState([]);
 
@@ -48,6 +73,33 @@ export default function VendorPaymentsMain() {
     () => outstandingGroups.flatMap((g) => g.purchaseOrders),
     [outstandingGroups]
   );
+
+  const filteredGroups = useMemo(() => {
+    const q = outstandingSearch.trim().toLowerCase();
+    return outstandingGroups
+      .filter((g) => {
+        if (outstandingVendorId != null && String(g.vendorId) !== String(outstandingVendorId)) {
+          return false;
+        }
+        return true;
+      })
+      .map((g) => ({
+        ...g,
+        purchaseOrders: g.purchaseOrders.filter((po) => matchesPOSearch(po, q, g)),
+      }))
+      .filter((g) => g.purchaseOrders.length > 0);
+  }, [outstandingGroups, outstandingSearch, outstandingVendorId]);
+
+  const filteredFlatPOs = useMemo(() => {
+    const q = outstandingSearch.trim().toLowerCase();
+    return flatPOs.filter((po) => {
+      if (outstandingVendorId != null && String(po.vendorId) !== String(outstandingVendorId)) {
+        return false;
+      }
+      const group = outstandingGroups.find((g) => g.vendorId === po.vendorId);
+      return matchesPOSearch(po, q, group);
+    });
+  }, [flatPOs, outstandingSearch, outstandingVendorId, outstandingGroups]);
 
   const preselectedPOs = useMemo(
     () => allPOs.filter((po) => selectedPoIds.includes(po.purchaseOrderId)),
@@ -155,7 +207,6 @@ export default function VendorPaymentsMain() {
     setCreateOpen(true);
   };
 
-  /** New Payment uses the same OutstandingPOsQueue List UI for PO selection. */
   const handleNewPayment = () => {
     setSelectedPoIds([]);
     setActiveTab("outstanding");
@@ -192,28 +243,68 @@ export default function VendorPaymentsMain() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
           <TabsTrigger value="outstanding">Outstanding Payables</TabsTrigger>
           <TabsTrigger value="history">Payment History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="outstanding" className="mt-0 flex-1 min-h-0 overflow-y-auto space-y-2">
-          <Card className="p-2">
-            <div className="flex items-center justify-between mb-2">
+        <TabsContent value="outstanding" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden gap-2">
+          <Card className="p-1 sm:p-1 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search PO, vendor..."
+                  value={outstandingSearch}
+                  onChange={(e) => setOutstandingSearch(e.target.value)}
+                  className="pl-9 h-8 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Group by:
+                </span>
+                <div className="w-40">
+                  <FormSelect
+                    name="groupBy"
+                    options={OUTSTANDING_GROUP_OPTIONS}
+                    value={groupBy}
+                    onChange={(value) => setGroupBy(value ?? null)}
+                    placeholder="None"
+                    isSearchable={false}
+                    isClearable={false}
+                  />
+                </div>
+              </div>
+              <div className="w-full sm:w-48 shrink-0">
+                <FormSelect
+                  name="vendorFilter"
+                  options={vendors}
+                  value={outstandingVendorId}
+                  onChange={(value) => setOutstandingVendorId(value ?? null)}
+                  placeholder="All vendors"
+                  isSearchable={true}
+                  isClearable={true}
+                />
+              </div>
               <Refresh onClick={handleRefresh} />
             </div>
+          </Card>
+
+          <Card className="p-2 flex min-h-0 flex-1 flex-col overflow-hidden">
             {loadingOutstanding ? (
               <p className="text-xs text-muted-foreground py-4 text-center">Loading...</p>
             ) : (
-              <OutstandingPOsQueue
-                groups={outstandingGroups}
-                flatPOs={flatPOs}
-                grouped={groupedView}
-                selectedIds={selectedPoIds}
-                onSelectionChange={setSelectedPoIds}
-                onToggleView={() => setGroupedView((v) => !v)}
-              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <OutstandingPOsQueue
+                  groups={filteredGroups}
+                  flatPOs={filteredFlatPOs}
+                  grouped={groupBy === "vendor"}
+                  selectedIds={selectedPoIds}
+                  onSelectionChange={setSelectedPoIds}
+                />
+              </div>
             )}
           </Card>
         </TabsContent>

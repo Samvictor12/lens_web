@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { Refresh } from "@/components/ui/Refresh";
 import {
@@ -21,6 +22,30 @@ import CustomerPaymentDetailDialog from "./CustomerPaymentDetailDialog";
 import OutstandingInvoicesQueue from "./OutstandingInvoicesQueue";
 import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpandRow";
 
+const OUTSTANDING_GROUP_OPTIONS = [
+  { id: null, name: "No Grouping" },
+  { id: "customer", name: "Customer" },
+];
+
+function matchesInvoiceSearch(inv, q, group) {
+  if (!q) return true;
+  const hay = [
+    inv.invoiceNo,
+    group?.customerName,
+    group?.customerCode,
+    group?.shopname,
+    group?.city,
+    group?.phone,
+    inv.customer?.name,
+    inv.customer?.code,
+    inv.customer?.shopname,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(q);
+}
+
 export default function CustomerPaymentsMain() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,6 +55,9 @@ export default function CustomerPaymentsMain() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [outstandingSearch, setOutstandingSearch] = useState("");
+  const [outstandingCustomerId, setOutstandingCustomerId] = useState(null);
+  const [groupBy, setGroupBy] = useState("customer");
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
@@ -37,7 +65,6 @@ export default function CustomerPaymentsMain() {
 
   const [outstandingGroups, setOutstandingGroups] = useState([]);
   const [flatInvoices, setFlatInvoices] = useState([]);
-  const [groupedView, setGroupedView] = useState(true);
   const [loadingOutstanding, setLoadingOutstanding] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
 
@@ -59,6 +86,33 @@ export default function CustomerPaymentsMain() {
     () => outstandingGroups.flatMap((g) => g.invoices),
     [outstandingGroups]
   );
+
+  const filteredGroups = useMemo(() => {
+    const q = outstandingSearch.trim().toLowerCase();
+    return outstandingGroups
+      .filter((g) => {
+        if (outstandingCustomerId != null && String(g.customerId) !== String(outstandingCustomerId)) {
+          return false;
+        }
+        return true;
+      })
+      .map((g) => ({
+        ...g,
+        invoices: g.invoices.filter((inv) => matchesInvoiceSearch(inv, q, g)),
+      }))
+      .filter((g) => g.invoices.length > 0);
+  }, [outstandingGroups, outstandingSearch, outstandingCustomerId]);
+
+  const filteredFlatInvoices = useMemo(() => {
+    const q = outstandingSearch.trim().toLowerCase();
+    return flatInvoices.filter((inv) => {
+      if (outstandingCustomerId != null && String(inv.customerId) !== String(outstandingCustomerId)) {
+        return false;
+      }
+      const group = outstandingGroups.find((g) => g.customerId === inv.customerId);
+      return matchesInvoiceSearch(inv, q, group);
+    });
+  }, [flatInvoices, outstandingSearch, outstandingCustomerId, outstandingGroups]);
 
   const preselectedInvoices = useMemo(() => {
     const ids = urlInvoiceId
@@ -153,11 +207,14 @@ export default function CustomerPaymentsMain() {
     if (urlInvoiceId) {
       setSelectedInvoiceIds([parseInt(urlInvoiceId)]);
     }
+    if (urlCustomerId) {
+      setOutstandingCustomerId(urlCustomerId);
+    }
     if (urlOpenForm === "1") {
       setCreateOpen(true);
       setActiveTab("outstanding");
     }
-  }, [urlInvoiceId, urlOpenForm]);
+  }, [urlInvoiceId, urlOpenForm, urlCustomerId]);
 
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
@@ -172,7 +229,6 @@ export default function CustomerPaymentsMain() {
     setCreateOpen(true);
   };
 
-  /** New Payment uses the same OutstandingInvoicesQueue List UI for invoice selection. */
   const handleNewPayment = () => {
     setSelectedInvoiceIds([]);
     setActiveTab("outstanding");
@@ -215,28 +271,68 @@ export default function CustomerPaymentsMain() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
           <TabsTrigger value="outstanding">Outstanding Invoices</TabsTrigger>
           <TabsTrigger value="history">Payment History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="outstanding" className="mt-0 flex-1 min-h-0 overflow-y-auto space-y-2">
-          <Card className="p-2">
-            <div className="flex items-center justify-between mb-2">
+        <TabsContent value="outstanding" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden gap-2">
+          <Card className="p-1 sm:p-1 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search invoice, customer..."
+                  value={outstandingSearch}
+                  onChange={(e) => setOutstandingSearch(e.target.value)}
+                  className="pl-9 h-8 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Group by:
+                </span>
+                <div className="w-40">
+                  <FormSelect
+                    name="groupBy"
+                    options={OUTSTANDING_GROUP_OPTIONS}
+                    value={groupBy}
+                    onChange={(value) => setGroupBy(value ?? null)}
+                    placeholder="None"
+                    isSearchable={false}
+                    isClearable={false}
+                  />
+                </div>
+              </div>
+              <div className="w-full sm:w-48 shrink-0">
+                <FormSelect
+                  name="customerFilter"
+                  options={customers}
+                  value={outstandingCustomerId}
+                  onChange={(value) => setOutstandingCustomerId(value ?? null)}
+                  placeholder="All customers"
+                  isSearchable={true}
+                  isClearable={true}
+                />
+              </div>
               <Refresh onClick={handleRefresh} />
             </div>
+          </Card>
+
+          <Card className="p-2 flex min-h-0 flex-1 flex-col overflow-hidden">
             {loadingOutstanding ? (
               <p className="text-xs text-muted-foreground py-4 text-center">Loading...</p>
             ) : (
-              <OutstandingInvoicesQueue
-                groups={outstandingGroups}
-                flatInvoices={flatInvoices}
-                grouped={groupedView}
-                selectedIds={selectedInvoiceIds}
-                onSelectionChange={setSelectedInvoiceIds}
-                onToggleView={() => setGroupedView((v) => !v)}
-              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <OutstandingInvoicesQueue
+                  groups={filteredGroups}
+                  flatInvoices={filteredFlatInvoices}
+                  grouped={groupBy === "customer"}
+                  selectedIds={selectedInvoiceIds}
+                  onSelectionChange={setSelectedInvoiceIds}
+                />
+              </div>
             )}
           </Card>
         </TabsContent>
