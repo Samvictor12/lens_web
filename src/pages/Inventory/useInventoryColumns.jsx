@@ -8,7 +8,17 @@ function hasSpecValue(value) {
 }
 
 /** Compact power-range text after product name (SPH / CYL / ADD + related). */
-function formatItemPowerRange(item) {
+export function formatItemPowerRange(item) {
+  // Prefer flat sph/cyl/add when present (grouped list / pivot-style rows)
+  const flat = [
+    ["SPH", item?.sph ?? item?.spherical],
+    ["CYL", item?.cyl ?? item?.cylindrical],
+    ["ADD", item?.add],
+  ]
+    .filter(([, v]) => hasSpecValue(v))
+    .map(([lbl, v]) => `${lbl} ${v}`);
+  if (flat.length) return flat.join(" · ");
+
   const parts = [];
   const pushEye = (label, prefix) => {
     const fields = [
@@ -25,17 +35,6 @@ function formatItemPowerRange(item) {
   };
   pushEye("R", "right");
   pushEye("L", "left");
-  // Flat stock fields (some list APIs expose sph/cyl/add)
-  if (!parts.length) {
-    const flat = [
-      ["SPH", item?.sph ?? item?.spherical],
-      ["CYL", item?.cyl ?? item?.cylindrical],
-      ["ADD", item?.add],
-    ]
-      .filter(([, v]) => hasSpecValue(v))
-      .map(([lbl, v]) => `${lbl} ${v}`);
-    if (flat.length) return flat.join(" · ");
-  }
   return parts.join(" | ");
 }
 

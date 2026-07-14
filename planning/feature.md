@@ -30,6 +30,24 @@ _(Empty until QA phase.)_
 
 ## Delivery note
 
+### Closed: Stock Summary List SPH/CYL/ADD (2026-07-14)
+
+**Status:** DONE — QA PASS (TC1–TC6, L1–L5), docs synced. Pass N.
+
+**Shipped:**
+1. **List aggregation** — `getInventoryStockWithGrouping` splits rows by effective SPH/CYL/ADD (pivot coalesce `rightX || leftX || '0'`); returns flat `sph`/`cyl`/`add`.
+2. **UI** — Expandable List Lens Product cell shows compact `SPH · CYL · ADD` via exported `formatItemPowerRange`.
+3. **Filters** — List SPH/CYL/ADD query params wired controller → service (pivot OR semantics).
+4. **Ungrouped mode** — same flat power fields on raw items.
+
+**Out of scope (unchanged):** Pivot layout/export; `InventoryStock` schema; Items tab.
+
+**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `Modules/Inventory.md` (Pass N), `knowledge_base/lessons_learned.md` (KB-032). No ERD/schema changes.
+
+**Code touchpoints:** `inventory.service.js`, `inventoryController.js`, `InventoryStockTab.jsx`, `useInventoryColumns.jsx`.
+
+---
+
 ### Closed: Billing, Payments & Expense UX Corrections Bundle (2026-07-14)
 
 **Status:** DONE — QA PASS (TC1–TC11, L1–L5), docs synced.
@@ -74,33 +92,3 @@ _(Empty until QA phase.)_
 **Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `Modules/Inventory.md` (Pass M), `knowledge_base/lessons_learned.md` (KB-030). No schema/ERD changes.
 
 **Code touchpoints:** `softAllocationHelper.js`, `saleOrderWorkflowService.js`, `saleOrderService.js`, `saleOrderController.js`, `saleOrder.js`, `InventoryRequestQueueTab.jsx`, `RaisePoModal.jsx`, `SaleOrderForm.jsx`, `stockCheckAPI.test.js`, `issueStock.test.js`.
-
----
-
-### Closed: SO Request Queue false Out of Stock — SPH/CYL/ADD null≡0 match (2026-07-14)
-
-**Status:** DONE — QA PASS (TC1–TC5), docs synced. Pass L.
-
-**Shipped:**
-1. **FIFO optical-spec null≡0** — SPH/CYL/ADD treat `null` / empty as `"0"` via `normalizeOpticalSpecValue`.
-2. **SQL NULL on zero** — effective 0 matches string zero variants **or** column `NULL` in Prisma where.
-3. **Regression tests** — `stockCheckAPI.test.js` covers SO↔Inv null/0 symmetry, non-zero mismatch, progressive ADD, Pass K scope unchanged.
-
-**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `Modules/Inventory.md` (Pass L), `knowledge_base/lessons_learned.md` (KB-029). No schema/ERD changes.
-
-**Code touchpoints:** `saleOrderService.js`, `stockCheckAPI.test.js`.
-
----
-
-### Closed: Inventory Workflow Corrections & Gap Resolution (2026-07-14)
-
-**Status:** DONE — QA PASS (T1–T4), docs synced.
-
-**Shipped:**
-1. **Inward Queue filtering** — stock-type POs only (direct + STOCK SO); RX excluded; PO receive `isStockPO` aligned via `procurementType`.
-2. **Tray-to-tray TRANSFER** — same-location allowed when trays differ; full relocate + partial qty split; atomic stock bucket updates.
-3. **FIFO matching** — STOCK-linked PO items treat as general stock; RX reserved to originating SO.
-
-**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `Modules/Inventory.md` (Pass K), `knowledge_base/lessons_learned.md` (KB-028). No schema/ERD changes.
-
-**Code touchpoints:** `inventory.service.js`, `purchaseOrderService.js`, `saleOrderService.js`, `InventoryTransactionForm.jsx`, `PurchaseOrderReceive.jsx`.

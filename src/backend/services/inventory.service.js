@@ -1215,6 +1215,9 @@ export class InventoryService {
         category_id,
         groupBy = null, // 'location' or 'location_tray' or null
         search = "",
+        sph,
+        cyl,
+        add,
       } = queryParams;
 
       const skip = (page - 1) * limit;
@@ -1222,23 +1225,66 @@ export class InventoryService {
 
       const isGrouped = groupBy && groupBy !== "none";
 
+      // Shared filter builder: AND-combine RX exclusion, dims, search, and power
+      // filters (same OR semantics as getInventoryStockPivot for sph/cyl/add).
+      const buildItemWhere = ({ requireActiveLens = false } = {}) => {
+        const andClauses = [RX_SOURCE_EXCLUSION_FILTER];
+        if (requireActiveLens) {
+          andClauses.push({ lensProduct: { deleteStatus: false } });
+        }
+        if (lens_id) andClauses.push({ lens_id });
+        if (location_id) andClauses.push({ location_id });
+        if (tray_id) andClauses.push({ tray_id });
+        if (category_id) andClauses.push({ category_id });
+        if (sph) {
+          andClauses.push({
+            OR: [
+              { rightSpherical: String(sph) },
+              { leftSpherical: String(sph) },
+            ],
+          });
+        }
+        if (cyl) {
+          andClauses.push({
+            OR: [
+              { rightCylindrical: String(cyl) },
+              { leftCylindrical: String(cyl) },
+            ],
+          });
+        }
+        if (add) {
+          andClauses.push({
+            OR: [
+              { rightAdd: String(add) },
+              { leftAdd: String(add) },
+            ],
+          });
+        }
+        if (search) {
+          andClauses.push({
+            OR: [
+              { lensProduct: { lens_name: { contains: search, mode: "insensitive" } } },
+              { lensProduct: { product_code: { contains: search, mode: "insensitive" } } },
+              { category: { name: { contains: search, mode: "insensitive" } } },
+              { location: { name: { contains: search, mode: "insensitive" } } },
+            ],
+          });
+        }
+        return {
+          deleteStatus: false,
+          AND: andClauses,
+        };
+      };
+
+      const coalescePower = (item) => ({
+        sph: item.rightSpherical || item.leftSpherical || "0",
+        cyl: item.rightCylindrical || item.leftCylindrical || "0",
+        add: item.rightAdd || item.leftAdd || "0",
+      });
+
       if (!isGrouped) {
         // No grouping - return raw items directly, excluding RX-sourced stock
-        const where = { deleteStatus: false, ...RX_SOURCE_EXCLUSION_FILTER };
-
-        if (lens_id) where.lens_id = lens_id;
-        if (location_id) where.location_id = location_id;
-        if (tray_id) where.tray_id = tray_id;
-        if (category_id) where.category_id = category_id;
-
-        if (search) {
-          where.OR = [
-            { lensProduct: { lens_name: { contains: search, mode: "insensitive" } } },
-            { lensProduct: { product_code: { contains: search, mode: "insensitive" } } },
-            { category: { name: { contains: search, mode: "insensitive" } } },
-            { location: { name: { contains: search, mode: "insensitive" } } },
-          ];
-        }
+        const where = buildItemWhere();
 
         const count = await prisma.inventoryItem.count({ where });
         const items = await prisma.inventoryItem.findMany({
@@ -1255,8 +1301,14 @@ export class InventoryService {
           },
         });
 
+        // Expose flat sph/cyl/add (pivot coalesce) so list UI shows compact power text
+        const data = items.map((item) => {
+          const power = coalescePower(item);
+          return { ...item, ...power };
+        });
+
         return {
-          data: items,
+          data,
           grouping: "none",
           total: count,
         };
@@ -1267,59 +1319,90 @@ export class InventoryService {
       // bucket table. InventoryStock has no relation to PurchaseOrder/saleOrderId and
       // permanently mixes RX + non-RX quantities once accumulated, so it cannot be used
       // to answer "non-RX stock only" queries without touching its shared update lifecycle
-      // (relied on elsewhere for FIFO picking / low-stock alerts). Grouping matches
-      // InventoryStock's own natural key (@@unique on lens/category/Type/coating/location/tray)
-      // so each resulting row corresponds 1:1 with what used to be one InventoryStock bucket row.
-      const itemWhere = {
-        deleteStatus: false,
-        lensProduct: { deleteStatus: false },
-        ...RX_SOURCE_EXCLUSION_FILTER,
-      };
+      // (relied on elsewhere for FIFO picking / low-stock alerts).
+      // Grain includes effective optical power (rightX || leftX || '0') — same as pivot —
+      // because Prisma groupBy cannot express coalesce; aggregate in memory.
+      const itemWhere = buildItemWhere({ requireActiveLens: true });
 
-      if (lens_id) itemWhere.lens_id = lens_id;
-      if (location_id) itemWhere.location_id = location_id;
-      if (tray_id) itemWhere.tray_id = tray_id;
-      if (category_id) itemWhere.category_id = category_id;
-
-      if (search) {
-        itemWhere.OR = [
-          { lensProduct: { lens_name: { contains: search, mode: "insensitive" } } },
-          { lensProduct: { product_code: { contains: search, mode: "insensitive" } } },
-          { category: { name: { contains: search, mode: "insensitive" } } },
-          { location: { name: { contains: search, mode: "insensitive" } } },
-        ];
-      }
-
-      const groups = await prisma.inventoryItem.groupBy({
-        by: ["lens_id", "category_id", "Type_id", "coating_id", "location_id", "tray_id"],
+      const items = await prisma.inventoryItem.findMany({
         where: itemWhere,
-        _sum: { quantity: true },
-        _avg: { costPrice: true },
-        _max: { inwardDate: true },
+        select: {
+          quantity: true,
+          status: true,
+          costPrice: true,
+          inwardDate: true,
+          rightSpherical: true,
+          rightCylindrical: true,
+          rightAdd: true,
+          leftSpherical: true,
+          leftCylindrical: true,
+          leftAdd: true,
+          lens_id: true,
+          category_id: true,
+          Type_id: true,
+          coating_id: true,
+          location_id: true,
+          tray_id: true,
+        },
       });
 
-      // Split reserved/damaged quantities out per bucket (same 6-key grouping) so the
-      // group rows can expose availableStock/reservedStock/damagedStock like the old
-      // InventoryStock bucket rows did. availableStock is derived as (total - reserved),
-      // matching InventoryStock's own documented semantics (schema.prisma comment:
-      // "availableStock: Available for sale (total - reserved)"), not a raw
-      // status === 'AVAILABLE' sum.
-      const statusGroups = await prisma.inventoryItem.groupBy({
-        by: ["lens_id", "category_id", "Type_id", "coating_id", "location_id", "tray_id", "status"],
-        where: itemWhere,
-        _sum: { quantity: true },
-      });
+      // Bucket by product dims + effective SPH/CYL/ADD. availableStock = total - reserved
+      // (same semantics as InventoryStock schema comment).
+      const buckets = {};
+      for (const item of items) {
+        const power = coalescePower(item);
+        const key = [
+          item.lens_id,
+          item.category_id,
+          item.Type_id,
+          item.coating_id,
+          item.location_id,
+          item.tray_id,
+          power.sph,
+          power.cyl,
+          power.add,
+        ].join("|");
 
-      const bucketKey = (g) => [g.lens_id, g.category_id, g.Type_id, g.coating_id, g.location_id, g.tray_id].join("|");
+        if (!buckets[key]) {
+          buckets[key] = {
+            lens_id: item.lens_id,
+            category_id: item.category_id,
+            Type_id: item.Type_id,
+            coating_id: item.coating_id,
+            location_id: item.location_id,
+            tray_id: item.tray_id,
+            sph: power.sph,
+            cyl: power.cyl,
+            add: power.add,
+            totalStock: 0,
+            reservedStock: 0,
+            damagedStock: 0,
+            costSum: 0,
+            costCount: 0,
+            lastInwardDate: null,
+            lastCostPrice: null,
+          };
+        }
 
-      const statusSumsByBucket = {};
-      for (const sg of statusGroups) {
-        const key = bucketKey(sg);
-        if (!statusSumsByBucket[key]) statusSumsByBucket[key] = { reservedStock: 0, damagedStock: 0 };
-        const qty = sg._sum.quantity || 0;
-        if (sg.status === "RESERVED") statusSumsByBucket[key].reservedStock += qty;
-        if (sg.status === "DAMAGED") statusSumsByBucket[key].damagedStock += qty;
+        const bucket = buckets[key];
+        const qty = item.quantity || 0;
+        bucket.totalStock += qty;
+        if (item.status === "RESERVED") bucket.reservedStock += qty;
+        if (item.status === "DAMAGED") bucket.damagedStock += qty;
+        if (item.costPrice != null) {
+          bucket.costSum += Number(item.costPrice);
+          bucket.costCount += 1;
+        }
+        if (
+          item.inwardDate &&
+          (!bucket.lastInwardDate || item.inwardDate > bucket.lastInwardDate)
+        ) {
+          bucket.lastInwardDate = item.inwardDate;
+          bucket.lastCostPrice = item.costPrice;
+        }
       }
+
+      const groups = Object.values(buckets);
 
       const sortKeyFor = {
         location: (g) => [g.location_id ?? -1],
@@ -1335,7 +1418,16 @@ export class InventoryService {
         for (let i = 0; i < ka.length; i++) {
           if (ka[i] !== kb[i]) return ka[i] - kb[i];
         }
-        return 0;
+        // Stable secondary: power then product dims
+        const powerCmp =
+          parseFloat(a.sph) - parseFloat(b.sph) ||
+          parseFloat(a.cyl) - parseFloat(b.cyl) ||
+          parseFloat(a.add) - parseFloat(b.add);
+        if (powerCmp !== 0) return powerCmp;
+        return (
+          (a.lens_id ?? 0) - (b.lens_id ?? 0) ||
+          (a.tray_id ?? 0) - (b.tray_id ?? 0)
+        );
       });
 
       const total = sorted.length;
@@ -1366,33 +1458,11 @@ export class InventoryService {
       const locationMap = Object.fromEntries(locations.map((l) => [l.id, l]));
       const trayMap = Object.fromEntries(trays.map((t) => [t.id, t]));
 
-      // lastCostPrice needs the cost price of the specific row with the most recent
-      // inwardDate per bucket — not derivable from a plain _max/_avg aggregate — so
-      // resolve it with one targeted lookup per page row (bounded by page size).
-      const lastCostPrices = await Promise.all(
-        pageSlice.map((g) =>
-          prisma.inventoryItem.findFirst({
-            where: {
-              ...itemWhere,
-              lens_id: g.lens_id,
-              category_id: g.category_id,
-              Type_id: g.Type_id,
-              coating_id: g.coating_id,
-              location_id: g.location_id,
-              tray_id: g.tray_id,
-            },
-            orderBy: { inwardDate: "desc" },
-            select: { costPrice: true },
-          })
-        )
-      );
-
-      const data = pageSlice.map((g, idx) => {
-        const totalStock = g._sum.quantity || 0;
-        const avgCostPrice = g._avg.costPrice || 0;
-        const key = bucketKey(g);
-        const reservedStock = statusSumsByBucket[key]?.reservedStock || 0;
-        const damagedStock = statusSumsByBucket[key]?.damagedStock || 0;
+      const data = pageSlice.map((g) => {
+        const totalStock = g.totalStock || 0;
+        const avgCostPrice = g.costCount > 0 ? g.costSum / g.costCount : 0;
+        const reservedStock = g.reservedStock || 0;
+        const damagedStock = g.damagedStock || 0;
         const availableStock = Math.max(0, totalStock - reservedStock);
         return {
           lens_id: g.lens_id,
@@ -1401,14 +1471,17 @@ export class InventoryService {
           coating_id: g.coating_id,
           location_id: g.location_id,
           tray_id: g.tray_id,
+          sph: g.sph,
+          cyl: g.cyl,
+          add: g.add,
           totalStock,
           availableStock,
           reservedStock,
           damagedStock,
           avgCostPrice,
-          lastCostPrice: lastCostPrices[idx]?.costPrice ?? avgCostPrice,
+          lastCostPrice: g.lastCostPrice ?? avgCostPrice,
           totalValue: totalStock * avgCostPrice,
-          lastInwardDate: g._max.inwardDate,
+          lastInwardDate: g.lastInwardDate,
           lensProduct: g.lens_id ? lensMap[g.lens_id] || null : null,
           category: g.category_id ? categoryMap[g.category_id] || null : null,
           location: g.location_id ? locationMap[g.location_id] || null : null,

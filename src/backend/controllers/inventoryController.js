@@ -394,6 +394,9 @@ export class InventoryController {
           : null,
         groupBy: req.query.groupBy || null,
         search: req.query.search || "",
+        sph: req.query.sph || null,
+        cyl: req.query.cyl || null,
+        add: req.query.add || null,
       };
 
       const result = await this.inventoryService.getInventoryStockWithGrouping(

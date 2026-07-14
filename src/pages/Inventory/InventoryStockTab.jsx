@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { inventoryService } from "@/services/inventory";
 import { formatCurrency } from "./Inventory.constants";
+import { formatItemPowerRange } from "./useInventoryColumns";
 
 export default function InventoryStockTab({ refreshKey = 0 }) {
   const { toast } = useToast();
@@ -374,7 +375,21 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     {
       accessorKey: "lensProduct",
       header: "Lens Product",
-      cell: (item) => <span className="text-xs font-medium">{item.lensProduct?.lens_name || "-"}</span>,
+      cell: (item) => {
+        const powerRange = formatItemPowerRange(item);
+        return (
+          <div className="flex flex-col gap-0.5 leading-tight">
+            <span className="text-xs font-medium">
+              {item.lensProduct?.lens_name || "-"}
+            </span>
+            {powerRange ? (
+              <span className="text-[11px] text-muted-foreground font-mono">
+                {powerRange}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "category",
