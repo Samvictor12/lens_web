@@ -99,7 +99,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
         <div className="space-y-3 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Category *</Label>
+              <Label>Category <span className="text-red-500">*</span></Label>
               <Select value={form.categoryId} onValueChange={(v) => set("categoryId", v)}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Select category" />
@@ -114,7 +114,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Date *</Label>
+              <Label>Date <span className="text-red-500">*</span></Label>
               <Input
                 type="date"
                 value={form.expenseDate}
@@ -134,7 +134,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Amount (₹) *</Label>
+              <Label>Amount (₹) <span className="text-red-500">*</span></Label>
               <Input
                 type="number"
                 min="0"

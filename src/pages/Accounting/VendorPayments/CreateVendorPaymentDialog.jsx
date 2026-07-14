@@ -294,7 +294,7 @@ export default function CreateVendorPaymentDialog({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label>Vendor *</Label>
+            <Label>Vendor <span className="text-red-500">*</span></Label>
             <FormSelect
               options={vendorOptions}
               value={form.vendorId || null}
@@ -310,7 +310,7 @@ export default function CreateVendorPaymentDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Vendor Invoice No. *</Label>
+              <Label>Vendor Invoice No. <span className="text-red-500">*</span></Label>
               <Input
                 value={form.vendorInvoiceNo}
                 onChange={(e) => set("vendorInvoiceNo", e.target.value)}
@@ -318,7 +318,7 @@ export default function CreateVendorPaymentDialog({
               />
             </div>
             <div className="space-y-1">
-              <Label>Payment Date *</Label>
+              <Label>Payment Date <span className="text-red-500">*</span></Label>
               <Input
                 type="date"
                 value={form.paymentDate}
@@ -328,7 +328,7 @@ export default function CreateVendorPaymentDialog({
           </div>
 
           <div className="space-y-1">
-            <Label>Vendor Invoice Copy * (PDF or image)</Label>
+            <Label>Vendor Invoice Copy <span className="text-red-500">*</span> (PDF or image)</Label>
             <input
               ref={fileInputRef}
               type="file"
@@ -410,7 +410,7 @@ export default function CreateVendorPaymentDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Payment Method *</Label>
+              <Label>Payment Method <span className="text-red-500">*</span></Label>
               <Select value={form.paymentMethod} onValueChange={(v) => set("paymentMethod", v)}>
                 <SelectTrigger className="text-sm">
                   <SelectValue />
@@ -425,7 +425,7 @@ export default function CreateVendorPaymentDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Payment Account *</Label>
+              <Label>Payment Account <span className="text-red-500">*</span></Label>
               <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Cash / Bank account" />
@@ -452,7 +452,7 @@ export default function CreateVendorPaymentDialog({
 
           {(form.vendorId || preselectedVendorId) && (
             <div className="space-y-2">
-              <Label>PO Invoice Breakdown *</Label>
+              <Label>PO Invoice Breakdown <span className="text-red-500">*</span></Label>
               <p className="text-xs text-muted-foreground">
                 Enter subtotal and GST per PO from the vendor invoice. These values are saved to the PO and used for payment tracking.
               </p>

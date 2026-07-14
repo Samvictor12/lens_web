@@ -38,7 +38,7 @@ const FormCombobox = React.forwardRef(
         {/* Label */}
         {label && (
           <Label htmlFor={inputId} className="text-xs">
-            {label} {required && <span className="text-destructive">*</span>}
+            {label}{required && <span className="text-red-500"> *</span>}
           </Label>
         )}
 

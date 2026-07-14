@@ -40,6 +40,16 @@ export const getDispatchList = async (filters = {}) => {
     }
 };
 
+// ─── Update Dispatch Record ───────────────────────────────────────────────────
+
+export const updateDispatch = async (dispatchId, payload) => {
+    try {
+        return await apiClient("patch", `/v1/dispatch/${dispatchId}`, { data: payload });
+    } catch (error) {
+        throw new Error(error?.message || "Failed to update dispatch record");
+    }
+};
+
 // ─── Update Dispatch Status ───────────────────────────────────────────────────
 
 /**

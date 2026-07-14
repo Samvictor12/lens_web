@@ -71,7 +71,7 @@ export const orderStatusOptions = [
   { value: "PRE_QC", label: "Pre-QC" },
   { value: "PRE_QC_REJECTED", label: "Pre-QC Rejected" },
   { value: "PRE_QC_SCRAPPED", label: "Pre-QC Scrapped" },
-  { value: "FITTING_READY", label: "Fitting Ready" },
+  { value: "FITTING_READY", label: "Fitting In" },
   { value: "IN_FITTING", label: "In Fitting" },
   { value: "ON_HOLD", label: "On Hold" },
   { value: "AWAITING_QUALITY", label: "Post-QC" },

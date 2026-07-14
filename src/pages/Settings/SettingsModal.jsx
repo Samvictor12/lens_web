@@ -42,20 +42,34 @@ import PrintSettingsPreviewPanel, {
 // ─────────────────────────────────────────────
 // Tab config
 // ─────────────────────────────────────────────
-const TABS = [
-  { id: "profile",     label: "Profile",           icon: User },
-  { id: "credentials", label: "Login Credentials", icon: KeyRound },
-  { id: "company",     label: "Company Details",   icon: Building2 },
-  { id: "print",       label: "Print Service",     icon: Printer },
+const ALL_TABS = [
+  { id: "profile",     label: "Profile",           icon: User,              adminOnly: false },
+  { id: "credentials", label: "Login Credentials", icon: KeyRound,          adminOnly: false },
+  { id: "company",     label: "Company Details",   icon: Building2,         adminOnly: true },
+  { id: "print",       label: "Print Service",     icon: Printer,           adminOnly: true },
 ];
+
+function isAdminUser(user) {
+  const roleName = user?.roleName || user?.role?.name || "";
+  const roleId = user?.role_id ?? user?.roleId ?? user?.role?.id;
+  return roleName.toLowerCase() === "admin" || String(roleId) === "1";
+}
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
-function FieldRow({ label, children, hint }) {
+function FieldRow({ label, children, hint, required }) {
+  const isRequired = required || (typeof label === "string" && label.trim().endsWith("*"));
+  const displayLabel =
+    typeof label === "string" && label.trim().endsWith("*")
+      ? label.replace(/\s*\*$/, "")
+      : label;
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm font-medium">{label}</Label>
+      <Label className="text-sm font-medium">
+        {displayLabel}
+        {isRequired && <span className="text-red-500"> *</span>}
+      </Label>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
@@ -843,12 +857,17 @@ function PrintServiceTab() {
 // Main Settings Modal
 // ─────────────────────────────────────────────
 export function SettingsModal({ open, onOpenChange, defaultTab = "profile" }) {
+  const { user } = useAuth();
+  const isAdmin = isAdminUser(user);
+  const tabs = ALL_TABS.filter((t) => isAdmin || !t.adminOnly);
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // Sync defaultTab when modal opens
+  // Sync defaultTab when modal opens; fall back if non-admin landed on admin tab
   useEffect(() => {
-    if (open) setActiveTab(defaultTab);
-  }, [open, defaultTab]);
+    if (!open) return;
+    const allowed = tabs.some((t) => t.id === defaultTab);
+    setActiveTab(allowed ? defaultTab : "profile");
+  }, [open, defaultTab, isAdmin]);
 
   const handleClose = () => onOpenChange(false);
 
@@ -867,7 +886,7 @@ export function SettingsModal({ open, onOpenChange, defaultTab = "profile" }) {
               </p>
             </div>
             <nav className="px-2 space-y-0.5 flex-1">
-              {TABS.map((tab) => (
+              {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -889,14 +908,14 @@ export function SettingsModal({ open, onOpenChange, defaultTab = "profile" }) {
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <DialogHeader className="px-6 pt-5 pb-4 border-b flex-shrink-0">
               <DialogTitle className="text-base font-semibold">
-                {TABS.find((t) => t.id === activeTab)?.label}
+                {tabs.find((t) => t.id === activeTab)?.label}
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {activeTab === "profile"     && <ProfileTab     onClose={handleClose} />}
               {activeTab === "credentials" && <CredentialsTab onClose={handleClose} />}
-              {activeTab === "company"     && <CompanyTab />}
-              {activeTab === "print"       && <PrintServiceTab />}
+              {isAdmin && activeTab === "company" && <CompanyTab />}
+              {isAdmin && activeTab === "print"   && <PrintServiceTab />}
             </div>
           </div>
         </div>

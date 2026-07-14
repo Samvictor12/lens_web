@@ -16,6 +16,7 @@ export const ROLE_PERMISSION_KEYS = {
   INVENTORY: 'inventory',
   PURCHASE_ORDERS: 'purchase_orders',
   DISPATCH: 'dispatch',
+  DISPATCH_WINDOW: 'dispatch_window',
   FITTING: 'fitting',
   PRE_QC: 'pre_qc',
   POST_QC: 'post_qc',
@@ -60,6 +61,8 @@ const CRUD = {
 
 const SCREEN_ONLY = { Screen: false };
 
+const SCREEN_VIEW = { Screen: false, View: false };
+
 function perm(key, label, actions) {
   return { key, label, actions };
 }
@@ -70,6 +73,7 @@ export const PERMISSION_CATALOG = [
   perm('inventory', 'Inventory', { ...CRUD }),
   perm('purchase_orders', 'Purchase Orders', { ...CRUD }),
   perm('dispatch', 'Dispatch', { ...CRUD }),
+  perm('dispatch_window', 'Dispatch Window', { ...SCREEN_VIEW }),
   perm('fitting', 'Fitting', { ...SCREEN_ONLY }),
   perm('pre_qc', 'Pre-QC', { ...SCREEN_ONLY }),
   perm('post_qc', 'Post-QC', { ...SCREEN_ONLY }),

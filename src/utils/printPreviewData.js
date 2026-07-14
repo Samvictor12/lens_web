@@ -35,7 +35,10 @@ export function buildPrintPreviewData(order = DUMMY_PRINT_ORDER, company = null)
     lensProductName: order.lensProductName,
     productLine: `${order.lensIndex} ${order.lensProductName}`.trim(),
     contactLine: `${email} Tel: ${phone}`,
-    barcodeText: `*${order.orderNo}*`,
+    barcodeText:
+      order.customerRefNo && order.customerRefNo !== "-"
+        ? `${order.orderNo} | ${order.customerRefNo}`
+        : String(order.orderNo || ""),
     rightEye: order.rightEye,
     leftEye: order.leftEye,
     right: {

@@ -85,6 +85,12 @@ const navItems = [
     key: "dispatch",
   },
   {
+    title: "Dispatch Window",
+    url: "/dispatch/window",
+    icon: Package,
+    key: "dispatch_window",
+  },
+  {
     title: "Fitting",
     url: "/fitting/operator",
     icon: Wrench,

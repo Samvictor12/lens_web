@@ -143,12 +143,14 @@ export const validateCreateUserMaster = (data) => {
             password: data.password ? data.password.trim() : null, // Will be hashed in service
             phonenumber: data.phonenumber?.trim() || null,
             alternatenumber: data.alternatenumber?.trim() || null,
+            vehicleNumber: data.vehicleNumber?.trim() || null,
             bloodgroup: data.bloodgroup?.trim() || null,
             address: data.address?.trim() || null,
             city: data.city?.trim() || null,
             state: data.state?.trim() || null,
             pincode: data.pincode?.trim() || null,
             roleId: data.roleId ? parseInt(data.roleId) : null,
+            role_id: (data.roleId || data.role_id) ? parseInt(data.roleId || data.role_id) : null,
             department_id: data.department_id ? parseInt(data.department_id) : null,
             salary: data.salary ? parseFloat(data.salary) : null,
             active_status: data.active_status !== undefined ? data.active_status : true,
@@ -268,7 +270,7 @@ export const validateUpdateUserMaster = (data) => {
             } else if (typeof data[key] === 'string') {
                 cleanedData[key] = data[key].trim();
                 // Set null for empty strings on optional fields
-                if ((key === 'phonenumber' || key === 'alternatenumber' || key === 'bloodgroup' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode') && !cleanedData[key]) {
+                if ((key === 'phonenumber' || key === 'alternatenumber' || key === 'vehicleNumber' || key === 'bloodgroup' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode') && !cleanedData[key]) {
                     cleanedData[key] = null;
                 }
             } else if (key === 'active_status' || key === 'delete_status') {

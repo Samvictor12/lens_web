@@ -696,7 +696,7 @@ export default function CustomerForm() {
                 <Alert className="bg-primary/5 border-primary/20">
                   <AlertDescription className="text-xs">
                     Fields marked with{" "}
-                    <span className="text-destructive">*</span> are required.
+                    <span className="text-red-500">*</span> are required.
                     Outstanding balance will be calculated automatically based
                     on billing.
                   </AlertDescription>

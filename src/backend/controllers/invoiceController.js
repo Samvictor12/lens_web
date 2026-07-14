@@ -83,6 +83,16 @@ export class InvoiceController {
     }
   }
 
+  /** GET /api/invoices/awaiting-customers — customers with DELIVERED un-billed orders */
+  async getAwaitingInvoiceCustomers(req, res, next) {
+    try {
+      const customers = await service.getAwaitingInvoiceCustomers();
+      res.status(200).json({ success: true, data: customers });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /** GET /api/invoices/dispatched-orders — all DELIVERED un-billed orders for billing screen */
   async getAllDispatchedOrders(req, res, next) {
     try {

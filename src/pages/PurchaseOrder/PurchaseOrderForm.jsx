@@ -17,7 +17,9 @@ import {
   updatePurchaseOrder,
   generatePONumber,
   cancelPurchaseOrder,
+  getPOReceipts,
 } from "@/services/purchaseOrder";
+import { openAppWindow } from "@/utils/openAppWindow";
 import { getVendorDropdown, getVendorLocation } from "@/services/vendor";
 import {
   getLensProductsDropdown,
@@ -48,6 +50,8 @@ export default function PurchaseOrderForm() {
   const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState(defaultPurchaseOrder);
   const [originalData, setOriginalData] = useState(defaultPurchaseOrder);
+  const [linkedSaleOrder, setLinkedSaleOrder] = useState(null);
+  const [latestReceiptId, setLatestReceiptId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentOrderType, setCurrentOrderType] = useState(null); // Track actual order type from data
@@ -160,6 +164,10 @@ export default function PurchaseOrderForm() {
         itemDescription: so.orderNo || "",
         notes: so.remark || "",
       }));
+      setLinkedSaleOrder({
+        orderNo: so.orderNo,
+        customerRefNo: so.customerRefNo,
+      });
       setCurrentOrderType("Single");
       setShowTabs(false);
     }
@@ -243,9 +251,21 @@ export default function PurchaseOrderForm() {
               };
             }
 
+            const eyeQty =
+              po.orderType !== "Bulk" && po.saleOrderId
+                ? (po.rightEye ? 1 : 0) + (po.leftEye ? 1 : 0)
+                : 0;
+            const resolvedQty = eyeQty > 0 ? eyeQty : (po.quantity || 1);
+
+            let taxPercentage = 0;
+            let taxType = "Percent";
+            if (po.subtotal > 0 && po.taxAmount != null) {
+              taxPercentage = Math.round((parseFloat(po.taxAmount) / parseFloat(po.subtotal)) * 10000) / 100;
+            }
+
             const poData = {
-              taxType: "Amount",
-              taxPercentage: 0,
+              taxType,
+              taxPercentage,
               poNumber: po.poNumber || "",
               reference_id: po.reference_id || "",
               vendorId: po.vendorId || null,
@@ -275,8 +295,12 @@ export default function PurchaseOrderForm() {
               leftBase: po.leftBase || "",
               leftBaseSize: po.leftBaseSize || "",
               leftBled: po.leftBled || "",
-              quantity: po.quantity || 1,
+              quantity: resolvedQty,
               unitPrice: po.unitPrice || 0,
+              totalPrice:
+                po.unitPrice && resolvedQty
+                  ? (parseFloat(po.unitPrice) * resolvedQty).toFixed(2)
+                  : (po.subtotal || po.totalValue || 0),
               subtotal: po.subtotal || 0,
               discountPercentage: po.discountPercentage || 0,
               taxAmount: po.taxAmount || 0,
@@ -296,7 +320,45 @@ export default function PurchaseOrderForm() {
               orderType: po.orderType || "Single",
               lensBulkSelection: convertedBulkSelection,
               activeStatus: po.activeStatus !== undefined ? po.activeStatus : true,
+              receivedQty: po.receivedQty || 0,
             };
+
+            if (po.saleOrder) {
+              setLinkedSaleOrder(po.saleOrder);
+            }
+
+            // Enrich pricing/invoice from latest receipt when fully/partially received
+            try {
+              const rcpRes = await getPOReceipts(parseInt(id));
+              if (rcpRes.success && rcpRes.data.receipts?.length > 0) {
+                const sorted = [...rcpRes.data.receipts].sort(
+                  (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+                );
+                const latest = sorted[0];
+                setLatestReceiptId(latest.id);
+                if (latest.unitPrice != null) poData.unitPrice = latest.unitPrice;
+                if (latest.subtotal != null) {
+                  poData.subtotal = latest.subtotal;
+                  poData.totalPrice = latest.subtotal;
+                }
+                if (latest.taxAmount != null) poData.taxAmount = latest.taxAmount;
+                if (latest.totalValue != null) poData.totalValue = latest.totalValue;
+                if (latest.subtotal > 0 && latest.taxAmount != null) {
+                  poData.taxPercentage =
+                    Math.round((parseFloat(latest.taxAmount) / parseFloat(latest.subtotal)) * 10000) / 100;
+                  poData.taxType = "Percent";
+                }
+                if (latest.supplierInvoiceNo) poData.supplierInvoiceNo = latest.supplierInvoiceNo;
+                if (latest.purchaseType) poData.purchaseType = latest.purchaseType;
+                if (latest.placeOfSupply) poData.placeOfSupply = latest.placeOfSupply;
+                if (latest.itemDescription) poData.itemDescription = latest.itemDescription;
+                if (latest.actualDeliveryDate) {
+                  poData.actualDeliveryDate = latest.actualDeliveryDate.split("T")[0];
+                }
+              }
+            } catch {
+              // receipts optional for view
+            }
 
             // Set current order type from existing data
             setCurrentOrderType(po.orderType || "Single");
@@ -305,7 +367,10 @@ export default function PurchaseOrderForm() {
             setShowTabs(false);
 
             // If PO is received, partially received, or cancelled, do not allow editing
-            if (["RECEIVED", "PARTIALLY_RECEIVED", "CANCELLED"].includes(po.status) || (po.receivedQty || 0) > 0) {
+            if (
+              ["RECEIVED", "PARTIALLY_RECEIVED", "PO_PARTIAL_RECEIVED", "CANCELLED"].includes(po.status) ||
+              (po.receivedQty || 0) > 0
+            ) {
               setIsEditing(false);
             }
 
@@ -376,31 +441,30 @@ export default function PurchaseOrderForm() {
     }
   };
 
-  // Calculate pricing when relevant fields change
+  // Calculate pricing when relevant fields change (create/edit — not overwriting received view totals)
   useEffect(() => {
-    const calculatePricing = () => {
-      const quantity = parseFloat(formData.quantity) || 0;
-      const unitPrice = parseFloat(formData.unitPrice) || 0;
-      const subtotal = quantity * unitPrice;
+    if (["RECEIVED", "PO_PARTIAL_RECEIVED", "PARTIALLY_RECEIVED"].includes(formData.status)) {
+      return;
+    }
+    const quantity = parseFloat(formData.quantity) || 0;
+    const enteredTotal = parseFloat(formData.totalPrice) || 0;
+    const unitPrice = quantity > 0 ? enteredTotal / quantity : 0;
+    const subtotal = enteredTotal;
+    let taxValue = 0;
+    if (formData.taxType === "Percent") {
+      taxValue = (subtotal * (parseFloat(formData.taxPercentage) || 0)) / 100;
+    } else {
+      taxValue = parseFloat(formData.taxAmount) || 0;
+    }
+    const totalValue = subtotal + taxValue;
 
-      let taxValue = 0;
-      if (formData.taxType === "Percent") {
-        taxValue = (subtotal * (parseFloat(formData.taxPercentage) || 0)) / 100;
-      } else {
-        taxValue = parseFloat(formData.taxAmount) || 0;
-      }
-
-      const totalValue = subtotal + taxValue;
-
-      setFormData((prev) => ({
-        ...prev,
-        subtotal: subtotal.toFixed(2),
-        totalValue: totalValue.toFixed(2),
-      }));
-    };
-
-    calculatePricing();
-  }, [formData.quantity, formData.unitPrice, formData.taxAmount, formData.taxPercentage, formData.taxType]);
+    setFormData((prev) => ({
+      ...prev,
+      unitPrice: Number.isFinite(unitPrice) ? unitPrice.toFixed(2) : 0,
+      subtotal: subtotal.toFixed(2),
+      totalValue: totalValue.toFixed(2),
+    }));
+  }, [formData.quantity, formData.totalPrice, formData.taxAmount, formData.taxPercentage, formData.taxType, formData.status]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -695,19 +759,31 @@ export default function PurchaseOrderForm() {
   const canReceivePo =
     mode === "view" &&
     !isEditing &&
-    ["DRAFT", "PO_PARTIAL_RECEIVED"].includes(formData.status) &&
+    ["DRAFT", "PO_PARTIAL_RECEIVED", "PARTIALLY_RECEIVED"].includes(formData.status) &&
     (formData.quantity || 0) > (formData.receivedQty || 0);
+
+  const isFullyReceived =
+    formData.status === "RECEIVED" ||
+    ((formData.receivedQty || 0) > 0 &&
+      (formData.receivedQty || 0) >= (formData.quantity || 0));
+
+  const canViewReceived =
+    mode === "view" && !isEditing && isFullyReceived && latestReceiptId;
 
   // Once PO is received or paid, Cancel PO action should not be available
   const canCancelPo =
     mode === "view" &&
     !isEditing &&
     formData.saleOrderId &&
+    !isFullyReceived &&
     !["PO_PARTIAL_RECEIVED", "RECEIVED", "INVOICE_RECEIVED", "PAID", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
     (formData.receivedQty || 0) === 0;
 
+  // No Edit when fully received — only View Receipt
   const canEditPo =
     mode === "view" &&
+    !isFullyReceived &&
+    !canViewReceived &&
     !["PO_PARTIAL_RECEIVED", "RECEIVED", "INVOICE_RECEIVED", "PAID", "PARTIALLY_RECEIVED", "CANCELLED"].includes(formData.status) &&
     (formData.receivedQty || 0) === 0;
 
@@ -862,11 +938,13 @@ export default function PurchaseOrderForm() {
           </CardContent>
         </Card>
 
-        {/* Pricing Details — moved to Receive Order */}
-        {/* {renderPricingDetails()} */}
-
-        {/* Supplier Invoice Details — moved to Receive Order */}
-        {/* {renderSupplierInvoiceDetails()} */}
+        {/* Pricing + Supplier Invoice — show when fully received (read-only) */}
+        {isFullyReceived && (
+          <>
+            {renderPricingDetails()}
+            {renderSupplierInvoiceDetails()}
+          </>
+        )}
 
         {/* Order Quantity Summary */}
         <Card>
@@ -972,6 +1050,8 @@ export default function PurchaseOrderForm() {
               value={formData.saleOrderId}
               onChange={(value) => {
                 setFormData((prev) => ({ ...prev, saleOrderId: value }));
+                const so = saleOrders.find((s) => String(s.value ?? s.id) === String(value));
+                setLinkedSaleOrder(so ? { orderNo: so.label || so.orderNo || so.name, customerRefNo: so.customerRefNo } : null);
                 if (errors.saleOrderId) {
                   setErrors((prev) => ({ ...prev, saleOrderId: "" }));
                 }
@@ -983,6 +1063,28 @@ export default function PurchaseOrderForm() {
               error={errors.saleOrderId}
               singleLine
             />
+            {(formData.saleOrderId || linkedSaleOrder || location.state?.fromSaleOrder) && (
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-1">
+                <div className="font-medium text-foreground">Sale Order Summary</div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Order No</span>
+                  <span className="font-medium">
+                    {linkedSaleOrder?.orderNo ||
+                      location.state?.fromSaleOrder?.orderNo ||
+                      saleOrders.find((s) => String(s.value ?? s.id) === String(formData.saleOrderId))?.label ||
+                      "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Customer Ref</span>
+                  <span className="font-medium">
+                    {linkedSaleOrder?.customerRefNo ||
+                      location.state?.fromSaleOrder?.customerRefNo ||
+                      "—"}
+                  </span>
+                </div>
+              </div>
+            )}
             <FormSelect
               label="Status"
               name="status"
@@ -1065,16 +1167,18 @@ export default function PurchaseOrderForm() {
           </CardContent>
         </Card>
 
-        {/* Pricing Details — moved to Receive Order */}
-        {/* {renderPricingDetails()} */}
-
-        {/* Supplier Invoice Details — moved to Receive Order */}
-        {/* {renderSupplierInvoiceDetails()} */}
+        {/* Pricing + Supplier Invoice — show when fully received (read-only) */}
+        {isFullyReceived && (
+          <>
+            {renderPricingDetails()}
+            {renderSupplierInvoiceDetails()}
+          </>
+        )}
 
         {mode === "add" && (
           <Alert className="bg-primary/5 border-primary/20">
             <AlertDescription className="text-xs">
-              Fields marked with <span className="text-destructive">*</span> are required.
+              Fields marked with <span className="text-red-500">*</span> are required.
             </AlertDescription>
           </Alert>
         )}
@@ -1319,18 +1423,32 @@ export default function PurchaseOrderForm() {
           />
 
           <FormInput
-            label="Unit Price (Optional)"
-            name="unitPrice"
+            label="Total Price"
+            name="totalPrice"
             type="number"
             step="0.01"
             min="0"
-            value={formData.unitPrice}
+            value={formData.totalPrice}
             onChange={handleChange}
             disabled={isReadOnly}
             prefix="₹"
-            error={errors.unitPrice}
+            error={errors.totalPrice}
           />
         </div>
+
+        <FormInput
+          label="Unit Price (auto)"
+          name="unitPrice"
+          type="number"
+          value={formData.unitPrice}
+          disabled={true}
+          prefix="₹"
+          helperText={
+            parseFloat(formData.quantity) > 0
+              ? `Total ÷ ${formData.quantity} qty`
+              : undefined
+          }
+        />
 
         {/* Tax — percentage dropdown from company settings */}
         <FormSelect
@@ -1341,9 +1459,10 @@ export default function PurchaseOrderForm() {
           onChange={(value) => setFormData((prev) => ({ ...prev, taxType: "Percent", taxPercentage: value }))}
           placeholder="Select GST rate"
           isSearchable={false}
-          isClearable={true}
+          isClearable={parseFloat(formData.unitPrice) <= 0}
           disabled={isReadOnly}
           singleLine
+          required={parseFloat(formData.unitPrice) > 0}
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -1357,7 +1476,7 @@ export default function PurchaseOrderForm() {
           />
 
           <FormInput
-            label="Total Value"
+            label="Grand Total"
             name="totalValue"
             type="number"
             value={formData.totalValue}
@@ -1522,6 +1641,22 @@ export default function PurchaseOrderForm() {
             >
               <PackageCheck className="h-3.5 w-3.5" />
               Receive PO
+            </Button>
+          )}
+          {canViewReceived && (
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() =>
+                openAppWindow(
+                  `/masters/purchase-orders/receive/${id}/edit/${latestReceiptId}?readonly=1`
+                )
+              }
+            >
+              <Package className="h-3.5 w-3.5" />
+              View Receipt
             </Button>
           )}
           {canCancelPo && (

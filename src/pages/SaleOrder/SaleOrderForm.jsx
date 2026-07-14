@@ -2036,12 +2036,14 @@ export default function SaleOrderForm() {
                 return;
             }
             const orderId = formData.id || formData.order_number || id;
-            const orderCode = formData.order_number || `SO-${orderId}`;
+            const orderCode = formData.orderNo || formData.order_number || `SO-${orderId}`;
+            const customerRef = formData.customerRefNo?.trim();
+            const barcodeSerial = customerRef ? `${orderCode} | ${customerRef}` : String(orderCode);
             const customer = formData.customer_name || formData.customerName || "Order";
             await printBarcodeLabels({
                 printerName: cfg.printer_name,
                 topLabel: customer,
-                barcodeSerials: [String(orderId)],
+                barcodeSerials: [barcodeSerial],
                 bottomLabels: [orderCode],
                 labelWidth: cfg.label_width ?? 180,
             });

@@ -23,7 +23,7 @@ const FormTextarea = React.forwardRef(
         {/* Label */}
         {label && (
           <Label htmlFor={textareaId} className="text-xs">
-            {label} {required && <span className="text-destructive">*</span>}
+            {label}{required && <span className="text-red-500"> *</span>}
           </Label>
         )}
 

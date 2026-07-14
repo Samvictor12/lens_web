@@ -261,6 +261,16 @@ class PurchaseOrderService {
               name: { contains: search, mode: "insensitive" },
             },
           },
+          {
+            saleOrder: {
+              customerRefNo: { contains: search, mode: "insensitive" },
+            },
+          },
+          {
+            saleOrder: {
+              orderNo: { contains: search, mode: "insensitive" },
+            },
+          },
         ];
       }
 
@@ -1141,6 +1151,7 @@ class PurchaseOrderService {
               id: true,
               orderNo: true,
               customerId: true,
+              customerRefNo: true,
               customer: {
                 select: {
                   id: true,
@@ -1495,6 +1506,7 @@ class PurchaseOrderService {
 
       const subtotal = parseFloat(receiptData.subtotal) || 0;
       const taxAmount = parseFloat(receiptData.taxAmount) || 0;
+      const unitPrice = parseFloat(receiptData.unitPrice) || 0;
 
       // Step 1: Create receipt + update PO + post accounting — all atomic
       const receipt = await prisma.$transaction(async (tx) => {
@@ -1525,11 +1537,18 @@ class PurchaseOrderService {
           data: {
             receivedQty: newCumulativeReceived,
             status: newPOStatus,
+            ...(unitPrice >= 0 && {
+              unitPrice,
+            }),
             ...(totalValue > 0.01 && {
               totalValue,
               subtotal: subtotal || totalValue - taxAmount,
               taxAmount,
             }),
+            ...(receiptData.supplierInvoiceNo && { supplierInvoiceNo: receiptData.supplierInvoiceNo }),
+            ...(receiptData.purchaseType && { purchaseType: receiptData.purchaseType }),
+            ...(receiptData.placeOfSupply && { placeOfSupply: receiptData.placeOfSupply }),
+            ...(receiptData.itemDescription && { itemDescription: receiptData.itemDescription }),
             ...(receiptData.actualDeliveryDate && { actualDeliveryDate: new Date(receiptData.actualDeliveryDate) }),
             updatedBy: receiptData.createdBy,
           },

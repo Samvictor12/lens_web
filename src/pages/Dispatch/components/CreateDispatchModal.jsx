@@ -9,12 +9,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Truck, User, MapPin, Package, X } from "lucide-react";
+import { Truck, User, MapPin, Package } from "lucide-react";
 import { FormSelect } from "@/components/ui/form-select";
 import { createDispatch } from "@/services/dispatch";
 import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
+
+function todayDateInputValue() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function CreateDispatchModal({ open, onClose, selectedOrders = [], customer, onSuccess }) {
     const { toast } = useToast();
@@ -23,7 +30,7 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
 
     const [form, setForm] = useState({
         deliveryPersonId: "",
-        expectedDeliveryDate: "",
+        expectedDeliveryDate: todayDateInputValue(),
         notes: "",
         vehicleNumber: "",
         driverName: "",
@@ -31,29 +38,58 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
         deliveryNotes: "",
     });
 
-    // Pre-fill delivery person from customer's default
-    useEffect(() => {
-        if (open && customer?.delivery_person_id) {
-            setForm((f) => ({ ...f, deliveryPersonId: String(customer.delivery_person_id) }));
-        }
-    }, [open, customer]);
-
+    // Reset form and pre-fill delivery person + phone from customer's default
     useEffect(() => {
         if (!open) return;
+        const defaultPersonId = customer?.delivery_person_id
+            ? String(customer.delivery_person_id)
+            : "";
+        setForm({
+            deliveryPersonId: defaultPersonId,
+            expectedDeliveryDate: todayDateInputValue(),
+            notes: "",
+            vehicleNumber: "",
+            driverName: "",
+            driverContact: "",
+            deliveryNotes: "",
+        });
         getDeliveryPersonsDropdown()
             .then((res) => {
                 const list = res?.data || [];
-                setUsers(list.map((u) => ({
+                const mapped = list.map((u) => ({
                     value: u.value ?? u.id,
                     label: u.label ?? u.name,
-                })));
+                    phonenumber: u.phonenumber || "",
+                    vehicleNumber: u.vehicleNumber || "",
+                }));
+                setUsers(mapped);
+                if (defaultPersonId) {
+                    const person = mapped.find((u) => String(u.value) === defaultPersonId);
+                    if (person) {
+                        setForm((f) => ({
+                            ...f,
+                            driverContact: person.phonenumber || "",
+                            vehicleNumber: person.vehicleNumber || "",
+                        }));
+                    }
+                }
             })
             .catch(() => {
                 toast({ title: "Error", description: "Failed to load delivery persons", variant: "destructive" });
             });
-    }, [open]);
+    }, [open, customer]);
 
     const handleChange = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+    const handleDeliveryPersonChange = (value) => {
+        const person = users.find((u) => String(u.value) === String(value));
+        setForm((f) => ({
+            ...f,
+            deliveryPersonId: value || "",
+            driverContact: person?.phonenumber || "",
+            vehicleNumber: person?.vehicleNumber || "",
+        }));
+    };
 
     const handleSubmit = async () => {
         if (!customer?.id) {
@@ -64,13 +100,17 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
             toast({ title: "Error", description: "No orders selected", variant: "destructive" });
             return;
         }
+        if (!form.deliveryPersonId) {
+            toast({ title: "Validation", description: "Delivery person is required", variant: "destructive" });
+            return;
+        }
         try {
             setIsSubmitting(true);
             await createDispatch({
                 saleOrderIds: selectedOrders.map((o) => o.id),
                 customerId: customer.id,
-                deliveryPersonId: form.deliveryPersonId ? Number(form.deliveryPersonId) : undefined,
-                expectedDeliveryDate: form.expectedDeliveryDate || undefined,
+                deliveryPersonId: Number(form.deliveryPersonId),
+                expectedDeliveryDate: form.expectedDeliveryDate || todayDateInputValue(),
                 notes: form.notes || undefined,
                 vehicleNumber: form.vehicleNumber || undefined,
                 driverName: form.driverName || undefined,
@@ -88,6 +128,8 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
 
     const customerAddress = [customer?.address, customer?.city, customer?.state, customer?.pincode]
         .filter(Boolean).join(", ");
+
+    const canCreate = selectedOrders.length > 0 && !!form.deliveryPersonId && !isSubmitting;
 
     return (
         <Dialog open={open} onOpenChange={(v) => { if (!v && !isSubmitting) onClose(); }}>
@@ -138,13 +180,16 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
 
                     {/* Delivery person */}
                     <div className="grid gap-1.5">
-                        <Label className="text-xs">Delivery Person</Label>
+                        <Label className="text-xs">
+                            Delivery Person <span className="text-red-500">*</span>
+                        </Label>
                         <FormSelect
                             options={users}
                             value={form.deliveryPersonId}
-                            onChange={(v) => handleChange("deliveryPersonId", v)}
+                            onChange={handleDeliveryPersonChange}
                             placeholder="Select delivery person"
-                            isClearable
+                            isClearable={false}
+                            required
                         />
                     </div>
 
@@ -197,7 +242,7 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
                     <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="h-8">
                         Cancel
                     </Button>
-                    <Button onClick={handleSubmit} disabled={isSubmitting || selectedOrders.length === 0} className="h-8 gap-1.5">
+                    <Button onClick={handleSubmit} disabled={!canCreate} className="h-8 gap-1.5">
                         {isSubmitting ? (
                             <>
                                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />

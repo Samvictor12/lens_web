@@ -7,8 +7,6 @@ import {
   PackageCheck,
   LayoutDashboard,
   Search,
-  Eye,
-  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +27,12 @@ import CreateInvoiceDialog from "./CreateInvoiceDialog";
 import InvoiceDetailDialog from "./InvoiceDetailDialog";
 import InvoicePreviewDialog from "./InvoicePreviewDialog";
 import DispatchedOrdersTab from "./DispatchedOrdersTab";
+import {
+  BillingGroupBySelect,
+  BillingGroupedList,
+  INVOICE_GROUP_OPTIONS,
+  groupInvoices,
+} from "./BillingGroupBy";
 
 // ─── Column definitions for the smart Table view ─────────────────────────────
 function useBillingColumns(onView, onPay) {
@@ -37,7 +41,18 @@ function useBillingColumns(onView, onPay) {
       accessorKey: "invoiceNo",
       header: "Invoice No.",
       sortable: true,
-      cell: (row) => <span className="font-medium">{row.invoiceNo}</span>,
+      cell: (row) => (
+        <a
+          href={`#invoice-${row.id}`}
+          className="font-medium text-primary hover:underline cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault();
+            onView(row.id);
+          }}
+        >
+          {row.invoiceNo}
+        </a>
+      ),
     },
     {
       accessorKey: "customer",
@@ -105,28 +120,29 @@ function useBillingColumns(onView, onPay) {
       align: "center",
       cell: (row) => row._count?.saleOrders || 0,
     },
-    {
-      accessorKey: "actions",
-      header: "Actions",
-      align: "right",
-      cell: (row) => (
-        <div className="flex gap-1.5 justify-end">
-          <Button
-            variant="outline"
-            size="xs"
-            className="h-7 gap-1"
-            onClick={() => onView(row.id)}
-          >
-            <Eye className="h-3 w-3" /> View
-          </Button>
-          {canRecordPayment(row.status) && (
-            <Button size="xs" className="h-7 gap-1" onClick={() => onPay(row)}>
-              <CreditCard className="h-3 w-3" /> Pay
-            </Button>
-          )}
-        </div>
-      ),
-    },
+    // Actions column commented — open invoice via Invoice No. link
+    // {
+    //   accessorKey: "actions",
+    //   header: "Actions",
+    //   align: "right",
+    //   cell: (row) => (
+    //     <div className="flex gap-1.5 justify-end">
+    //       <Button
+    //         variant="outline"
+    //         size="xs"
+    //         className="h-7 gap-1"
+    //         onClick={() => onView(row.id)}
+    //       >
+    //         <Eye className="h-3 w-3" /> View
+    //       </Button>
+    //       {canRecordPayment(row.status) && (
+    //         <Button size="xs" className="h-7 gap-1" onClick={() => onPay(row)}>
+    //           <CreditCard className="h-3 w-3" /> Pay
+    //         </Button>
+    //       )}
+    //     </div>
+    //   ),
+    // },
   ];
 }
 
@@ -171,8 +187,8 @@ export default function BillingMain() {
 
   // Invoice list controls
   const [view, setView] = useState("table");
-  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [groupBy, setGroupBy] = useState(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [sorting, setSorting] = useState([]);
@@ -187,8 +203,8 @@ export default function BillingMain() {
   const queryParams = {
     status: filters.status !== "ALL" ? filters.status : undefined,
     search: searchQuery || undefined,
-    page: pageIndex + 1,
-    limit: pageSize,
+    page: groupBy ? 1 : pageIndex + 1,
+    limit: groupBy ? 500 : pageSize,
     ...(filters.startDate && { startDate: filters.startDate }),
     ...(filters.endDate && { endDate: filters.endDate }),
     ...(sorting[0] && { sortField: sorting[0].id, sortDir: sorting[0].desc ? "desc" : "asc" }),
@@ -203,6 +219,11 @@ export default function BillingMain() {
 
   const invoices = res?.data || [];
   const totalCount = res?.pagination?.total || 0;
+
+  const invoiceGroups = useMemo(
+    () => groupInvoices(invoices, groupBy),
+    [invoices, groupBy]
+  );
 
   // ── Stats query — aggregated from DB directly, no full row scan ──────────
   const { data: statsRes, isLoading: statsLoading } = useQuery({
@@ -250,11 +271,6 @@ export default function BillingMain() {
     );
   };
 
-  const handleSearch = () => {
-    setSearchQuery(searchInput);
-    setPageIndex(0);
-  };
-
   const handleApplyFilters = () => {
     setFilters(tempFilters);
     setShowFilterDialog(false);
@@ -290,7 +306,6 @@ export default function BillingMain() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          <Refresh onClick={handleRefresh} />
           <Button
             size="xs"
             className="gap-1.5 h-8"
@@ -369,22 +384,25 @@ export default function BillingMain() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search invoice no. or customer…"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPageIndex(0);
+                  }}
                   className="pl-9 h-8 text-sm"
                 />
               </div>
+              <BillingGroupBySelect
+                value={groupBy}
+                onChange={(v) => {
+                  setGroupBy(v);
+                  setPageIndex(0);
+                }}
+                options={INVOICE_GROUP_OPTIONS}
+              />
               <div className="flex items-center gap-1.5">
-                <Button
-                  size="xs"
-                  variant="outline"
-                  className="h-8 px-3"
-                  onClick={handleSearch}
-                >
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
-                <ViewToggle view={view} onViewChange={setView} />
+                <Refresh onClick={handleRefresh} />
+                {!groupBy && <ViewToggle view={view} onViewChange={setView} />}
                 <BillingFilter
                   filters={filters}
                   tempFilters={tempFilters}
@@ -400,57 +418,84 @@ export default function BillingMain() {
             </div>
           </Card>
 
-          {/* Table View */}
-          {view === "table" && (
-            <div className="flex-1 min-h-0">
-              <Table
-                data={invoices}
-                columns={columns}
-                pageIndex={pageIndex}
-                pageSize={pageSize}
-                totalCount={totalCount}
-                onPageChange={setPageIndex}
-                onPageSizeChange={(size) => {
-                  setPageSize(size);
-                  setPageIndex(0);
-                }}
-                loading={isLoading}
-                sorting={sorting}
-                setSorting={setSorting}
-                pagination={true}
-                emptyMessage="No invoices found"
-              />
+          {/* Grouped view */}
+          {groupBy ? (
+            <div className="flex-1 min-h-0 overflow-y-auto pb-4">
+              {isLoading ? (
+                <Card className="p-8 text-center text-sm text-muted-foreground">
+                  Loading invoices…
+                </Card>
+              ) : (
+                <BillingGroupedList
+                  groups={invoiceGroups}
+                  emptyMessage="No invoices found"
+                  renderItems={(items) => (
+                    <Table
+                      data={items}
+                      columns={columns}
+                      loading={false}
+                      pagination={false}
+                      emptyMessage="No invoices in this group"
+                    />
+                  )}
+                />
+              )}
             </div>
-          )}
-
-          {/* Card View */}
-          {view === "card" && (
-            <div className="flex-1 min-h-0">
-              <CardGrid
-                items={invoices}
-                renderCard={(inv) => (
-                  <InvoiceCard
-                    key={inv.id}
-                    invoice={inv}
-                    onView={(id) => setDetailId(id)}
-                    onPreview={(inv) => setPreviewInvoice(inv)}
-                    onPay={(inv) => navigateToPayment(inv)}
-                    onQuickClose={(inv) => navigateToPayment(inv, true)}
+          ) : (
+            <>
+              {/* Table View */}
+              {view === "table" && (
+                <div className="flex-1 min-h-0">
+                  <Table
+                    data={invoices}
+                    columns={columns}
+                    pageIndex={pageIndex}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={setPageIndex}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setPageIndex(0);
+                    }}
+                    loading={isLoading}
+                    sorting={sorting}
+                    setSorting={setSorting}
+                    pagination={true}
+                    emptyMessage="No invoices found"
                   />
-                )}
-                isLoading={isLoading}
-                emptyMessage="No invoices found"
-                pagination={true}
-                pageIndex={pageIndex}
-                pageSize={pageSize}
-                totalCount={totalCount}
-                onPageChange={setPageIndex}
-                onPageSizeChange={(size) => {
-                  setPageSize(size);
-                  setPageIndex(0);
-                }}
-              />
-            </div>
+                </div>
+              )}
+
+              {/* Card View */}
+              {view === "card" && (
+                <div className="flex-1 min-h-0">
+                  <CardGrid
+                    items={invoices}
+                    renderCard={(inv) => (
+                      <InvoiceCard
+                        key={inv.id}
+                        invoice={inv}
+                        onView={(id) => setDetailId(id)}
+                        onPreview={(inv) => setPreviewInvoice(inv)}
+                        onPay={(inv) => navigateToPayment(inv)}
+                        onQuickClose={(inv) => navigateToPayment(inv, true)}
+                      />
+                    )}
+                    isLoading={isLoading}
+                    emptyMessage="No invoices found"
+                    pagination={true}
+                    pageIndex={pageIndex}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={setPageIndex}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setPageIndex(0);
+                    }}
+                  />
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>

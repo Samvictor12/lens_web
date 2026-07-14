@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Glasses } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { resolveHomePathForCurrentUser } from "@/utils/resolveHomePath";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -37,20 +38,17 @@ export default function Login() {
         title: "Login successful",
         description: "Welcome back!",
       });
-      navigate("/dashboard");
+      const homePath = await resolveHomePathForCurrentUser();
+      navigate(homePath, { replace: true });
     } catch (error) {
-      console.log('Login error:', error);
+      console.log("Login error:", error);
 
-      // Prevent any default error behavior
       e.preventDefault();
 
-      // apiClient throws err.response?.data directly, so error IS the data object
-      // Handle validation errors (array of errors)
       if (error.errors && Array.isArray(error.errors)) {
-        const errorMessage = error.errors.join(', ');
         toast({
           title: "Login failed",
-          description: errorMessage,
+          description: error.errors.join(", "),
           variant: "destructive",
         });
         return;
@@ -58,15 +56,14 @@ export default function Login() {
 
       const errorMessage = error.message || "Invalid credentials. Please try again.";
 
-      // Map error codes to user-friendly messages
       let displayMessage = errorMessage;
-      if (error.errorCode === 'NO_LOGIN_ACCESS') {
+      if (error.errorCode === "NO_LOGIN_ACCESS") {
         displayMessage = "You do not have login access. Please contact administrator.";
-      } else if (error.errorCode === 'ACCOUNT_INACTIVE') {
+      } else if (error.errorCode === "ACCOUNT_INACTIVE") {
         displayMessage = "Your account is inactive. Please contact administrator for login access.";
-      } else if (error.errorCode === 'LOGIN_NOT_ENABLED') {
+      } else if (error.errorCode === "LOGIN_NOT_ENABLED") {
         displayMessage = "Login is not enabled for this account. Please contact administrator.";
-      } else if (error.errorCode === 'INVALID_CREDENTIALS') {
+      } else if (error.errorCode === "INVALID_CREDENTIALS") {
         displayMessage = "Invalid username or password.";
       }
 
@@ -80,123 +77,122 @@ export default function Login() {
     }
   };
 
-  const demoCredentials = [
-    { role: "Admin", username: "admin" },
-    { role: "Sales", username: "rahul" },
-    { role: "Inventory", username: "priya" },
-    { role: "Accounts", username: "amit" },
-  ];
-
   return (
-    <div className="min-h-svh w-full flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
-      <div className="w-full max-w-5xl grid md:grid-cols-2 gap-8 items-center">
-        {/* Left Side - Branding */}
-        <div className="hidden md:block space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="h-14 w-14 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Glasses className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                Lens Billing
-              </h1>
-              <p className="text-sm text-muted-foreground">Inventory Management System</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h2 className="text-2xl font-semibold text-foreground">
-              Streamline Your Optical Business
-            </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              Complete solution for managing sales, inventory, billing, and customer relationships
-              in the optical industry.
-            </p>
-
-            {/* <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="p-4 rounded-lg bg-card border">
-                <div className="text-2xl font-bold text-primary">500+</div>
-                <div className="text-sm text-muted-foreground">Orders Managed</div>
-              </div>
-              <div className="p-4 rounded-lg bg-card border">
-                <div className="text-2xl font-bold text-accent">50+</div>
-                <div className="text-sm text-muted-foreground">Active Customers</div>
-              </div>
-            </div> */}
+    <div className="min-h-svh w-full grid md:grid-cols-[3fr_2fr]">
+      {/* Branding panel — 60% */}
+      <aside className="relative hidden md:flex flex-col items-center justify-center overflow-hidden bg-white border-r border-border/60">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 20% 20%, hsl(217 91% 60% / 0.12), transparent 55%), radial-gradient(ellipse 70% 50% at 85% 75%, hsl(186 94% 45% / 0.14), transparent 50%), linear-gradient(160deg, hsl(210 40% 98%) 0%, hsl(0 0% 100%) 45%, hsl(186 40% 97%) 100%)",
+          }}
+        />
+        <div className="relative z-10 w-full max-w-xl px-10 lg:px-14">
+          <div className="rounded-2xl bg-white/80 backdrop-blur-sm border border-white/70 shadow-[0_20px_60px_-20px_hsl(217_91%_40%/0.25)] p-8 lg:p-10">
+            <img
+              src="/VisionConnect-full.jpeg"
+              alt="Vision Connect — Customer Management & Billing"
+              className="w-full h-auto object-contain"
+            />
           </div>
         </div>
+      </aside>
 
-        {/* Right Side - Login Form */}
-        <Card className="w-full shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl">Welcome Back </CardTitle>
-            <CardDescription>
+      {/* Login panel — 40% */}
+      <main className="relative flex flex-col justify-center bg-background px-6 py-10 sm:px-10 lg:px-14 xl:px-16">
+        <div
+          className="pointer-events-none absolute inset-0 md:hidden"
+          style={{
+            background:
+              "radial-gradient(ellipse 90% 40% at 50% 0%, hsl(217 91% 60% / 0.08), transparent 60%)",
+          }}
+        />
+
+        <div className="relative z-10 w-full max-w-sm mx-auto">
+          {/* Mobile logo */}
+          <div className="mb-10 flex justify-center md:hidden">
+            <img
+              src="/VisionConnect.jpeg"
+              alt="Vision Connect"
+              className="h-[4.5rem] w-auto object-contain"
+            />
+          </div>
+
+          <div className="mb-8 space-y-2">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground leading-[1.15]">
+              Welcome Back
+            </h1>
+            <p className="text-[15px] text-muted-foreground leading-relaxed">
               Sign in to access your dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={isLoading}
-                  autoComplete="username"
-                />
-              </div>
+            </p>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-sm font-medium">
+                Username
+              </Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isLoading}
+                autoComplete="username"
+                className="h-12 rounded-xl bg-card border-border/80 px-4 text-[15px] shadow-sm transition-shadow focus-visible:shadow-md"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium">
+                Password
+              </Label>
+              <div className="relative">
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
                   autoComplete="current-password"
+                  className="h-12 rounded-xl bg-card border-border/80 px-4 pr-11 text-[15px] shadow-sm transition-shadow focus-visible:shadow-md"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
+            </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing In..." : "Sign In"}
-              </Button>
-            </form>
-
-            {/* <div className="mt-6 pt-6 border-t">
-              <p className="text-sm font-medium text-muted-foreground mb-3">
-                Demo Credentials:
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {demoCredentials.map((cred) => (
-                  <button
-                    key={cred.role}
-                    onClick={() => {
-                      setUsername(cred.username);
-                      setPassword("demo");
-                    }}
-                    className="text-xs p-2 rounded-md bg-muted hover:bg-muted/80 text-left transition-colors"
-                  >
-                    <div className="font-semibold">{cred.role}</div>
-                    <div className="text-muted-foreground truncate">{cred.username}</div>
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Password: <code className="bg-muted px-1 py-0.5 rounded">demo</code>
-              </p>
-            </div> */}
-          </CardContent>
-        </Card>
-      </div>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-12 rounded-xl text-[15px] font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/25 transition-all mt-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing In...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
+        </div>
+      </main>
     </div>
   );
 }
-
-
-
-

@@ -186,7 +186,8 @@ export default function InvoiceDetailDialog({
 
         {invoice && (
           <DialogFooter className="flex flex-wrap gap-2 pt-2">
-            <Button
+            {/* Action buttons commented — view only */}
+            {/* <Button
               variant="outline"
               size="sm"
               onClick={() => onPreview(invoice)}
@@ -267,7 +268,7 @@ export default function InvoiceDetailDialog({
               >
                 <XCircle className="h-4 w-4 mr-1" /> Cancel
               </Button>
-            )}
+            )} */}
             <Button variant="ghost" size="sm" onClick={onClose}>
               Close
             </Button>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Save, Package, CheckCircle2, Clock, ChevronDown, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
@@ -84,7 +84,9 @@ const buildRows = (lensBulkSelection, cumulativeMap, unitPrice) => {
 export default function PurchaseOrderReceive() {
   const navigate = useNavigate();
   const { id, receiptId } = useParams();
+  const [searchParams] = useSearchParams();
   const isEditMode = Boolean(receiptId);
+  const isReadOnlyView = searchParams.get("readonly") === "1";
   const { toast } = useToast();
   const { company } = useCompany();
   const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
@@ -99,7 +101,7 @@ export default function PurchaseOrderReceive() {
   // Form state
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
-  const [unitPrice, setUnitPrice] = useState("");
+  const [totalPrice, setTotalPrice] = useState("");
   const [taxPercentage, setTaxPercentage] = useState("");
 
   // Supplier invoice + delivery state
@@ -138,8 +140,14 @@ export default function PurchaseOrderReceive() {
         setPlaceOfSupply(`${poData.vendor?.city || ""} - ${poData.vendor?.state || ""}`);
         setPoVendor(poData.vendor);
         setReceiptsData(rcpData);
-        // Pre-fill pricing from PO
-        if (poData.unitPrice) setUnitPrice(poData.unitPrice);
+        // Pre-fill pricing from PO (total = unit × qty when available)
+        if (poData.unitPrice && poData.quantity) {
+          setTotalPrice(String(
+            Math.round(parseFloat(poData.unitPrice) * parseFloat(poData.quantity) * 100) / 100
+          ));
+        } else if (poData.totalValue) {
+          setTotalPrice(String(poData.totalValue));
+        }
         if (poData.supplierInvoiceNo) setSupplierInvoiceNo(poData.supplierInvoiceNo);
         if (poData.purchaseType) setPurchaseType(poData.purchaseType);
         if (poData.placeOfSupply) setPlaceOfSupply(poData.placeOfSupply);
@@ -159,7 +167,13 @@ export default function PurchaseOrderReceive() {
           if (editReceipt.actualDeliveryDate)
             setActualDeliveryDate(editReceipt.actualDeliveryDate.split("T")[0]);
           if (editReceipt.notes) setNotes(editReceipt.notes);
-          if (editReceipt.unitPrice) setUnitPrice(String(editReceipt.unitPrice));
+          if (editReceipt.subtotal != null) {
+            setTotalPrice(String(editReceipt.subtotal));
+          } else if (editReceipt.unitPrice && editReceipt.totalReceivedQty) {
+            setTotalPrice(String(
+              Math.round(parseFloat(editReceipt.unitPrice) * parseFloat(editReceipt.totalReceivedQty) * 100) / 100
+            ));
+          }
           if (editReceipt.taxAmount != null && editReceipt.subtotal > 0) {
             const pct = (parseFloat(editReceipt.taxAmount) / parseFloat(editReceipt.subtotal)) * 100;
             if (!Number.isNaN(pct)) setTaxPercentage(String(Math.round(pct * 100) / 100));
@@ -265,14 +279,15 @@ export default function PurchaseOrderReceive() {
   };
 
   // ── Derived totals ────────────────────────────────────────────────────
-  const { totalThisQty, subtotal, taxValue, totalValue } = useMemo(() => {
+  const { totalThisQty, unitPrice, subtotal, taxValue, totalValue } = useMemo(() => {
     const totalThisQty = rows.reduce((s, r) => s + (parseFloat(r.receivedQty) || 0), 0);
-    const up = parseFloat(unitPrice) || 0;
-    const subtotal = totalThisQty * up;
+    const enteredTotal = parseFloat(totalPrice) || 0;
+    const unitPrice = totalThisQty > 0 ? enteredTotal / totalThisQty : 0;
+    const subtotal = enteredTotal;
     const taxValue = (subtotal * (parseFloat(taxPercentage) || 0)) / 100;
     const totalValue = subtotal + taxValue;
-    return { totalThisQty, subtotal, taxValue, totalValue };
-  }, [rows, unitPrice, taxPercentage]);
+    return { totalThisQty, unitPrice, subtotal, taxValue, totalValue };
+  }, [rows, totalPrice, taxPercentage]);
 
   // ── Validation ────────────────────────────────────────────────────────
   const validate = () => {
@@ -282,6 +297,10 @@ export default function PurchaseOrderReceive() {
     }
     if (!actualDeliveryDate) {
       toast({ title: "Validation", description: "Actual Delivery Date is required.", variant: "destructive" });
+      return false;
+    }
+    if (unitPrice > 0 && (taxPercentage === "" || taxPercentage == null)) {
+      toast({ title: "Validation", description: "GST is required when unit price is greater than 0.", variant: "destructive" });
       return false;
     }
     for (const row of rows) {
@@ -298,8 +317,8 @@ export default function PurchaseOrderReceive() {
   const handleSave = async () => {
     if (!validate()) return;
 
-    const up = parseFloat(unitPrice) || 0;
-    const computedTaxAmount = (subtotal * (parseFloat(taxPercentage) || 0)) / 100;
+    const up = unitPrice;
+    const computedTaxAmount = taxValue;
 
     const receivedItems = rows
       .filter((r) => parseFloat(r.receivedQty) > 0)
@@ -393,10 +412,11 @@ export default function PurchaseOrderReceive() {
   const orderedQty = po.quantity || 0;
   const pendingQty = Math.max(0, orderedQty - alreadyReceived);
 
-  // In edit mode, unlock RECEIVED status so fields can be edited
-  // Locked when fully received or in terminal status (RECEIVED is still editable/receivable if pendingQty > 0)
-  const isLocked = ["INVOICE_RECEIVED", "PAID", "CLOSED", "CANCELLED"].includes(po.status)
-    || (!isEditMode && pendingQty <= 0);
+  // Locked for terminal statuses, new receive with nothing pending, or explicit view-only
+  const isLocked =
+    isReadOnlyView ||
+    ["INVOICE_RECEIVED", "PAID", "CLOSED", "CANCELLED"].includes(po.status) ||
+    (!isEditMode && pendingQty <= 0);
 
   // The specific receipt being edited (needed for inward-warning check)
   const editingReceipt = isEditMode && receiptId && receiptsData?.receipts
@@ -411,10 +431,18 @@ export default function PurchaseOrderReceive() {
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-lg sm:text-xl font-bold">
-            {isEditMode ? "Edit Receipt" : "Receive Purchase Order"}
+            {isReadOnlyView
+              ? "View Receipt"
+              : isEditMode
+                ? "Edit Receipt"
+                : "Receive Purchase Order"}
           </h1>
           <p className="text-xs text-muted-foreground">
-            {isEditMode ? `Editing receipt for ${po.poNumber}` : `Record goods received against ${po.poNumber}`}
+            {isReadOnlyView
+              ? `Viewing receipt for ${po.poNumber}`
+              : isEditMode
+                ? `Editing receipt for ${po.poNumber}`
+                : `Record goods received against ${po.poNumber}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -423,10 +451,14 @@ export default function PurchaseOrderReceive() {
             variant="outline"
             size="xs"
             className="h-8 gap-1.5"
-            onClick={() => navigate("/masters/purchase-orders")}
+            onClick={() => {
+              if (window.opener) window.close();
+              else navigate("/masters/purchase-orders");
+            }}
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Close
           </Button>
+          {!isReadOnlyView && (
           <Button
             size="xs"
             className="h-8 gap-1.5"
@@ -439,6 +471,7 @@ export default function PurchaseOrderReceive() {
               <><Save className="h-3.5 w-3.5" /> {isEditMode ? "Update Receipt" : "Save Receipt"}</>
             )}
           </Button>
+          )}
         </div>
       </div>
 
@@ -568,17 +601,28 @@ export default function PurchaseOrderReceive() {
             </CardHeader>
             <CardContent className="p-3 pt-0 space-y-2.5">
               <FormInput
-                label="Unit Price (Optional)"
-                name="unitPrice"
+                label="Total Price"
+                name="totalPrice"
                 type="number"
                 step="0.01"
                 min="0"
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
+                value={totalPrice}
+                onChange={(e) => setTotalPrice(e.target.value)}
                 disabled={isLocked}
                 prefix="₹"
                 singleLine
                 clearZeroOnFocus
+              />
+
+              <FormInput
+                label="Unit Price (auto)"
+                name="unitPrice"
+                type="number"
+                value={totalThisQty > 0 ? unitPrice.toFixed(2) : "0.00"}
+                disabled
+                prefix="₹"
+                singleLine
+                helperText={totalThisQty > 0 ? `Total ÷ ${totalThisQty} qty` : "Enter qty to calculate"}
               />
 
               <FormSelect
@@ -589,17 +633,16 @@ export default function PurchaseOrderReceive() {
                 onChange={(value) => setTaxPercentage(value != null ? String(value) : "")}
                 placeholder="Select GST rate"
                 isSearchable={false}
-                isClearable={true}
+                isClearable={unitPrice <= 0}
                 disabled={isLocked}
                 singleLine
+                required={unitPrice > 0}
               />
 
               {/* Computed summary — always visible */}
               <div className="border-t pt-2 space-y-1 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Subtotal{totalThisQty > 0 && parseFloat(unitPrice) > 0 ? ` (${totalThisQty} × ₹${unitPrice})` : ""}
-                  </span>
+                  <span className="text-muted-foreground">Subtotal</span>
                   <span>₹{subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between">
@@ -607,7 +650,7 @@ export default function PurchaseOrderReceive() {
                   <span>₹{taxValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between font-semibold border-t pt-1">
-                  <span>Total Value</span>
+                  <span>Grand Total</span>
                   <span className="text-primary">₹{totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
@@ -679,8 +722,8 @@ export default function PurchaseOrderReceive() {
             </Card>
           )}
 
-          {/* Alert if already fully received */}
-          {isLocked && (
+          {/* Alert if already fully received / terminal (not for explicit view-only) */}
+          {isLocked && !isReadOnlyView && (
             <Card className="border-destructive/30 bg-destructive/5">
               <CardContent className="p-3 text-xs text-destructive">
                 {po.status === "RECEIVED" ? "This PO has already been fully received."

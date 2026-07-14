@@ -250,10 +250,12 @@ export default function SaleOrderMain() {
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => window.open("/sales/orders/add", "_blank")}
+            asChild
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Order</span>
+            <a href="/sales/orders/add" target="_blank" rel="noopener noreferrer">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add Order</span>
+            </a>
           </Button>
         </div>
       </div>
@@ -264,7 +266,7 @@ export default function SaleOrderMain() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search orders by order number, customer..."
+              placeholder="Search order no, customer, customer ref..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);

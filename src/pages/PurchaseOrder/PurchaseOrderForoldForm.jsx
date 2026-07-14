@@ -598,7 +598,7 @@ export default function PurchaseOrderForm() {
       {mode === "add" && (
         <Alert className="bg-primary/5 border-primary/20">
           <AlertDescription className="text-xs">
-            Fields marked with <span className="text-destructive">*</span> are required.
+            Fields marked with <span className="text-red-500">*</span> are required.
             Pricing calculations are automatic based on quantity and unit price.
           </AlertDescription>
         </Alert>
@@ -713,7 +713,7 @@ export default function PurchaseOrderForm() {
       {mode === "add" && (
         <Alert className="bg-primary/5 border-primary/20">
           <AlertDescription className="text-xs">
-            Fields marked with <span className="text-destructive">*</span> are required.
+            Fields marked with <span className="text-red-500">*</span> are required.
             Pricing calculations are automatic based on quantity and unit price.
           </AlertDescription>
         </Alert>

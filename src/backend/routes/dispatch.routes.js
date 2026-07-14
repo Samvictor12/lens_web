@@ -9,6 +9,7 @@ router.get('/dashboard', authenticateToken, dispatchController.getDashboard);
 router.get('/ready', authenticateToken, dispatchController.getReady);
 router.post('/', authenticateToken, dispatchController.createDispatch);
 router.get('/list', authenticateToken, dispatchController.getDispatchList);
+router.patch('/:id', authenticateToken, dispatchController.updateDispatch);
 router.patch('/:id/status', authenticateToken, dispatchController.updateDispatchStatus);
 
 // ── Legacy (backward compat) ───────────────────────────────────────────────────

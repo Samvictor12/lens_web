@@ -4,9 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 
-// Allow receiving when PO is DRAFT or PARTIALLY_RECEIVED (and still has pending qty — checked via po.quantity vs po.receivedQty)
+// Allow receiving when PO is DRAFT or partially received (and still has pending qty)
 const canReceive = (po) =>
-  ["DRAFT", "PARTIALLY_RECEIVED"].includes(po.status) &&
+  ["DRAFT", "PARTIALLY_RECEIVED", "PO_PARTIAL_RECEIVED"].includes(po.status) &&
   (po.quantity || 0) > (po.receivedQty || 0);
 // Allow editing the latest receipt when PO is RECEIVED
 const canEditReceipt = (status) => status === "RECEIVED";
@@ -52,15 +52,16 @@ export const usePurchaseOrderColumns = (
       header: "PO Number",
       sortable: true,
       cell: (po) => (
-        <button
-          type="button"
-          onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, '_blank')}
+        <a
+          href={`/masters/purchase-orders/view/${po.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>
             <div className="font-medium text-xs text-primary">{po.poNumber}</div>
           </div>
-        </button>
+        </a>
       ),
     },
     {
@@ -132,14 +133,22 @@ export const usePurchaseOrderColumns = (
       accessorKey: "quantity",
       header: "Ordered / Received",
       sortable: true,
-      cell: (po) => (
-        <div className="text-xs">
-          <span>{po.quantity || 0}</span>
-          {po.receivedQty > 0 && (
-            <span className="text-green-600 ml-1">/ {po.receivedQty}</span>
-          )}
-        </div>
-      ),
+      cell: (po) => {
+        // Prefer eye-based qty for SO-linked single POs when stored quantity is stale
+        let ordered = po.quantity || 0;
+        if (po.saleOrderId && po.orderType !== "Bulk") {
+          const fromEyes = (po.rightEye ? 1 : 0) + (po.leftEye ? 1 : 0);
+          if (fromEyes > 0) ordered = fromEyes;
+        }
+        return (
+          <div className="text-xs">
+            <span>{ordered}</span>
+            {po.receivedQty > 0 && (
+              <span className="text-green-600 ml-1">/ {po.receivedQty}</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "totalValue",

@@ -38,6 +38,7 @@ import {
 } from "@/services/purchaseOrder";
 import { purchaseOrderFilters } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
+import { openAppWindow } from "@/utils/openAppWindow";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
 import PurchaseOrderCard from "./PurchaseOrderCard";
 import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
@@ -115,7 +116,7 @@ export default function PurchaseOrders() {
         const sorted = [...res.data.receipts].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
-        navigate(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`);
+        openAppWindow(`/masters/purchase-orders/receive/${po.id}/inward/${sorted[0].id}`);
         return;
       }
 
@@ -499,7 +500,7 @@ export default function PurchaseOrders() {
             <div className="h-full overflow-y-auto pr-1 space-y-3">
               {dashboardStats.recentActivity.map((po) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                  onClick={() => window.open(`/masters/purchase-orders/view/${po.id}`, "_blank")}>
+                  onClick={() => window.open(`${window.location.origin}/masters/purchase-orders/view/${po.id}`, "_blank")}>
                   <div className="flex-1">
                     <div className="font-medium">{po.poNumber}</div>
                     <div className="text-sm text-muted-foreground">
@@ -581,10 +582,12 @@ export default function PurchaseOrders() {
           <Button
             size="xs"
             className="gap-1.5 h-8"
-            onClick={() => navigate("/masters/purchase-orders/add")}
+            asChild
           >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Purchase Order</span>
+            <a href="/masters/purchase-orders/add" target="_blank" rel="noopener noreferrer">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Add Purchase Order</span>
+            </a>
           </Button>
         </div>
       </div>
@@ -608,7 +611,7 @@ export default function PurchaseOrders() {
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search purchase orders..."
+                  placeholder="Search PO, vendor, customer ref..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 h-8 text-sm"

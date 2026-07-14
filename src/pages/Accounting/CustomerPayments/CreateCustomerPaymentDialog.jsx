@@ -161,7 +161,7 @@ export default function CreateCustomerPaymentDialog({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label>Customer *</Label>
+            <Label>Customer <span className="text-red-500">*</span></Label>
             <FormSelect
               options={customerOptions}
               value={form.customerId || null}
@@ -177,7 +177,7 @@ export default function CreateCustomerPaymentDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Payment Amount *</Label>
+              <Label>Payment Amount <span className="text-red-500">*</span></Label>
               <Input
                 type="number"
                 min="0"
@@ -188,7 +188,7 @@ export default function CreateCustomerPaymentDialog({
               />
             </div>
             <div className="space-y-1">
-              <Label>Payment Date *</Label>
+              <Label>Payment Date <span className="text-red-500">*</span></Label>
               <Input
                 type="date"
                 value={form.paymentDate}
@@ -199,7 +199,7 @@ export default function CreateCustomerPaymentDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Payment Method *</Label>
+              <Label>Payment Method <span className="text-red-500">*</span></Label>
               <Select value={form.paymentMethod} onValueChange={(v) => set("paymentMethod", v)}>
                 <SelectTrigger className="text-sm">
                   <SelectValue />
@@ -214,7 +214,7 @@ export default function CreateCustomerPaymentDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Receiving Account *</Label>
+              <Label>Receiving Account <span className="text-red-500">*</span></Label>
               <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Cash / Bank account" />

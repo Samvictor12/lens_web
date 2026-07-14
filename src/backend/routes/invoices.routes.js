@@ -135,6 +135,11 @@ router.get(
   (req, res, next) => controller.getAllDispatchedOrders(req, res, next)
 );
 
+router.get(
+  '/awaiting-customers',
+  (req, res, next) => controller.getAwaitingInvoiceCustomers(req, res, next)
+);
+
 /**
  * @swagger
  * /api/invoices/{id}:

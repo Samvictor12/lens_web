@@ -13,7 +13,9 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       sortable: true,
       cell: (row) => (
         <a
-          onClick={() => window.open(`/sales/orders/view/${row.id}`, "_blank")}
+          href={`/sales/orders/view/${row.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex items-center gap-1.5 hover:underline cursor-pointer"
         >
           <div>

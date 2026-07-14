@@ -662,6 +662,12 @@ export class SaleOrderService {
               short_name: true
             }
           },
+          lensType: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
           assignedPerson: {
             select: {
               id: true,

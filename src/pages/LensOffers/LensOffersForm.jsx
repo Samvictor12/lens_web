@@ -907,7 +907,7 @@ export default function LensOffersForm() {
           {mode === "add" && (
             <Alert className="bg-primary/5 border-primary/20">
               <AlertDescription className="text-xs">
-                Fields marked with <span className="text-destructive">*</span> are required.
+                Fields marked with <span className="text-red-500">*</span> are required.
                 This offer will be displayed in Sale Orders when a matching lens/coating is selected
                 and the current date is within the validity period.
               </AlertDescription>
