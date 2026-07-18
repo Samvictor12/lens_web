@@ -47,9 +47,7 @@ export const validateCreateCustomerMaster = (data) => {
         errors.push({ field: 'code', message: 'Customer code must be between 1 and 50 characters' });
     }
 
-    if (!data.email || data.email.trim() === '') {
-        errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!isValidEmail(data.email)) {
+    if (data.email && data.email.trim() !== '' && !isValidEmail(data.email)) {
         errors.push({ field: 'email', message: 'Invalid email format' });
     }
 
@@ -161,7 +159,7 @@ export const validateCreateCustomerMaster = (data) => {
             code: data.code?.trim(),
             shopname: data.shopname?.trim() || null,
             phone: data.phone?.trim() || null,
-            email: data.email?.trim(),
+            email: data.email?.trim() || null,
             address: data.address?.trim() || null,
             city: data.city?.trim() || null,
             state: data.state?.trim() || null,
@@ -216,12 +214,8 @@ export const validateUpdateCustomerMaster = (data) => {
         errors.push({ field: 'phone', message: 'Phone number must be between 10 and 15 digits' });
     }
 
-    if (data.email !== undefined) {
-        if (!data.email || data.email.trim() === '') {
-            errors.push({ field: 'email', message: 'Email cannot be empty' });
-        } else if (!isValidEmail(data.email)) {
-            errors.push({ field: 'email', message: 'Invalid email format' });
-        }
+    if (data.email !== undefined && data.email && data.email.trim() !== '' && !isValidEmail(data.email)) {
+        errors.push({ field: 'email', message: 'Invalid email format' });
     }
 
     if (data.address !== undefined && data.address && !isValidLength(data.address, 0, 500)) {
@@ -320,7 +314,7 @@ export const validateUpdateCustomerMaster = (data) => {
             } else if (typeof data[key] === 'string') {
                 cleanedData[key] = data[key].trim();
                 // Set null for empty strings on optional fields
-                if ((key === 'shopname' || key === 'phone' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode' || key === 'gstin' || key === 'notes') && !cleanedData[key]) {
+                if ((key === 'shopname' || key === 'phone' || key === 'email' || key === 'address' || key === 'city' || key === 'state' || key === 'pincode' || key === 'gstin' || key === 'notes') && !cleanedData[key]) {
                     cleanedData[key] = null;
                 }
             } else if (key === 'active_status' || key === 'delete_status') {

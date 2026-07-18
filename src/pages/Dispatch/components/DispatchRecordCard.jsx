@@ -64,7 +64,13 @@ export default function DispatchRecordCard({ dispatch, onStatusUpdated, onSignat
             {/* Header row */}
             <div className="flex items-center justify-between px-3 pt-3 pb-1.5 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">{dispatch.dcNumber}</span>
+                    <button
+                        type="button"
+                        className="text-sm font-bold text-primary hover:underline"
+                        onClick={() => onView?.(dispatch)}
+                    >
+                        {dispatch.dcNumber}
+                    </button>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.className}`}>
                         {cfg.label}
                     </span>

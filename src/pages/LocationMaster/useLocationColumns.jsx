@@ -1,12 +1,10 @@
 import { MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { godownTypeLabel } from "./Location.constants";
 
 /**
  * Custom hook that returns the table columns configuration for the location list
- * @param {Function} navigate - React Router navigate function
- * @param {Function} onDelete - Delete handler function
- * @returns {Array} Array of column definitions
  */
 export const useLocationColumns = (navigate, onDelete) => {
   return [
@@ -27,6 +25,16 @@ export const useLocationColumns = (navigate, onDelete) => {
             <div className="font-medium text-xs text-primary">{location.name}</div>
           </div>
         </a>
+      ),
+    },
+    {
+      accessorKey: "godownType",
+      header: "Godown Type",
+      sortable: false,
+      cell: (location) => (
+        <Badge variant="outline" className="text-xs">
+          {godownTypeLabel(location.godownType)}
+        </Badge>
       ),
     },
     {

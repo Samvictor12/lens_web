@@ -196,6 +196,27 @@ export const getMatchingInventoryFIFO = async (saleOrderId) => {
 };
 
 /**
+ * Preview available stock for unsaved / draft SO lens specs (after soft-reserve).
+ * Request body must include lens details (lens_id + eye/power fields).
+ */
+export const previewStockAvailability = async (payload) => {
+    try {
+        const response = await apiClient(
+            "post",
+            `/sale-orders/preview-stock-availability`,
+            { data: payload }
+        );
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message ||
+                error.message ||
+                "Failed to preview stock availability"
+        );
+    }
+};
+
+/**
  * Get lens price ID from LensPriceMaster based on lens and coating
  */
 export const getLensPriceId = async (lensId, coatingId) => {

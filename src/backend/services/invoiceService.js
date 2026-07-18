@@ -550,8 +550,21 @@ export class InvoiceService {
 
   // ──────────────────────────────────────────────────────────
   // Get delivered (unbilled) orders for a specific customer
+  // Optional startDate/endDate filter on SaleOrder.createdAt
   // ──────────────────────────────────────────────────────────
-  async getDeliveredOrders(customerId) {
+  async getDeliveredOrders(customerId, { startDate, endDate } = {}) {
+    const createdAt = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      createdAt.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      createdAt.lte = to;
+    }
+
     return prisma.saleOrder.findMany({
       where: {
         customerId: parseInt(customerId),
@@ -562,9 +575,10 @@ export class InvoiceService {
           { invoiceId: null },
           { invoice: { status: 'CANCELLED' } },
         ],
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
       },
       select: {
-        id: true, orderNo: true, orderDate: true, status: true, customerRefNo: true,
+        id: true, orderNo: true, orderDate: true, createdAt: true, status: true, customerRefNo: true,
         lensPrice: true, fittingPrice: true, tintingPrice: true,
         rightEyeExtra: true, leftEyeExtra: true, discount: true, additionalPrice: true,
         lensProduct: { select: { lens_name: true } },

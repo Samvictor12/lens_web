@@ -141,7 +141,7 @@ export default function CustomerForm() {
   };
 
   const validateEmail = (email) => {
-    if (!email) return false; // Email is required in backend
+    if (!email) return true; // Optional
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
@@ -178,9 +178,7 @@ export default function CustomerForm() {
     }
 
     // Email validation (required in backend)
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!validateEmail(formData.email)) {
+    if (formData.email.trim() && !validateEmail(formData.email)) {
       newErrors.email = "Invalid email format";
     }
 
@@ -609,7 +607,6 @@ export default function CustomerForm() {
                 disabled={isReadOnly}
                 // placeholder="customer@example.com"
                 prefix="@"
-                required
                 error={errors.email}
               />
 

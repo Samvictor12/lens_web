@@ -40,6 +40,16 @@ export const getDispatchList = async (req, res, next) => {
   }
 };
 
+// GET /api/v1/dispatch/:id
+export const getDispatchById = async (req, res, next) => {
+  try {
+    const dispatch = await dispatchService.getDispatchById(req.params.id);
+    res.json({ success: true, data: dispatch, message: 'Dispatch fetched' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // PATCH /api/v1/dispatch/:id
 export const updateDispatch = async (req, res, next) => {
   try {

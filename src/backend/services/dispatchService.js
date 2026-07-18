@@ -303,6 +303,56 @@ export const getDispatchList = async (user, filters = {}) => {
   return { dispatches, total, page: Number(page), limit: Number(limit) };
 };
 
+// ─── Get Dispatch by ID (detail + print) ───────────────────────────────────────
+
+const DISPATCH_PRINT_INCLUDE = {
+  customer: {
+    select: {
+      id: true, name: true, shopname: true, phone: true,
+      address: true, city: true, state: true, pincode: true,
+    },
+  },
+  deliveryPerson: { select: { id: true, name: true, phonenumber: true, vehicleNumber: true } },
+  createdByUser: { select: { id: true, name: true } },
+  saleOrders: {
+    select: {
+      id: true, orderNo: true, customerRefNo: true, itemRefNo: true,
+      status: true, dispatchStatus: true, orderDate: true,
+      rightEye: true, leftEye: true,
+      rightSpherical: true, rightCylindrical: true, rightAxis: true, rightAdd: true, rightDia: true,
+      leftSpherical: true, leftCylindrical: true, leftAxis: true, leftAdd: true, leftDia: true,
+      lensProduct: {
+        select: {
+          id: true, lens_name: true, product_code: true, range_text: true,
+          brand: { select: { name: true } },
+        },
+      },
+      coating: { select: { id: true, name: true } },
+      category: { select: { name: true } },
+      fitting: { select: { name: true } },
+      tinting: { select: { name: true } },
+      dia: { select: { name: true } },
+    },
+  },
+};
+
+/**
+ * Full DC for view modal + print/preview (includes Rx + company settings).
+ */
+export const getDispatchById = async (dispatchId) => {
+  const dispatch = await prisma.dispatchCopy.findUnique({
+    where: { id: Number(dispatchId) },
+    include: DISPATCH_PRINT_INCLUDE,
+  });
+
+  if (!dispatch) {
+    throw new APIError('Dispatch record not found', 404, 'NOT_FOUND');
+  }
+
+  const company = await prisma.companySettings.findFirst();
+  return { ...dispatch, company: company || null };
+};
+
 // ─── Update Dispatch Record (details) ─────────────────────────────────────────
 
 export const updateDispatch = async (dispatchId, payload, user) => {

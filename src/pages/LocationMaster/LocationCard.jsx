@@ -13,6 +13,11 @@ export default function LocationCard({ location, onView, onEdit, onDelete }) {
         <div className="flex items-start justify-between">
           <div className="min-h-[60px]">
             <h3 className="font-semibold text-sm">{location.name}</h3>
+            {location.godownType && (
+              <Badge variant="outline" className="text-[10px] mt-1">
+                {location.godownType === "STOCK" ? "Stock Godown" : "Rx Godown"}
+              </Badge>
+            )}
             {location.description ? (
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                 {location.description}

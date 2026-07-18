@@ -19,10 +19,11 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryService } from "@/services/inventory";
+import { getLocationDropdown } from "@/services/location";
 import { formatCurrency } from "./Inventory.constants";
 import { formatItemPowerRange } from "./useInventoryColumns";
 
-export default function InventoryStockTab({ refreshKey = 0 }) {
+export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK" }) {
   const { toast } = useToast();
   
   // View mode
@@ -57,30 +58,34 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     locations: [],
   });
 
-  // Load dropdown options
+  // Load dropdown options (locations scoped to godown)
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
-        const res = await inventoryService.getInventoryDropdowns();
-        if (res.success && res.data) {
-          setDropdowns({
-            lensProducts: res.data.lensProducts || [],
-            coatings: res.data.coatings || [],
-            locations: res.data.locations || [],
-          });
-        }
+        const [invRes, locRes] = await Promise.all([
+          inventoryService.getInventoryDropdowns(
+            godownType ? { godownType } : {}
+          ),
+          getLocationDropdown({ godownType }),
+        ]);
+        setDropdowns({
+          lensProducts: invRes.success ? invRes.data?.lensProducts || [] : [],
+          coatings: invRes.success ? invRes.data?.coatings || [] : [],
+          locations: locRes.success ? locRes.data || [] : [],
+        });
+        setSelectedLocationId("");
       } catch (err) {
         console.error("Failed to load dropdowns:", err);
       }
     };
     fetchDropdowns();
-  }, []);
+  }, [godownType]);
 
   // Fetch pivot stock summary
   const loadPivotStock = async () => {
     try {
       setIsLoading(true);
-      const params = {};
+      const params = { godownType };
       if (searchQuery) params.search = searchQuery;
       if (selectedLensId) params.lens_id = selectedLensId;
       if (selectedCoatingId) params.coating_id = selectedCoatingId;
@@ -113,6 +118,7 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
         page: pageIndex + 1,
         limit: pageSize,
         groupBy: groupBy === "none" ? null : groupBy,
+        godownType,
       };
       if (searchQuery) params.search = searchQuery;
       if (selectedLensId) params.lens_id = selectedLensId;
@@ -161,6 +167,7 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     addFilter,
     refreshKey,
     localRefreshKey,
+    godownType,
   ]);
 
   // Reset pageIndex on filter changes
@@ -177,6 +184,7 @@ export default function InventoryStockTab({ refreshKey = 0 }) {
     sphFilter,
     cylFilter,
     addFilter,
+    godownType,
   ]);
 
   // Helpers

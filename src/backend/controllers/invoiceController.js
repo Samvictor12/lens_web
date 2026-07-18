@@ -66,7 +66,11 @@ export class InvoiceController {
   /** GET /api/invoices/customers/:customerId/delivered-orders — delivered orders ready for billing */
   async getDeliveredOrders(req, res, next) {
     try {
-      const orders = await service.getDeliveredOrders(req.params.customerId);
+      const { startDate, endDate } = req.query;
+      const orders = await service.getDeliveredOrders(req.params.customerId, {
+        startDate,
+        endDate,
+      });
       res.status(200).json({ success: true, data: orders });
     } catch (error) {
       next(error);

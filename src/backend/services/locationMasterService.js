@@ -36,6 +36,7 @@ export class LocationMasterService {
         data: {
           name: locationData.name.trim(),
           description: locationData.description,
+          godownType: locationData.godownType,
           activeStatus: locationData.activeStatus ?? true,
           deleteStatus: false,
           createdBy: locationData.createdBy,
@@ -63,7 +64,7 @@ export class LocationMasterService {
    */
   async getLocations(queryParams) {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, activeStatus } = queryParams;
+      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search, activeStatus, godownType } = queryParams;
       
       const where = {};
       
@@ -76,6 +77,10 @@ export class LocationMasterService {
       
       if (activeStatus !== undefined) {
         where.activeStatus = activeStatus === 'true';
+      }
+
+      if (godownType === 'STOCK' || godownType === 'RX') {
+        where.godownType = godownType;
       }
 
       // Filter out deleted records
@@ -185,6 +190,7 @@ export class LocationMasterService {
       const data = {};
       if (updateData.name !== undefined) data.name = updateData.name.trim();
       if (updateData.description !== undefined) data.description = updateData.description;
+      if (updateData.godownType !== undefined) data.godownType = updateData.godownType;
       if (updateData.activeStatus !== undefined) data.activeStatus = updateData.activeStatus;
       if (updateData.updatedBy !== undefined) data.updatedBy = updateData.updatedBy;
 
@@ -259,19 +265,26 @@ export class LocationMasterService {
 
   /**
    * Get dropdown list of locations
+   * @param {Object} [query] - Optional filters (godownType)
    * @returns {Promise<Array>} Locations for dropdown
    */
-  async getLocationDropdown() {
+  async getLocationDropdown(query = {}) {
     try {
+      const where = {
+        activeStatus: true,
+        deleteStatus: false,
+      };
+      if (query.godownType === 'STOCK' || query.godownType === 'RX') {
+        where.godownType = query.godownType;
+      }
+
       const locations = await prisma.locationMaster.findMany({
-        where: {
-          activeStatus: true,
-          deleteStatus: false
-        },
+        where,
         select: {
           id: true,
           name: true,
-          description: true
+          description: true,
+          godownType: true,
         },
         orderBy: { name: 'asc' }
       });
@@ -281,7 +294,8 @@ export class LocationMasterService {
         label: loc.name,
         value: loc.id,
         name: loc.name,
-        description: loc.description
+        description: loc.description,
+        godownType: loc.godownType,
       }));
     } catch (error) {
       console.error('Error fetching location dropdown:', error);

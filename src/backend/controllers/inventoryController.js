@@ -321,7 +321,10 @@ export class InventoryController {
    */
   async getInventoryDropdowns(req, res, next) {
     try {
-      const dropdowns = await this.inventoryService.getInventoryDropdowns();
+      const godownType = req.query?.godownType || null;
+      const dropdowns = await this.inventoryService.getInventoryDropdowns({
+        godownType,
+      });
 
       res.json({
         success: true,
@@ -340,9 +343,14 @@ export class InventoryController {
    */
   async getInventoryDashboard(req, res, next) {
     try {
+      const godownType = req.query?.godownType;
       const [stats, softAlloc] = await Promise.all([
-        this.inventoryService.getInventoryDashboardEnhanced(),
-        computeQueueSoftAllocation(),
+        this.inventoryService.getInventoryDashboardEnhanced({ godownType }),
+        computeQueueSoftAllocation(
+          godownType === 'STOCK' || godownType === 'RX'
+            ? { procurementType: godownType }
+            : {}
+        ),
       ]);
       res.json({
         success: true,
@@ -397,6 +405,7 @@ export class InventoryController {
         sph: req.query.sph || null,
         cyl: req.query.cyl || null,
         add: req.query.add || null,
+        godownType: req.query.godownType || null,
       };
 
       const result = await this.inventoryService.getInventoryStockWithGrouping(
@@ -424,7 +433,10 @@ export class InventoryController {
    */
   async getLowStockItems(req, res, next) {
     try {
-      const lowStockItems = await this.inventoryService.getItemsBelowThreshold();
+      const godownType = req.query?.godownType || null;
+      const lowStockItems = await this.inventoryService.getItemsBelowThreshold(
+        godownType
+      );
       res.json({
         success: true,
         data: lowStockItems,
@@ -445,6 +457,7 @@ export class InventoryController {
         startDate: req.query.startDate || null,
         endDate: req.query.endDate || null,
         groupBy: req.query.groupBy || "lens_id",
+        godownType: req.query.godownType || null,
       };
 
       const report = await this.inventoryService.getStockValueReport(
@@ -485,8 +498,11 @@ export class InventoryController {
    */
   async getTopLowSellingProducts(req, res, next) {
     try {
-      const { days = 30 } = req.query;
-      const result = await this.inventoryService.getTopLowSellingProducts({ days });
+      const { days = 30, godownType = null } = req.query;
+      const result = await this.inventoryService.getTopLowSellingProducts({
+        days,
+        godownType,
+      });
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -509,6 +525,7 @@ export class InventoryController {
         sph: req.query.sph || null,
         cyl: req.query.cyl || null,
         add: req.query.add || null,
+        godownType: req.query.godownType || null,
       };
 
       const result = await this.inventoryService.getInventoryStockPivot(queryParams);

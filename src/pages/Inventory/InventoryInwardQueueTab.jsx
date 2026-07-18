@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { Table } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { getInventoryInwardQueue } from '@/services/inventory';
+import { godownTypeToSlug, inventoryInwardDetailPath } from './inventoryGodown';
 
 const formatDate = (value) => {
   if (!value) return '-';
   return new Date(value).toLocaleDateString('en-IN');
 };
 
-export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
+export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = 'STOCK' }) {
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -35,6 +36,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
           page: pageIndex + 1,
           limit: pageSize,
           search: searchQuery,
+          godownType,
         });
 
         if (response.success) {
@@ -58,7 +60,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
     };
 
     loadQueue();
-  }, [pageIndex, pageSize, refreshKey, searchQuery, toast, localRefreshKey]);
+  }, [pageIndex, pageSize, refreshKey, searchQuery, toast, localRefreshKey, godownType]);
 
   const columns = useMemo(
     () => [
@@ -119,7 +121,15 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
             variant="outline"
             size="xs"
             className="h-7 gap-1 text-xs text-primary border-primary/30 hover:bg-primary/5"
-            onClick={() => navigate(`/inventory/inward/${item.purchaseOrderId}/${item.receiptId}`)}
+            onClick={() =>
+              navigate(
+                inventoryInwardDetailPath(
+                  godownTypeToSlug(godownType),
+                  item.purchaseOrderId,
+                  item.receiptId
+                )
+              )
+            }
           >
             <Warehouse className="h-3.5 w-3.5" />
             Start Inward
@@ -127,7 +137,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0 }) {
         ),
       },
     ],
-    [navigate]
+    [navigate, godownType]
   );
 
   return (

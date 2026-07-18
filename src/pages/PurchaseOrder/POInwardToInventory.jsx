@@ -11,6 +11,10 @@ import { getPurchaseOrderById } from "@/services/purchaseOrder";
 import { getReceiptInwardStatus, inwardReceiptToInventory } from "@/services/purchaseOrder";
 import { getInventoryDropdowns, getTrayOccupancy } from "@/services/inventory";
 import { getTraysByLocation } from "@/services/tray";
+import {
+  parseInventoryPath,
+  inventoryTabPath,
+} from "@/pages/Inventory/inventoryGodown";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -71,14 +75,34 @@ export default function POInwardToInventory() {
     setTimeout(() => setHighlightedKey(null), 1200);
   };
 
+  const pathGodown = useMemo(() => {
+    const parts = (location.pathname || "").split("/").filter(Boolean);
+    // /inventory/stock|rx/inward/:id/:receiptId
+    if (parts[0] === "inventory" && (parts[1] === "stock" || parts[1] === "rx")) {
+      return parseInventoryPath(location.pathname);
+    }
+    return null;
+  }, [location.pathname]);
+
   const closeRoute = useMemo(() => {
+    if (pathGodown) {
+      return inventoryTabPath(pathGodown.slug, "inward");
+    }
     if (location.pathname.startsWith("/inventory/inward/")) {
-      return "/inventory/inward";
+      return "/inventory/stock/inward";
     }
 
     // From PO list inward popup: go back to list — never Edit Receipt
     return "/masters/purchase-orders";
-  }, [location.pathname]);
+  }, [location.pathname, pathGodown]);
+
+  const inferGodownFromPo = (poData) => {
+    const lensTypeName = String(poData?.lensType?.name || "").trim().toUpperCase();
+    if (lensTypeName === "STOCK" || lensTypeName === "RX") return lensTypeName;
+    const proc = poData?.saleOrder?.procurementType;
+    if (proc === "STOCK" || proc === "RX") return proc;
+    return null;
+  };
 
   const handleClose = () => {
     if (window.opener) {
@@ -92,10 +116,9 @@ export default function POInwardToInventory() {
   const load = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [poRes, statusRes, dropdownRes] = await Promise.all([
+      const [poRes, statusRes] = await Promise.all([
         getPurchaseOrderById(parseInt(id)),
         getReceiptInwardStatus(parseInt(id), parseInt(receiptId)),
-        getInventoryDropdowns(),
       ]);
 
       if (!poRes.success) throw new Error("Purchase order not found");
@@ -104,6 +127,12 @@ export default function POInwardToInventory() {
       setPo(poRes.data);
       setReceipt(statusRes.data.receipt);
       setInwardedByRow(statusRes.data.inwardedByRow || {});
+
+      const godownType =
+        pathGodown?.godownType || inferGodownFromPo(poRes.data) || null;
+      const dropdownRes = await getInventoryDropdowns(
+        godownType ? { godownType } : {}
+      );
 
       if (dropdownRes.success) {
         setLocations(dropdownRes.data?.locations || []);
@@ -132,7 +161,7 @@ export default function POInwardToInventory() {
     } finally {
       setIsLoading(false);
     }
-  }, [id, receiptId]);
+  }, [id, receiptId, pathGodown, toast]);
 
   useEffect(() => { load(); }, [load]);
 

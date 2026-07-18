@@ -16,7 +16,7 @@ import { useState, useEffect, useMemo } from "react";
  * Self-contained Transactions tab — manages its own loading, pagination and search.
  * Accepts a `refreshKey` prop: increment it from the parent to trigger a reload.
  */
-export default function InventoryTransactionsTab({ refreshKey = 0 }) {
+export default function InventoryTransactionsTab({ refreshKey = 0, godownType }) {
   const { toast } = useToast();
   const location = useLocation();
   
@@ -40,7 +40,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
 
   useEffect(() => {
     loadTransactions();
-  }, [pageIndex, pageSize, searchQuery, sorting, refreshKey, localRefreshKey, transactionType]);
+  }, [pageIndex, pageSize, searchQuery, sorting, refreshKey, localRefreshKey, transactionType, godownType]);
 
   const loadTransactions = async () => {
     try {
@@ -50,6 +50,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0 }) {
         limit: pageSize,
         search: searchQuery,
         type: transactionType !== "all" ? transactionType : undefined,
+        godownType: godownType || undefined,
       });
       if (response.success) {
         setTransactions(response.data || []);

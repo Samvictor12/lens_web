@@ -207,7 +207,7 @@ model Customer {
   shopname            String?
   phone               String?
   alternatephone      String?
-  email               String
+  email               String?
   address             String?
   city                String?
   state               String?
@@ -591,6 +591,11 @@ model LensOffers {
 enum ProcurementType {
   RX
   STOCK
+}
+
+enum GodownType {
+  STOCK
+  RX
 }
 
 enum SaleOrderStatus {
@@ -1068,6 +1073,7 @@ model LocationMaster {
   name                      String
   description               String?
   isVirtual                 Boolean                @default(false)
+  godownType                GodownType?
   activeStatus              Boolean                @default(true)
   deleteStatus              Boolean                @default(false)
   createdAt                 DateTime               @default(now())

@@ -59,12 +59,17 @@ function requiredPoQty(order, eyeOverride) {
  * Returns per-SO result map + aggregate softReservedQty.
  * Does not write reservedStock.
  */
-export async function computeQueueSoftAllocation() {
+export async function computeQueueSoftAllocation({ procurementType } = {}) {
+  const where = {
+    deleteStatus: false,
+    status: { in: INVENTORY_QUEUE_STATUSES },
+  };
+  if (procurementType === 'STOCK' || procurementType === 'RX') {
+    where.procurementType = procurementType;
+  }
+
   const waitingOrders = await prisma.saleOrder.findMany({
-    where: {
-      deleteStatus: false,
-      status: { in: INVENTORY_QUEUE_STATUSES },
-    },
+    where,
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: {
       id: true,
@@ -109,7 +114,15 @@ export async function computeQueueSoftAllocation() {
  * Shortage eyes for a single SO under queue-wide FIFO soft allocation.
  */
 async function getSoftShortageForSaleOrder(saleOrderId) {
-  const { byOrderId } = await computeQueueSoftAllocation();
+  const so = await prisma.saleOrder.findUnique({
+    where: { id: saleOrderId },
+    select: { procurementType: true },
+  });
+  const softOpts =
+    so?.procurementType === 'STOCK' || so?.procurementType === 'RX'
+      ? { procurementType: so.procurementType }
+      : {};
+  const { byOrderId } = await computeQueueSoftAllocation(softOpts);
   const result = byOrderId.get(saleOrderId);
   if (!result) {
     return { shortageRight: false, shortageLeft: false, isStockAvailable: false };
@@ -118,7 +131,7 @@ async function getSoftShortageForSaleOrder(saleOrderId) {
 }
 
 export class SaleOrderWorkflowService {
-  async getInventoryQueue({ page = 1, limit = 50, search, customerId, lensProductId, customerRefNo, orderNo } = {}) {
+  async getInventoryQueue({ page = 1, limit = 50, search, customerId, lensProductId, customerRefNo, orderNo, procurementType } = {}) {
     const parsedPage = parseInt(page, 10) || 1;
     const parsedLimit = parseInt(limit, 10) || 50;
     const skip = (parsedPage - 1) * parsedLimit;
@@ -126,6 +139,10 @@ export class SaleOrderWorkflowService {
       deleteStatus: false,
       status: { in: INVENTORY_QUEUE_STATUSES },
     };
+
+    if (procurementType === 'STOCK' || procurementType === 'RX') {
+      where.procurementType = procurementType;
+    }
 
     if (customerId) {
       where.customerId = parseInt(customerId, 10);
@@ -171,7 +188,11 @@ export class SaleOrderWorkflowService {
         },
       }),
       prisma.saleOrder.count({ where }),
-      computeQueueSoftAllocation(),
+      computeQueueSoftAllocation(
+        procurementType === 'STOCK' || procurementType === 'RX'
+          ? { procurementType }
+          : {}
+      ),
     ]);
 
     const enrichedOrders = orders.map((order) => {

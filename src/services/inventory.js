@@ -87,13 +87,17 @@ export const reserveInventoryForSale = async (reservationData) => {
   return response;
 };
 
-export const getInventoryDropdowns = async () => {
-  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dropdowns`);
+export const getInventoryDropdowns = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dropdowns`, {
+    params,
+  });
   return response;
 };
 
-export const getInventoryDashboard = async () => {
-  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dashboard`);
+export const getInventoryDashboard = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/dashboard`, {
+    params,
+  });
   return response;
 };
 

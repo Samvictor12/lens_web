@@ -82,27 +82,13 @@ function formatEyeSpecs(prefix, order) {
 function goodsDescriptionLines(o) {
   const product = o.lensProduct || {};
   const name = product.lens_name || "Lens";
-  const brand = product.brand?.name || product.brand;
-  const code = product.product_code;
-  const range = product.range_text;
-
-  const titleParts = [name];
-  if (brand) titleParts.push(`(${brand})`);
-  if (code) titleParts.push(`[${code}]`);
-
-  const meta = [
-    o.category?.name,
-    o.coating?.name,
-    o.fitting?.name ? `Fitting: ${o.fitting.name}` : null,
-    o.tinting?.name ? `Tinting: ${o.tinting.name}` : null,
-    range ? `Range: ${range}` : null,
-  ].filter(Boolean);
+  const coating = o.coating?.name || "";
 
   const r = formatEyeSpecs("right", o);
   const l = formatEyeSpecs("left", o);
   const eyes = [r ? `[R] ${r}` : null, l ? `[L] ${l}` : null].filter(Boolean);
 
-  return [titleParts.join(" "), meta.join(" · "), eyes.join(" ")].filter(Boolean);
+  return [name, coating, eyes.join(" ")].filter(Boolean);
 }
 
 /** HTML goods description for tax invoice. */

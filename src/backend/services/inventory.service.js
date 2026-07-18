@@ -15,6 +15,107 @@ const RX_SOURCE_EXCLUSION_FILTER = {
   },
 };
 
+/** Normalize godown query to STOCK | RX | null */
+function normalizeGodownType(godownType) {
+  const raw = String(godownType || '').trim().toUpperCase();
+  if (raw === 'STOCK' || raw === 'RX') return raw;
+  return null;
+}
+
+/** Filter inventory rows to locations of the given godown type (STOCK | RX). */
+function locationGodownClause(godownType) {
+  const gt = normalizeGodownType(godownType);
+  if (!gt) return null;
+  return { location: { godownType: gt } };
+}
+
+/**
+ * Build AND clauses for stock queries scoped by godown.
+ * STOCK: location STOCK + exclude RX-sourced PO stock + exclude RX lens type
+ * RX: location RX + exclude STOCK lens type
+ */
+function stockScopeClauses(godownType) {
+  const gt = normalizeGodownType(godownType);
+  const clauses = [];
+  if (gt === 'RX') {
+    const loc = locationGodownClause('RX');
+    if (loc) clauses.push(loc);
+    // Never show STOCK lens-type products in Rx Godown
+    clauses.push({
+      NOT: { lensType: { name: { equals: 'STOCK', mode: 'insensitive' } } },
+    });
+    return clauses;
+  }
+  if (gt === 'STOCK') {
+    clauses.push(RX_SOURCE_EXCLUSION_FILTER);
+    const loc = locationGodownClause('STOCK');
+    if (loc) clauses.push(loc);
+    // Never show RX lens-type products in Stock Godown
+    clauses.push({
+      NOT: { lensType: { name: { equals: 'RX', mode: 'insensitive' } } },
+    });
+    return clauses;
+  }
+  // Unscoped (legacy): keep RX-source exclusion only
+  clauses.push(RX_SOURCE_EXCLUSION_FILTER);
+  return clauses;
+}
+
+/** Prisma where for InventoryItem rows under a godown (includes PO/RX-source exclusion). */
+function inventoryItemGodownWhere(godownType, extra = {}) {
+  const clauses = stockScopeClauses(godownType);
+  if (!clauses.length) return { ...extra };
+  return { ...extra, AND: [...(extra.AND || []), ...clauses] };
+}
+
+/**
+ * InventoryStock has no purchaseOrder relation — location + lens type only.
+ */
+function stockTableScopeClauses(godownType) {
+  const gt = normalizeGodownType(godownType);
+  const clauses = [];
+  if (!gt) return clauses;
+  const loc = locationGodownClause(gt);
+  if (loc) clauses.push(loc);
+  const oppositeType = gt === 'RX' ? 'STOCK' : 'RX';
+  clauses.push({
+    NOT: { lensType: { name: { equals: oppositeType, mode: 'insensitive' } } },
+  });
+  return clauses;
+}
+
+/** Prisma where for InventoryStock rows under a godown. */
+function inventoryStockGodownWhere(godownType, extra = {}) {
+  const clauses = stockTableScopeClauses(godownType);
+  if (!clauses.length) return { ...extra };
+  return { ...extra, AND: [...(extra.AND || []), ...clauses] };
+}
+
+/** Transaction filter: location match + never opposite lens type. */
+function transactionGodownWhere(godownType) {
+  const gt = normalizeGodownType(godownType);
+  if (!gt) return {};
+  const oppositeType = gt === 'RX' ? 'STOCK' : 'RX';
+  return {
+    AND: [
+      {
+        OR: [
+          { fromLocation: { godownType: gt } },
+          { toLocation: { godownType: gt } },
+          { inventoryItem: { location: { godownType: gt } } },
+        ],
+      },
+      {
+        NOT: {
+          inventoryItem: {
+            lensType: { name: { equals: oppositeType, mode: 'insensitive' } },
+          },
+        },
+      },
+    ],
+  };
+}
+
 /**
  * Inventory Service
  * Handles all database operations for Inventory management
@@ -106,16 +207,18 @@ export class InventoryService {
         startDate,
         endDate,
         sortBy = "createdAt",
-        sortOrder = "desc"
+        sortOrder = "desc",
+        godownType,
       } = queryParams;
 
       const skip = (page - 1) * limit;
       const take = limit;
 
       // Build where clause
-      const where = {
-        deleteStatus: false,
-      };
+      const where =
+        normalizeGodownType(godownType)
+          ? inventoryItemGodownWhere(godownType, { deleteStatus: false })
+          : { deleteStatus: false };
 
       // Search filter
       if (search) {
@@ -221,22 +324,47 @@ export class InventoryService {
         page = 1,
         limit = 10,
         search = '',
+        godownType = 'STOCK',
       } = queryParams;
+
+      const gt = String(godownType || 'STOCK').trim().toUpperCase();
+
+      // Scope by godown using SO procurement + PO lens type so STOCK lenses
+      // (e.g. 978567) never appear under Rx Godown even if linked to an RX SO.
+      let purchaseOrderWhere;
+      if (gt === 'RX') {
+        purchaseOrderWhere = {
+          deleteStatus: false,
+          saleOrder: { procurementType: 'RX' },
+          NOT: {
+            lensType: { name: { equals: 'STOCK', mode: 'insensitive' } },
+          },
+        };
+      } else {
+        // Stock Godown: unlinked / STOCK SOs, plus STOCK lens-type POs (even if SO is RX)
+        purchaseOrderWhere = {
+          deleteStatus: false,
+          AND: [
+            {
+              OR: [
+                { saleOrderId: null },
+                { saleOrder: { procurementType: 'STOCK' } },
+                { lensType: { name: { equals: 'STOCK', mode: 'insensitive' } } },
+              ],
+            },
+            {
+              NOT: {
+                lensType: { name: { equals: 'RX', mode: 'insensitive' } },
+              },
+            },
+          ],
+        };
+      }
 
       const receipts = await prisma.purchaseOrderReceipt.findMany({
         where: {
           deleteStatus: false,
-          purchaseOrder: {
-            deleteStatus: false,
-            OR: [
-              { saleOrderId: null },
-              {
-                saleOrder: {
-                  procurementType: 'STOCK'
-                }
-              }
-            ]
-          },
+          purchaseOrder: purchaseOrderWhere,
         },
         include: {
           purchaseOrder: {
@@ -465,7 +593,8 @@ export class InventoryService {
         startDate,
         endDate,
         sortBy = "createdAt",
-        sortOrder = "desc"
+        sortOrder = "desc",
+        godownType,
       } = queryParams;
 
       const skip = (page - 1) * limit;
@@ -487,6 +616,12 @@ export class InventoryService {
       // Filters
       if (type) where.type = type;
       if (inventoryItemId) where.inventoryItemId = inventoryItemId;
+
+      // Scope to godown: matching location AND never opposite lens type
+      const txnGodown = transactionGodownWhere(godownType);
+      if (Object.keys(txnGodown).length) {
+        where.AND = [...(where.AND || []), ...(txnGodown.AND || [])];
+      }
 
       // Date range filter
       if (startDate || endDate) {
@@ -736,13 +871,14 @@ export class InventoryService {
         lens_id,
         location_id,
         tray_id,
-        category_id
+        category_id,
+        godownType,
       } = queryParams;
 
       const skip = (page - 1) * limit;
       const take = limit;
 
-      const where = {};
+      const where = inventoryStockGodownWhere(godownType, {});
       if (lens_id) where.lens_id = lens_id;
       if (location_id) where.location_id = location_id;
       if (tray_id) where.tray_id = tray_id;
@@ -1021,8 +1157,27 @@ export class InventoryService {
   /**
    * Get dropdown data for inventory forms
    */
-  async getInventoryDropdowns() {
+  async getInventoryDropdowns({ godownType } = {}) {
     try {
+      const gt = normalizeGodownType(godownType);
+      const locationWhere = {
+        deleteStatus: false,
+        activeStatus: true,
+        ...(gt ? { godownType: gt } : {}),
+      };
+      const lensTypeWhere = {
+        deleteStatus: false,
+        activeStatus: true,
+        ...(gt
+          ? { name: { equals: gt, mode: 'insensitive' } }
+          : {}),
+      };
+      const trayWhere = {
+        deleteStatus: false,
+        activeStatus: true,
+        ...(gt ? { location: { godownType: gt } } : {}),
+      };
+
       const [lensProducts, categories, lensTypes, coatings, locations, trays, vendors, inventoryItems, purchaseOrders, saleOrders] = await Promise.all([
         prisma.lensProductMaster.findMany({
           where: { deleteStatus: false, activeStatus: true },
@@ -1035,7 +1190,7 @@ export class InventoryService {
           orderBy: { name: 'asc' }
         }),
         prisma.lensTypeMaster.findMany({
-          where: { deleteStatus: false, activeStatus: true },
+          where: lensTypeWhere,
           select: { id: true, name: true },
           orderBy: { name: 'asc' }
         }),
@@ -1045,12 +1200,12 @@ export class InventoryService {
           orderBy: { name: 'asc' }
         }),
         prisma.locationMaster.findMany({
-          where: { deleteStatus: false, activeStatus: true },
-          select: { id: true, name: true },
+          where: locationWhere,
+          select: { id: true, name: true, godownType: true },
           orderBy: { name: 'asc' }
         }),
         prisma.trayMaster.findMany({
-          where: { deleteStatus: false, activeStatus: true },
+          where: trayWhere,
           select: { id: true, name: true, location_id: true },
           orderBy: { name: 'asc' }
         }),
@@ -1060,7 +1215,7 @@ export class InventoryService {
           orderBy: { name: 'asc' }
         }),
         prisma.inventoryItem.findMany({
-          where: { deleteStatus: false },
+          where: inventoryItemGodownWhere(gt, { deleteStatus: false }),
           select: {
             id: true,
             quantity: true,
@@ -1218,6 +1373,7 @@ export class InventoryService {
         sph,
         cyl,
         add,
+        godownType,
       } = queryParams;
 
       const skip = (page - 1) * limit;
@@ -1225,10 +1381,10 @@ export class InventoryService {
 
       const isGrouped = groupBy && groupBy !== "none";
 
-      // Shared filter builder: AND-combine RX exclusion, dims, search, and power
+      // Shared filter builder: AND-combine godown scope, dims, search, and power
       // filters (same OR semantics as getInventoryStockPivot for sph/cyl/add).
       const buildItemWhere = ({ requireActiveLens = false } = {}) => {
-        const andClauses = [RX_SOURCE_EXCLUSION_FILTER];
+        const andClauses = [...stockScopeClauses(godownType)];
         if (requireActiveLens) {
           andClauses.push({ lensProduct: { deleteStatus: false } });
         }
@@ -1509,14 +1665,16 @@ export class InventoryService {
    * Get items below low stock threshold
    * @returns {Promise<Array>} Items below minimum threshold
    */
-  async getItemsBelowThreshold() {
+  async getItemsBelowThreshold(godownType) {
     try {
-      const lowStockItems = await prisma.inventoryStock.findMany({
-        where: {
-          lensProduct: {
-            minThresholdQty: { not: null },
-          },
+      const where = inventoryStockGodownWhere(godownType, {
+        lensProduct: {
+          minThresholdQty: { not: null },
         },
+      });
+
+      const lowStockItems = await prisma.inventoryStock.findMany({
+        where,
         include: {
           lensProduct: {
             select: {
@@ -1556,10 +1714,49 @@ export class InventoryService {
 
   /**
    * Get enhanced inventory dashboard with pending inwards and low stock
+   * @param {Object} [options]
+   * @param {'STOCK'|'RX'} [options.godownType]
    * @returns {Promise<Object>} Dashboard statistics
    */
-  async getInventoryDashboardEnhanced() {
+  async getInventoryDashboardEnhanced({ godownType } = {}) {
     try {
+      const gt = normalizeGodownType(godownType);
+
+      const pendingPoWhere =
+        gt === 'RX'
+          ? {
+              deleteStatus: false,
+              saleOrder: { procurementType: 'RX' },
+              NOT: {
+                lensType: { name: { equals: 'STOCK', mode: 'insensitive' } },
+              },
+            }
+          : gt === 'STOCK'
+            ? {
+                deleteStatus: false,
+                AND: [
+                  {
+                    OR: [
+                      { saleOrderId: null },
+                      { saleOrder: { procurementType: 'STOCK' } },
+                      { lensType: { name: { equals: 'STOCK', mode: 'insensitive' } } },
+                    ],
+                  },
+                  {
+                    NOT: {
+                      lensType: { name: { equals: 'RX', mode: 'insensitive' } },
+                    },
+                  },
+                ],
+              }
+            : { deleteStatus: false };
+
+      const itemWhere = inventoryItemGodownWhere(gt, {
+        deleteStatus: false,
+        activeStatus: true,
+      });
+      const stockWhere = inventoryStockGodownWhere(gt);
+
       const [
         productCountResult,
         damagedItems,
@@ -1567,34 +1764,26 @@ export class InventoryService {
         lowStockItems,
         pendingReceipts,
       ] = await Promise.all([
-        // Product count: distinct lens products (not raw item count)
         prisma.inventoryItem.groupBy({
           by: ['lens_id'],
-          where: { deleteStatus: false, activeStatus: true },
+          where: itemWhere,
         }),
-        // Damaged items
         prisma.inventoryItem.count({
           where: {
-            deleteStatus: false,
-            activeStatus: true,
+            ...itemWhere,
             status: "DAMAGED",
           },
         }),
-        // Total inventory value + Available/Reserved stock quantity — sourced from
-        // InventoryStock (bucket-level running totals correctly maintained by
-        // updateInventoryStock()'s ADD/SUBTRACT/RESERVE/UNRESERVE branches), NOT
-        // InventoryItem.quantity: a fully-RESERVED InventoryItem row has its own
-        // quantity zeroed by reserveInventoryForSale() in the same write that sets
-        // its status, so summing InventoryItem.quantity for RESERVED rows always
-        // returns ~0 regardless of how much stock is actually reserved.
         prisma.inventoryStock.findMany({
+          where: stockWhere,
           select: { totalStock: true, avgCostPrice: true, availableStock: true, reservedStock: true },
         }),
-        // Low stock items
-        this.getItemsBelowThreshold(),
-        // Pending inwards
+        this.getItemsBelowThreshold(gt),
         prisma.purchaseOrderReceipt.findMany({
-          where: { deleteStatus: false },
+          where: {
+            deleteStatus: false,
+            purchaseOrder: pendingPoWhere,
+          },
           include: {
             purchaseOrder: { select: { id: true, poNumber: true, vendor: true } },
           },
@@ -1651,6 +1840,7 @@ export class InventoryService {
         startDate,
         endDate,
         groupBy = "lens_id", // lens_id, category_id, location_id
+        godownType,
       } = queryParams;
 
       const dateFilter = {};
@@ -1663,11 +1853,14 @@ export class InventoryService {
         dateFilter.lte = end;
       }
 
+      const txnGodown = transactionGodownWhere(godownType);
+
       // Get inward and outward transactions
       const transactions = await prisma.inventoryTransaction.findMany({
         where: {
           transactionDate: Object.keys(dateFilter).length > 0 ? dateFilter : undefined,
           type: { in: ["INWARD_PO", "INWARD_DIRECT", "OUTWARD_SALE", "OUTWARD_RETURN"] },
+          ...txnGodown,
         },
         include: {
           inventoryItem: {
@@ -2022,15 +2215,18 @@ export class InventoryService {
    * Top 10 and Low 10 selling products by OUTWARD_SALE transaction volume.
    * @param {Object} params - { days: 30 | 90 }
    */
-  async getTopLowSellingProducts({ days = 30 } = {}) {
+  async getTopLowSellingProducts({ days = 30, godownType } = {}) {
     try {
       const since = new Date();
       since.setDate(since.getDate() - parseInt(days, 10));
+
+      const txnGodown = transactionGodownWhere(godownType);
 
       const txns = await prisma.inventoryTransaction.findMany({
         where: {
           type: 'OUTWARD_SALE',
           transactionDate: { gte: since },
+          ...txnGodown,
         },
         select: {
           quantity: true,
@@ -2086,6 +2282,7 @@ export class InventoryService {
         sph,
         cyl,
         add,
+        godownType,
       } = queryParams;
 
       const where = {
@@ -2093,7 +2290,7 @@ export class InventoryService {
         activeStatus: true,
       };
 
-      const andClauses = [RX_SOURCE_EXCLUSION_FILTER];
+      const andClauses = [...stockScopeClauses(godownType)];
 
       if (lens_id) andClauses.push({ lens_id: parseInt(lens_id, 10) });
       if (category_id) andClauses.push({ category_id: parseInt(category_id, 10) });

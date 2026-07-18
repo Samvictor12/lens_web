@@ -129,6 +129,11 @@ const LegacyFittingOperatorRedirect = () => {
   return <Navigate to={id ? `/fitting/operator/${id}` : "/fitting/operator"} replace />;
 };
 
+const LegacyInventoryInwardRedirect = () => {
+  const { id, receiptId } = useParams();
+  return <Navigate to={`/inventory/stock/inward/${id}/${receiptId}`} replace />;
+};
+
 const SessionExpiryHandler = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -170,18 +175,34 @@ const AppRoutes = () => (
       <Route path="/sales/customers/:mode/:id" element={<ProtectedRoute><CustomerForm /></ProtectedRoute>} />
 
       {/* Inventory Routes */}
-      <Route path="/inventory/dashboard" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock" element={<ProtectedRoute><Navigate to="/inventory/stock/dashboard" replace /></ProtectedRoute>} />
+      <Route path="/inventory/rx" element={<ProtectedRoute><Navigate to="/inventory/rx/dashboard" replace /></ProtectedRoute>} />
+      <Route path="/inventory/stock/dashboard" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock/request-queue" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock/transactions/add" element={<ProtectedRoute><InventoryTransactionPage /></ProtectedRoute>} />
+      <Route path="/inventory/stock/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
+      <Route path="/inventory/rx/dashboard" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/rx/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/rx/request-queue" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/rx/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/rx/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/rx/transactions/add" element={<ProtectedRoute><InventoryTransactionPage /></ProtectedRoute>} />
+      <Route path="/inventory/rx/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
+      {/* Legacy inventory URLs → Stock Godown */}
+      <Route path="/inventory/dashboard" element={<ProtectedRoute><Navigate to="/inventory/stock/dashboard" replace /></ProtectedRoute>} />
+      <Route path="/inventory/items" element={<ProtectedRoute><Navigate to="/inventory/stock/dashboard" replace /></ProtectedRoute>} />
+      <Route path="/inventory/inward" element={<ProtectedRoute><Navigate to="/inventory/stock/inward" replace /></ProtectedRoute>} />
+      <Route path="/inventory/request-queue" element={<ProtectedRoute><Navigate to="/inventory/stock/request-queue" replace /></ProtectedRoute>} />
+      <Route path="/inventory/transactions" element={<ProtectedRoute><Navigate to="/inventory/stock/transactions" replace /></ProtectedRoute>} />
+      <Route path="/inventory/reports" element={<ProtectedRoute><Navigate to="/inventory/stock/dashboard" replace /></ProtectedRoute>} />
       <Route path="/inventory/items/add" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
       <Route path="/inventory/items/edit/:id" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
       <Route path="/inventory/items/view/:id" element={<ProtectedRoute><InventoryItemPage /></ProtectedRoute>} />
-      <Route path="/inventory/transactions/add" element={<ProtectedRoute><InventoryTransactionPage /></ProtectedRoute>} />
-      <Route path="/inventory/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
-      <Route path="/inventory/items" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/inward" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/request-queue" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
-      <Route path="/inventory/reports" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/transactions/add" element={<ProtectedRoute><Navigate to="/inventory/stock/transactions/add" replace /></ProtectedRoute>} />
+      <Route path="/inventory/inward/:id/:receiptId" element={<ProtectedRoute><LegacyInventoryInwardRedirect /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders" element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
       <Route path="/masters/purchase-orders/:mode" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderForm /></div>} />
       <Route path="/masters/purchase-orders/:mode/:id" element={<div className="flex overflow-auto h-svh w-full"><PurchaseOrderForm /></div>} />

@@ -89,7 +89,17 @@ export default function PurchaseOrderReceive() {
   const isReadOnlyView = searchParams.get("readonly") === "1";
   const { toast } = useToast();
   const { company } = useCompany();
-  const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
+  /** Default GST is fixed at 5%; user may change only when a different rate is required. */
+  const DEFAULT_GST_PCT = "5";
+  const gstRateOptions = useMemo(() => {
+    const options = gstRatesToSelectOptions(getGstRatesFromSettings(company));
+    const hasDefault = options.some((o) => String(o.value) === DEFAULT_GST_PCT);
+    if (hasDefault) return options;
+    return [
+      { id: DEFAULT_GST_PCT, name: "GST 5%", value: 5 },
+      ...options,
+    ];
+  }, [company]);
 
   const [po, setPo] = useState(null);
   const [poVendor, setPoVendor] = useState(null);
@@ -102,7 +112,7 @@ export default function PurchaseOrderReceive() {
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [totalPrice, setTotalPrice] = useState("");
-  const [taxPercentage, setTaxPercentage] = useState("");
+  const [taxPercentage, setTaxPercentage] = useState(DEFAULT_GST_PCT);
 
   // Supplier invoice + delivery state
   const [actualDeliveryDate, setActualDeliveryDate] = useState("");
@@ -619,13 +629,16 @@ export default function PurchaseOrderReceive() {
                 name="taxPercentage"
                 options={gstRateOptions}
                 value={taxPercentage}
-                onChange={(value) => setTaxPercentage(value != null ? String(value) : "")}
-                placeholder="Select GST rate"
+                onChange={(value) =>
+                  setTaxPercentage(value != null && value !== "" ? String(value) : DEFAULT_GST_PCT)
+                }
+                placeholder="GST 5%"
                 isSearchable={false}
-                isClearable={(parseFloat(totalPrice) || 0) <= 0}
+                isClearable={false}
                 disabled={isLocked}
                 singleLine
                 required={(parseFloat(totalPrice) || 0) > 0}
+                helperText="Default 5%. Change only if a different rate is required."
               />
 
               {/* Computed summary — always visible */}
