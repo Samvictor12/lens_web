@@ -554,7 +554,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
   };
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden gap-3">
       {/* ── Filters & Controls ────────────────────────────────────────── */}
       <Card className="p-3 flex-shrink-0">
         <div className="space-y-3">
@@ -765,10 +765,9 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
             No stock items found matching the selected filters.
           </Card>
         ) : (
-          <Card className="flex-1 overflow-auto max-h-[580px] bg-white">
-            <div className="border rounded-lg overflow-auto max-w-full">
-              <table className="w-full border-collapse text-xs table-layout-fixed">
-                <thead>
+          <div className="flex-1 min-h-0 overflow-auto rounded-lg border bg-white">
+              <table className="border-collapse text-xs w-max min-w-full">
+                <thead className="sticky top-0 z-30">
                   {/* Row 1: Location Headers */}
                   <tr className="bg-slate-100 text-slate-700 font-bold border-b text-[11px]">
                     <th colSpan={5} className="p-2.5 border-r text-left bg-slate-100 sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -839,8 +838,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
                   ))}
                 </tbody>
               </table>
-            </div>
-          </Card>
+          </div>
         )
       ) : (
         /* ── Expandable List Representation ──────────────────────────── */
@@ -853,12 +851,12 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
               </div>
             </Card>
           ) : (
-            <div className="flex-1 min-h-0 flex flex-col gap-3">
-              <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto pr-1">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
                 {groups.map((group) => {
                   const isExpanded = expandedGroups[group.key];
                   return (
-                    <Card key={group.key} className="overflow-hidden bg-white">
+                    <Card key={group.key} className="bg-white shrink-0">
                       <div
                         className="p-3 cursor-pointer hover:bg-slate-50/50 transition-colors flex items-center justify-between"
                         onClick={() =>
@@ -893,11 +891,12 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
                       </div>
 
                       {isExpanded && (
-                        <div className="border-t bg-white">
+                        <div className="border-t bg-white overflow-auto max-h-[min(50vh,28rem)]">
                           <Table
                             columns={listColumns}
                             data={group.items}
                             pagination={false}
+                            fillHeight={false}
                             emptyMessage="No stock items in this group"
                           />
                         </div>
@@ -915,7 +914,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
             </div>
           )
         ) : (
-          <Card className="flex-1 min-h-0 bg-white">
+          <div className="flex-1 min-h-0">
             <Table
               columns={listColumns}
               data={stockSummary}
@@ -930,7 +929,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
               loading={isLoading}
               emptyMessage="No stock data found"
             />
-          </Card>
+          </div>
         )
       )}
     </div>

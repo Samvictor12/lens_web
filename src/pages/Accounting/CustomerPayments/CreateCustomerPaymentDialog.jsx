@@ -35,6 +35,7 @@ function fmt(n) {
 export default function CreateCustomerPaymentDialog({
   open,
   onOpenChange,
+  mode = "new",
   customers = [],
   bankLedgers = [],
   preselectedCustomerId = "",
@@ -50,14 +51,18 @@ export default function CreateCustomerPaymentDialog({
   const [acceptAdvance, setAcceptAdvance] = useState(false);
   const [manualOverrides, setManualOverrides] = useState({});
 
-  const lockedCustomer = !!preselectedCustomerId;
+  const isRecordMode = mode === "record";
+  const lockedCustomer = isRecordMode && !!preselectedCustomerId;
 
-  // Invoice selection is OutstandingInvoicesQueue List UI — dialog only allocates preselected
   const selectedInvoices = useMemo(() => {
     const pool = preselectedInvoices || [];
-    if (!preselectedInvoiceIds.length) return [];
-    return pool.filter((inv) => preselectedInvoiceIds.includes(inv.id));
-  }, [preselectedInvoices, preselectedInvoiceIds]);
+    if (isRecordMode) {
+      if (!preselectedInvoiceIds.length) return [];
+      return pool.filter((inv) => preselectedInvoiceIds.includes(inv.id));
+    }
+    if (!form.customerId) return [];
+    return pool.filter((inv) => String(inv.customerId) === String(form.customerId));
+  }, [preselectedInvoices, preselectedInvoiceIds, isRecordMode, form.customerId]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -72,7 +77,13 @@ export default function CreateCustomerPaymentDialog({
     setManualOverrides({});
     setAcceptAdvance(false);
     setAllocations({});
-  }, [open, preselectedCustomerId, prefillAmount]);
+  }, [open, preselectedCustomerId, prefillAmount, mode]);
+
+  useEffect(() => {
+    if (!open || isRecordMode) return;
+    setManualOverrides({});
+    setAcceptAdvance(false);
+  }, [open, isRecordMode, form.customerId]);
 
   const totalOutstanding = selectedInvoices.reduce(
     (s, inv) => s + parseFloat(inv.outstanding || 0),
@@ -147,13 +158,46 @@ export default function CreateCustomerPaymentDialog({
     onOpenChange(false);
   };
 
-  const customerOptions = customers.map((c) => ({ id: c.id, name: c.name }));
+  const customerOptions = useMemo(() => {
+    if (isRecordMode) {
+      if (preselectedCustomerId) {
+        const fromCustomers = customers.find(
+          (c) => String(c.id) === String(preselectedCustomerId)
+        );
+        if (fromCustomers) return [{ id: fromCustomers.id, name: fromCustomers.name }];
+
+        const inv = (preselectedInvoices || []).find(
+          (i) => String(i.customerId) === String(preselectedCustomerId)
+        );
+        if (inv?.customer) {
+          const c = inv.customer;
+          return [{ id: inv.customerId, name: c.shopname || c.name || `Customer #${inv.customerId}` }];
+        }
+      }
+      return customers.map((c) => ({ id: c.id, name: c.name }));
+    }
+
+    const seen = new Map();
+    for (const inv of preselectedInvoices || []) {
+      if (!inv.customerId || seen.has(inv.customerId)) continue;
+      const c = inv.customer || {};
+      seen.set(inv.customerId, {
+        id: inv.customerId,
+        name: c.shopname || c.name || `Customer #${inv.customerId}`,
+      });
+    }
+    return Array.from(seen.values()).sort((a, b) =>
+      String(a.name).localeCompare(String(b.name))
+    );
+  }, [isRecordMode, preselectedCustomerId, preselectedInvoices, customers]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Record Customer Payment</DialogTitle>
+          <DialogTitle>
+            {isRecordMode ? "Record Customer Payment" : "New Customer Payment"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1">
@@ -162,7 +206,7 @@ export default function CreateCustomerPaymentDialog({
               options={customerOptions}
               value={form.customerId || null}
               onChange={(val) => set("customerId", val != null && val !== "" ? String(val) : "")}
-              placeholder="Search customer..."
+              placeholder={isRecordMode ? "Customer" : "Search customer with outstanding invoices..."}
               isSearchable
               isClearable={!lockedCustomer}
               disabled={lockedCustomer}
@@ -234,6 +278,13 @@ export default function CreateCustomerPaymentDialog({
               placeholder="Cheque / UTR"
             />
           </div>
+
+          {!isRecordMode && form.customerId && selectedInvoices.length === 0 && (
+            <p className="text-xs text-muted-foreground rounded-md border border-dashed p-3">
+              This customer has no outstanding invoices. Payment cannot be recorded until invoices
+              are issued.
+            </p>
+          )}
 
           {selectedInvoices.length > 0 && (
             <div className="space-y-2">

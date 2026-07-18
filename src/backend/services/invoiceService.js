@@ -10,13 +10,34 @@ function parseTaxPercent(value) {
   return Math.round(n * 100) / 100;
 }
 
+/** Sum additional charges — sale orders store `{ name, value }`; tolerate legacy `amount`. */
+function sumAdditionalPrice(additionalPrice) {
+  if (!Array.isArray(additionalPrice)) return 0;
+  return additionalPrice.reduce(
+    (sum, x) => sum + (parseFloat(x?.value ?? x?.amount) || 0),
+    0
+  );
+}
+
+/** Taxable line total for one sale order (matches SaleOrderForm & Billing.constants orderTotal). */
+function saleOrderTaxableTotal(o) {
+  const lensPrice = o.lensPrice || 0;
+  const extras =
+    (o.fittingPrice || 0) +
+    (o.tintingPrice || 0) +
+    (o.rightEyeExtra || 0) +
+    (o.leftEyeExtra || 0);
+  const discountAmt = lensPrice * ((o.discount || 0) / 100);
+  return lensPrice - discountAmt + extras + sumAdditionalPrice(o.additionalPrice);
+}
+
 function calcInvoiceTaxFromCompany(taxableAmount, companySettings) {
   const attrs =
     companySettings?.customAttributes && typeof companySettings.customAttributes === 'object'
       ? companySettings.customAttributes
       : {};
-  const gstPercent = parseTaxPercent(attrs.gstPercent ?? 0);
-  const sgstPercent = parseTaxPercent(attrs.sgstPercent ?? 0);
+  const gstPercent = parseTaxPercent(attrs.gstPercent ?? attrs.invoiceGstPercent ?? 0);
+  const sgstPercent = parseTaxPercent(attrs.sgstPercent ?? attrs.invoiceSgstPercent ?? 0);
   const taxable = Math.round((Number(taxableAmount) || 0) * 100) / 100;
   const gstAmount = Math.round(taxable * (gstPercent / 100) * 100) / 100;
   const sgstAmount = Math.round(taxable * (sgstPercent / 100) * 100) / 100;
@@ -41,7 +62,7 @@ function calcInvoiceTaxFromCompany(taxableAmount, companySettings) {
  *   SaleOrder(DELIVERED) ─── grouped into ──► Invoice(DRAFT → ISSUED → PARTIALLY_PAID → PAID)
  *                                                              │
  *                                                              ▼
- *                                                    SaleOrder(BILLED)  ← final state
+ *                                                    SaleOrder(INVOICED → COMPLETED on full payment)
  */
 export class InvoiceService {
 
@@ -121,16 +142,10 @@ export class InvoiceService {
         });
         if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
-        const taxableSubtotal = orders.reduce((sum, o) => {
-          const lensPrice = o.lensPrice || 0;
-          const extras = (o.fittingPrice || 0) + (o.tintingPrice || 0)
-            + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
-          const discountAmt = lensPrice * ((o.discount || 0) / 100);
-          const additional = Array.isArray(o.additionalPrice)
-            ? o.additionalPrice.reduce((a, x) => a + (x.amount || 0), 0)
-            : 0;
-          return sum + (lensPrice - discountAmt + extras + additional);
-        }, 0);
+        const taxableSubtotal = orders.reduce(
+          (sum, o) => sum + saleOrderTaxableTotal(o),
+          0
+        );
 
         const companySettings = await tx.companySettings.findFirst();
         const taxBreakdown = calcInvoiceTaxFromCompany(taxableSubtotal, companySettings);
@@ -142,7 +157,14 @@ export class InvoiceService {
         const invoiceDate = new Date();
         let resolvedDueDate;
         if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '') {
-          resolvedDueDate = new Date(dueDate);
+          const dateStr = String(dueDate).trim();
+          // YYYY-MM-DD from date input — parse at local noon to avoid UTC day shift
+          resolvedDueDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+            ? new Date(`${dateStr}T12:00:00`)
+            : new Date(dueDate);
+          if (Number.isNaN(resolvedDueDate.getTime())) {
+            throw new APIError('Invalid due date', 400, 'INVALID_DUE_DATE');
+          }
         } else {
           const creditDays = customer.credit_days ?? 0;
           resolvedDueDate = new Date(invoiceDate);
@@ -346,6 +368,14 @@ export class InvoiceService {
 
       if (invoice.status === 'PAID') {
         throw new APIError('Cannot cancel a fully paid invoice', 400, 'INVOICE_PAID');
+      }
+
+      if ((invoice.paidAmount || 0) > 0) {
+        throw new APIError(
+          'Cannot cancel an invoice with recorded payments. Reverse payments in Accounting first.',
+          400,
+          'INVOICE_HAS_PAYMENTS'
+        );
       }
 
       if (invoice.status === 'CANCELLED') {

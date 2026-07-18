@@ -60,8 +60,44 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => {
+const PORTAL_PICKER_SELECTOR = [
+  ".react-select__menu",
+  ".react-select__menu-portal",
+  ".react-select__option",
+  "[data-radix-select-content]",
+  "[data-radix-popover-content]",
+  "[data-radix-dropdown-menu-content]",
+].join(", ");
+
+const isPortaledPickerTarget = (target) =>
+  target instanceof Element && Boolean(target.closest(PORTAL_PICKER_SELECTOR));
+
+const DialogContent = React.forwardRef(({ className, children, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => {
   const size = React.useContext(DialogSizeContext);
+
+  const handlePointerDownOutside = (event) => {
+    if (isPortaledPickerTarget(event.target)) {
+      event.preventDefault();
+      return;
+    }
+    onPointerDownOutside?.(event);
+  };
+
+  const handleInteractOutside = (event) => {
+    if (isPortaledPickerTarget(event.target)) {
+      event.preventDefault();
+      return;
+    }
+    onInteractOutside?.(event);
+  };
+
+  const handleFocusOutside = (event) => {
+    if (isPortaledPickerTarget(event.target)) {
+      event.preventDefault();
+      return;
+    }
+    onFocusOutside?.(event);
+  };
 
   return (
     <DialogPortal>
@@ -70,6 +106,9 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
         ref={ref}
         className={getDialogContentClasses(className, size)}
         {...props}
+        onPointerDownOutside={handlePointerDownOutside}
+        onInteractOutside={handleInteractOutside}
+        onFocusOutside={handleFocusOutside}
       >
         {children}
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">

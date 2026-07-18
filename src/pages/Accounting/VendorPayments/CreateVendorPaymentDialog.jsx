@@ -11,19 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
 import { createVendorPayment, getOutstandingPOs } from "@/services/vendorPayment";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, emptyPaymentForm } from "./VendorPayments.constants";
+
+const paymentMethodOptions = PAYMENT_METHODS.map((m) => ({
+  id: m,
+  name: PAYMENT_METHOD_LABELS[m],
+}));
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -312,6 +310,7 @@ export default function CreateVendorPaymentDialog({
   };
 
   const vendorOptions = vendors.map((v) => ({ id: v.id, name: v.name }));
+  const bankLedgerOptions = bankLedgers.map((l) => ({ id: l.id, name: l.ledgerName }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -450,33 +449,29 @@ export default function CreateVendorPaymentDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Payment Method <span className="text-red-500">*</span></Label>
-              <Select value={form.paymentMethod} onValueChange={(v) => set("paymentMethod", v)}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {PAYMENT_METHOD_LABELS[m]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormSelect
+                options={paymentMethodOptions}
+                value={form.paymentMethod || null}
+                onChange={(val) => set("paymentMethod", val ?? "")}
+                placeholder="Select payment method"
+                isSearchable={false}
+                isClearable
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                menuPosition="fixed"
+              />
             </div>
             <div className="space-y-1">
               <Label>Payment Account <span className="text-red-500">*</span></Label>
-              <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Cash / Bank account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bankLedgers.map((l) => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      {l.ledgerName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormSelect
+                options={bankLedgerOptions}
+                value={form.bankLedgerId || null}
+                onChange={(val) => set("bankLedgerId", val != null && val !== "" ? String(val) : "")}
+                placeholder="Cash / Bank account"
+                isSearchable
+                isClearable
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                menuPosition="fixed"
+              />
             </div>
           </div>
 
@@ -539,21 +534,16 @@ export default function CreateVendorPaymentDialog({
                           onChange={(e) => updatePoLine(id, "subtotalAmount", e.target.value)}
                           placeholder="0.00"
                         />
-                        <Select
-                          value={line.gstPercent !== "" ? String(line.gstPercent) : undefined}
-                          onValueChange={(v) => updatePoLine(id, "gstPercent", v)}
-                        >
-                          <SelectTrigger className="h-7 text-xs">
-                            <SelectValue placeholder="%" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {gstRateOptions.map((opt) => (
-                              <SelectItem key={opt.id} value={String(opt.value)}>
-                                {opt.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormSelect
+                          options={gstRateOptions}
+                          value={line.gstPercent !== "" ? String(line.gstPercent) : null}
+                          onChange={(val) => updatePoLine(id, "gstPercent", val != null ? String(val) : "")}
+                          placeholder="%"
+                          isSearchable={false}
+                          isClearable
+                          containerClassName="space-y-0"
+                          className="h-7 text-xs"
+                        />
                         <span className="text-right font-mono pr-1">
                           {line.taxAmount !== "" ? fmt(line.taxAmount) : "—"}
                         </span>

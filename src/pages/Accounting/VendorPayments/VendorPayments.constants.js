@@ -30,8 +30,55 @@ export const emptyPaymentForm = {
   notes: "",
   subtotalAmount: "",
   taxAmount: "",
+  totalAmount: "",
   items: [],
 };
+
+function round2(n) {
+  return Math.round(parseFloat(n || 0) * 100) / 100;
+}
+
+function sortVendorInvoices(invoices) {
+  return [...invoices].sort((a, b) => {
+    const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : Infinity;
+    const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : Infinity;
+    if (dateA !== dateB) return dateA - dateB;
+    return String(a.invoiceNumber || "").localeCompare(String(b.invoiceNumber || ""));
+  });
+}
+
+/** Client-side FIFO preview for vendor invoice payment allocation */
+export function previewAllocations(invoices, totalAmount, overrides = {}) {
+  const sorted = sortVendorInvoices(invoices);
+  const total = round2(totalAmount);
+  let remaining = total;
+  const result = {};
+
+  const overrideIds = new Set(Object.keys(overrides).map((k) => parseInt(k, 10)));
+
+  for (const inv of sorted) {
+    if (overrideIds.has(inv.id)) {
+      const amt = round2(overrides[inv.id]);
+      const max = round2(inv.outstanding);
+      result[inv.id] = Math.min(amt, max, remaining);
+      remaining = round2(remaining - result[inv.id]);
+    }
+  }
+
+  for (const inv of sorted) {
+    if (overrideIds.has(inv.id)) continue;
+    if (remaining <= 0) {
+      result[inv.id] = 0;
+      continue;
+    }
+    const max = round2(inv.outstanding);
+    const amt = round2(Math.min(remaining, max));
+    result[inv.id] = amt;
+    remaining = round2(remaining - amt);
+  }
+
+  return { allocations: result, remaining: round2(remaining) };
+}
 
 // ─── printVendorPaymentVoucher ─────────────────────────────────────────────────
 export function printVendorPaymentVoucher(payment) {

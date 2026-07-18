@@ -18,7 +18,7 @@ export class DashboardService {
     // Discount applies to lens price only — consistent with invoiceService & SaleOrderForm
     const discountAmt = lensPrice * ((o.discount || 0) / 100);
     const additional = Array.isArray(o.additionalPrice)
-      ? o.additionalPrice.reduce((a, x) => a + (x.amount || 0), 0)
+      ? o.additionalPrice.reduce((a, x) => a + (parseFloat(x?.value ?? x?.amount) || 0), 0)
       : 0;
     return lensPrice - discountAmt + extras + additional;
   }

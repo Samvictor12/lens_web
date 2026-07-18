@@ -15,22 +15,30 @@ const FormSelect = React.forwardRef(
       onChange,
       placeholder = "Select option",
       isSearchable = true,
-      isClearable = false,
+      isClearable = true,
       disabled,
       containerClassName,
       className,
       singleLine = false,
+      menuPortalTarget,
+      menuPosition = "fixed",
       ...props
     },
     ref
   ) => {
     const inputId = props.id || props.name;
+    const resolvedMenuPortalTarget =
+      menuPortalTarget !== undefined
+        ? menuPortalTarget
+        : typeof document !== "undefined"
+          ? document.body
+          : null;
 
     // Convert options to react-select format if needed
     const selectOptions = options.map((option) => ({
+      ...option,
       value: option.value !== undefined ? option.value : option.id,
       label: option.label !== undefined ? option.label : option.name,
-      ...option, // Preserve other properties like code
     }));
 
     // Find selected option
@@ -107,11 +115,13 @@ const FormSelect = React.forwardRef(
         boxShadow:
           "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
         borderRadius: "0.5rem",
-        zIndex: 9999,
+        zIndex: 99999,
+        pointerEvents: "auto",
       }),
       menuPortal: (base) => ({
         ...base,
-        zIndex: 9999,
+        zIndex: 99999,
+        pointerEvents: "auto",
       }),
       menuList: (base) => ({
         ...base,
@@ -169,6 +179,7 @@ const FormSelect = React.forwardRef(
           {/* React Select */}
           <Select
             ref={ref}
+            {...props}
             inputId={inputId}
             options={selectOptions}
             value={selectedOption || null}
@@ -179,11 +190,12 @@ const FormSelect = React.forwardRef(
             isSearchable={isSearchable}
             isClearable={isClearable}
             isDisabled={disabled}
+            menuPortalTarget={resolvedMenuPortalTarget}
+            menuPosition={menuPosition}
             styles={customStyles}
             className={cn("react-select-container w-full", className)}
             classNamePrefix="react-select"
             noOptionsMessage={() => "No options found"}
-            {...props}
           />
         </div>
         {/* Error Message */}

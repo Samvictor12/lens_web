@@ -6,6 +6,17 @@ export const fmt = (n) =>
     ? `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
     : "—";
 
+/** Sum additional charges — sale orders store `{ name, value }`; tolerate legacy `amount`. */
+export function sumAdditionalPrice(additionalPrice) {
+  if (!Array.isArray(additionalPrice)) return 0;
+  return Math.round(
+    additionalPrice.reduce(
+      (s, x) => s + (parseFloat(x?.value ?? x?.amount) || 0),
+      0
+    ) * 100
+  ) / 100;
+}
+
 export const orderTotal = (o) => {
   const lensPrice = o.lensPrice || 0;
   const extras =
@@ -15,10 +26,7 @@ export const orderTotal = (o) => {
     (o.leftEyeExtra || 0);
   // Discount applies to lens price only — matches SaleOrderForm & invoiceService
   const disc = lensPrice * ((o.discount || 0) / 100);
-  const additional = Array.isArray(o.additionalPrice)
-    ? o.additionalPrice.reduce((s, x) => s + (x.amount || 0), 0)
-    : 0;
-  return Math.round((lensPrice - disc + extras + additional) * 100) / 100;
+  return Math.round((lensPrice - disc + extras + sumAdditionalPrice(o.additionalPrice)) * 100) / 100;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -107,10 +115,7 @@ function lineDiscountAmount(o) {
 
 /** Per-line additional charges only (excludes fitting/tinting/eye extras). */
 function lineAdditionalCharges(o) {
-  if (!Array.isArray(o.additionalPrice)) return 0;
-  return Math.round(
-    o.additionalPrice.reduce((s, x) => s + (x.amount || 0), 0) * 100
-  ) / 100;
+  return sumAdditionalPrice(o.additionalPrice);
 }
 
 /** Lens price after discount (per line). */
@@ -127,6 +132,17 @@ function lineQtyPairs(o) {
 
 function fittingChargesTotal(orders) {
   return (orders || []).reduce((sum, o) => sum + (o.fittingPrice || 0), 0);
+}
+
+function tintingChargesTotal(orders) {
+  return (orders || []).reduce((sum, o) => sum + (o.tintingPrice || 0), 0);
+}
+
+function eyeExtrasTotal(orders) {
+  return (orders || []).reduce(
+    (sum, o) => sum + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0),
+    0
+  );
 }
 
 /** Indian-style amount in words (rupees). */
@@ -303,18 +319,23 @@ export function buildInvoiceHtml(invoice, companyOverride) {
       discountSubtotal += discAmt;
 
       return `<tr>
-        <td class="c">${idx + 1}</td>
+        <td>${idx + 1}</td>
         <td>${escapeHtml(dash(o.orderNo))}</td>
         <td>${escapeHtml(dash(o.customerRefNo))}</td>
         <td class="desc">${formatGoodsDescription(o)}</td>
-        <td class="r">${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-        <td class="r">${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
-        <td class="r">${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "—"}</td>
+        <td>${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+        <td>${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
+        <td>${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "—"}</td>
       </tr>`;
     })
     .join("");
 
-  const goodsTaxable = Math.round(goodsSubtotal * 100) / 100;
+  const fittingShown = Math.round(fittingChargesTotal(orders) * 100) / 100;
+  const tintingShown = Math.round(tintingChargesTotal(orders) * 100) / 100;
+  const eyeExtrasShown = Math.round(eyeExtrasTotal(orders) * 100) / 100;
+  const goodsTaxable = Math.round(
+    (lensGrossSubtotal - discountSubtotal + additionalSubtotal + fittingShown + tintingShown + eyeExtrasShown) * 100
+  ) / 100;
   const invoiceTax = Number(invoice.taxAmount) || 0;
   const netTotal = Number(invoice.totalAmount) || goodsTaxable + invoiceTax;
   const taxableShown =
@@ -330,8 +351,6 @@ export function buildInvoiceHtml(invoice, companyOverride) {
     rateSum > 0
       ? Math.round((invoiceTax - gstAmount) * 100) / 100
       : invoiceTax;
-  const netTotal = Number(invoice.totalAmount) || 0;
-  const fittingShown = Math.round(fittingChargesTotal(orders) * 100) / 100;
   const subtotalShown = Math.round((lensGrossSubtotal + additionalSubtotal) * 100) / 100;
   const discountShown = Math.round(discountSubtotal * 100) / 100;
   const roundOff = Math.round((netTotal - Math.floor(netTotal + 1e-9)) * 100) / 100;
@@ -405,7 +424,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
             </tr>
           </thead>
           <tbody>
-            ${orderRows || `<tr><td colspan="7" class="c muted">No sale orders</td></tr>`}
+            ${orderRows || `<tr><td colspan="7" class="muted">No sale orders</td></tr>`}
           </tbody>
         </table>
 
@@ -417,6 +436,8 @@ export function buildInvoiceHtml(invoice, companyOverride) {
             <div class="t-row"><span>Subtotal</span><span>₹${subtotalShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>Discount</span><span>${discountShown > 0 ? `-₹${discountShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}</span></div>
             <div class="t-row"><span>Fitting Charges</span><span>₹${fittingShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
+            ${tintingShown > 0 ? `<div class="t-row"><span>Tinting Charges</span><span>₹${tintingShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
+            ${eyeExtrasShown > 0 ? `<div class="t-row"><span>Eye Extras</span><span>₹${eyeExtrasShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
             <div class="t-row"><span>Taxable</span><span>₹${taxableShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>GST (${sellerAttrs.gstPercent || 0}%)</span><span>₹${gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>SGST (${sellerAttrs.sgstPercent || 0}%)</span><span>₹${sgstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
@@ -480,7 +501,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
         display:flex;flex-direction:column;
       }
       .sheet-body{flex:1;min-height:0;display:flex;flex-direction:column}
-      .header{display:flex;justify-content:space-between;gap:14px;padding-bottom:10px;border-bottom:3px solid #1a1a1a;margin-bottom:10px;flex-shrink:0}
+      .header{display:flex;justify-content:space-between;gap:14px;padding-bottom:10px;margin-bottom:10px;flex-shrink:0}
       .brand{display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0}
       .logo{max-height:44px;max-width:88px;object-fit:contain}
       .company-name{font-size:15px;font-weight:700;letter-spacing:.02em;line-height:1.2}
@@ -492,40 +513,40 @@ export function buildInvoiceHtml(invoice, companyOverride) {
       .inv-meta .lbl{display:inline-block;min-width:58px;color:#64748b;font-size:8px;text-transform:uppercase;letter-spacing:.04em}
       .lbl{color:#64748b;font-size:8px;text-transform:uppercase;letter-spacing:.04em;margin-right:5px}
       .parties{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;flex-shrink:0}
-      .party{border:2px solid #1a1a1a;border-radius:4px;padding:8px 10px;min-height:78px;line-height:1.4}
+      .party{padding:8px 10px;min-height:78px;line-height:1.4}
       .party-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:3px}
       .party-name{font-weight:700;font-size:11px;margin-bottom:3px}
-      .ship-row{display:flex;gap:20px;padding:6px 10px;background:#fff;border:2px solid #1a1a1a;border-radius:4px;margin-bottom:8px;flex-shrink:0}
+      .ship-row{display:flex;gap:20px;padding:6px 0;margin-bottom:8px;flex-shrink:0}
       .ship-row > div{flex:1}
-      table.lines{width:100%;border-collapse:collapse;margin-bottom:8px;border:2px solid #1a1a1a}
+      table.lines{width:100%;border-collapse:collapse;margin-bottom:8px}
       table.lines th{
         background:#fff;color:#1a1a1a;font-size:8px;text-transform:uppercase;
         letter-spacing:.04em;font-weight:700;padding:5px 4px;text-align:left;
-        border-bottom:2px solid #1a1a1a;border-right:1px solid #cbd5e1;
+        border-bottom:2px solid #1a1a1a;
       }
-      table.lines th:last-child{border-right:none}
-      table.lines td{padding:5px 4px;border-bottom:1px solid #cbd5e1;vertical-align:top}
-      table.lines tbody tr:last-child td{border-bottom:none}
+      table.lines td{padding:5px 4px;vertical-align:top;border:none;text-align:left}
       table.lines td.desc{font-size:9.5px;line-height:1.35}
-      .c{text-align:center}
-      .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
       .totals-grid{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;flex-shrink:0}
       .charges{flex:1;display:flex;flex-direction:column;gap:4px}
       .charge-row{display:flex;justify-content:space-between;max-width:260px;padding:3px 0;border-bottom:1px dashed #e2e8f0}
-      .words{margin-top:6px;padding:6px 8px;background:#fff;border:2px solid #1a1a1a;border-radius:4px;line-height:1.35;font-size:10px}
-      .totals{width:220px;border:2px solid #1a1a1a;border-radius:4px;overflow:hidden;flex-shrink:0}
-      .t-row{display:flex;justify-content:space-between;padding:5px 8px;border-bottom:1px solid #cbd5e1}
-      .t-row.net{font-weight:700;font-size:12px;background:#fff;color:#1a1a1a;border-top:3px solid #1a1a1a;border-bottom:none}
+      .words{margin-top:6px;padding:6px 0;line-height:1.35;font-size:10px}
+      .totals{width:220px;flex-shrink:0}
+      .t-row{display:flex;justify-content:space-between;padding:5px 8px}
+      .t-row.net{
+        font-weight:700;font-size:12px;color:#1a1a1a;
+        border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;
+        margin-top:4px;padding-top:8px;padding-bottom:8px;
+      }
       .bank-strip{
         display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
-        padding:8px 10px;border:2px solid #1a1a1a;border-radius:4px;margin-bottom:8px;background:#fff;flex-shrink:0;
+        padding:8px 0;margin-bottom:8px;flex-shrink:0;
       }
       .decl{font-size:8.5px;color:#475569;line-height:1.4;margin-bottom:8px;flex-shrink:0}
       .footer{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:auto;padding-top:6px;flex-shrink:0}
       .footer-meta{font-size:8px;color:#64748b;line-height:1.4}
       .sign{width:180px;text-align:center}
       .sign-line{font-size:9px;margin-bottom:3px}
-      .sign-box{border-bottom:2px solid #1a1a1a;height:42px;margin-bottom:3px}
+      .sign-box{height:42px;margin-bottom:3px}
       .sign-caption{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
       @media print{
         html,body{height:auto;overflow:visible}

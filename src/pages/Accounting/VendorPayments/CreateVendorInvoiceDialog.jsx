@@ -11,13 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -40,7 +33,27 @@ const emptyForm = {
   notes: "",
 };
 
-const emptyPoLine = () => ({ subtotalAmount: "", gstPercent: "", taxAmount: "" });
+const emptyPoLine = () => ({ subtotalAmount: "", gstPercent: "", taxAmount: "", locked: false });
+
+function gstPercentFromPo(subtotal, taxAmount) {
+  const sub = parseFloat(subtotal) || 0;
+  const tax = parseFloat(taxAmount);
+  if (sub <= 0 || !Number.isFinite(tax) || tax < 0) return "";
+  return String(Math.round((tax / sub) * 10000) / 100);
+}
+
+function poLineFromPo(po) {
+  if (po.needsPricing) return emptyPoLine();
+  const subtotal = parseFloat(po.subtotal) || 0;
+  const taxAmount = parseFloat(po.taxAmount) || 0;
+  if (subtotal <= 0) return emptyPoLine();
+  return {
+    subtotalAmount: String(subtotal),
+    gstPercent: gstPercentFromPo(subtotal, taxAmount),
+    taxAmount: String(taxAmount),
+    locked: true,
+  };
+}
 
 /**
  * Register a Vendor Invoice against one or more POs (M5, invoice-first workflow).
@@ -84,6 +97,8 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
           poNumber: po.poNumber,
           orderDate: po.orderDate,
           expectedDeliveryDate: po.expectedDeliveryDate,
+          subtotal: po.subtotal,
+          taxAmount: po.taxAmount,
           totalValue: po.totalValue,
           needsPricing: po.needsPricing,
         }));
@@ -103,7 +118,9 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
   useEffect(() => {
     setPoLines((prev) => {
       const next = {};
-      for (const po of selectedPOs) next[po.id] = prev[po.id] || emptyPoLine();
+      for (const po of selectedPOs) {
+        next[po.id] = prev[po.id] ?? poLineFromPo(po);
+      }
       return next;
     });
   }, [selectedPOs]);
@@ -173,6 +190,25 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
       return;
     }
 
+    for (const po of selectedPOs) {
+      const line = poLines[po.id] || {};
+      const sub = parseFloat(line.subtotalAmount) || 0;
+      if (sub <= 0) {
+        toast({
+          variant: "destructive",
+          title: `Enter subtotal and GST for PO ${po.poNumber}`,
+        });
+        return;
+      }
+      if (line.gstPercent === "" || line.gstPercent == null) {
+        toast({
+          variant: "destructive",
+          title: `Select GST rate for PO ${po.poNumber}`,
+        });
+        return;
+      }
+    }
+
     const items = selectedPOs.map((po) => {
       const line = poLines[po.id] || {};
       return {
@@ -206,8 +242,6 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
     }
   };
 
-  const vendorOptions = vendors.map((v) => ({ id: v.id, name: v.name }));
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!w-[75vw] !max-w-[75vw] max-h-[90vh] overflow-y-auto">
@@ -215,24 +249,20 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
           <DialogTitle>Register Vendor Invoice</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label>
-              Vendor <span className="text-red-500">*</span>
-            </Label>
-            <FormSelect
-              options={vendorOptions}
-              value={form.vendorId || null}
-              onChange={(val) => {
-                set("vendorId", val != null && val !== "" ? String(val) : "");
-                setSelectedPoIds([]);
-              }}
-              placeholder="Search vendor..."
-              isSearchable
-              isClearable
-              menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
-              menuPosition="fixed"
-            />
-          </div>
+          <FormSelect
+            label="Vendor"
+            name="vendorId"
+            options={vendors}
+            value={form.vendorId}
+            onChange={(value) => {
+              set("vendorId", value != null && value !== "" ? String(value) : "");
+              setSelectedPoIds([]);
+            }}
+            placeholder="Select vendor"
+            isSearchable={true}
+            isClearable={true}
+            required
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -294,77 +324,107 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
                 Purchase Orders <span className="text-red-500">*</span>
               </Label>
               <p className="text-xs text-muted-foreground">
-                Select the PO(s) this invoice covers, then enter subtotal + GST per PO from the vendor invoice.
+                Select the PO(s) this invoice covers. Amount and GST load from the PO when already set; otherwise enter them below for each selected PO.
               </p>
               {loadingPOs ? (
                 <p className="text-xs text-muted-foreground py-2">Loading purchase orders...</p>
               ) : outstandingPOs.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">No eligible purchase orders for this vendor.</p>
               ) : (
-                <div className="border rounded-md divide-y text-xs overflow-x-auto">
-                  <div className="grid grid-cols-[2rem_1fr_repeat(3,6.5rem)] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[36rem]">
-                    <span />
-                    <span>PO Number</span>
-                    <span className="text-right">Subtotal</span>
-                    <span className="text-right">GST %</span>
-                    <span className="text-right">GST Amt</span>
-                  </div>
-                  {outstandingPOs.map((po) => {
-                    const selected = selectedPoIds.includes(po.id);
-                    const line = poLines[po.id] || emptyPoLine();
-                    return (
-                      <div
-                        key={po.id}
-                        className={`grid grid-cols-[2rem_1fr_repeat(3,6.5rem)] gap-2 items-center px-3 py-2 min-w-[36rem] ${selected ? "bg-primary/5" : ""}`}
-                      >
-                        <input type="checkbox" checked={selected} onChange={() => togglePo(po.id)} className="h-4 w-4" />
-                        <div>
-                          <p className="font-medium">{po.poNumber}</p>
-                          <p className="text-muted-foreground">
-                            {po.orderDate ? new Date(po.orderDate).toLocaleDateString("en-IN") : "—"}
-                          </p>
-                        </div>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="h-7 text-xs text-right"
-                          value={line.subtotalAmount}
-                          onChange={(e) => updatePoLine(po.id, "subtotalAmount", e.target.value)}
-                          disabled={!selected}
-                          placeholder="0.00"
-                        />
-                        <Select
-                          value={line.gstPercent !== "" ? String(line.gstPercent) : undefined}
-                          onValueChange={(v) => updatePoLine(po.id, "gstPercent", v)}
-                          disabled={!selected}
+                <>
+                  <div className="border rounded-md divide-y text-xs">
+                    <div className="grid grid-cols-[2rem_1fr_6.5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                      <span />
+                      <span>PO Number</span>
+                      <span className="text-right">PO Total</span>
+                    </div>
+                    {outstandingPOs.map((po) => {
+                      const selected = selectedPoIds.includes(po.id);
+                      return (
+                        <div
+                          key={po.id}
+                          className={`grid grid-cols-[2rem_1fr_6.5rem] gap-2 items-center px-3 py-2 ${selected ? "bg-primary/5" : ""}`}
                         >
-                          <SelectTrigger className="h-7 text-xs">
-                            <SelectValue placeholder="%" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {gstRateOptions.map((opt) => (
-                              <SelectItem key={opt.id} value={String(opt.value)}>
-                                {opt.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-right font-mono pr-1">{line.taxAmount !== "" ? fmt(line.taxAmount) : "—"}</span>
+                          <input type="checkbox" checked={selected} onChange={() => togglePo(po.id)} className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">{po.poNumber}</p>
+                            <p className="text-muted-foreground">
+                              {po.orderDate ? new Date(po.orderDate).toLocaleDateString("en-IN") : "—"}
+                              {po.needsPricing ? " · Awaiting invoice values" : ""}
+                            </p>
+                          </div>
+                          <span className="text-right font-mono pr-1">
+                            {po.needsPricing ? "—" : fmt(po.totalValue)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {selectedPOs.length > 0 && (
+                    <div className="border rounded-md divide-y text-xs overflow-x-auto">
+                      <div className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[36rem]">
+                        <span>Selected PO — Invoice Amounts</span>
+                        <span className="text-right">Subtotal</span>
+                        <span className="text-right">GST %</span>
+                        <span className="text-right">GST Amt</span>
+                        <span className="text-right">Line Total</span>
                       </div>
-                    );
-                  })}
-                  <div className="grid grid-cols-[2rem_1fr_repeat(3,6.5rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
-                    <span />
-                    <span>Invoice Totals</span>
-                    <span className="text-right font-mono">{fmt(totals.subtotal)}</span>
-                    <span />
-                    <span className="text-right font-mono">{fmt(totals.tax)}</span>
-                  </div>
-                  <div className="px-3 py-2 text-right font-semibold text-sm">
-                    Invoice Total: {fmt(totals.total)}
-                  </div>
-                </div>
+                      {selectedPOs.map((po) => {
+                        const line = poLines[po.id] || emptyPoLine();
+                        const lineTotal = round2(
+                          (parseFloat(line.subtotalAmount) || 0) + (parseFloat(line.taxAmount) || 0)
+                        );
+                        const readOnly = line.locked;
+                        return (
+                          <div
+                            key={po.id}
+                            className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 items-center px-3 py-2 min-w-[36rem]"
+                          >
+                            <div>
+                              <p className="font-medium">{po.poNumber}</p>
+                              <p className="text-muted-foreground">
+                                {readOnly ? "Loaded from PO" : "Enter from vendor invoice"}
+                              </p>
+                            </div>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="h-7 text-xs text-right"
+                              value={line.subtotalAmount}
+                              onChange={(e) => updatePoLine(po.id, "subtotalAmount", e.target.value)}
+                              disabled={readOnly}
+                              placeholder="0.00"
+                            />
+                            <FormSelect
+                              options={gstRateOptions}
+                              value={line.gstPercent !== "" ? String(line.gstPercent) : null}
+                              onChange={(val) => updatePoLine(po.id, "gstPercent", val != null ? String(val) : "")}
+                              placeholder="%"
+                              isSearchable={false}
+                              isClearable
+                              disabled={readOnly}
+                              containerClassName="space-y-0"
+                              className="h-7 text-xs"
+                            />
+                            <span className="text-right font-mono pr-1">
+                              {line.taxAmount !== "" ? fmt(line.taxAmount) : "—"}
+                            </span>
+                            <span className="text-right font-mono pr-1">{lineTotal > 0 ? fmt(lineTotal) : "—"}</span>
+                          </div>
+                        );
+                      })}
+                      <div className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
+                        <span>Invoice Totals</span>
+                        <span className="text-right font-mono">{fmt(totals.subtotal)}</span>
+                        <span />
+                        <span className="text-right font-mono">{fmt(totals.tax)}</span>
+                        <span className="text-right font-mono">{fmt(totals.total)}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

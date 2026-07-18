@@ -1,10 +1,20 @@
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Label } from "./label";
+
+function optionSearchValue(option) {
+  const label = option.label ?? option.name ?? "";
+  const code = option.code ?? "";
+  return [label, code].filter(Boolean).join(" ");
+}
+
+function optionLabel(option) {
+  return option.label ?? option.name ?? "";
+}
 
 const FormCombobox = React.forwardRef(
   (
@@ -20,8 +30,10 @@ const FormCombobox = React.forwardRef(
       searchPlaceholder = "Search...",
       emptyText = "No option found.",
       disabled,
+      isClearable = false,
       containerClassName,
       className,
+      popoverClassName,
       ...props
     },
     ref
@@ -29,9 +41,15 @@ const FormCombobox = React.forwardRef(
     const [open, setOpen] = React.useState(false);
     const inputId = props.id || props.name;
 
-    // Find the selected option label
     const selectedOption = options.find((option) => String(option.id) === String(value));
-    const displayValue = selectedOption ? selectedOption.name : placeholder;
+    const displayValue = selectedOption ? optionLabel(selectedOption) : placeholder;
+
+    const handleClear = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onValueChange?.(null);
+      setOpen(false);
+    };
 
     return (
       <div className={cn("space-y-1.5", containerClassName)}>
@@ -43,7 +61,7 @@ const FormCombobox = React.forwardRef(
         )}
 
         {/* Combobox */}
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={setOpen} modal={false}>
           <PopoverTrigger asChild>
             <Button
               ref={ref}
@@ -60,10 +78,27 @@ const FormCombobox = React.forwardRef(
               )}
             >
               <span className="truncate">{displayValue}</span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <span className="ml-2 flex shrink-0 items-center gap-1">
+                {isClearable && value && !disabled && (
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    aria-label="Clear selection"
+                    className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={handleClear}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </span>
+                )}
+                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+              </span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <PopoverContent
+            className={cn("z-[100] w-[--radix-popover-trigger-width] p-0", popoverClassName)}
+            align="start"
+          >
             <Command>
               <CommandInput placeholder={searchPlaceholder} className="h-8" />
               <CommandList>
@@ -72,7 +107,7 @@ const FormCombobox = React.forwardRef(
                   {options.map((option) => (
                     <CommandItem
                       key={option.id}
-                      value={option.name}
+                      value={optionSearchValue(option)}
                       onSelect={() => {
                         onValueChange(String(option.id) === String(value) ? null : option.id);
                         setOpen(false);
@@ -84,7 +119,7 @@ const FormCombobox = React.forwardRef(
                           String(value) === String(option.id) ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      {option.name}
+                      {optionLabel(option)}
                     </CommandItem>
                   ))}
                 </CommandGroup>

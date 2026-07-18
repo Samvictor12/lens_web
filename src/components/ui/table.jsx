@@ -120,6 +120,7 @@ TableCaption.displayName = "TableCaption";
  * @param {Array} props.sorting - Sorting state [{ id: string, desc: boolean }]
  * @param {Function} props.setSorting - Callback to update sorting
  * @param {boolean} props.pagination - Whether to show pagination (default: true)
+ * @param {boolean} props.fillHeight - Whether table fills parent height with internal scroll (default: true)
  * @param {string} props.emptyMessage - Message to display when no data
  */
 const Table = React.forwardRef(
@@ -136,6 +137,7 @@ const Table = React.forwardRef(
       sorting = [],
       setSorting,
       pagination = true,
+      fillHeight = true,
       emptyMessage = "No data available",
       getRowClassName,
       expandedRowIds = [],
@@ -207,96 +209,109 @@ const Table = React.forwardRef(
     const startIndex = pagination ? pageIndex * pageSize + 1 : 1;
     const endIndex = pagination ? Math.min((pageIndex + 1) * pageSize, totalCount) : totalCount;
 
-    return (
-      <div ref={ref} className={cn("flex flex-col h-full min-h-0", className)} {...props}>
-        {/* Table Container — scrollable body */}
-        <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
-          <div className="relative h-full overflow-auto">
-            <table className="min-w-full border-collapse w-full caption-bottom text-sm">
-              <TableHeader className="sticky top-0 bg-background z-10 border-b">
-                <TableRow>
-                  {columns.map((column, index) => (
-                    <TableHead
-                      key={column.accessorKey || index}
-                      className={cn(
-                        getAlignmentClass(column.align),
-                        column.sortable && "cursor-pointer select-none hover:bg-muted/50"
-                      )}
-                      onClick={() => handleSort(column)}
-                    >
-                      <div className="flex items-center">
-                        <span>{column.header}</span>
-                        {renderSortIcon(column)}
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  // Loading skeleton rows
-                  Array.from({ length: pageSize }).map((_, index) => (
-                    <TableRow key={`skeleton-${index}`}>
-                      {columns.map((column, colIndex) => (
-                        <TableCell
-                          key={`skeleton-cell-${colIndex}`}
-                          className={getAlignmentClass(column.align)}
-                        >
-                          <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : data.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length}
-                      className="text-center h-32 text-muted-foreground border-r-0"
-                    >
-                      {emptyMessage}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.map((row, rowIndex) => {
-                    const rowId = getRowId(row) ?? rowIndex;
-                    const isExpanded = expandedRowIds.includes(rowId);
-                    return (
-                      <React.Fragment key={rowId}>
-                        <TableRow className={getRowClassName ? getRowClassName(row) : undefined}>
-                          {columns.map((column, colIndex) => (
-                            <TableCell
-                              key={column.accessorKey || colIndex}
-                              className={getAlignmentClass(column.align)}
-                            >
-                              {renderCell(row, column)}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                        {isExpanded && renderExpandedRow && (
-                          <TableRow className="bg-muted/20 hover:bg-muted/20">
-                            <TableCell colSpan={columns.length} className="p-2">
-                              {renderExpandedRow(row)}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
+    const tableElement = (
+      <table className="min-w-full border-collapse w-full caption-bottom text-sm">
+        <TableHeader className={cn("border-b", fillHeight && "sticky top-0 bg-background z-10")}>
+          <TableRow>
+            {columns.map((column, index) => (
+              <TableHead
+                key={column.accessorKey || index}
+                className={cn(
+                  getAlignmentClass(column.align),
+                  column.sortable && "cursor-pointer select-none hover:bg-muted/50"
                 )}
-              </TableBody>
-            </table>
-
-            {/* Loading overlay */}
-            {loading && (
-              <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Loading data...</p>
+                onClick={() => handleSort(column)}
+              >
+                <div className="flex items-center">
+                  <span>{column.header}</span>
+                  {renderSortIcon(column)}
                 </div>
-              </div>
-            )}
-          </div>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: pageSize }).map((_, index) => (
+              <TableRow key={`skeleton-${index}`}>
+                {columns.map((column, colIndex) => (
+                  <TableCell
+                    key={`skeleton-cell-${colIndex}`}
+                    className={getAlignmentClass(column.align)}
+                  >
+                    <Skeleton className="h-4 w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : data.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={columns.length}
+                className="text-center h-32 text-muted-foreground border-r-0"
+              >
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          ) : (
+            data.map((row, rowIndex) => {
+              const rowId = getRowId(row) ?? rowIndex;
+              const isExpanded = expandedRowIds.includes(rowId);
+              return (
+                <React.Fragment key={rowId}>
+                  <TableRow className={getRowClassName ? getRowClassName(row) : undefined}>
+                    {columns.map((column, colIndex) => (
+                      <TableCell
+                        key={column.accessorKey || colIndex}
+                        className={getAlignmentClass(column.align)}
+                      >
+                        {renderCell(row, column)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  {isExpanded && renderExpandedRow && (
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableCell colSpan={columns.length} className="p-2">
+                        {renderExpandedRow(row)}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              );
+            })
+          )}
+        </TableBody>
+      </table>
+    );
+
+    const loadingOverlay = loading ? (
+      <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading data...</p>
         </div>
+      </div>
+    ) : null;
+
+    return (
+      <div
+        ref={ref}
+        className={cn(fillHeight ? "flex flex-col h-full min-h-0" : "w-full", className)}
+        {...props}
+      >
+        {fillHeight ? (
+          <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
+            <div className="relative h-full overflow-auto">
+              {tableElement}
+              {loadingOverlay}
+            </div>
+          </div>
+        ) : (
+          <div className="relative rounded-md border overflow-auto">
+            {tableElement}
+            {loadingOverlay}
+          </div>
+        )}
 
         {/* Pagination — pinned below scroll area */}
         {pagination && totalCount > 0 && (

@@ -125,6 +125,8 @@ export class VendorPaymentService {
           status: po.status,
           orderDate: po.orderDate,
           expectedDeliveryDate: po.expectedDeliveryDate,
+          subtotal: round2(parseFloat(po.subtotal) || 0),
+          taxAmount: round2(parseFloat(po.taxAmount) || 0),
           totalValue: payable,
           payableAmount: payable,
           paidAmount: round2(paid),

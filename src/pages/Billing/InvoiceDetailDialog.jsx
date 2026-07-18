@@ -144,7 +144,7 @@ export default function InvoiceDetailDialog({
                     <div className="flex items-center gap-3">
                       <span className="font-semibold">{fmt(orderTotal(o))}</span>
                       <Badge
-                        variant={o.status === "BILLED" ? "default" : "secondary"}
+                        variant={["INVOICED", "COMPLETED"].includes(o.status) ? "default" : "secondary"}
                         className="text-xs"
                       >
                         {o.status}
@@ -235,7 +235,8 @@ export default function InvoiceDetailDialog({
                 Issue Invoice
               </Button>
             )}
-            {!["PAID", "CANCELLED"].includes(invoice.status) && (
+            {!["PAID", "CANCELLED"].includes(invoice.status) &&
+              (invoice.paidAmount || 0) <= 0 && (
               <Button
                 variant="outline"
                 size="sm"

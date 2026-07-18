@@ -10,17 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createVendorPaymentFromInvoices } from "@/services/vendorPayment";
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "./VendorPayments.constants";
+import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, previewAllocations } from "./VendorPayments.constants";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -30,6 +23,11 @@ function round2(n) {
   return Math.round(parseFloat(n || 0) * 100) / 100;
 }
 
+const paymentMethodOptions = PAYMENT_METHODS.map((m) => ({
+  id: m,
+  name: PAYMENT_METHOD_LABELS[m],
+}));
+
 const emptyForm = {
   vendorId: "",
   paymentDate: new Date().toISOString().split("T")[0],
@@ -37,6 +35,7 @@ const emptyForm = {
   bankLedgerId: "",
   referenceNumber: "",
   notes: "",
+  totalAmount: "",
 };
 
 /**
@@ -53,12 +52,14 @@ export default function CreateVendorPaymentFromInvoicesDialog({
   preselectedVendorId = "",
   preselectedInvoiceIds = [],
   preselectedInvoices = [],
+  prefillAmount = "",
   onCreated,
 }) {
   const { toast } = useToast();
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [allocations, setAllocations] = useState({});
+  const [manualOverrides, setManualOverrides] = useState({});
 
   const lockedVendor = !!preselectedVendorId;
 
@@ -75,48 +76,63 @@ export default function CreateVendorPaymentFromInvoicesDialog({
       ...emptyForm,
       vendorId: preselectedVendorId ? String(preselectedVendorId) : "",
       paymentDate: new Date().toISOString().split("T")[0],
+      totalAmount: prefillAmount ? String(prefillAmount) : "",
     });
     setAllocations({});
-  }, [open, preselectedVendorId]);
+    setManualOverrides({});
+  }, [open, preselectedVendorId, prefillAmount]);
+
+  const totalOutstanding = useMemo(
+    () => round2(selectedInvoices.reduce((s, inv) => s + (parseFloat(inv.outstanding) || 0), 0)),
+    [selectedInvoices]
+  );
+
+  const paymentAmount = parseFloat(form.totalAmount) || 0;
+
+  const { allocations: preview, remaining: excess } = useMemo(() => {
+    if (!paymentAmount || !selectedInvoices.length) {
+      return { allocations: {}, remaining: 0 };
+    }
+    return previewAllocations(selectedInvoices, paymentAmount, manualOverrides);
+  }, [selectedInvoices, paymentAmount, manualOverrides]);
 
   useEffect(() => {
-    if (!selectedInvoices.length) return;
-    setAllocations((prev) => {
-      const next = { ...prev };
-      for (const inv of selectedInvoices) {
-        if (next[inv.id] == null) next[inv.id] = String(inv.outstanding);
-      }
-      return next;
-    });
-  }, [selectedInvoices]);
+    setAllocations(preview);
+  }, [preview]);
 
   const totalAllocated = useMemo(
     () => round2(selectedInvoices.reduce((s, inv) => s + (parseFloat(allocations[inv.id]) || 0), 0)),
     [selectedInvoices, allocations]
   );
 
+  const canSave =
+    form.vendorId &&
+    form.bankLedgerId &&
+    paymentAmount > 0 &&
+    selectedInvoices.length > 0 &&
+    totalAllocated > 0 &&
+    excess <= 0.01 &&
+    Math.abs(totalAllocated - paymentAmount) <= 0.01;
+
   const handleSave = async () => {
-    if (!form.vendorId) {
-      toast({ variant: "destructive", title: "Please select a vendor" });
-      return;
-    }
-    if (!form.bankLedgerId) {
-      toast({ variant: "destructive", title: "Please select a payment account" });
-      return;
-    }
-    if (!selectedInvoices.length) {
-      toast({ variant: "destructive", title: "Select at least one outstanding invoice" });
-      return;
-    }
-    if (totalAllocated <= 0) {
-      toast({ variant: "destructive", title: "Payment amount must be greater than zero" });
+    if (!canSave) {
+      if (excess > 0.01) {
+        toast({
+          variant: "destructive",
+          title: `Payment exceeds selected invoice outstanding by ${fmt(excess)}`,
+        });
+      } else {
+        toast({ variant: "destructive", title: "Please complete all required fields" });
+      }
       return;
     }
 
-    const items = selectedInvoices.map((inv) => ({
-      vendorInvoiceId: inv.id,
-      allocatedAmount: round2(allocations[inv.id]),
-    }));
+    const items = selectedInvoices
+      .filter((inv) => (allocations[inv.id] || 0) > 0)
+      .map((inv) => ({
+        vendorInvoiceId: inv.id,
+        allocatedAmount: round2(allocations[inv.id]),
+      }));
 
     setSaving(true);
     try {
@@ -142,6 +158,7 @@ export default function CreateVendorPaymentFromInvoicesDialog({
   };
 
   const vendorOptions = vendors.map((v) => ({ id: v.id, name: v.name }));
+  const bankLedgerOptions = bankLedgers.map((l) => ({ id: l.id, name: l.ledgerName }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -167,9 +184,36 @@ export default function CreateVendorPaymentFromInvoicesDialog({
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>
+                Total Payment Amount <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.totalAmount}
+                onChange={(e) => set("totalAmount", e.target.value)}
+                placeholder="Amount to pay"
+              />
+              {selectedInvoices.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Selected outstanding: {fmt(totalOutstanding)}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>
+                Payment Date <span className="text-red-500">*</span>
+              </Label>
+              <Input type="date" value={form.paymentDate} onChange={(e) => set("paymentDate", e.target.value)} />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>
-              Outstanding Invoices <span className="text-red-500">*</span>
+              Invoice Allocation (FIFO by invoice date) <span className="text-red-500">*</span>
             </Label>
             {selectedInvoices.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2">
@@ -198,12 +242,17 @@ export default function CreateVendorPaymentFromInvoicesDialog({
                       max={inv.outstanding}
                       className="h-7 text-xs text-right"
                       value={allocations[inv.id] ?? ""}
-                      onChange={(e) => setAllocations((prev) => ({ ...prev, [inv.id]: e.target.value }))}
+                      onChange={(e) =>
+                        setManualOverrides((prev) => ({
+                          ...prev,
+                          [inv.id]: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 ))}
                 <div className="grid grid-cols-[1fr_6.5rem_6.5rem_8rem] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
-                  <span>Total Payment</span>
+                  <span>Allocated Total</span>
                   <span />
                   <span />
                   <span className="text-right font-mono">{fmt(totalAllocated)}</span>
@@ -212,52 +261,49 @@ export default function CreateVendorPaymentFromInvoicesDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Payment Method <span className="text-red-500">*</span></Label>
-              <Select value={form.paymentMethod} onValueChange={(v) => set("paymentMethod", v)}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {PAYMENT_METHOD_LABELS[m]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {excess > 0.01 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              Payment exceeds selected invoice outstanding by <strong>{fmt(excess)}</strong>. Reduce the total
+              payment amount or adjust per-invoice allocations.
             </div>
-            <div className="space-y-1">
-              <Label>Payment Account (Company Bank/Cash) <span className="text-red-500">*</span></Label>
-              <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Cash / Bank account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bankLedgers.map((l) => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      {l.ledgerName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Payment Date <span className="text-red-500">*</span></Label>
-              <Input type="date" value={form.paymentDate} onChange={(e) => set("paymentDate", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Reference No.</Label>
-              <Input
-                value={form.referenceNumber}
-                onChange={(e) => set("referenceNumber", e.target.value)}
-                placeholder="Cheque / transaction ref"
+              <Label>Payment Method <span className="text-red-500">*</span></Label>
+              <FormSelect
+                options={paymentMethodOptions}
+                value={form.paymentMethod || null}
+                onChange={(val) => set("paymentMethod", val ?? "")}
+                placeholder="Select payment method"
+                isSearchable={false}
+                isClearable
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                menuPosition="fixed"
               />
             </div>
+            <div className="space-y-1">
+              <Label>Payment Account (Company Bank/Cash) <span className="text-red-500">*</span></Label>
+              <FormSelect
+                options={bankLedgerOptions}
+                value={form.bankLedgerId || null}
+                onChange={(val) => set("bankLedgerId", val != null && val !== "" ? String(val) : "")}
+                placeholder="Cash / Bank account"
+                isSearchable
+                isClearable
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                menuPosition="fixed"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Reference No.</Label>
+            <Input
+              value={form.referenceNumber}
+              onChange={(e) => set("referenceNumber", e.target.value)}
+              placeholder="Cheque / transaction ref"
+            />
           </div>
 
           <div className="space-y-1">
@@ -269,8 +315,8 @@ export default function CreateVendorPaymentFromInvoicesDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || !selectedInvoices.length || totalAllocated <= 0}>
-            {saving ? "Creating voucher..." : `Create Voucher ${totalAllocated > 0 ? fmt(totalAllocated) : ""}`}
+          <Button onClick={handleSave} disabled={saving || !canSave}>
+            {saving ? "Creating voucher..." : `Create Voucher ${paymentAmount > 0 ? fmt(paymentAmount) : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

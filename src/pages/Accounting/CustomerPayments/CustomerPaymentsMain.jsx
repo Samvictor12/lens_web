@@ -73,6 +73,7 @@ export default function CustomerPaymentsMain() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [paymentDialogMode, setPaymentDialogMode] = useState("new");
   const [customers, setCustomers] = useState([]);
   const [bankLedgers, setBankLedgers] = useState([]);
 
@@ -125,7 +126,9 @@ export default function CustomerPaymentsMain() {
     return allInvoices.filter((inv) => ids.includes(inv.id));
   }, [allInvoices, selectedInvoiceIds, urlInvoiceId]);
 
-  const preselectedCustomerId =
+  const hasInvoiceSelection = selectedInvoiceIds.length > 0 || !!urlInvoiceId;
+
+  const recordModeCustomerId =
     urlCustomerId ||
     (preselectedInvoices[0]?.customerId ? String(preselectedInvoices[0].customerId) : "");
 
@@ -212,11 +215,13 @@ export default function CustomerPaymentsMain() {
   useEffect(() => {
     if (urlInvoiceId) {
       setSelectedInvoiceIds([parseInt(urlInvoiceId)]);
+      setPaymentDialogMode("record");
     }
     if (urlCustomerId) {
       setOutstandingCustomerId(urlCustomerId);
     }
     if (urlOpenForm === "1") {
+      setPaymentDialogMode("new");
       setCreateOpen(true);
       setActiveTab("outstanding");
     }
@@ -228,20 +233,17 @@ export default function CustomerPaymentsMain() {
   };
 
   const handleRecordPayment = () => {
-    if (!selectedInvoiceIds.length && !urlInvoiceId) {
+    if (!hasInvoiceSelection) {
       toast({ variant: "destructive", title: "Select at least one invoice" });
       return;
     }
+    setPaymentDialogMode("record");
     setCreateOpen(true);
   };
 
   const handleNewPayment = () => {
-    setSelectedInvoiceIds([]);
-    setActiveTab("outstanding");
-    toast({
-      title: "Select invoices",
-      description: "Choose invoices from the list, then click Record Payment.",
-    });
+    setPaymentDialogMode("new");
+    setCreateOpen(true);
   };
 
   const clearDeepLink = () => {
@@ -260,20 +262,23 @@ export default function CustomerPaymentsMain() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          <Button
-            size="xs"
-            variant="outline"
-            className="gap-1.5 h-8"
-            onClick={handleRecordPayment}
-            disabled={activeTab === "outstanding" && !selectedInvoiceIds.length}
-          >
-            <CreditCard className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Record Payment</span>
-          </Button>
-          <Button size="xs" className="gap-1.5 h-8" onClick={handleNewPayment}>
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">New Payment</span>
-          </Button>
+          {hasInvoiceSelection && (
+            <Button
+              size="xs"
+              variant="outline"
+              className="gap-1.5 h-8"
+              onClick={handleRecordPayment}
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Record Payment</span>
+            </Button>
+          )}
+          {!hasInvoiceSelection && (
+            <Button size="xs" className="gap-1.5 h-8" onClick={handleNewPayment}>
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New Payment</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -439,13 +444,20 @@ export default function CustomerPaymentsMain() {
           setCreateOpen(open);
           if (!open) clearDeepLink();
         }}
+        mode={paymentDialogMode}
         customers={customers}
         bankLedgers={bankLedgers}
-        preselectedCustomerId={preselectedCustomerId}
-        preselectedInvoiceIds={
-          urlInvoiceId ? [parseInt(urlInvoiceId)] : selectedInvoiceIds
+        preselectedCustomerId={
+          paymentDialogMode === "record" ? recordModeCustomerId : urlCustomerId || ""
         }
-        preselectedInvoices={preselectedInvoices.length ? preselectedInvoices : allInvoices}
+        preselectedInvoiceIds={
+          paymentDialogMode === "record"
+            ? urlInvoiceId
+              ? [parseInt(urlInvoiceId)]
+              : selectedInvoiceIds
+            : []
+        }
+        preselectedInvoices={allInvoices}
         prefillAmount={urlAmount || ""}
         onCreated={() => {
           fetchPayments();

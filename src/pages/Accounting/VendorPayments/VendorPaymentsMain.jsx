@@ -21,7 +21,7 @@ import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpan
 import VendorCreditDebitNotesTab from "./VendorCreditDebitNotesTab";
 
 const OUTSTANDING_GROUP_OPTIONS = [
-  { id: null, name: "No Grouping" },
+  { id: "", name: "No Grouping" },
   { id: "vendor", name: "Vendor" },
 ];
 
@@ -117,6 +117,12 @@ export default function VendorPaymentsMain() {
         )?.vendorId || ""
       )
     : "";
+
+  const prefillPaymentAmount = useMemo(
+    () =>
+      preselectedInvoices.reduce((sum, inv) => sum + (parseFloat(inv.outstanding) || 0), 0),
+    [preselectedInvoices]
+  );
 
   const handleView = async (p) => {
     setLoadingDetail(true);
@@ -269,7 +275,6 @@ export default function VendorPaymentsMain() {
                     onChange={(value) => setGroupBy(value ?? null)}
                     placeholder="None"
                     isSearchable={false}
-                    isClearable={false}
                   />
                 </div>
               </div>
@@ -281,7 +286,6 @@ export default function VendorPaymentsMain() {
                   onChange={(value) => setOutstandingVendorId(value ?? null)}
                   placeholder="All vendors"
                   isSearchable={true}
-                  isClearable={true}
                 />
               </div>
               <Refresh onClick={handleRefresh} />
@@ -401,6 +405,7 @@ export default function VendorPaymentsMain() {
         preselectedVendorId={preselectedVendorId}
         preselectedInvoiceIds={selectedInvoiceIds}
         preselectedInvoices={preselectedInvoices}
+        prefillAmount={prefillPaymentAmount > 0 ? String(prefillPaymentAmount) : ""}
         onCreated={() => {
           fetchPayments();
           fetchOutstanding();
