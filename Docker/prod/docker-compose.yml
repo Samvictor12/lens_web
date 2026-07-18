@@ -52,11 +52,17 @@ services:
       context: ../..
       dockerfile: Dockerfile.frontend
       args:
+        # Baked into the Vite bundle at image build time
         VITE_BACKEND_URL: ${VITE_BACKEND_URL}
         VITE_WEB_API_URL: ${VITE_WEB_API_URL}
         VITE_WS_URL: ${VITE_WS_URL:-}
+        # Prefer page-host /ws so nginx can upgrade WebSockets to the backend
+        VITE_WS_SAME_ORIGIN: ${VITE_WS_SAME_ORIGIN:-true}
     container_name: lens_prod_frontend
     image: lens-prod-frontend:latest
+    environment:
+      # Used by nginx template envsubst → proxy_pass http://backend:${BACKEND_PORT}
+      BACKEND_PORT: ${PORT}
     ports:
       - "${VITE_APP_PORT}:80"
     depends_on:

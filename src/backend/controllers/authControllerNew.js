@@ -93,27 +93,54 @@ export class AuthController {
   /**
    * User logout
    * @route POST /api/auth/logout
+   * Accepts refreshToken in body (works without valid access token) and/or
+   * Authorization Bearer access token. Always best-effort success.
    */
   async logout(req, res, next) {
     try {
-      const userId = req.user?.id;
+      const refreshToken = req.body?.refreshToken;
 
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
+      // Prefer refresh-token revoke — works when access JWT is expired/missing
+      if (refreshToken) {
+        await this.authService.logoutByRefreshToken(refreshToken);
+        return res.json({
+          success: true,
+          message: 'Logged out successfully'
         });
       }
 
-      // Logout user
-      await this.authService.logout(userId);
+      // Fallback: authenticated logout via access token (optional auth)
+      const userId = req.user?.id;
+      if (userId) {
+        await this.authService.logout(userId);
+        return res.json({
+          success: true,
+          message: 'Logged out successfully'
+        });
+      }
+
+      // Try validating Bearer access token without middleware
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.split(' ')[1];
+          const user = await this.authService.validateToken(token);
+          await this.authService.logout(user.id);
+        } catch (_) {
+          // Best-effort — still return success
+        }
+      }
 
       res.json({
         success: true,
         message: 'Logged out successfully'
       });
     } catch (error) {
-      next(error);
+      // Logout must remain best-effort
+      res.json({
+        success: true,
+        message: 'Logged out successfully'
+      });
     }
   }
 
