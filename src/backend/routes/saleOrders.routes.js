@@ -938,6 +938,11 @@ router.get('/:id/fifo-matches',
   controller.getFifoMatches.bind(controller)
 );
 
+router.get('/:id/alternate-matches',
+  authenticateToken,
+  controller.getAlternateMatches.bind(controller)
+);
+
 router.patch('/:id/status',
   authenticateToken,
   // requireRole(['Sales', 'Admin', 'Inventory']),  // Temporarily disabled for testing

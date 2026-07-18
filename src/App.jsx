@@ -80,6 +80,7 @@ import ExpensesMain from "./pages/Accounting/Expenses/ExpensesMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
 import CustomerPayments from "./pages/Accounting/CustomerPayments/CustomerPaymentsMain";
 import FinancialReports from "./pages/Accounting/FinancialReports";
+import GstReports from "./pages/Accounting/GstReports";
 import BankReconciliation from "./pages/Accounting/BankReconciliation/BankReconciliationMain";
 
 const queryClient = new QueryClient();
@@ -209,6 +210,7 @@ const AppRoutes = () => (
       <Route path="/masters/expense-categories/:mode" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
       <Route path="/masters/expense-categories/:mode/:id" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
       <Route path="/accounts/reports" element={<ProtectedRoute><FinancialReports /></ProtectedRoute>} />
+      <Route path="/accounts/gst-reports" element={<ProtectedRoute><GstReports /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />
       <Route path="/masters/vendors/:mode" element={<ProtectedRoute><VendorForm /></ProtectedRoute>} />

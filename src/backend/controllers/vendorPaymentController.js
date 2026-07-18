@@ -34,4 +34,20 @@ export class VendorPaymentController {
   async close(req, res, next) {
     try { res.json({ success: true, data: await service.closeVoucher(parseInt(req.params.id), req.user.id), message: 'Voucher closed' }); } catch (e) { next(e); }
   }
+
+  // M5: invoice-first payment workflow
+  async getOutstandingInvoices(req, res, next) {
+    try {
+      res.json({ success: true, data: await service.listOutstandingInvoices(req.query.vendorId) });
+    } catch (e) { next(e); }
+  }
+  async createFromInvoices(req, res, next) {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.createFromInvoices(req.body, req.user.id),
+        message: 'Payment voucher created',
+      });
+    } catch (e) { next(e); }
+  }
 }

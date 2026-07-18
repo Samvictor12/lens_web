@@ -1529,6 +1529,175 @@ export class SaleOrderService {
   }
 
   /**
+   * Get alternate-lens matching inventory for a sale order (M2).
+   * Matches on SPH/CYL/ADD only (per enabled eye) — explicitly ignores
+   * coating_id, lens_id/brand, and category_id so any in-stock power-matching
+   * item qualifies. Excludes hard-RESERVED stock and (optionally) units
+   * soft-claimed by earlier waiting queue SOs' own alternate matches.
+   * @param {number} saleOrderId
+   * @param {{ applySoftClaims?: boolean }} [options]
+   */
+  async getAlternateMatchingInventory(saleOrderId, options = {}) {
+    const { applySoftClaims = true } = options;
+    try {
+      const saleOrder = await prisma.saleOrder.findUnique({
+        where: { id: saleOrderId, deleteStatus: false },
+        include: {
+          lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+          category: { select: { id: true, name: true } },
+          coating: { select: { id: true, name: true } },
+          lensType: { select: { id: true, name: true } },
+        }
+      });
+
+      if (!saleOrder) {
+        throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+      }
+
+      // Power-only where clause: intentionally does NOT filter by lens_id,
+      // coating_id, category_id, or Type_id (user-confirmed alternate rule).
+      const buildAlternateWhereClause = (eyeType) => {
+        const where = {
+          status: 'AVAILABLE',
+          deleteStatus: false,
+          quantity: { gt: 0 },
+        };
+
+        if (eyeType === 'right') {
+          addSpecMatch(where, 'rightSpherical', saleOrder.rightSpherical);
+          addSpecMatch(where, 'rightCylindrical', saleOrder.rightCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'rightAdd', saleOrder.rightAdd);
+        } else {
+          const leftSpecWhere = {};
+          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+
+          const rightSpecWhere = {
+            leftSpherical: null
+          };
+          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+
+          if (!where.AND) where.AND = [];
+          where.AND.push({
+            OR: [leftSpecWhere, rightSpecWhere]
+          });
+        }
+
+        return where;
+      };
+
+      const identityInclude = {
+        location: { select: { id: true, name: true } },
+        tray: { select: { id: true, name: true, capacity: true } },
+        lensProduct: {
+          select: {
+            id: true,
+            lens_name: true,
+            product_code: true,
+            brand: { select: { id: true, name: true } },
+          },
+        },
+        category: { select: { id: true, name: true } },
+        coating: { select: { id: true, name: true } },
+        purchaseOrder: { select: { id: true, poNumber: true, saleOrderId: true } },
+      };
+
+      const results = { rightEyeMatches: [], leftEyeMatches: [] };
+
+      if (saleOrder.rightEye) {
+        const physical = await prisma.inventoryItem.findMany({
+          where: buildAlternateWhereClause('right'),
+          orderBy: { inwardDate: 'asc' },
+          include: identityInclude,
+        });
+        results.rightEyeMatches = physical.map((item) => {
+          const isRx = item.purchaseOrder?.saleOrderId !== null && item.purchaseOrder?.saleOrderId !== undefined;
+          return {
+            ...item,
+            id: `inv_${item.id}`,
+            sourceType: isRx ? 'RX' : 'STOCK',
+            poNumber: item.purchaseOrder?.poNumber || null,
+            isAlternate: true,
+          };
+        });
+      }
+
+      if (saleOrder.leftEye) {
+        const physical = await prisma.inventoryItem.findMany({
+          where: buildAlternateWhereClause('left'),
+          orderBy: { inwardDate: 'asc' },
+          include: identityInclude,
+        });
+        results.leftEyeMatches = physical.map((item) => {
+          const isRx = item.purchaseOrder?.saleOrderId !== null && item.purchaseOrder?.saleOrderId !== undefined;
+          return {
+            ...item,
+            id: `inv_${item.id}`,
+            sourceType: isRx ? 'RX' : 'STOCK',
+            poNumber: item.purchaseOrder?.poNumber || null,
+            isAlternate: true,
+          };
+        });
+      }
+
+      let { rightEyeMatches, leftEyeMatches } = results;
+
+      // Exclude units soft-claimed by earlier waiting SOs' own alternate matches
+      // (display-only pool; no DB write) — mirrors getMatchingInventoryFIFO.
+      if (applySoftClaims) {
+        const earlierWaiting = await prisma.saleOrder.findMany({
+          where: {
+            deleteStatus: false,
+            status: { in: INVENTORY_QUEUE_STATUSES },
+            id: { not: saleOrderId },
+            OR: [
+              { createdAt: { lt: saleOrder.createdAt } },
+              {
+                AND: [
+                  { createdAt: saleOrder.createdAt },
+                  { id: { lt: saleOrderId } },
+                ],
+              },
+            ],
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, rightEye: true, leftEye: true, createdAt: true },
+        });
+
+        if (earlierWaiting.length > 0) {
+          const pool = createClaimPool();
+          for (const earlier of earlierWaiting) {
+            const earlierMatches = await this.getAlternateMatchingInventory(earlier.id, {
+              applySoftClaims: false,
+            });
+            softAllocateOrder(
+              earlier,
+              earlierMatches.rightEyeMatches || [],
+              earlierMatches.leftEyeMatches || [],
+              pool
+            );
+          }
+          rightEyeMatches = filterMatchesByPool(rightEyeMatches, pool);
+          leftEyeMatches = filterMatchesByPool(leftEyeMatches, pool);
+        }
+      }
+
+      return {
+        saleOrder,
+        rightEyeMatches,
+        leftEyeMatches,
+      };
+    } catch (error) {
+      console.error('Error in getAlternateMatchingInventory:', error);
+      if (error instanceof APIError) throw error;
+      throw new APIError('Failed to get alternate matching inventory', 500, 'ALTERNATE_MATCH_ERROR');
+    }
+  }
+
+  /**
    * Update dispatch information
    * @param {number} id - Sale order ID
    * @param {Object} dispatchData - Dispatch information

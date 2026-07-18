@@ -353,6 +353,138 @@ export async function postExpense(tx, { expenseId, expenseNumber, amount, catego
 }
 
 /**
+ * Auto-post on customer Credit Note (M4). Reduces AR balance.
+ * Dr Sales Revenue (AC-3001) [net], Dr GST Output (AC-2003) [tax, if any], Cr customer's AR ledger [gross]
+ */
+export async function postCreditNote(tx, { creditNoteId, noteNumber, amount, taxAmount, customer }, userId) {
+  const [arLedger, salesLedger] = await Promise.all([
+    getOwnedLedger(tx, customer, 'Customer'),
+    getLedger(tx, 'AC-3001'),
+  ]);
+
+  const tax = parseFloat(taxAmount || 0);
+  const gross = parseFloat(amount);
+  const net = gross - tax;
+
+  const entries = [
+    { ledgerId: salesLedger.id, entryType: 'DEBIT', amount: net, description: `Credit note — ${noteNumber}` },
+    { ledgerId: arLedger.id, entryType: 'CREDIT', amount: gross, description: `AR reduced — ${noteNumber}` },
+  ];
+
+  if (tax > 0.001) {
+    const gstOutputLedger = await getLedger(tx, 'AC-2003');
+    entries.splice(1, 0, { ledgerId: gstOutputLedger.id, entryType: 'DEBIT', amount: tax, description: 'GST Output reversal' });
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'JOURNAL',
+    referenceType: 'CREDIT_NOTE',
+    referenceId: creditNoteId,
+    referenceNumber: noteNumber,
+    description: `Credit note — ${noteNumber}`,
+  }, entries, userId);
+}
+
+/**
+ * Auto-post on customer Debit Note (M4). Increases AR balance.
+ * Dr customer's AR ledger [gross], Cr Sales Revenue (AC-3001) [net], Cr GST Output (AC-2003) [tax, if any]
+ */
+export async function postDebitNote(tx, { debitNoteId, noteNumber, amount, taxAmount, customer }, userId) {
+  const [arLedger, salesLedger] = await Promise.all([
+    getOwnedLedger(tx, customer, 'Customer'),
+    getLedger(tx, 'AC-3001'),
+  ]);
+
+  const tax = parseFloat(taxAmount || 0);
+  const gross = parseFloat(amount);
+  const net = gross - tax;
+
+  const entries = [
+    { ledgerId: arLedger.id, entryType: 'DEBIT', amount: gross, description: `Debit note — ${noteNumber}` },
+    { ledgerId: salesLedger.id, entryType: 'CREDIT', amount: net, description: `Debit note — ${noteNumber}` },
+  ];
+
+  if (tax > 0.001) {
+    const gstOutputLedger = await getLedger(tx, 'AC-2003');
+    entries.push({ ledgerId: gstOutputLedger.id, entryType: 'CREDIT', amount: tax, description: 'GST Output on debit note' });
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'JOURNAL',
+    referenceType: 'DEBIT_NOTE',
+    referenceId: debitNoteId,
+    referenceNumber: noteNumber,
+    description: `Debit note — ${noteNumber}`,
+  }, entries, userId);
+}
+
+/**
+ * Auto-post on vendor Credit Note (M5). Reduces vendor AP balance.
+ * Dr vendor's AP ledger [gross], Cr Inventory (AC-1004) [net], Cr GST Input (AC-1005) [tax, if any]
+ */
+export async function postVendorCreditNote(tx, { creditNoteId, noteNumber, amount, taxAmount, vendor }, userId) {
+  const [apLedger, inventoryLedger] = await Promise.all([
+    getOwnedLedger(tx, vendor, 'Vendor'),
+    getLedger(tx, 'AC-1004'),
+  ]);
+
+  const tax = parseFloat(taxAmount || 0);
+  const gross = parseFloat(amount);
+  const net = gross - tax;
+
+  const entries = [
+    { ledgerId: apLedger.id, entryType: 'DEBIT', amount: gross, description: `Vendor credit note — ${noteNumber}` },
+    { ledgerId: inventoryLedger.id, entryType: 'CREDIT', amount: net, description: `Vendor credit note — ${noteNumber}` },
+  ];
+
+  if (tax > 0.001) {
+    const gstInputLedger = await getLedger(tx, 'AC-1005');
+    entries.push({ ledgerId: gstInputLedger.id, entryType: 'CREDIT', amount: tax, description: 'GST Input reversal' });
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'JOURNAL',
+    referenceType: 'VENDOR_CREDIT_NOTE',
+    referenceId: creditNoteId,
+    referenceNumber: noteNumber,
+    description: `Vendor credit note — ${noteNumber}`,
+  }, entries, userId);
+}
+
+/**
+ * Auto-post on vendor Debit Note (M5). Increases vendor AP balance.
+ * Dr Inventory (AC-1004) [net], Dr GST Input (AC-1005) [tax, if any], Cr vendor's AP ledger [gross]
+ */
+export async function postVendorDebitNote(tx, { debitNoteId, noteNumber, amount, taxAmount, vendor }, userId) {
+  const [apLedger, inventoryLedger] = await Promise.all([
+    getOwnedLedger(tx, vendor, 'Vendor'),
+    getLedger(tx, 'AC-1004'),
+  ]);
+
+  const tax = parseFloat(taxAmount || 0);
+  const gross = parseFloat(amount);
+  const net = gross - tax;
+
+  const entries = [
+    { ledgerId: inventoryLedger.id, entryType: 'DEBIT', amount: net, description: `Vendor debit note — ${noteNumber}` },
+    { ledgerId: apLedger.id, entryType: 'CREDIT', amount: gross, description: `Vendor debit note — ${noteNumber}` },
+  ];
+
+  if (tax > 0.001) {
+    const gstInputLedger = await getLedger(tx, 'AC-1005');
+    entries.splice(1, 0, { ledgerId: gstInputLedger.id, entryType: 'DEBIT', amount: tax, description: 'GST Input on debit note' });
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'JOURNAL',
+    referenceType: 'VENDOR_DEBIT_NOTE',
+    referenceId: debitNoteId,
+    referenceNumber: noteNumber,
+    description: `Vendor debit note — ${noteNumber}`,
+  }, entries, userId);
+}
+
+/**
  * Post a reversing transaction (negates a previous posting).
  * Swaps DEBIT↔CREDIT on all entries of the original transaction.
  */

@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": null,
+  "feature": "Application Update Bundle — WebSocket, SO Alternate, Invoice, Payments, GST",
   "active_feature_file": "planning/feature.md",
-  "phase": "DONE",
-  "HUMAN_APPROVED": false,
-  "state_tag": "IDLE",
-  "last_agent": "orchestrator",
-  "at": "2026-07-14T21:55:00+05:30"
+  "phase": "COMPLETED",
+  "HUMAN_APPROVED": true,
+  "state_tag": "COMPLETED",
+  "last_agent": "reviewer",
+  "at": "2026-07-19T00:19:00+05:30"
 }

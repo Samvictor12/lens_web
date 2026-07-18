@@ -174,23 +174,35 @@ export class SaleOrderWorkflowService {
       computeQueueSoftAllocation(),
     ]);
 
-    const enrichedOrders = orders.map((order) => {
+    const enrichedOrders = await Promise.all(orders.map(async (order) => {
       const alloc = softAlloc.byOrderId.get(order.id);
-      if (!alloc) {
-        return {
-          ...order,
-          isStockAvailable: false,
-          shortageRight: Boolean(order.rightEye),
-          shortageLeft: Boolean(order.leftEye),
-        };
+      const isStockAvailable = alloc ? alloc.isStockAvailable : false;
+      const shortageRight = alloc ? alloc.shortageRight : Boolean(order.rightEye);
+      const shortageLeft = alloc ? alloc.shortageLeft : Boolean(order.leftEye);
+
+      // Alternate-lens badge (M2): only relevant when the exact-match is short.
+      let hasAlternateStock = false;
+      if (!isStockAvailable && (order.rightEye || order.leftEye)) {
+        try {
+          const altMatches = await saleOrderService.getAlternateMatchingInventory(order.id, {
+            applySoftClaims: true,
+          });
+          const rightHasAlt = order.rightEye && (altMatches.rightEyeMatches || []).length > 0;
+          const leftHasAlt = order.leftEye && (altMatches.leftEyeMatches || []).length > 0;
+          hasAlternateStock = rightHasAlt || leftHasAlt;
+        } catch (e) {
+          console.error(`Alternate stock check failed for SO ${order.id}:`, e);
+        }
       }
+
       return {
         ...order,
-        isStockAvailable: alloc.isStockAvailable,
-        shortageRight: alloc.shortageRight,
-        shortageLeft: alloc.shortageLeft,
+        isStockAvailable,
+        shortageRight,
+        shortageLeft,
+        hasAlternateStock,
       };
-    });
+    }));
 
     return {
       data: enrichedOrders,
@@ -463,7 +475,7 @@ export class SaleOrderWorkflowService {
   }
 
   /** Issue stock and move SO to PRE_QC (log STOCK_ISSUED + PRE_QC) */
-  async issueToPreQc(saleOrderId, userId, { inventoryItemIds = [] } = {}) {
+  async issueToPreQc(saleOrderId, userId, { inventoryItemIds = [], isAlternate = false } = {}) {
     return prisma.$transaction(async (tx) => {
       const so = await tx.saleOrder.findUnique({
         where: { id: saleOrderId, deleteStatus: false },
@@ -488,6 +500,50 @@ export class SaleOrderWorkflowService {
       const requiredEyes = (so.rightEye ? 1 : 0) + (so.leftEye ? 1 : 0);
       if (requiredEyes === 2 && inventoryItemIds.length > 0 && inventoryItemIds.length < 2) {
         throw new APIError('Both RE and LE inventory items required', 400, 'BOTH_EYES_REQUIRED');
+      }
+
+      // M2: capture the picked alternate items' actual product identity (brand,
+      // lens name, coating) BEFORE reservation runs, so we can build the
+      // substitution note. Does NOT touch so.lens_id/coating_id/category_id/pricing.
+      let alternateLensNote = null;
+      if (isAlternate) {
+        const pickedInventoryItemIds = [
+          ...new Set(
+            inventoryItemIds
+              .filter((itemId) => !(typeof itemId === 'string' && itemId.startsWith('rec_')))
+              .map((itemId) =>
+                typeof itemId === 'string' && itemId.startsWith('inv_')
+                  ? parseInt(itemId.replace('inv_', ''), 10)
+                  : parseInt(itemId, 10)
+              )
+          ),
+        ];
+
+        if (pickedInventoryItemIds.length > 0) {
+          const pickedItems = await tx.inventoryItem.findMany({
+            where: { id: { in: pickedInventoryItemIds } },
+            include: {
+              lensProduct: { include: { brand: true } },
+              coating: true,
+            },
+          });
+
+          const identities = [];
+          const seen = new Set();
+          for (const item of pickedItems) {
+            const brandName = item.lensProduct?.brand?.name || 'Unknown Brand';
+            const lensName = item.lensProduct?.lens_name || 'Unknown Lens';
+            const coatingName = item.coating?.name || 'No Coating';
+            const label = `${brandName} — ${lensName} — ${coatingName}`;
+            if (!seen.has(label)) {
+              seen.add(label);
+              identities.push(label);
+            }
+          }
+          if (identities.length > 0) {
+            alternateLensNote = `Changed to new Lens: ${identities.join('; ')}`;
+          }
+        }
       }
 
       // Collapse duplicate picks (same inv_/rec_ for both eyes) into qty counts so
@@ -614,8 +670,10 @@ export class SaleOrderWorkflowService {
         saleOrderId,
         toStatus: 'PRE_QC',
         userId,
-        remark: 'Stock issued to Pre-QC station',
+        remark: alternateLensNote || 'Stock issued to Pre-QC station',
         source: 'INVENTORY',
+        // M2: only ever sets alternateLensNote — never lens_id/coating_id/category_id/pricing.
+        extraOrderData: alternateLensNote ? { alternateLensNote } : {},
       });
     });
   }

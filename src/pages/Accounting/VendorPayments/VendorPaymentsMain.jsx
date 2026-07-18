@@ -1,37 +1,38 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, CreditCard } from "lucide-react";
+import { Plus, Search, CreditCard, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { Refresh } from "@/components/ui/Refresh";
-import { getVendorPayments, getVendorPaymentById, getOutstandingPOs } from "@/services/vendorPayment";
+import { getVendorPayments, getVendorPaymentById, getOutstandingVendorInvoices } from "@/services/vendorPayment";
 import { getCashBankLedgers } from "@/services/ledger";
 import { getVendorDropdown } from "@/services/vendor";
 import { useVendorPaymentColumns } from "./useVendorPaymentColumns";
-import CreateVendorPaymentDialog from "./CreateVendorPaymentDialog";
+import CreateVendorPaymentFromInvoicesDialog from "./CreateVendorPaymentFromInvoicesDialog";
+import CreateVendorInvoiceDialog from "./CreateVendorInvoiceDialog";
 import VendorPaymentDetailDialog from "./VendorPaymentDetailDialog";
-import OutstandingPOsQueue from "./OutstandingPOsQueue";
+import OutstandingVendorInvoicesQueue from "./OutstandingVendorInvoicesQueue";
 import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpandRow";
+import VendorCreditDebitNotesTab from "./VendorCreditDebitNotesTab";
 
 const OUTSTANDING_GROUP_OPTIONS = [
   { id: null, name: "No Grouping" },
   { id: "vendor", name: "Vendor" },
 ];
 
-function matchesPOSearch(po, q, group) {
+function matchesInvoiceSearch(inv, q, group) {
   if (!q) return true;
   const hay = [
-    po.poNumber,
+    inv.invoiceNumber,
+    inv.supplierInvoiceNo,
     group?.vendorName,
     group?.vendorCode,
-    group?.shopname,
-    group?.city,
-    group?.phone,
-    po.status,
+    inv.status,
   ]
     .filter(Boolean)
     .join(" ")
@@ -47,6 +48,8 @@ export default function VendorPaymentsMain() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
   const [outstandingSearch, setOutstandingSearch] = useState("");
   const [outstandingVendorId, setOutstandingVendorId] = useState(null);
   const [groupBy, setGroupBy] = useState("vendor");
@@ -56,11 +59,12 @@ export default function VendorPaymentsMain() {
   const [sorting, setSorting] = useState([]);
 
   const [outstandingGroups, setOutstandingGroups] = useState([]);
-  const [flatPOs, setFlatPOs] = useState([]);
+  const [flatInvoices, setFlatInvoices] = useState([]);
   const [loadingOutstanding, setLoadingOutstanding] = useState(false);
-  const [selectedPoIds, setSelectedPoIds] = useState([]);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createPaymentOpen, setCreatePaymentOpen] = useState(false);
+  const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
   const [vendors, setVendors] = useState([]);
   const [bankLedgers, setBankLedgers] = useState([]);
 
@@ -69,8 +73,8 @@ export default function VendorPaymentsMain() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [expandedPaymentIds, setExpandedPaymentIds] = useState([]);
 
-  const allPOs = useMemo(
-    () => outstandingGroups.flatMap((g) => g.purchaseOrders),
+  const allInvoices = useMemo(
+    () => outstandingGroups.flatMap((g) => g.invoices),
     [outstandingGroups]
   );
 
@@ -85,31 +89,31 @@ export default function VendorPaymentsMain() {
       })
       .map((g) => ({
         ...g,
-        purchaseOrders: g.purchaseOrders.filter((po) => matchesPOSearch(po, q, g)),
+        invoices: g.invoices.filter((inv) => matchesInvoiceSearch(inv, q, g)),
       }))
-      .filter((g) => g.purchaseOrders.length > 0);
+      .filter((g) => g.invoices.length > 0);
   }, [outstandingGroups, outstandingSearch, outstandingVendorId]);
 
-  const filteredFlatPOs = useMemo(() => {
+  const filteredFlatInvoices = useMemo(() => {
     const q = outstandingSearch.trim().toLowerCase();
-    return flatPOs.filter((po) => {
-      if (outstandingVendorId != null && String(po.vendorId) !== String(outstandingVendorId)) {
+    return flatInvoices.filter((inv) => {
+      if (outstandingVendorId != null && String(inv.vendorId) !== String(outstandingVendorId)) {
         return false;
       }
-      const group = outstandingGroups.find((g) => g.vendorId === po.vendorId);
-      return matchesPOSearch(po, q, group);
+      const group = outstandingGroups.find((g) => g.vendorId === inv.vendorId);
+      return matchesInvoiceSearch(inv, q, group);
     });
-  }, [flatPOs, outstandingSearch, outstandingVendorId, outstandingGroups]);
+  }, [flatInvoices, outstandingSearch, outstandingVendorId, outstandingGroups]);
 
-  const preselectedPOs = useMemo(
-    () => allPOs.filter((po) => selectedPoIds.includes(po.purchaseOrderId)),
-    [allPOs, selectedPoIds]
+  const preselectedInvoices = useMemo(
+    () => allInvoices.filter((inv) => selectedInvoiceIds.includes(inv.id)),
+    [allInvoices, selectedInvoiceIds]
   );
 
-  const preselectedVendorId = preselectedPOs[0]
+  const preselectedVendorId = preselectedInvoices[0]
     ? String(
         outstandingGroups.find((g) =>
-          g.purchaseOrders.some((p) => p.purchaseOrderId === preselectedPOs[0].purchaseOrderId)
+          g.invoices.some((i) => i.id === preselectedInvoices[0].id)
         )?.vendorId || ""
       )
     : "";
@@ -142,16 +146,14 @@ export default function VendorPaymentsMain() {
   const fetchOutstanding = useCallback(async () => {
     setLoadingOutstanding(true);
     try {
-      const res = await getOutstandingPOs();
+      const res = await getOutstandingVendorInvoices();
       const groups = res.data?.groups || [];
       setOutstandingGroups(groups);
-      setFlatPOs(
-        groups.flatMap((g) =>
-          g.purchaseOrders.map((po) => ({ ...po, vendorId: g.vendorId }))
-        )
+      setFlatInvoices(
+        groups.flatMap((g) => g.invoices.map((inv) => ({ ...inv, vendorId: g.vendorId })))
       );
     } catch {
-      toast({ variant: "destructive", title: "Failed to load outstanding POs" });
+      toast({ variant: "destructive", title: "Failed to load outstanding invoices" });
     } finally {
       setLoadingOutstanding(false);
     }
@@ -162,6 +164,8 @@ export default function VendorPaymentsMain() {
     try {
       const params = { page: pageIndex + 1, limit: pageSize };
       if (searchQuery) params.search = searchQuery;
+      if (historyFrom) params.from = historyFrom;
+      if (historyTo) params.to = historyTo;
       const res = await getVendorPayments(params);
       setPayments(res.data || []);
       setTotalCount(res.pagination?.total ?? (res.data?.length || 0));
@@ -170,7 +174,7 @@ export default function VendorPaymentsMain() {
     } finally {
       setIsLoading(false);
     }
-  }, [pageIndex, pageSize, searchQuery, refreshKey]);
+  }, [pageIndex, pageSize, searchQuery, historyFrom, historyTo, refreshKey]);
 
   const fetchDropdownData = useCallback(async () => {
     try {
@@ -191,7 +195,7 @@ export default function VendorPaymentsMain() {
 
   useEffect(() => {
     if (activeTab === "outstanding") fetchOutstanding();
-    else fetchPayments();
+    else if (activeTab === "history") fetchPayments();
   }, [activeTab, fetchOutstanding, fetchPayments]);
 
   const handleRefresh = () => {
@@ -200,20 +204,11 @@ export default function VendorPaymentsMain() {
   };
 
   const handleRecordPayment = () => {
-    if (!selectedPoIds.length) {
-      toast({ variant: "destructive", title: "Select at least one PO" });
+    if (!selectedInvoiceIds.length) {
+      toast({ variant: "destructive", title: "Select at least one outstanding invoice" });
       return;
     }
-    setCreateOpen(true);
-  };
-
-  const handleNewPayment = () => {
-    setSelectedPoIds([]);
-    setActiveTab("outstanding");
-    toast({
-      title: "Select purchase orders",
-      description: "Choose POs from the list, then click Record Payment.",
-    });
+    setCreatePaymentOpen(true);
   };
 
   return (
@@ -222,31 +217,32 @@ export default function VendorPaymentsMain() {
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Vendor Payments</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Record and view vendor payment vouchers
+            Register vendor invoices against POs, then pay against outstanding invoices
           </p>
         </div>
         <div className="flex gap-1.5">
+          <Button size="xs" variant="outline" className="gap-1.5 h-8" onClick={() => setCreateInvoiceOpen(true)}>
+            <FileText className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Register Invoice</span>
+          </Button>
           <Button
             size="xs"
-            variant="outline"
             className="gap-1.5 h-8"
             onClick={handleRecordPayment}
-            disabled={activeTab === "outstanding" && !selectedPoIds.length}
+            disabled={activeTab === "outstanding" && !selectedInvoiceIds.length}
           >
             <CreditCard className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Record Payment</span>
-          </Button>
-          <Button size="xs" className="gap-1.5 h-8" onClick={handleNewPayment}>
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">New Payment</span>
           </Button>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
-          <TabsTrigger value="outstanding">Outstanding Payables</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 mb-4 flex-shrink-0">
+          <TabsTrigger value="outstanding">Outstanding Invoices</TabsTrigger>
           <TabsTrigger value="history">Payment History</TabsTrigger>
+          <TabsTrigger value="creditNotes">Credit Notes</TabsTrigger>
+          <TabsTrigger value="debitNotes">Debit Notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="outstanding" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden gap-2">
@@ -255,7 +251,7 @@ export default function VendorPaymentsMain() {
               <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search PO, vendor..."
+                  placeholder="Search invoice, vendor..."
                   value={outstandingSearch}
                   onChange={(e) => setOutstandingSearch(e.target.value)}
                   className="pl-9 h-8 text-sm"
@@ -297,12 +293,12 @@ export default function VendorPaymentsMain() {
               <p className="text-xs text-muted-foreground py-4 text-center">Loading...</p>
             ) : (
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <OutstandingPOsQueue
+                <OutstandingVendorInvoicesQueue
                   groups={filteredGroups}
-                  flatPOs={filteredFlatPOs}
+                  flatInvoices={filteredFlatInvoices}
                   grouped={groupBy === "vendor"}
-                  selectedIds={selectedPoIds}
-                  onSelectionChange={setSelectedPoIds}
+                  selectedIds={selectedInvoiceIds}
+                  onSelectionChange={setSelectedInvoiceIds}
                 />
               </div>
             )}
@@ -311,8 +307,8 @@ export default function VendorPaymentsMain() {
 
         <TabsContent value="history" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
           <Card className="p-1 sm:p-1 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search by voucher, vendor..."
@@ -323,6 +319,42 @@ export default function VendorPaymentsMain() {
                   }}
                   className="pl-9 h-8 text-sm"
                 />
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-sm"
+                  value={historyFrom}
+                  onChange={(e) => {
+                    setHistoryFrom(e.target.value);
+                    setPageIndex(0);
+                  }}
+                />
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-sm"
+                  value={historyTo}
+                  onChange={(e) => {
+                    setHistoryTo(e.target.value);
+                    setPageIndex(0);
+                  }}
+                />
+                {(historyFrom || historyTo) && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      setHistoryFrom("");
+                      setHistoryTo("");
+                      setPageIndex(0);
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
               <Refresh onClick={handleRefresh} />
             </div>
@@ -351,21 +383,36 @@ export default function VendorPaymentsMain() {
             />
           </div>
         </TabsContent>
+
+        <TabsContent value="creditNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
+          <VendorCreditDebitNotesTab type="credit" vendors={vendors} />
+        </TabsContent>
+
+        <TabsContent value="debitNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
+          <VendorCreditDebitNotesTab type="debit" vendors={vendors} />
+        </TabsContent>
       </Tabs>
 
-      <CreateVendorPaymentDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
+      <CreateVendorPaymentFromInvoicesDialog
+        open={createPaymentOpen}
+        onOpenChange={setCreatePaymentOpen}
         vendors={vendors}
         bankLedgers={bankLedgers}
         preselectedVendorId={preselectedVendorId}
-        preselectedPoIds={selectedPoIds}
-        preselectedPOs={preselectedPOs}
+        preselectedInvoiceIds={selectedInvoiceIds}
+        preselectedInvoices={preselectedInvoices}
         onCreated={() => {
           fetchPayments();
           fetchOutstanding();
-          setSelectedPoIds([]);
+          setSelectedInvoiceIds([]);
         }}
+      />
+
+      <CreateVendorInvoiceDialog
+        open={createInvoiceOpen}
+        onOpenChange={setCreateInvoiceOpen}
+        vendors={vendors}
+        onCreated={() => fetchOutstanding()}
       />
 
       <VendorPaymentDetailDialog

@@ -8,6 +8,17 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: process.env.VITE_APP_PORT || 6202,
+    proxy: {
+      "/ws": {
+        target: `http://localhost:${process.env.PORT || 6201}`,
+        ws: true,
+        changeOrigin: true,
+      },
+      "/api": {
+        target: `http://localhost:${process.env.PORT || 6201}`,
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

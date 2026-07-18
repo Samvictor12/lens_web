@@ -2452,6 +2452,17 @@ export default function SaleOrderForm() {
                 </div>
             </div>
 
+            {formData.id && formData.alternateLensNote && (
+                <div className="mb-4">
+                    <Alert className="border-violet-300 bg-violet-50 text-violet-900">
+                        <Tag className="h-4 w-4 text-violet-600" />
+                        <AlertDescription className="text-violet-900 font-medium">
+                            {formData.alternateLensNote}
+                        </AlertDescription>
+                    </Alert>
+                </div>
+            )}
+
             {mode === "view" && formData.id && (
                 <div className="mb-4 space-y-2">
                     <SaleOrderStatusBar

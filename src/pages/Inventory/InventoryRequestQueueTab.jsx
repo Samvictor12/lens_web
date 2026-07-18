@@ -86,13 +86,14 @@ function DetailRow({ label, value }) {
   );
 }
 
-function QueueCard({ order, onIssue, onRaisePo, busy }) {
+function QueueCard({ order, onIssue, onAlternate, onRaisePo, busy }) {
   const badge = queueBadge(order.status);
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
   const canRaisePo =
     ['DRAFT', 'PO_CANCELLED'].includes(order.status) &&
     !hasActiveLinkedPo(order) &&
     !order.isStockAvailable;
+  const canAlternate = order.hasAlternateStock && !order.isStockAvailable;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200 flex flex-col">
@@ -106,6 +107,12 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
       {badge && (
         <Badge variant="outline" className="text-xs w-fit">
           {badge}
+        </Badge>
+      )}
+
+      {order.alternateLensNote && (
+        <Badge className="text-xs w-fit bg-violet-100 text-violet-800 hover:bg-violet-100 border-violet-200">
+          Alternate issued
         </Badge>
       )}
 
@@ -154,6 +161,17 @@ function QueueCard({ order, onIssue, onRaisePo, busy }) {
         <Button size="sm" onClick={() => onIssue(order)} disabled={busy}>
           Issue &amp; Pre-QC
         </Button>
+        {canAlternate && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-violet-300 text-violet-700 hover:bg-violet-50"
+            onClick={() => onAlternate(order)}
+            disabled={busy}
+          >
+            Alternate
+          </Button>
+        )}
         {canRaisePo && (
           <Button size="sm" variant="outline" onClick={() => onRaisePo(order)} disabled={busy}>
             Raise PO
@@ -180,6 +198,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   const [search, setSearch] = useState('');
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [pickModalOrder, setPickModalOrder] = useState(null);
+  const [isAlternatePick, setIsAlternatePick] = useState(false);
   const [raisePoOrder, setRaisePoOrder] = useState(null);
   const [isRaisePoModalOpen, setIsRaisePoModalOpen] = useState(false);
   const [isRaisingPo, setIsRaisingPo] = useState(false);
@@ -249,6 +268,12 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
   };
 
   const handleIssueClick = (order) => {
+    setIsAlternatePick(false);
+    setPickModalOrder(order);
+  };
+
+  const handleAlternateClick = (order) => {
+    setIsAlternatePick(true);
     setPickModalOrder(order);
   };
 
@@ -256,10 +281,11 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
     if (!pickModalOrder) return;
     setBusy(true);
     try {
-      const res = await issueSoToPreQc(pickModalOrder.id, itemIds);
+      const res = await issueSoToPreQc(pickModalOrder.id, itemIds, isAlternatePick);
       if (res.success) {
-        toast({ title: 'Issued to Pre-QC' });
+        toast({ title: isAlternatePick ? 'Alternate lens issued to Pre-QC' : 'Issued to Pre-QC' });
         setPickModalOrder(null);
+        setIsAlternatePick(false);
         load();
       }
     } catch (e) {
@@ -423,6 +449,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
                 key={o.id}
                 order={o}
                 onIssue={handleIssueClick}
+                onAlternate={handleAlternateClick}
                 onRaisePo={handleRaisePoClick}
                 busy={busy}
               />
@@ -456,6 +483,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
                         key={o.id}
                         order={o}
                         onIssue={handleIssueClick}
+                        onAlternate={handleAlternateClick}
                         onRaisePo={handleRaisePoClick}
                         busy={busy}
                       />
@@ -484,8 +512,12 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
         <StockPickModal
           saleOrderId={pickModalOrder.id}
           requiredEyes={{ rightEye: pickModalOrder.rightEye, leftEye: pickModalOrder.leftEye }}
+          isAlternate={isAlternatePick}
           onConfirm={handleConfirmIssue}
-          onCancel={() => setPickModalOrder(null)}
+          onCancel={() => {
+            setPickModalOrder(null);
+            setIsAlternatePick(false);
+          }}
         />
       )}
     </div>

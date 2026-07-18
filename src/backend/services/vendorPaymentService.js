@@ -9,6 +9,7 @@ import {
   syncPoPaidStatus,
 } from '../utils/poPayable.js';
 import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
+import vendorInvoiceService from './vendorInvoiceService.js';
 
 const ELIGIBLE_PO_STATUSES = PO_PAYMENT_ELIGIBLE_STATUSES;
 
@@ -428,6 +429,147 @@ export class VendorPaymentService {
         normalizedItems.map((i) => i.purchaseOrderId),
         userId
       );
+
+      return voucher;
+    });
+  }
+
+  // ── M5: Invoice-first payment workflow ──────────────────────────────────
+  // Payments now allocate against outstanding VendorInvoice rows (registered up-front
+  // via vendorInvoiceService) rather than raw POs. Multiple invoices for the SAME
+  // vendor may be paid in a single voucher. Ledger posting (bank debit / vendor AP
+  // credit) reuses the existing postVendorPayment — unchanged, confirmed pattern.
+
+  /** Outstanding vendor invoices — single vendor list, or grouped-by-vendor when omitted. */
+  async listOutstandingInvoices(vendorId) {
+    return vendorInvoiceService.listOutstanding(vendorId);
+  }
+
+  async createFromInvoices(payload, userId) {
+    const { vendorId, paymentDate, bankLedgerId, referenceNo, notes, items } = payload;
+    const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
+
+    if (!vendorId || !paymentMethod || !bankLedgerId) {
+      throw new APIError('vendorId, paymentMethod, bankLedgerId required', 400, 'VALIDATION_ERROR');
+    }
+    if (!items?.length) {
+      throw new APIError('At least one vendor invoice must be selected', 400, 'VALIDATION_ERROR');
+    }
+
+    const vid = parseInt(vendorId, 10);
+    const invoiceIds = items.map((i) => parseInt(i.vendorInvoiceId, 10));
+
+    const invoices = await prisma.vendorInvoice.findMany({
+      where: { id: { in: invoiceIds }, deleteStatus: false },
+    });
+    if (invoices.length !== invoiceIds.length) {
+      throw new APIError('One or more vendor invoices not found', 404, 'INVOICE_NOT_FOUND');
+    }
+    for (const inv of invoices) {
+      if (inv.vendorId !== vid) {
+        throw new APIError(`Invoice ${inv.invoiceNumber} does not belong to this vendor`, 400, 'INVOICE_VENDOR_MISMATCH');
+      }
+      if (!['OUTSTANDING', 'PARTIALLY_PAID'].includes(inv.status)) {
+        throw new APIError(`Invoice ${inv.invoiceNumber} is not payable (status: ${inv.status})`, 400, 'INVOICE_NOT_PAYABLE');
+      }
+    }
+
+    const normalizedItems = [];
+    let total = 0;
+    for (const item of items) {
+      const invId = parseInt(item.vendorInvoiceId, 10);
+      const invoice = invoices.find((i) => i.id === invId);
+      const outstanding = round2(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount));
+      const allocated = round2(item.allocatedAmount);
+
+      if (allocated <= 0) {
+        throw new APIError(`Payment amount required for invoice ${invoice.invoiceNumber}`, 400, 'VALIDATION_ERROR');
+      }
+      if (allocated > outstanding + 0.01) {
+        throw new APIError(`Allocation for ${invoice.invoiceNumber} exceeds outstanding (${outstanding})`, 400, 'OVER_ALLOCATION');
+      }
+
+      total = round2(total + allocated);
+      normalizedItems.push({ vendorInvoiceId: invId, allocatedAmount: allocated });
+    }
+
+    if (total <= 0) throw new APIError('Total payment amount must be greater than zero', 400, 'VALIDATION_ERROR');
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vid },
+      select: { id: true, code: true, ledgerId: true },
+    });
+    if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
+
+    const voucherNumber = await generateVoucherNumber();
+    const now = new Date();
+
+    return prisma.$transaction(async (tx) => {
+      const voucher = await tx.vendorPaymentVoucher.create({
+        data: {
+          voucherNumber,
+          vendorId: vid,
+          paymentDate: paymentDate ? new Date(paymentDate) : now,
+          totalAmount: total,
+          paymentMethod,
+          bankLedgerId: parseInt(bankLedgerId, 10),
+          referenceNo: referenceNo || null,
+          notes: notes || null,
+          closedStatus: true,
+          closedAt: now,
+          createdBy: userId,
+          items: {
+            create: normalizedItems.map((item) => ({
+              vendorInvoiceId: item.vendorInvoiceId,
+              allocatedAmount: item.allocatedAmount,
+            })),
+          },
+        },
+        include: { items: true },
+      });
+
+      for (const item of normalizedItems) {
+        const invoice = invoices.find((i) => i.id === item.vendorInvoiceId);
+        const newPaid = round2(parseFloat(invoice.paidAmount) + item.allocatedAmount);
+        const newStatus = newPaid >= round2(parseFloat(invoice.totalAmount)) - 0.01 ? 'PAID' : 'PARTIALLY_PAID';
+        await tx.vendorInvoice.update({
+          where: { id: invoice.id },
+          data: { paidAmount: newPaid, status: newStatus, updatedBy: userId },
+        });
+      }
+
+      await postVendorPayment(tx, {
+        voucherId: voucher.id,
+        voucherNumber,
+        totalAmount: total,
+        bankLedgerId: parseInt(bankLedgerId, 10),
+        vendor,
+      }, userId);
+
+      // PO status sync for invoice-first flow: a PO is PAID once its owning VendorInvoice
+      // is fully paid (voucher items reference vendorInvoiceId, not purchaseOrderId, so the
+      // legacy syncPoPaidStatus PO-allocation lookup doesn't apply here).
+      const fullyPaidInvoiceIds = normalizedItems
+        .map((i) => i.vendorInvoiceId)
+        .filter((id) => {
+          const invoice = invoices.find((i) => i.id === id);
+          const newPaid = round2(parseFloat(invoice.paidAmount) + normalizedItems.find((n) => n.vendorInvoiceId === id).allocatedAmount);
+          return newPaid >= round2(parseFloat(invoice.totalAmount)) - 0.01;
+        });
+      if (fullyPaidInvoiceIds.length > 0) {
+        const paidPoIds = (
+          await tx.vendorInvoiceItem.findMany({
+            where: { vendorInvoiceId: { in: fullyPaidInvoiceIds } },
+            select: { purchaseOrderId: true },
+          })
+        ).map((r) => r.purchaseOrderId);
+        if (paidPoIds.length > 0) {
+          await tx.purchaseOrder.updateMany({
+            where: { id: { in: paidPoIds }, deleteStatus: false, status: { not: 'CANCELLED' } },
+            data: { status: 'PAID', updatedBy: userId },
+          });
+        }
+      }
 
       return voucher;
     });

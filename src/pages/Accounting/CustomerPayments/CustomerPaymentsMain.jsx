@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Search, CreditCard } from "lucide-react";
+import { Plus, Search, CreditCard, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +22,7 @@ import CreateCustomerPaymentDialog from "./CreateCustomerPaymentDialog";
 import CustomerPaymentDetailDialog from "./CustomerPaymentDetailDialog";
 import OutstandingInvoicesQueue from "./OutstandingInvoicesQueue";
 import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpandRow";
+import CreditDebitNotesTab from "./CreditDebitNotesTab";
 
 const OUTSTANDING_GROUP_OPTIONS = [
   { id: null, name: "No Grouping" },
@@ -55,6 +57,8 @@ export default function CustomerPaymentsMain() {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
   const [outstandingSearch, setOutstandingSearch] = useState("");
   const [outstandingCustomerId, setOutstandingCustomerId] = useState(null);
   const [groupBy, setGroupBy] = useState("customer");
@@ -171,6 +175,8 @@ export default function CustomerPaymentsMain() {
     try {
       const params = { page: pageIndex + 1, limit: pageSize };
       if (searchQuery) params.search = searchQuery;
+      if (historyFrom) params.from = historyFrom;
+      if (historyTo) params.to = historyTo;
       const res = await getCustomerPayments(params);
       setPayments(res.data || []);
       setTotalCount(res.pagination?.total ?? (res.data?.length || 0));
@@ -179,7 +185,7 @@ export default function CustomerPaymentsMain() {
     } finally {
       setIsLoading(false);
     }
-  }, [pageIndex, pageSize, searchQuery, refreshKey]);
+  }, [pageIndex, pageSize, searchQuery, historyFrom, historyTo, refreshKey]);
 
   const fetchDropdownData = useCallback(async () => {
     try {
@@ -200,7 +206,7 @@ export default function CustomerPaymentsMain() {
 
   useEffect(() => {
     if (activeTab === "outstanding") fetchOutstanding();
-    else fetchPayments();
+    else if (activeTab === "history") fetchPayments();
   }, [activeTab, fetchOutstanding, fetchPayments]);
 
   useEffect(() => {
@@ -272,9 +278,11 @@ export default function CustomerPaymentsMain() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
+        <TabsList className="grid w-full grid-cols-4 mb-4 flex-shrink-0">
           <TabsTrigger value="outstanding">Outstanding Invoices</TabsTrigger>
           <TabsTrigger value="history">Payment History</TabsTrigger>
+          <TabsTrigger value="creditNotes">Credit Notes</TabsTrigger>
+          <TabsTrigger value="debitNotes">Debit Notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="outstanding" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden gap-2">
@@ -339,8 +347,8 @@ export default function CustomerPaymentsMain() {
 
         <TabsContent value="history" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
           <Card className="p-1 sm:p-1 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search by receipt, customer..."
@@ -351,6 +359,42 @@ export default function CustomerPaymentsMain() {
                   }}
                   className="pl-9 h-8 text-sm"
                 />
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-sm"
+                  value={historyFrom}
+                  onChange={(e) => {
+                    setHistoryFrom(e.target.value);
+                    setPageIndex(0);
+                  }}
+                />
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-sm"
+                  value={historyTo}
+                  onChange={(e) => {
+                    setHistoryTo(e.target.value);
+                    setPageIndex(0);
+                  }}
+                />
+                {(historyFrom || historyTo) && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      setHistoryFrom("");
+                      setHistoryTo("");
+                      setPageIndex(0);
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
               <Refresh onClick={handleRefresh} />
             </div>
@@ -378,6 +422,14 @@ export default function CustomerPaymentsMain() {
               )}
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="creditNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
+          <CreditDebitNotesTab type="credit" customers={customers} />
+        </TabsContent>
+
+        <TabsContent value="debitNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
+          <CreditDebitNotesTab type="debit" customers={customers} />
         </TabsContent>
       </Tabs>
 

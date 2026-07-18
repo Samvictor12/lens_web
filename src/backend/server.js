@@ -52,6 +52,10 @@ import bankReconciliationRoutes from './routes/bankReconciliation.routes.js';
 import financialReportRoutes from './routes/financialReports.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import roleRoutes from './routes/role.routes.js';
+import creditDebitNoteRoutes from './routes/creditDebitNote.routes.js';
+import vendorInvoiceRoutes from './routes/vendorInvoice.routes.js';
+import vendorCreditDebitNoteRoutes from './routes/vendorCreditDebitNote.routes.js';
+import gstReportRoutes from './routes/gstReports.routes.js';
 
 const app = express();
 
@@ -155,6 +159,10 @@ app.use('/api/bank-reconciliation', bankReconciliationRoutes);
 app.use('/api/financial-reports', financialReportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/accounting/customer-notes', creditDebitNoteRoutes);
+app.use('/api/accounting/vendor-invoices', vendorInvoiceRoutes);
+app.use('/api/accounting/vendor-notes', vendorCreditDebitNoteRoutes);
+app.use('/api/accounting/gst-reports', gstReportRoutes);
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { getMatchingInventoryFIFO } from "@/services/saleOrder";
+import { getMatchingInventoryFIFO, getAlternateMatchingInventory } from "@/services/saleOrder";
 
 /**
  * Standalone "Inventory Stock Pick (FIFO Allocation)" modal.
@@ -15,10 +15,13 @@ import { getMatchingInventoryFIFO } from "@/services/saleOrder";
  * Props:
  *  - saleOrderId: number — order to fetch FIFO matches for
  *  - requiredEyes: { rightEye: boolean, leftEye: boolean }
+ *  - isAlternate: boolean — when true, fetches power-only (SPH/CYL/ADD) alternate
+ *    matches (ignoring coating/brand/category/lens_id) and shows actual product
+ *    identity per candidate (M2)
  *  - onConfirm(itemIds: number[]): called with the selected inventory item id(s)
  *  - onCancel(): called when the modal is dismissed without confirming
  */
-export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfirm, onCancel }) {
+export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlternate = false, onConfirm, onCancel }) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -34,7 +37,9 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
     const load = async () => {
       try {
         setIsLoading(true);
-        const response = await getMatchingInventoryFIFO(saleOrderId);
+        const response = isAlternate
+          ? await getAlternateMatchingInventory(saleOrderId)
+          : await getMatchingInventoryFIFO(saleOrderId);
         if (!isMounted) return;
         if (response.success) {
           const matches = response.data || {};
@@ -80,7 +85,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
     };
     if (saleOrderId) load();
     return () => { isMounted = false; };
-  }, [saleOrderId, wantsRight, wantsLeft, toast]);
+  }, [saleOrderId, wantsRight, wantsLeft, isAlternate, toast]);
 
   const handleConfirm = async () => {
     const itemIds = [];
@@ -144,6 +149,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b text-xs uppercase">
               <tr>
                 <th className="p-3 w-12 text-center">Select</th>
+                {isAlternate && <th className="p-3">Product</th>}
                 <th className="p-3">Inward Date / Receipt Date</th>
                 <th className="p-3">Source</th>
                 <th className="p-3">Tray</th>
@@ -175,6 +181,13 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
                       className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500"
                     />
                   </td>
+                  {isAlternate && (
+                    <td className="p-3">
+                      <div className="text-slate-800 font-semibold">{item.lensProduct?.brand?.name || "—"}</div>
+                      <div className="text-slate-600 text-xs">{item.lensProduct?.lens_name || "—"}</div>
+                      <div className="text-slate-500 text-xs">{item.coating?.name || "No Coating"}</div>
+                    </td>
+                  )}
                   <td className="p-3 text-slate-700 flex items-center gap-2">
                     {idx === 0 && !item.isReceipt && (
                       <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
@@ -233,7 +246,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <Package className="h-5 w-5 text-blue-600" />
-            Inventory Stock Pick (FIFO Allocation)
+            {isAlternate ? "Alternate Lens Pick (Power Match Only)" : "Inventory Stock Pick (FIFO Allocation)"}
           </DialogTitle>
         </DialogHeader>
 
@@ -278,7 +291,9 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
           )}
 
           <p className="text-sm text-slate-500">
-            Select the matching available lenses to issue from inventory or inward queue before moving this order to Pre-QC.
+            {isAlternate
+              ? "Select an in-stock alternate lens matching this order's SPH/CYL/ADD power only (coating, brand, and category may differ). The original order details are not changed."
+              : "Select the matching available lenses to issue from inventory or inward queue before moving this order to Pre-QC."}
           </p>
 
           {isLoading ? (
@@ -318,7 +333,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, onConfi
             }
             onClick={handleConfirm}
           >
-            {isConfirming ? "Processing..." : "Confirm & Issue to Pre-QC"}
+            {isConfirming ? "Processing..." : isAlternate ? "Confirm Alternate & Issue to Pre-QC" : "Confirm & Issue to Pre-QC"}
           </Button>
         </DialogFooter>
       </DialogContent>

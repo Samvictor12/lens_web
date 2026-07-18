@@ -250,6 +250,34 @@ export class SaleOrderController {
   }
 
   /**
+   * Get alternate-lens (power-only) matching inventory for a sale order (M2)
+   * GET /api/sale-orders/:id/alternate-matches
+   */
+  async getAlternateMatches(req, res, next) {
+    try {
+      const idValidation = validateIdParam(req.params.id);
+
+      if (!idValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: idValidation.errors
+        });
+      }
+
+      const matches = await this.saleOrderService.getAlternateMatchingInventory(idValidation.data);
+
+      res.status(200).json({
+        success: true,
+        message: 'Alternate matches retrieved successfully',
+        data: matches
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Update sale order dispatch information
    * PATCH /api/sale-orders/:id/dispatch
    */
@@ -506,6 +534,7 @@ export class SaleOrderController {
       const userId = req.user?.id || 1;
       const order = await saleOrderWorkflowService.issueToPreQc(validation.data, userId, {
         inventoryItemIds: req.body?.inventoryItemIds,
+        isAlternate: Boolean(req.body?.isAlternate),
       });
       res.status(200).json({ success: true, message: 'Issued to Pre-QC', data: order });
     } catch (error) {

@@ -171,10 +171,10 @@ export const getInventorySoQueue = async (params = {}) => {
     }
 };
 
-export const issueSoToPreQc = async (id, inventoryItemIds = []) => {
+export const issueSoToPreQc = async (id, inventoryItemIds = [], isAlternate = false) => {
     try {
         return await apiClient("post", `/sale-orders/${id}/issue-to-pre-qc`, {
-            data: { inventoryItemIds },
+            data: { inventoryItemIds, ...(isAlternate ? { isAlternate: true } : {}) },
         });
     } catch (error) {
         throw new Error(error.response?.data?.message || "Failed to issue to Pre-QC");
@@ -191,6 +191,20 @@ export const getMatchingInventoryFIFO = async (saleOrderId) => {
     } catch (error) {
         throw new Error(
             error.response?.data?.message || "Failed to fetch FIFO matching stock"
+        );
+    }
+};
+
+/**
+ * Get alternate-lens (power-only: SPH/CYL/ADD) matching inventory for a sale order (M2)
+ */
+export const getAlternateMatchingInventory = async (saleOrderId) => {
+    try {
+        const response = await apiClient("get", `/sale-orders/${saleOrderId}/alternate-matches`);
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch alternate matching stock"
         );
     }
 };
