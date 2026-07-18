@@ -358,6 +358,10 @@ export const validateQueryParams = (params) => {
     }
   }
 
+  if (params.godownType === 'STOCK' || params.godownType === 'RX') {
+    data.godownType = params.godownType;
+  }
+
   return {
     isValid: errors.length === 0,
     errors,

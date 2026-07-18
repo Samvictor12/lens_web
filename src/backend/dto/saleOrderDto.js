@@ -4,6 +4,17 @@
  */
 
 /**
+ * Validate optical power value is in 0.25 steps (Sph/Cyl/Add).
+ */
+const isQuarterDiopter = (val) => {
+  if (val === null || val === undefined || val === '') return true;
+  const n = parseFloat(val);
+  if (!Number.isFinite(n)) return false;
+  // Avoid float noise: compare in hundredths
+  return Math.round(n * 100) % 25 === 0;
+};
+
+/**
  * Validate string length
  */
 const isValidLength = (str, min = 0, max = Number.MAX_SAFE_INTEGER) => {
@@ -186,11 +197,21 @@ export const validateCreateSaleOrder = (data) => {
       errors.push({ field, message: `${field} must not exceed 50 characters` });
     }
   });
+  ['rightSpherical', 'rightCylindrical', 'rightAdd'].forEach(field => {
+    if (data[field] && !isQuarterDiopter(data[field])) {
+      errors.push({ field, message: `${field} must be in 0.25 steps` });
+    }
+  });
 
   // Eye specifications validation (left)
   ['leftSpherical', 'leftCylindrical', 'leftAxis', 'leftAdd', 'leftDia'].forEach(field => {
     if (data[field] && !isValidLength(data[field], 0, 50)) {
       errors.push({ field, message: `${field} must not exceed 50 characters` });
+    }
+  });
+  ['leftSpherical', 'leftCylindrical', 'leftAdd'].forEach(field => {
+    if (data[field] && !isQuarterDiopter(data[field])) {
+      errors.push({ field, message: `${field} must be in 0.25 steps` });
     }
   });
 
@@ -403,6 +424,12 @@ export const validateUpdateSaleOrder = (data) => {
       errors.push({ field: 'additionalPrice', message: 'Additional price must be an array' });
     }
   }
+
+  ['rightSpherical', 'rightCylindrical', 'rightAdd', 'leftSpherical', 'leftCylindrical', 'leftAdd'].forEach((field) => {
+    if (data[field] !== undefined && data[field] && !isQuarterDiopter(data[field])) {
+      errors.push({ field, message: `${field} must be in 0.25 steps` });
+    }
+  });
 
   if (data.material_id !== undefined && data.material_id !== null && data.material_id !== '') {
     const materialId = parseInt(data.material_id);

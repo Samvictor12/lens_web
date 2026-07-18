@@ -259,7 +259,88 @@ export class SaleOrderStatusService {
         }
       }
 
+      // QC reject / scrap: immediately release reserved lenses into Inward Queue
+      // as RETURNED (pending Dispose / Reuse). SO Confirm Reset → Draft stays separate.
+      const qcReturnStatuses = [
+        'PRE_QC_REJECTED',
+        'PRE_QC_SCRAPPED',
+        'POST_QC_REJECTED',
+        'POST_QC_SCRAPPED',
+      ];
+      if (qcReturnStatuses.includes(toStatus)) {
+        const reservedItems = await tx.inventoryItem.findMany({
+          where: {
+            saleOrderId,
+            status: { in: ['RESERVED', 'IN_FITTING', 'QUALITY_CHECK'] },
+            deleteStatus: false,
+          },
+        });
+
+        for (const item of reservedItems) {
+          const qty = item.quantity || 1;
+          // Drop reserved hold for any linked item (status may still be RESERVED
+          // through Pre/Post QC; Math.max protects if already released)
+          await inventoryService.updateInventoryStock(
+            item,
+            qty,
+            'RELEASE_RESERVED_HOLD',
+            tx
+          );
+
+          await tx.inventoryItem.update({
+            where: { id: item.id },
+            data: {
+              status: 'RETURNED',
+              saleOrderId: null,
+              reservedDate: null,
+              notes: [
+                item.notes,
+                remark ? `QC reject tag: ${remark}` : null,
+                `Return from ${toStatus}`,
+              ]
+                .filter(Boolean)
+                .join(' | '),
+              updatedBy: userId ?? null,
+              updatedAt: new Date(),
+            },
+          });
+
+          await tx.inventoryQcReturn.create({
+            data: {
+              saleOrderId,
+              inventoryItemId: item.id,
+              sourceStatus: toStatus,
+              rejectRemark: remark || null,
+              status: 'PENDING',
+              createdBy: userId ?? null,
+            },
+          });
+        }
+
+        // If no reserved items (edge case), still log a SO-level return row
+        if (reservedItems.length === 0) {
+          await tx.inventoryQcReturn.create({
+            data: {
+              saleOrderId,
+              inventoryItemId: null,
+              sourceStatus: toStatus,
+              rejectRemark: remark || null,
+              status: 'PENDING',
+              createdBy: userId ?? null,
+            },
+          });
+        }
+
+        await tx.inventoryTransaction.deleteMany({
+          where: {
+            saleOrderId,
+            type: 'OUTWARD_SALE',
+          },
+        });
+      }
+
       // Revert reservation if transitioning back to DRAFT
+      // (skip items already released via QC return)
       if (toStatus === 'DRAFT') {
         const reservedItems = await tx.inventoryItem.findMany({
           where: {

@@ -88,6 +88,12 @@ export class SettingsService {
         ...(incoming.gstRates !== undefined
           ? { gstRates: normalizeGstRates(incoming.gstRates) }
           : {}),
+        ...(incoming.gstPercent !== undefined
+          ? { gstPercent: Math.max(0, parseFloat(incoming.gstPercent) || 0) }
+          : {}),
+        ...(incoming.sgstPercent !== undefined
+          ? { sgstPercent: Math.max(0, parseFloat(incoming.sgstPercent) || 0) }
+          : {}),
       };
     }
 

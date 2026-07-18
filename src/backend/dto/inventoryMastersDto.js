@@ -13,6 +13,10 @@ const isValidNumber = (num) => {
   return typeof num === 'number' && !isNaN(num);
 };
 
+const VALID_GODOWN_TYPES = ['STOCK', 'RX'];
+
+const isValidGodownType = (value) => VALID_GODOWN_TYPES.includes(value);
+
 /**
  * Validate Location Master Create
  */
@@ -27,6 +31,10 @@ export const validateCreateLocation = (data) => {
 
   if (data.description && !isValidLength(data.description, 0, 500)) {
     errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (!data.godownType || !isValidGodownType(data.godownType)) {
+    errors.push({ field: 'godownType', message: 'Godown type is required (STOCK or RX)' });
   }
 
   if (!data.createdBy || !isValidNumber(data.createdBy)) {
@@ -52,6 +60,12 @@ export const validateUpdateLocation = (data) => {
 
   if (data.description && !isValidLength(data.description, 0, 500)) {
     errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (data.godownType === undefined || data.godownType === null || data.godownType === '') {
+    errors.push({ field: 'godownType', message: 'Godown type is required (STOCK or RX)' });
+  } else if (!isValidGodownType(data.godownType)) {
+    errors.push({ field: 'godownType', message: 'Godown type must be STOCK or RX' });
   }
 
   if (!data.updatedBy || !isValidNumber(data.updatedBy)) {

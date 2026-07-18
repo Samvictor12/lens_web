@@ -189,7 +189,7 @@ function QueueCard({ order, onIssue, onAlternate, onRaisePo, busy }) {
   );
 }
 
-export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
+export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 'STOCK' }) {
   const { toast } = useToast();
   const [orders, setOrders] = useState([]);
   const [softReservedQty, setSoftReservedQty] = useState(0);
@@ -225,6 +225,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
         lensProductId: filters.lensProductId || undefined,
         customerRefNo: filters.customerRefNo?.trim() || undefined,
         orderNo: filters.orderNo?.trim() || undefined,
+        procurementType: godownType || undefined,
       };
       const res = await getInventorySoQueue(params);
       if (res.success) {
@@ -236,7 +237,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0 }) {
     } finally {
       setLoading(false);
     }
-  }, [search, filters, toast]);
+  }, [search, filters, toast, godownType]);
 
   useEffect(() => {
     load();

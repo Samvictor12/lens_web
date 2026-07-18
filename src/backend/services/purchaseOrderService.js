@@ -923,7 +923,7 @@ class PurchaseOrderService {
    * Export multiple Single POs into one compact Excel sheet (one row per PO).
    * Columns: PO Number | Vendor | Customer Ref | Lens Name | Category |
    *          R.SPH | R.CYL | R.Axis | R.ADD | L.SPH | L.CYL | L.Axis | L.ADD |
-   *          Qty | Rate | Total | Status
+   *          Qty | Total
    */
   async exportBatchSinglePOToExcel(ids, res) {
     const pos = await prisma.purchaseOrder.findMany({
@@ -984,9 +984,7 @@ class PurchaseOrderService {
       { label: "L.Axis",        key: "lAxis",         width: 9  },
       { label: "L.ADD",         key: "lAdd",          width: 9  },
       { label: "Qty",           key: "qty",           width: 7  },
-      { label: "Rate",          key: "rate",          width: 12 },
       { label: "Total",         key: "total",         width: 14 },
-      { label: "Status",        key: "status",        width: 18 },
     ];
 
     HEADERS.forEach((h, i) => {
@@ -1029,11 +1027,6 @@ class PurchaseOrderService {
       const isAlt = idx % 2 === 1;
       const rowFill = isAlt ? fill(C.altRow) : fill("FFFFFF");
 
-      const statusLabel = {
-        DRAFT: "Draft", RECEIVED: "Received", PARTIALLY_RECEIVED: "Partially Received",
-        CANCELLED: "Cancelled", CLOSED: "Completed",
-      }[po.status] ?? po.status;
-
       const customerRef =
         po.saleOrder?.customerRefNo || po.reference_id || "—";
 
@@ -1052,9 +1045,7 @@ class PurchaseOrderService {
         po.leftEye  ? (po.leftAxis || "—") : "—",
         po.leftEye  ? fmtLen(po.leftAdd) : "—",
         po.quantity || 0,
-        po.unitPrice ? parseFloat(po.unitPrice) : null,
         po.totalValue ? parseFloat(po.totalValue) : null,
-        statusLabel,
       ];
 
       values.forEach((val, ci) => {
@@ -1063,13 +1054,13 @@ class PurchaseOrderService {
         cell.fill = rowFill;
         cell.font = font("1A1A2E", 10);
         cell.border = border;
-        // Right-align numeric columns
+        // Right-align Qty (13) and Total (14); center eye specs (5–12)
         cell.alignment = {
-          horizontal: ci >= 13 && ci <= 15 ? "right" : ci >= 5 && ci <= 12 ? "center" : "left",
+          horizontal: ci >= 13 ? "right" : ci >= 5 && ci <= 12 ? "center" : "left",
           vertical: "middle",
         };
-        // Format currency columns
-        if (ci === 14 || ci === 15) {
+        // Format Total as currency
+        if (ci === 14) {
           cell.numFmt = "#,##0.00";
         }
       });

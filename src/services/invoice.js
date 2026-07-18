@@ -26,9 +26,11 @@ export const getInvoiceById = (id) =>
 
 /**
  * Get delivered (un-billed) sale orders for a customer — used when building a new invoice
+ * @param {string|number} customerId
+ * @param {{ startDate?: string, endDate?: string }} [params] optional createdAt range
  */
-export const getDeliveredOrdersForCustomer = (customerId) =>
-  apiClient("get", `${BASE}/customers/${customerId}/delivered-orders`);
+export const getDeliveredOrdersForCustomer = (customerId, params = {}) =>
+  apiClient("get", `${BASE}/customers/${customerId}/delivered-orders`, { params });
 
 /**
  * Create invoice from delivered sale orders

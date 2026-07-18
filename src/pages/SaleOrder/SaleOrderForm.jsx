@@ -29,6 +29,7 @@ import {
     checkCustomerRef,
     updateSaleOrderStatus,
     getMatchingInventoryFIFO,
+    previewStockAvailability,
     closeAndCreateSaleOrder,
     raisePoFromSo,
     confirmSoReset,
@@ -108,6 +109,8 @@ export default function SaleOrderForm() {
     const [isFifoModalOpen, setIsFifoModalOpen] = useState(false);
     const [fifoMatches, setFifoMatches] = useState({ rightEyeMatches: [], leftEyeMatches: [] });
     const [selectedFifoItems, setSelectedFifoItems] = useState({ rightEyeItemId: null, leftEyeItemId: null });
+    // Available stock preview (after Calculate Price)
+    const [stockAvailability, setStockAvailability] = useState(null);
 
     // Dropdown open states for split buttons
     const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
@@ -717,20 +720,18 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.rightSpherical);
                 if (isNaN(val)) {
                     newErrors.rightSpherical = "Must be a valid number";
+                } else if (Math.round(val * 100) % 25 !== 0) {
+                    newErrors.rightSpherical = "Must be in 0.25 steps";
                 }
-                // else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
-                //     newErrors.rightSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
-                // }
             }
 
             if (formData.rightCylindrical && formData.rightCylindrical !== "") {
                 const val = parseFloat(formData.rightCylindrical);
                 if (isNaN(val)) {
                     newErrors.rightCylindrical = "Must be a valid number";
+                } else if (Math.round(val * 100) % 25 !== 0) {
+                    newErrors.rightCylindrical = "Must be in 0.25 steps";
                 }
-                // else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
-                //     newErrors.rightCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
-                // }
             }
 
             if (formData.rightAxis && formData.rightAxis !== "") {
@@ -738,19 +739,15 @@ export default function SaleOrderForm() {
                 if (isNaN(val)) {
                     newErrors.rightAxis = "Must be a valid number";
                 }
-                // else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
-                //     newErrors.rightAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
-                // }
             }
 
             if (formData.rightAdd && formData.rightAdd !== "") {
                 const val = parseFloat(formData.rightAdd);
                 if (isNaN(val)) {
                     newErrors.rightAdd = "Must be a valid number";
+                } else if (Math.round(val * 100) % 25 !== 0) {
+                    newErrors.rightAdd = "Must be in 0.25 steps";
                 }
-                // else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
-                //     newErrors.rightAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
-                // }
             }
         }
 
@@ -771,20 +768,18 @@ export default function SaleOrderForm() {
                 const val = parseFloat(formData.leftSpherical);
                 if (isNaN(val)) {
                     newErrors.leftSpherical = "Must be a valid number";
+                } else if (Math.round(val * 100) % 25 !== 0) {
+                    newErrors.leftSpherical = "Must be in 0.25 steps";
                 }
-                // else if (val < eyeSpecRanges.spherical.min || val > eyeSpecRanges.spherical.max) {
-                //     newErrors.leftSpherical = `Range: ${eyeSpecRanges.spherical.min} to ${eyeSpecRanges.spherical.max}`;
-                // }
             }
 
             if (formData.leftCylindrical && formData.leftCylindrical !== "") {
                 const val = parseFloat(formData.leftCylindrical);
                 if (isNaN(val)) {
                     newErrors.leftCylindrical = "Must be a valid number";
+                } else if (Math.round(val * 100) % 25 !== 0) {
+                    newErrors.leftCylindrical = "Must be in 0.25 steps";
                 }
-                // else if (val < eyeSpecRanges.cylindrical.min || val > eyeSpecRanges.cylindrical.max) {
-                //     newErrors.leftCylindrical = `Range: ${eyeSpecRanges.cylindrical.min} to ${eyeSpecRanges.cylindrical.max}`;
-                // }
             }
 
             if (formData.leftAxis && formData.leftAxis !== "") {
@@ -792,19 +787,15 @@ export default function SaleOrderForm() {
                 if (isNaN(val)) {
                     newErrors.leftAxis = "Must be a valid number";
                 }
-                // else if (val < eyeSpecRanges.axis.min || val > eyeSpecRanges.axis.max) {
-                //     newErrors.leftAxis = `Range: ${eyeSpecRanges.axis.min} to ${eyeSpecRanges.axis.max}`;
-                // }
             }
 
             if (formData.leftAdd && formData.leftAdd !== "") {
                 const val = parseFloat(formData.leftAdd);
                 if (isNaN(val)) {
                     newErrors.leftAdd = "Must be a valid number";
+                } else if (Math.round(val * 100) % 25 !== 0) {
+                    newErrors.leftAdd = "Must be in 0.25 steps";
                 }
-                // else if (val < eyeSpecRanges.add.min || val > eyeSpecRanges.add.max) {
-                //     newErrors.leftAdd = `Range: ${eyeSpecRanges.add.min} to ${eyeSpecRanges.add.max}`;
-                // }
             }
         }
 
@@ -1136,6 +1127,7 @@ export default function SaleOrderForm() {
 
         try {
             setIsCalculating(true);
+            setStockAvailability(null);
 
             // Initialize price breakdown
             const breakdown = {
@@ -1403,6 +1395,34 @@ export default function SaleOrderForm() {
 
             // Store price breakdown for display
             setPriceBreakdown(breakdown);
+
+            // Preview available stock for entered lens specs (create + draft)
+            try {
+                const stockRes = await previewStockAvailability({
+                    lens_id: formData.lens_id,
+                    coating_id: formData.coating_id,
+                    category_id: formData.category_id || null,
+                    Type_id: formData.Type_id || null,
+                    procurementType: formData.procurementType || undefined,
+                    excludeSaleOrderId: formData.id || undefined,
+                    rightEye: Boolean(formData.rightEye),
+                    leftEye: Boolean(formData.leftEye),
+                    rightSpherical: formData.rightSpherical,
+                    rightCylindrical: formData.rightCylindrical,
+                    rightAdd: formData.rightAdd,
+                    leftSpherical: formData.leftSpherical,
+                    leftCylindrical: formData.leftCylindrical,
+                    leftAdd: formData.leftAdd,
+                });
+                if (stockRes?.success && stockRes.data) {
+                    setStockAvailability(stockRes.data);
+                } else {
+                    setStockAvailability(null);
+                }
+            } catch (stockErr) {
+                console.error("Stock availability preview failed:", stockErr);
+                setStockAvailability(null);
+            }
 
             console.log("Price Breakdown:", breakdown);
 
@@ -2834,8 +2854,31 @@ export default function SaleOrderForm() {
 
 
                     <Card>
-                        <CardHeader className="pb-3">
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
                             <CardTitle className="text-base">Lens Information</CardTitle>
+                            {stockAvailability && (stockAvailability.rightEye || stockAvailability.leftEye) && (
+                                <div className="text-xs sm:text-sm flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-right">
+                                    <span className="text-muted-foreground">
+                                        Available ({stockAvailability.procurementType}):
+                                    </span>
+                                    {stockAvailability.rightEye && (
+                                        <span>
+                                            Right:{" "}
+                                            <span className={stockAvailability.rightAvailable > 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>
+                                                {stockAvailability.rightAvailable} available
+                                            </span>
+                                        </span>
+                                    )}
+                                    {stockAvailability.leftEye && (
+                                        <span>
+                                            Left:{" "}
+                                            <span className={stockAvailability.leftAvailable > 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>
+                                                {stockAvailability.leftAvailable} available
+                                            </span>
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </CardHeader>
                         <CardContent className="space-y-3.5">
                             {/* Row 1 */}

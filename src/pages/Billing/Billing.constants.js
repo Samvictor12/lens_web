@@ -82,27 +82,13 @@ function formatEyeSpecs(prefix, order) {
 function goodsDescriptionLines(o) {
   const product = o.lensProduct || {};
   const name = product.lens_name || "Lens";
-  const brand = product.brand?.name || product.brand;
-  const code = product.product_code;
-  const range = product.range_text;
-
-  const titleParts = [name];
-  if (brand) titleParts.push(`(${brand})`);
-  if (code) titleParts.push(`[${code}]`);
-
-  const meta = [
-    o.category?.name,
-    o.coating?.name,
-    o.fitting?.name ? `Fitting: ${o.fitting.name}` : null,
-    o.tinting?.name ? `Tinting: ${o.tinting.name}` : null,
-    range ? `Range: ${range}` : null,
-  ].filter(Boolean);
+  const coating = o.coating?.name || "";
 
   const r = formatEyeSpecs("right", o);
   const l = formatEyeSpecs("left", o);
   const eyes = [r ? `[R] ${r}` : null, l ? `[L] ${l}` : null].filter(Boolean);
 
-  return [titleParts.join(" "), meta.join(" · "), eyes.join(" ")].filter(Boolean);
+  return [name, coating, eyes.join(" ")].filter(Boolean);
 }
 
 /** HTML goods description for tax invoice. */
@@ -192,6 +178,8 @@ function readCompanyAttrs(company) {
     bankName: attrs.bankName || attrs.bank_name || "",
     ifsc: attrs.ifsc || attrs.IFSC || "",
     electronicRefNo: attrs.electronicRefNo || attrs.electronicReferenceNo || attrs.electronic_ref_no || "",
+    gstPercent: parseFloat(attrs.gstPercent ?? attrs.invoiceGstPercent ?? 0) || 0,
+    sgstPercent: parseFloat(attrs.sgstPercent ?? attrs.invoiceSgstPercent ?? 0) || 0,
   };
 }
 
@@ -326,6 +314,22 @@ export function buildInvoiceHtml(invoice, companyOverride) {
     })
     .join("");
 
+  const goodsTaxable = Math.round(goodsSubtotal * 100) / 100;
+  const invoiceTax = Number(invoice.taxAmount) || 0;
+  const netTotal = Number(invoice.totalAmount) || goodsTaxable + invoiceTax;
+  const taxableShown =
+    invoiceTax > 0
+      ? Math.round((netTotal - invoiceTax) * 100) / 100
+      : goodsTaxable;
+  const rateSum = (sellerAttrs.gstPercent || 0) + (sellerAttrs.sgstPercent || 0);
+  const gstAmount =
+    rateSum > 0
+      ? Math.round(invoiceTax * ((sellerAttrs.gstPercent || 0) / rateSum) * 100) / 100
+      : 0;
+  const sgstAmount =
+    rateSum > 0
+      ? Math.round((invoiceTax - gstAmount) * 100) / 100
+      : invoiceTax;
   const netTotal = Number(invoice.totalAmount) || 0;
   const fittingShown = Math.round(fittingChargesTotal(orders) * 100) / 100;
   const subtotalShown = Math.round((lensGrossSubtotal + additionalSubtotal) * 100) / 100;
@@ -413,6 +417,9 @@ export function buildInvoiceHtml(invoice, companyOverride) {
             <div class="t-row"><span>Subtotal</span><span>₹${subtotalShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>Discount</span><span>${discountShown > 0 ? `-₹${discountShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}</span></div>
             <div class="t-row"><span>Fitting Charges</span><span>₹${fittingShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
+            <div class="t-row"><span>Taxable</span><span>₹${taxableShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
+            <div class="t-row"><span>GST (${sellerAttrs.gstPercent || 0}%)</span><span>₹${gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
+            <div class="t-row"><span>SGST (${sellerAttrs.sgstPercent || 0}%)</span><span>₹${sgstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>Round Off</span><span>${roundOff ? roundOff.toFixed(2) : "—"}</span></div>
             <div class="t-row net"><span>Net Total</span><span>₹${netTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
           </div>

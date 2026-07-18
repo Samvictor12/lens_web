@@ -200,7 +200,7 @@ export const deleteLocation = async (req, res, next) => {
  */
 export const getLocationsDropdown = async (req, res, next) => {
   try {
-    const locations = await locationService.getLocationDropdown();
+    const locations = await locationService.getLocationDropdown(req.query || {});
     res.status(200).json({
       success: true,
       message: "Locations dropdown retrieved successfully",

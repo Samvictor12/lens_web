@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatCurrency } from "./Inventory.constants";
 import InventoryInitializationForm from "./InventoryInitializationForm";
+import { godownTypeToSlug, inventoryTabPath } from "./inventoryGodown";
 import { getStockValueReport, getTopLowSellingProducts } from "@/services/inventory";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -153,9 +154,11 @@ function Section({ title, icon: Icon, iconClass, children, actions }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function InventoryDashboard({ stats = {}, isLoading = false, onRefresh = () => {} }) {
+export default function InventoryDashboard({ stats = {}, isLoading = false, onRefresh = () => {}, godownType }) {
   const [showInitForm, setShowInitForm] = useState(false);
   const navigate = useNavigate();
+  const godownSlug = godownTypeToSlug(godownType);
+  const transactionsPath = inventoryTabPath(godownSlug, "transactions");
 
   // Value trend state
   const [valueRange, setValueRange] = useState("30d");
@@ -168,11 +171,14 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
   const [topLowData, setTopLowData] = useState({ top10: [], low10: [] });
   const [topLowLoading, setTopLowLoading] = useState(false);
 
-  // Load value trend
+  // Load value trend (scoped to current godown)
   const loadValueTrend = useCallback(async () => {
     setValueLoading(true);
     try {
-      const params = dateRangeToParams(valueRange);
+      const params = {
+        ...dateRangeToParams(valueRange),
+        ...(godownType ? { godownType } : {}),
+      };
       const res = await getStockValueReport(params);
       if (res.success) {
         setValueData(res.trend || []);
@@ -180,17 +186,20 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
       }
     } catch { /* silent */ }
     finally { setValueLoading(false); }
-  }, [valueRange]);
+  }, [valueRange, godownType]);
 
-  // Load top/low selling
+  // Load top/low selling (scoped to current godown)
   const loadTopLow = useCallback(async () => {
     setTopLowLoading(true);
     try {
-      const res = await getTopLowSellingProducts({ days: salesDays });
+      const res = await getTopLowSellingProducts({
+        days: salesDays,
+        ...(godownType ? { godownType } : {}),
+      });
       if (res.success) setTopLowData(res.data || { top10: [], low10: [] });
     } catch { /* silent */ }
     finally { setTopLowLoading(false); }
-  }, [salesDays]);
+  }, [salesDays, godownType]);
 
   const handleExportValueTrend = (type) => {
     const title = `Inward vs Outward Quantity Trend (${valueRange === "7d" ? "Last 7 Days" : "Last 30 Days"})`;
@@ -294,14 +303,14 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
               <div className="flex gap-3 text-xs mr-2">
                 <span 
                   className="flex items-center gap-1 text-green-600 cursor-pointer hover:underline"
-                  onClick={() => navigate('/inventory/transactions', { state: { filterType: 'INWARD_PO' } })}
+                  onClick={() => navigate(transactionsPath, { state: { filterType: 'INWARD_PO' } })}
                 >
                   <ArrowUpRight className="h-3 w-3" />
                   {formatCurrency(valueSummary.totalInwardValue)}
                 </span>
                 <span 
                   className="flex items-center gap-1 text-red-600 cursor-pointer hover:underline"
-                  onClick={() => navigate('/inventory/transactions', { state: { filterType: 'OUTWARD_SALE' } })}
+                  onClick={() => navigate(transactionsPath, { state: { filterType: 'OUTWARD_SALE' } })}
                 >
                   <ArrowDownRight className="h-3 w-3" />
                   {formatCurrency(valueSummary.totalOutwardValue)}
@@ -575,6 +584,7 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
         isOpen={showInitForm}
         onClose={() => setShowInitForm(false)}
         onSuccess={() => { onRefresh(); }}
+        godownType={godownType}
       />
     </div>
   );

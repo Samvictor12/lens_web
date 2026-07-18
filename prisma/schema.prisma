@@ -108,6 +108,8 @@ model User {
   receiptUpdatedBy              PurchaseOrderReceipt[] @relation("receiptUpdatedBy")
   inventoryItemCreatedBy        InventoryItem[]        @relation("inventoryItemCreatedBy")
   inventoryItemUpdatedBy        InventoryItem[]        @relation("inventoryItemUpdatedBy")
+  qcReturnCreatedBy             InventoryQcReturn[]    @relation("qcReturnCreatedBy")
+  qcReturnDisposedBy            InventoryQcReturn[]    @relation("qcReturnDisposedBy")
   inventoryTransactionCreatedBy InventoryTransaction[] @relation("inventoryTransactionCreatedBy")
   inventoryTransactionUpdatedBy InventoryTransaction[] @relation("inventoryTransactionUpdatedBy")
   inventoryStockUpdatedBy       InventoryStock[]       @relation("inventoryStockUpdatedBy")
@@ -217,7 +219,7 @@ model Customer {
   shopname              String?
   phone                 String?
   alternatephone        String?
-  email                 String
+  email                 String?
   address               String?
   city                  String?
   state                 String?
@@ -606,6 +608,11 @@ model LensOffers {
 enum ProcurementType {
   RX
   STOCK
+}
+
+enum GodownType {
+  STOCK
+  RX
 }
 
 enum SaleOrderStatus {
@@ -1056,6 +1063,7 @@ model SaleOrder {
   assignedPerson        User?                  @relation("saleOrderAssignedPerson", fields: [assignedPerson_id], references: [id])
   inventoryItems        InventoryItem[]
   inventoryTransactions InventoryTransaction[] @relation("inventorySaleTransactions")
+  qcReturns             InventoryQcReturn[]
   // Parent / child relationship (Close & Create SO)
   parentId              Int?
   parent                SaleOrder?             @relation("SaleOrderChildren", fields: [parentId], references: [id])
@@ -1089,6 +1097,7 @@ model LocationMaster {
   name                      String
   description               String?
   isVirtual                 Boolean                @default(false)
+  godownType                GodownType?
   activeStatus              Boolean                @default(true)
   deleteStatus              Boolean                @default(false)
   createdAt                 DateTime               @default(now())
@@ -1149,8 +1158,38 @@ enum InventoryItemStatus {
   RESERVED // Reserved for sale order
   IN_FITTING // Being processed
   DAMAGED // Damaged/unusable
-  RETURNED // Returned by customer
+  RETURNED // Returned from QC — pending Dispose/Reuse in Inward Queue
   QUALITY_CHECK // Under quality inspection
+}
+
+enum InventoryQcReturnStatus {
+  PENDING
+  REUSED
+  DISPOSED
+}
+
+/// QC reject returns awaiting inventory Dispose / Reuse (shown in Inward Queue)
+model InventoryQcReturn {
+  id              Int                    @id @default(autoincrement())
+  saleOrderId     Int
+  saleOrder       SaleOrder              @relation(fields: [saleOrderId], references: [id])
+  inventoryItemId Int?
+  inventoryItem   InventoryItem?         @relation(fields: [inventoryItemId], references: [id])
+  sourceStatus    String // PRE_QC_REJECTED | PRE_QC_SCRAPPED | POST_QC_REJECTED | POST_QC_SCRAPPED
+  rejectRemark    String? // QC rejection reason (the "tag"/special remarks)
+  status          InventoryQcReturnStatus @default(PENDING)
+  dispositionRemark String? // Inventory note on Dispose/Reuse
+  disposedAt      DateTime?
+  disposedBy      Int?
+  disposedByUser  User?                  @relation("qcReturnDisposedBy", fields: [disposedBy], references: [id])
+  createdAt       DateTime               @default(now())
+  createdBy       Int?
+  createdByUser   User?                  @relation("qcReturnCreatedBy", fields: [createdBy], references: [id])
+  updatedAt       DateTime               @updatedAt
+
+  @@index([status])
+  @@index([saleOrderId])
+  @@index([inventoryItemId])
 }
 
 // Main inventory table to track individual lens items
@@ -1234,6 +1273,7 @@ model InventoryItem {
 
   // Relationship Tables
   transactions InventoryTransaction[] @relation("inventoryItemTransactions")
+  qcReturns    InventoryQcReturn[]
 }
 
 // Track all inventory movements/transactions

@@ -126,6 +126,52 @@ export class InventoryController {
   }
 
   /**
+   * Dispose or Reuse a QC return from Inward Queue
+   * @route POST /api/inventory/qc-returns/:id/disposition
+   */
+  async dispositionQcReturn(req, res, next) {
+    try {
+      const idValidation = validateIdParam(req.params.id);
+      if (!idValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid QC return ID',
+          errors: idValidation.errors,
+        });
+      }
+
+      const disposition = String(req.body?.disposition || '').trim().toUpperCase();
+      if (disposition !== 'REUSE' && disposition !== 'DISPOSE') {
+        return res.status(400).json({
+          success: false,
+          message: 'disposition must be REUSE or DISPOSE',
+        });
+      }
+
+      const remark =
+        typeof req.body?.remark === 'string' ? req.body.remark.trim() : '';
+
+      const result = await this.inventoryService.dispositionQcReturn(
+        idValidation.data.id,
+        disposition,
+        remark || null,
+        req.user?.id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        message:
+          disposition === 'REUSE'
+            ? 'Lens returned to available stock'
+            : 'Lens marked as disposed',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get inventory item by ID
    * @route GET /api/inventory/items/:id
    */
@@ -321,7 +367,10 @@ export class InventoryController {
    */
   async getInventoryDropdowns(req, res, next) {
     try {
-      const dropdowns = await this.inventoryService.getInventoryDropdowns();
+      const godownType = req.query?.godownType || null;
+      const dropdowns = await this.inventoryService.getInventoryDropdowns({
+        godownType,
+      });
 
       res.json({
         success: true,
@@ -340,9 +389,14 @@ export class InventoryController {
    */
   async getInventoryDashboard(req, res, next) {
     try {
+      const godownType = req.query?.godownType;
       const [stats, softAlloc] = await Promise.all([
-        this.inventoryService.getInventoryDashboardEnhanced(),
-        computeQueueSoftAllocation(),
+        this.inventoryService.getInventoryDashboardEnhanced({ godownType }),
+        computeQueueSoftAllocation(
+          godownType === 'STOCK' || godownType === 'RX'
+            ? { procurementType: godownType }
+            : {}
+        ),
       ]);
       res.json({
         success: true,
@@ -397,6 +451,7 @@ export class InventoryController {
         sph: req.query.sph || null,
         cyl: req.query.cyl || null,
         add: req.query.add || null,
+        godownType: req.query.godownType || null,
       };
 
       const result = await this.inventoryService.getInventoryStockWithGrouping(
@@ -424,7 +479,10 @@ export class InventoryController {
    */
   async getLowStockItems(req, res, next) {
     try {
-      const lowStockItems = await this.inventoryService.getItemsBelowThreshold();
+      const godownType = req.query?.godownType || null;
+      const lowStockItems = await this.inventoryService.getItemsBelowThreshold(
+        godownType
+      );
       res.json({
         success: true,
         data: lowStockItems,
@@ -445,6 +503,7 @@ export class InventoryController {
         startDate: req.query.startDate || null,
         endDate: req.query.endDate || null,
         groupBy: req.query.groupBy || "lens_id",
+        godownType: req.query.godownType || null,
       };
 
       const report = await this.inventoryService.getStockValueReport(
@@ -485,8 +544,11 @@ export class InventoryController {
    */
   async getTopLowSellingProducts(req, res, next) {
     try {
-      const { days = 30 } = req.query;
-      const result = await this.inventoryService.getTopLowSellingProducts({ days });
+      const { days = 30, godownType = null } = req.query;
+      const result = await this.inventoryService.getTopLowSellingProducts({
+        days,
+        godownType,
+      });
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -509,6 +571,7 @@ export class InventoryController {
         sph: req.query.sph || null,
         cyl: req.query.cyl || null,
         add: req.query.add || null,
+        godownType: req.query.godownType || null,
       };
 
       const result = await this.inventoryService.getInventoryStockPivot(queryParams);

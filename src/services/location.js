@@ -8,6 +8,7 @@ const mapToBackend = (frontendData) => {
   return {
     name: frontendData.name,
     description: frontendData.description || null,
+    godownType: frontendData.godownType || null,
     activeStatus:
       frontendData.activeStatus !== undefined
         ? frontendData.activeStatus
@@ -20,6 +21,7 @@ const mapFromBackend = (backendData) => {
     id: backendData.id,
     name: backendData.name,
     description: backendData.description || "",
+    godownType: backendData.godownType || null,
     activeStatus:
       backendData.activeStatus !== undefined ? backendData.activeStatus : true,
     trayCount: backendData._count?.trays || 0,
@@ -49,6 +51,9 @@ const buildQueryParams = (page, limit, search, filters, sortBy, sortOrder) => {
       filters.activeStatus !== undefined
     ) {
       params.activeStatus = filters.activeStatus;
+    }
+    if (filters.godownType && filters.godownType !== "all") {
+      params.godownType = filters.godownType;
     }
   }
 
@@ -144,9 +149,12 @@ export async function deleteLocation(id) {
 
 /**
  * Get locations dropdown list
+ * @param {{ godownType?: 'STOCK'|'RX' }} [params]
  */
-export async function getLocationDropdown() {
-  const response = await apiClient("get", "/v1/location-master/dropdown");
+export async function getLocationDropdown(params = {}) {
+  const response = await apiClient("get", "/v1/location-master/dropdown", {
+    params,
+  });
 
   return {
     success: response.success,

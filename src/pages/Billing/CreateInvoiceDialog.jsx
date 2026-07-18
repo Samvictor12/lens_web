@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,14 +19,29 @@ import {
   getAwaitingInvoiceCustomers,
   createInvoice,
 } from "@/services/invoice";
+import { useCompany } from "@/contexts/CompanyContext";
+import {
+  getInvoiceTaxRatesFromCompany,
+  calcInvoiceTaxBreakdown,
+} from "@/utils/gstRates";
 import { fmt, orderTotal } from "./Billing.constants";
+
+function formatLocalDate(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function CreateInvoiceDialog({ open, onClose, initialCustomerId = "" }) {
   const qc = useQueryClient();
+  const { company } = useCompany();
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // Sync state when dialog opens — always start with 0 orders selected
   useEffect(() => {
@@ -35,6 +50,8 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
       setSelectedOrderIds([]);
       setDueDate("");
       setNotes("");
+      setStartDate("");
+      setEndDate("");
     }
   }, [open, initialCustomerId]);
 
@@ -50,9 +67,16 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     creditDays: c.creditDays ?? c.credit_days ?? 0,
   }));
 
+  const orderDateParams = useMemo(() => {
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    return params;
+  }, [startDate, endDate]);
+
   const { data: ordersRes, isLoading: ordersLoading } = useQuery({
-    queryKey: ["delivered-orders", customerId],
-    queryFn: () => getDeliveredOrdersForCustomer(customerId),
+    queryKey: ["delivered-orders", customerId, orderDateParams],
+    queryFn: () => getDeliveredOrdersForCustomer(customerId, orderDateParams),
     enabled: !!customerId,
   });
   const deliveredOrders = ordersRes?.data || [];
@@ -66,11 +90,14 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     const days = Number(cust?.creditDays ?? cust?.credit_days ?? 0) || 0;
     const d = new Date();
     d.setDate(d.getDate() + days);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    setDueDate(`${yyyy}-${mm}-${dd}`);
+    setDueDate(formatLocalDate(d));
   }, [open, customerId, customersRes?.data]);
+
+  // Drop selections that fall out of the filtered list
+  useEffect(() => {
+    const ids = new Set(deliveredOrders.map((o) => o.id));
+    setSelectedOrderIds((prev) => prev.filter((id) => ids.has(id)));
+  }, [deliveredOrders]);
 
   const mutation = useMutation({
     mutationFn: createInvoice,
@@ -90,6 +117,8 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     setSelectedOrderIds([]);
     setDueDate("");
     setNotes("");
+    setStartDate("");
+    setEndDate("");
     onClose();
   };
 
@@ -101,6 +130,17 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   const selectedTotal = deliveredOrders
     .filter((o) => selectedOrderIds.includes(o.id))
     .reduce((s, o) => s + orderTotal(o), 0);
+
+  const taxRates = useMemo(() => getInvoiceTaxRatesFromCompany(company), [company]);
+  const taxBreakdown = useMemo(
+    () => calcInvoiceTaxBreakdown(selectedTotal, taxRates.gstPercent, taxRates.sgstPercent),
+    [selectedTotal, taxRates.gstPercent, taxRates.sgstPercent]
+  );
+
+  const selectedCustomerCreditDays = useMemo(() => {
+    const cust = (customersRes?.data || []).find((c) => String(c.id) === String(customerId));
+    return Number(cust?.creditDays ?? cust?.credit_days ?? 0) || 0;
+  }, [customersRes?.data, customerId]);
 
   const handleSubmit = () => {
     if (mutation.isPending) return;
@@ -153,11 +193,37 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
                 Delivered Orders (select to include){" "}
                 <span className="text-red-500">*</span>
               </p>
+              <div className="grid grid-cols-2 gap-2">
+                <FormInput
+                  label="Created From"
+                  name="soStartDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setSelectedOrderIds([]);
+                  }}
+                />
+                <FormInput
+                  label="Created To"
+                  name="soEndDate"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setSelectedOrderIds([]);
+                  }}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Leave dates empty to show all unbilled delivered orders. Filter uses sale order created date.
+              </p>
               {ordersLoading ? (
                 <p className="text-sm text-muted-foreground py-2">Loading orders…</p>
               ) : deliveredOrders.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No un-billed orders for this customer. Orders must be in{" "}
+                  No un-billed orders for this customer
+                  {startDate || endDate ? " in the selected date range" : ""}. Orders must be in{" "}
                   <strong>DELIVERED</strong> status and not already linked to an invoice.
                 </p>
               ) : (
@@ -181,9 +247,9 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
                         <span className="text-xs text-muted-foreground ml-2">
                           {o.lensProduct?.lens_name || "—"} · {o.coating?.name || "—"}
                         </span>
-                        {o.orderDate && (
+                        {o.createdAt && (
                           <span className="text-xs text-muted-foreground ml-2">
-                            · {new Date(o.orderDate).toLocaleDateString("en-IN")}
+                            · Created {new Date(o.createdAt).toLocaleDateString("en-IN")}
                           </span>
                         )}
                       </div>
@@ -198,9 +264,23 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
           )}
 
           {/* Always show selection summary — defaults to 0 */}
-          <div className="flex justify-between items-center bg-muted px-3 py-2 rounded-md text-sm font-medium">
-            <span>{selectedOrderIds.length} order(s) selected</span>
-            <span className="text-base font-bold">{fmt(selectedTotal)}</span>
+          <div className="space-y-2 bg-muted px-3 py-2 rounded-md text-sm">
+            <div className="flex justify-between items-center font-medium">
+              <span>{selectedOrderIds.length} order(s) selected</span>
+              <span>Taxable {fmt(taxBreakdown.taxableAmount)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground text-xs">
+              <span>GST ({taxBreakdown.gstPercent}%)</span>
+              <span>{fmt(taxBreakdown.gstAmount)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground text-xs">
+              <span>SGST ({taxBreakdown.sgstPercent}%)</span>
+              <span>{fmt(taxBreakdown.sgstAmount)}</span>
+            </div>
+            <div className="flex justify-between items-center border-t pt-2 text-base font-bold">
+              <span>Final total</span>
+              <span>{fmt(taxBreakdown.totalAmount)}</span>
+            </div>
           </div>
 
           <FormInput
@@ -210,6 +290,11 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
             required
+            helperText={
+              customerId
+                ? `Auto-set from customer credit days (${selectedCustomerCreditDays} day${selectedCustomerCreditDays === 1 ? "" : "s"}). You can override.`
+                : undefined
+            }
           />
 
           <FormTextarea

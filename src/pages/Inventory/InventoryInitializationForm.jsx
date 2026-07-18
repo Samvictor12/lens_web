@@ -17,7 +17,7 @@ const fmtPower = (v) => {
   return n > 0 ? `+${n.toFixed(2)}` : n.toFixed(2);
 };
 
-export default function InventoryInitializationForm({ isOpen, onClose, onSuccess }) {
+export default function InventoryInitializationForm({ isOpen, onClose, onSuccess, godownType }) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,13 +67,13 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
       loadDropdownData();
       resetForm();
     }
-  }, [isOpen]);
+  }, [isOpen, godownType]);
 
   const loadDropdownData = async () => {
     try {
       setIsLoading(true);
       const [invRes, lensRes] = await Promise.all([
-        getInventoryDropdowns(),
+        getInventoryDropdowns(godownType ? { godownType } : {}),
         getLensProductsDropdown(),
       ]);
       if (invRes.success) {

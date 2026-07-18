@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,11 @@ import { useToast } from "@/hooks/use-toast";
 import DispatchRecordCard from "./DispatchRecordCard";
 import SignatureModal from "./SignatureModal";
 import ViewDispatchModal from "./ViewDispatchModal";
+import {
+    DispatchGroupBySelect,
+    DispatchGroupedList,
+    groupDispatches,
+} from "./DispatchGroupBy";
 import { FormSelect } from "@/components/ui/form-select";
 import { Refresh } from "@/components/ui/Refresh";
 import { ViewToggle } from "@/components/ui/view-toggle";
@@ -35,6 +40,8 @@ const STATUS_OPTIONS = [
     { value: "ON_HOLD", label: "On Hold" },
 ];
 
+const GROUPED_FETCH_LIMIT = 500;
+
 export default function DispatchList({ refreshKey, onStatusUpdated }) {
     const { toast } = useToast();
     const [dispatches, setDispatches] = useState([]);
@@ -44,6 +51,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
     const [view, setView] = useState(
         () => localStorage.getItem("dispatchListView") || "card"
     );
+    const [groupBy, setGroupBy] = useState("none");
 
     // Committed filters
     const [search, setSearch] = useState("");
@@ -72,6 +80,8 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
     // View modal
     const [viewDispatch, setViewDispatch] = useState(null);
 
+    const isGrouped = groupBy !== "none";
+
     const handleViewChange = (newView) => {
         setView(newView);
         localStorage.setItem("dispatchListView", newView);
@@ -81,8 +91,8 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         try {
             setIsLoading(true);
             const params = {
-                page,
-                limit: pageSize,
+                page: isGrouped ? 1 : page,
+                limit: isGrouped ? GROUPED_FETCH_LIMIT : pageSize,
                 ...(search ? { search } : {}),
                 ...(statusFilter ? { status: statusFilter } : {}),
                 ...(deliveryAgentFilter ? { deliveryPersonId: deliveryAgentFilter } : {}),
@@ -97,7 +107,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         } finally {
             setIsLoading(false);
         }
-    }, [toast, page, pageSize, search, statusFilter, deliveryAgentFilter, dateFrom, dateTo]);
+    }, [toast, page, pageSize, search, statusFilter, deliveryAgentFilter, dateFrom, dateTo, isGrouped]);
 
     useEffect(() => {
         const timeout = setTimeout(fetchList, search ? 400 : 0);
@@ -142,11 +152,18 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         onStatusUpdated?.();
     };
 
+    const openView = (dispatch) => setViewDispatch(dispatch);
+
     const columns = useDispatchColumns({
         onStatusUpdated: handleStatusUpdated,
         onSignatureRequest: (id) => setSignatureDispatchId(id),
-        onView: (dispatch) => setViewDispatch(dispatch),
+        onView: openView,
     });
+
+    const groups = useMemo(
+        () => (isGrouped ? groupDispatches(dispatches, groupBy) : []),
+        [dispatches, groupBy, isGrouped]
+    );
 
     const hasActiveFilters = !!(statusFilter || deliveryAgentFilter || dateFrom || dateTo);
 
@@ -172,14 +189,33 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         setShowFilterSheet(false);
     };
 
+    const handleGroupByChange = (value) => {
+        setGroupBy(value || "none");
+        setPage(1);
+    };
+
     const pageIndex = page - 1;
+
+    const renderDispatchCards = (items) => (
+        <div className="space-y-2">
+            {items.map((d) => (
+                <DispatchRecordCard
+                    key={d.id}
+                    dispatch={d}
+                    onStatusUpdated={handleStatusUpdated}
+                    onSignatureRequest={(id) => setSignatureDispatchId(id)}
+                    onView={openView}
+                />
+            ))}
+        </div>
+    );
 
     return (
         <div className="flex flex-col gap-3 pb-6 min-h-0 flex-1">
             {/* Search + Filter toolbar */}
             <Card className="p-1 sm:p-1 flex-shrink-0">
-                <div className="flex items-center gap-1.5">
-                    <div className="relative flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="relative flex-1 min-w-[140px]">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
                             className="pl-9 h-8 text-sm"
@@ -188,8 +224,11 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
                             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                         />
                     </div>
+                    <DispatchGroupBySelect value={groupBy} onChange={handleGroupByChange} />
                     <Refresh onClick={fetchList} />
-                    <ViewToggle view={view} onViewChange={handleViewChange} />
+                    {!isGrouped && (
+                        <ViewToggle view={view} onViewChange={handleViewChange} />
+                    )}
 
                     <Sheet open={showFilterSheet} onOpenChange={setShowFilterSheet}>
                         <SheetTrigger asChild>
@@ -279,13 +318,23 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
                 </div>
             </Card>
 
-            {!isLoading && (
-                <p className="text-xs text-muted-foreground">
-                    {total} dispatch record{total !== 1 ? "s" : ""} found
-                </p>
-            )}
-
-            {view === "table" ? (
+            {isGrouped ? (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    {isLoading && dispatches.length === 0 ? (
+                        <div className="flex flex-col gap-3">
+                            {[...Array(4)].map((_, i) => (
+                                <div key={i} className="h-28 rounded-lg bg-muted animate-pulse" />
+                            ))}
+                        </div>
+                    ) : (
+                        <DispatchGroupedList
+                            groups={groups}
+                            renderItems={renderDispatchCards}
+                            emptyMessage="No dispatch records found"
+                        />
+                    )}
+                </div>
+            ) : view === "table" ? (
                 <div className="flex-1 min-h-0">
                     <Table
                         data={dispatches}
@@ -327,7 +376,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
                                     dispatch={d}
                                     onStatusUpdated={handleStatusUpdated}
                                     onSignatureRequest={(id) => setSignatureDispatchId(id)}
-                                    onView={(dispatch) => setViewDispatch(dispatch)}
+                                    onView={openView}
                                 />
                             )}
                             isLoading={false}

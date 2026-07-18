@@ -1117,8 +1117,17 @@ export class SaleOrderService {
                   throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
                 }
 
-                // 2. Find location/tray
-                const location = await tx.locationMaster.findFirst({ where: { deleteStatus: false } });
+                // 2. Find location/tray matching SO godown (RX vs STOCK)
+                const preferredGodown =
+                  existing.procurementType === 'STOCK' ? 'STOCK' : 'RX';
+                let location = await tx.locationMaster.findFirst({
+                  where: { deleteStatus: false, godownType: preferredGodown },
+                });
+                if (!location) {
+                  location = await tx.locationMaster.findFirst({
+                    where: { deleteStatus: false },
+                  });
+                }
                 if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
                 const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
                 if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
@@ -1250,15 +1259,362 @@ export class SaleOrderService {
   }
 
   /**
-   * Get matching available inventory items on a FIFO basis for a sale order
-   * @param {number} saleOrderId - Sale order ID
-   * @returns {Promise<Object>} Object containing rightEyeMatches and leftEyeMatches arrays
+   * Match available inventory (physical + pending receipts) for SO-like specs.
+   * @param {object} saleOrder - SO record or synthetic specs
+   * @param {{ applySoftClaims?: boolean, softClaimAsNewest?: boolean }} [options]
    */
+  async findMatchingInventoryBySpecs(saleOrder, options = {}) {
+    const { applySoftClaims = true, softClaimAsNewest = false } = options;
+    const saleOrderId = saleOrder?.id != null ? Number(saleOrder.id) : null;
+    const procurementType =
+      saleOrder?.procurementType === 'STOCK' || saleOrder?.procurementType === 'RX'
+        ? saleOrder.procurementType
+        : null;
+
+    const results = {
+      rightEyeMatches: [],
+      leftEyeMatches: [],
+    };
+
+    const buildWhereClause = (eyeType) => {
+      const where = {
+        status: 'AVAILABLE',
+        deleteStatus: false,
+        quantity: { gt: 0 },
+      };
+
+      if (procurementType === 'RX') {
+        where.OR = [
+          { purchaseOrderId: null },
+          { purchaseOrder: { saleOrderId: null } },
+          { purchaseOrder: { saleOrder: { procurementType: 'RX' } } },
+          ...(saleOrderId ? [{ purchaseOrder: { saleOrderId } }] : []),
+        ];
+      } else {
+        where.OR = [
+          { purchaseOrderId: null },
+          { purchaseOrder: { saleOrderId: null } },
+          { purchaseOrder: { saleOrder: { procurementType: 'STOCK' } } },
+          ...(saleOrderId ? [{ purchaseOrder: { saleOrderId } }] : []),
+        ];
+      }
+
+      if (procurementType) {
+        where.AND = [
+          ...(where.AND || []),
+          { location: { godownType: procurementType } },
+        ];
+      }
+
+      if (saleOrder.lens_id) where.lens_id = saleOrder.lens_id;
+      if (saleOrder.coating_id) where.coating_id = saleOrder.coating_id;
+      if (saleOrder.category_id) where.category_id = saleOrder.category_id;
+
+      if (eyeType === 'right') {
+        addSpecMatch(where, 'rightSpherical', saleOrder.rightSpherical);
+        addSpecMatch(where, 'rightCylindrical', saleOrder.rightCylindrical);
+        if (categoryUsesAdd(saleOrder.category?.name)) {
+          addSpecMatch(where, 'rightAdd', saleOrder.rightAdd);
+        }
+      } else {
+        const leftSpecWhere = {};
+        addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+        addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+        if (categoryUsesAdd(saleOrder.category?.name)) {
+          addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+        }
+
+        const rightSpecWhere = { leftSpherical: null };
+        addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+        addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+        if (categoryUsesAdd(saleOrder.category?.name)) {
+          addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+        }
+
+        if (!where.AND) where.AND = [];
+        where.AND.push({
+          OR: [leftSpecWhere, rightSpecWhere],
+        });
+      }
+
+      return where;
+    };
+
+    const buildPoWhereClause = (eyeType) => {
+      const poWhere = { deleteStatus: false };
+
+      if (procurementType === 'RX') {
+        poWhere.OR = [
+          { saleOrder: { procurementType: 'RX' } },
+          ...(saleOrderId ? [{ saleOrderId }] : []),
+        ];
+      } else {
+        poWhere.OR = [
+          { saleOrderId: null },
+          { saleOrder: { procurementType: 'STOCK' } },
+          ...(saleOrderId ? [{ saleOrderId }] : []),
+        ];
+      }
+
+      if (saleOrder.lens_id) poWhere.lens_id = saleOrder.lens_id;
+      if (saleOrder.coating_id) poWhere.coating_id = saleOrder.coating_id;
+      if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
+
+      if (eyeType === 'right') {
+        addSpecMatch(poWhere, 'rightSpherical', saleOrder.rightSpherical);
+        addSpecMatch(poWhere, 'rightCylindrical', saleOrder.rightCylindrical);
+        if (categoryUsesAdd(saleOrder.category?.name)) {
+          addSpecMatch(poWhere, 'rightAdd', saleOrder.rightAdd);
+        }
+      } else {
+        const leftSpecWhere = {};
+        addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
+        addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
+        if (categoryUsesAdd(saleOrder.category?.name)) {
+          addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
+        }
+
+        const rightSpecWhere = { leftSpherical: null };
+        addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
+        addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
+        if (categoryUsesAdd(saleOrder.category?.name)) {
+          addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
+        }
+
+        if (!poWhere.AND) poWhere.AND = [];
+        poWhere.AND.push({
+          OR: [leftSpecWhere, rightSpecWhere],
+        });
+      }
+
+      return poWhere;
+    };
+
+    const loadEyeMatches = async (eyeType) => {
+      const physical = await prisma.inventoryItem.findMany({
+        where: buildWhereClause(eyeType),
+        orderBy: { inwardDate: 'asc' },
+        include: {
+          location: { select: { id: true, name: true, godownType: true } },
+          tray: { select: { id: true, name: true, capacity: true } },
+          purchaseOrder: { select: { id: true, poNumber: true, saleOrderId: true } },
+        },
+      });
+      const formattedPhysical = physical.map((item) => {
+        const isRx =
+          item.purchaseOrder?.saleOrderId !== null &&
+          item.purchaseOrder?.saleOrderId !== undefined;
+        return {
+          ...item,
+          id: `inv_${item.id}`,
+          sourceType: isRx ? 'RX' : 'STOCK',
+          poNumber: item.purchaseOrder?.poNumber || null,
+        };
+      });
+
+      const receipts = await prisma.purchaseOrderReceipt.findMany({
+        where: {
+          deleteStatus: false,
+          purchaseOrder: buildPoWhereClause(eyeType),
+        },
+        include: { purchaseOrder: true },
+        orderBy: { receivedDate: 'asc' },
+      });
+      const formattedReceipts = receipts
+        .filter((r) => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
+        .map((r) => {
+          const isRx =
+            r.purchaseOrder?.saleOrderId !== null &&
+            r.purchaseOrder?.saleOrderId !== undefined;
+          return {
+            id: `rec_${r.id}`,
+            inwardDate: r.receivedDate || r.createdAt,
+            quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
+            costPrice: r.unitPrice || 0,
+            tray: { name: 'Inward Queue (Pending)', capacity: '-' },
+            location: { name: 'Inward Queue' },
+            isReceipt: true,
+            sourceType: isRx ? 'RX' : 'STOCK',
+            poNumber: r.purchaseOrder?.poNumber || null,
+          };
+        });
+
+      return [...formattedPhysical, ...formattedReceipts];
+    };
+
+    if (saleOrder.rightEye) {
+      results.rightEyeMatches = await loadEyeMatches('right');
+    }
+    if (saleOrder.leftEye) {
+      results.leftEyeMatches = await loadEyeMatches('left');
+    }
+
+    let rightEyeMatches = results.rightEyeMatches;
+    let leftEyeMatches = results.leftEyeMatches;
+
+    if (applySoftClaims) {
+      const earlierWhere = {
+        deleteStatus: false,
+        status: { in: INVENTORY_QUEUE_STATUSES },
+      };
+      if (saleOrderId) {
+        earlierWhere.id = { not: saleOrderId };
+      }
+      if (procurementType) {
+        earlierWhere.procurementType = procurementType;
+      }
+
+      if (!softClaimAsNewest && saleOrderId && saleOrder.createdAt) {
+        earlierWhere.OR = [
+          { createdAt: { lt: saleOrder.createdAt } },
+          {
+            AND: [
+              { createdAt: saleOrder.createdAt },
+              { id: { lt: saleOrderId } },
+            ],
+          },
+        ];
+      }
+
+      const earlierWaiting = await prisma.saleOrder.findMany({
+        where: earlierWhere,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          rightEye: true,
+          leftEye: true,
+          createdAt: true,
+          procurementType: true,
+        },
+      });
+
+      if (earlierWaiting.length > 0) {
+        const pool = createClaimPool();
+        for (const earlier of earlierWaiting) {
+          const earlierMatches = await this.getMatchingInventoryFIFO(earlier.id, {
+            applySoftClaims: false,
+          });
+          softAllocateOrder(
+            earlier,
+            earlierMatches.rightEyeMatches || [],
+            earlierMatches.leftEyeMatches || [],
+            pool
+          );
+        }
+        rightEyeMatches = filterMatchesByPool(rightEyeMatches, pool);
+        leftEyeMatches = filterMatchesByPool(leftEyeMatches, pool);
+      }
+    }
+
+    return {
+      saleOrder,
+      rightEyeMatches,
+      leftEyeMatches,
+    };
+  }
+
   /**
-   * @param {number} saleOrderId
-   * @param {{ applySoftClaims?: boolean }} [options]
-   *   When applySoftClaims is true (default), units soft-claimed by earlier
-   *   waiting queue SOs are excluded so Issue cannot double-claim.
+   * Preview available physical stock counts for create/draft SO lens specs.
+   * Excludes soft-reserved units; does not block save when zero.
+   */
+  async previewStockAvailability(payload = {}) {
+    try {
+      const lens_id = payload.lens_id != null ? parseInt(payload.lens_id, 10) : null;
+      const coating_id =
+        payload.coating_id != null ? parseInt(payload.coating_id, 10) : null;
+      const category_id =
+        payload.category_id != null ? parseInt(payload.category_id, 10) : null;
+      const Type_id = payload.Type_id != null ? parseInt(payload.Type_id, 10) : null;
+      const excludeSaleOrderId =
+        payload.excludeSaleOrderId != null
+          ? parseInt(payload.excludeSaleOrderId, 10)
+          : null;
+
+      if (!lens_id) {
+        throw new APIError(
+          'Lens is required for stock preview',
+          400,
+          'STOCK_PREVIEW_VALIDATION'
+        );
+      }
+
+      let procurementType =
+        payload.procurementType === 'STOCK' || payload.procurementType === 'RX'
+          ? payload.procurementType
+          : null;
+
+      if (!procurementType && Type_id) {
+        const lensType = await prisma.lensTypeMaster.findUnique({
+          where: { id: Type_id, deleteStatus: false },
+          select: { name: true },
+        });
+        if (lensType?.name === 'STOCK' || lensType?.name === 'RX') {
+          procurementType = lensType.name;
+        }
+      }
+      if (!procurementType) procurementType = 'RX';
+
+      let categoryName = null;
+      if (category_id) {
+        const category = await prisma.lensCategoryMaster.findUnique({
+          where: { id: category_id, deleteStatus: false },
+          select: { name: true },
+        });
+        categoryName = category?.name || null;
+      }
+
+      const rightEye = Boolean(payload.rightEye);
+      const leftEye = Boolean(payload.leftEye);
+
+      const specs = {
+        id: Number.isFinite(excludeSaleOrderId) ? excludeSaleOrderId : null,
+        lens_id,
+        coating_id,
+        category_id: category_id || null,
+        procurementType,
+        category: { name: categoryName },
+        rightEye,
+        leftEye,
+        rightSpherical: payload.rightSpherical,
+        rightCylindrical: payload.rightCylindrical,
+        rightAdd: payload.rightAdd,
+        leftSpherical: payload.leftSpherical,
+        leftCylindrical: payload.leftCylindrical,
+        leftAdd: payload.leftAdd,
+      };
+
+      const matches = await this.findMatchingInventoryBySpecs(specs, {
+        applySoftClaims: true,
+        softClaimAsNewest: true,
+      });
+
+      const sumPhysicalQty = (rows = []) =>
+        rows
+          .filter((m) => !m.isReceipt)
+          .reduce((sum, m) => sum + (Number(m.quantity) || 0), 0);
+
+      return {
+        procurementType,
+        rightEye,
+        leftEye,
+        rightAvailable: rightEye ? sumPhysicalQty(matches.rightEyeMatches) : 0,
+        leftAvailable: leftEye ? sumPhysicalQty(matches.leftEyeMatches) : 0,
+      };
+    } catch (error) {
+      console.error('Error in previewStockAvailability:', error);
+      if (error instanceof APIError) throw error;
+      throw new APIError(
+        'Failed to preview stock availability',
+        500,
+        'STOCK_PREVIEW_ERROR'
+      );
+    }
+  }
+
+  /**
+   * Get matching available inventory items on a FIFO basis for a sale order.
+   * When applySoftClaims is true (default), units soft-claimed by earlier
+   * waiting queue SOs (same procurement type) are excluded.
    */
   async getMatchingInventoryFIFO(saleOrderId, options = {}) {
     const { applySoftClaims = true } = options;
@@ -1270,257 +1626,14 @@ export class SaleOrderService {
           category: { select: { id: true, name: true } },
           coating: { select: { id: true, name: true } },
           lensType: { select: { id: true, name: true } },
-        }
+        },
       });
 
       if (!saleOrder) {
         throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
       }
 
-      const results = {
-        rightEyeMatches: [],
-        leftEyeMatches: []
-      };
-
-      // Helper function to build query conditions
-      const buildWhereClause = (eyeType) => {
-        const where = {
-          status: 'AVAILABLE',
-          deleteStatus: false,
-          quantity: { gt: 0 },
-          OR: [
-            { purchaseOrderId: null },
-            { purchaseOrder: { saleOrderId: null } },
-            { purchaseOrder: { saleOrder: { procurementType: 'STOCK' } } },
-            { purchaseOrder: { saleOrderId: saleOrderId } }
-          ]
-        };
-
-        if (saleOrder.lens_id) where.lens_id = saleOrder.lens_id;
-        // Type_id is not used for SO↔stock FIFO matching (stock often has null Type_id).
-        if (saleOrder.coating_id) where.coating_id = saleOrder.coating_id;
-        if (saleOrder.category_id) where.category_id = saleOrder.category_id;
-
-        if (eyeType === 'right') {
-          addSpecMatch(where, 'rightSpherical', saleOrder.rightSpherical);
-          addSpecMatch(where, 'rightCylindrical', saleOrder.rightCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(where, 'rightAdd', saleOrder.rightAdd);
-        } else {
-          const leftSpecWhere = {};
-          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
-          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
-
-          const rightSpecWhere = {
-            leftSpherical: null
-          };
-          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
-          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
-
-          if (!where.AND) where.AND = [];
-          where.AND.push({
-            OR: [
-              leftSpecWhere,
-              rightSpecWhere
-            ]
-          });
-        }
-
-        return where;
-      };
-
-      const buildPoWhereClause = (eyeType) => {
-        const poWhere = {
-          deleteStatus: false,
-          OR: [
-            { saleOrderId: null },
-            { saleOrder: { procurementType: 'STOCK' } },
-            { saleOrderId: saleOrderId }
-          ]
-        };
-
-        if (saleOrder.lens_id) poWhere.lens_id = saleOrder.lens_id;
-        // Type_id is not used for SO↔PO receipt FIFO matching (same as physical stock).
-        if (saleOrder.coating_id) poWhere.coating_id = saleOrder.coating_id;
-        if (saleOrder.category_id) poWhere.category_id = saleOrder.category_id;
-
-        if (eyeType === 'right') {
-          addSpecMatch(poWhere, 'rightSpherical', saleOrder.rightSpherical);
-          addSpecMatch(poWhere, 'rightCylindrical', saleOrder.rightCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(poWhere, 'rightAdd', saleOrder.rightAdd);
-        } else {
-          const leftSpecWhere = {};
-          addSpecMatch(leftSpecWhere, 'leftSpherical', saleOrder.leftSpherical);
-          addSpecMatch(leftSpecWhere, 'leftCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(leftSpecWhere, 'leftAdd', saleOrder.leftAdd);
-
-          const rightSpecWhere = {
-            leftSpherical: null
-          };
-          addSpecMatch(rightSpecWhere, 'rightSpherical', saleOrder.leftSpherical);
-          addSpecMatch(rightSpecWhere, 'rightCylindrical', saleOrder.leftCylindrical);
-          if (categoryUsesAdd(saleOrder.category?.name)) addSpecMatch(rightSpecWhere, 'rightAdd', saleOrder.leftAdd);
-
-          if (!poWhere.AND) poWhere.AND = [];
-          poWhere.AND.push({
-            OR: [
-              leftSpecWhere,
-              rightSpecWhere
-            ]
-          });
-        }
-
-        return poWhere;
-      };
-
-      if (saleOrder.rightEye) {
-        const physical = await prisma.inventoryItem.findMany({
-          where: buildWhereClause('right'),
-          orderBy: { inwardDate: 'asc' }, // FIFO
-          include: {
-            location: { select: { id: true, name: true } },
-            tray: { select: { id: true, name: true, capacity: true } },
-            purchaseOrder: { select: { id: true, poNumber: true, saleOrderId: true } }
-          }
-        });
-        const formattedPhysical = physical.map(item => {
-          const isRx = item.purchaseOrder?.saleOrderId !== null && item.purchaseOrder?.saleOrderId !== undefined;
-          return {
-            ...item,
-            id: `inv_${item.id}`,
-            sourceType: isRx ? 'RX' : 'STOCK',
-            poNumber: item.purchaseOrder?.poNumber || null
-          };
-        });
-
-        const receipts = await prisma.purchaseOrderReceipt.findMany({
-          where: {
-            deleteStatus: false,
-            purchaseOrder: buildPoWhereClause('right')
-          },
-          include: {
-            purchaseOrder: true
-          },
-          orderBy: { receivedDate: 'asc' }
-        });
-        const formattedReceipts = receipts
-          .filter(r => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
-          .map(r => {
-            const isRx = r.purchaseOrder?.saleOrderId !== null && r.purchaseOrder?.saleOrderId !== undefined;
-            return {
-              id: `rec_${r.id}`,
-              inwardDate: r.receivedDate || r.createdAt,
-              quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
-              costPrice: r.unitPrice || 0,
-              tray: { name: 'Inward Queue (Pending)', capacity: '-' },
-              location: { name: 'Inward Queue' },
-              isReceipt: true,
-              sourceType: isRx ? 'RX' : 'STOCK',
-              poNumber: r.purchaseOrder?.poNumber || null
-            };
-          });
-
-        results.rightEyeMatches = [...formattedPhysical, ...formattedReceipts];
-      }
-
-      if (saleOrder.leftEye) {
-        const physical = await prisma.inventoryItem.findMany({
-          where: buildWhereClause('left'),
-          orderBy: { inwardDate: 'asc' }, // FIFO
-          include: {
-            location: { select: { id: true, name: true } },
-            tray: { select: { id: true, name: true, capacity: true } },
-            purchaseOrder: { select: { id: true, poNumber: true, saleOrderId: true } }
-          }
-        });
-        const formattedPhysical = physical.map(item => {
-          const isRx = item.purchaseOrder?.saleOrderId !== null && item.purchaseOrder?.saleOrderId !== undefined;
-          return {
-            ...item,
-            id: `inv_${item.id}`,
-            sourceType: isRx ? 'RX' : 'STOCK',
-            poNumber: item.purchaseOrder?.poNumber || null
-          };
-        });
-
-        const receipts = await prisma.purchaseOrderReceipt.findMany({
-          where: {
-            deleteStatus: false,
-            purchaseOrder: buildPoWhereClause('left')
-          },
-          include: {
-            purchaseOrder: true
-          },
-          orderBy: { receivedDate: 'asc' }
-        });
-        const formattedReceipts = receipts
-          .filter(r => (r.totalReceivedQty || 0) > (r.inwardedQty || 0))
-          .map(r => {
-            const isRx = r.purchaseOrder?.saleOrderId !== null && r.purchaseOrder?.saleOrderId !== undefined;
-            return {
-              id: `rec_${r.id}`,
-              inwardDate: r.receivedDate || r.createdAt,
-              quantity: (r.totalReceivedQty || 0) - (r.inwardedQty || 0),
-              costPrice: r.unitPrice || 0,
-              tray: { name: 'Inward Queue (Pending)', capacity: '-' },
-              location: { name: 'Inward Queue' },
-              isReceipt: true,
-              sourceType: isRx ? 'RX' : 'STOCK',
-              poNumber: r.purchaseOrder?.poNumber || null
-            };
-          });
-
-        results.leftEyeMatches = [...formattedPhysical, ...formattedReceipts];
-      }
-
-      let rightEyeMatches = results.rightEyeMatches;
-      let leftEyeMatches = results.leftEyeMatches;
-
-      // Exclude units soft-claimed by earlier waiting SOs (display-only pool; no DB write).
-      if (applySoftClaims) {
-        const earlierWaiting = await prisma.saleOrder.findMany({
-          where: {
-            deleteStatus: false,
-            status: { in: INVENTORY_QUEUE_STATUSES },
-            id: { not: saleOrderId },
-            OR: [
-              { createdAt: { lt: saleOrder.createdAt } },
-              {
-                AND: [
-                  { createdAt: saleOrder.createdAt },
-                  { id: { lt: saleOrderId } },
-                ],
-              },
-            ],
-          },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: { id: true, rightEye: true, leftEye: true, createdAt: true },
-        });
-
-        if (earlierWaiting.length > 0) {
-          const pool = createClaimPool();
-          for (const earlier of earlierWaiting) {
-            const earlierMatches = await this.getMatchingInventoryFIFO(earlier.id, {
-              applySoftClaims: false,
-            });
-            softAllocateOrder(
-              earlier,
-              earlierMatches.rightEyeMatches || [],
-              earlierMatches.leftEyeMatches || [],
-              pool
-            );
-          }
-          rightEyeMatches = filterMatchesByPool(rightEyeMatches, pool);
-          leftEyeMatches = filterMatchesByPool(leftEyeMatches, pool);
-        }
-      }
-
-      return {
-        saleOrder,
-        rightEyeMatches,
-        leftEyeMatches,
-      };
+      return this.findMatchingInventoryBySpecs(saleOrder, { applySoftClaims });
     } catch (error) {
       console.error('Error in getMatchingInventoryFIFO:', error);
       if (error instanceof APIError) throw error;

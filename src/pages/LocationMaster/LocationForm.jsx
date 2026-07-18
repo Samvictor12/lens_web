@@ -12,7 +12,7 @@ import {
   getLocationById,
   updateLocation,
 } from "../../services/location";
-import { defaultLocation, activeStatusOptions } from "./Location.constants";
+import { defaultLocation, activeStatusOptions, godownTypeOptions } from "./Location.constants";
 
 export default function LocationForm() {
   const navigate = useNavigate();
@@ -37,6 +37,7 @@ export default function LocationForm() {
             const locationData = {
               name: location.name || "",
               description: location.description || "",
+              godownType: location.godownType || "",
               activeStatus:
                 location.activeStatus !== undefined
                   ? location.activeStatus
@@ -74,6 +75,9 @@ export default function LocationForm() {
 
     if (!formData.name.trim()) {
       newErrors.name = "Location name is required";
+    }
+    if (!formData.godownType) {
+      newErrors.godownType = "Godown type is required";
     }
 
     setErrors(newErrors);
@@ -265,6 +269,24 @@ export default function LocationForm() {
                   disabled={mode === "view" && !isEditing}
                 />
 
+                <FormSelect
+                  label="Godown Type"
+                  name="godownType"
+                  options={godownTypeOptions}
+                  value={formData.godownType}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, godownType: value }));
+                    if (errors.godownType) {
+                      setErrors((prev) => ({ ...prev, godownType: "" }));
+                    }
+                  }}
+                  error={errors.godownType}
+                  placeholder="Select godown type"
+                  required
+                  disabled={mode === "view" && !isEditing}
+                  isSearchable={false}
+                  isClearable={false}
+                />
               </div>
 
               <FormTextarea

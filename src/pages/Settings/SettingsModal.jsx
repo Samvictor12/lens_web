@@ -344,6 +344,8 @@ function CompanyTab() {
     city: "", state: "", pincode: "", phone: "", email: "", website: "", tagline: "",
     gstRates: DEFAULT_GST_RATES,
     pan: "", stateCode: "", bankAccountNo: "", bankName: "", ifsc: "", electronicRefNo: "",
+    gstPercent: "0",
+    sgstPercent: "0",
   });
   const logoInputRef = useRef(null);
 
@@ -363,6 +365,8 @@ function CompanyTab() {
         bankName: attrs.bankName || "",
         ifsc: attrs.ifsc || "",
         electronicRefNo: attrs.electronicRefNo || "",
+        gstPercent: attrs.gstPercent != null && attrs.gstPercent !== "" ? String(attrs.gstPercent) : "0",
+        sgstPercent: attrs.sgstPercent != null && attrs.sgstPercent !== "" ? String(attrs.sgstPercent) : "0",
       }));
     }
   }, [company]);
@@ -399,6 +403,7 @@ function CompanyTab() {
     try {
       const {
         gstRates, pan, stateCode, bankAccountNo, bankName, ifsc, electronicRefNo,
+        gstPercent, sgstPercent,
         ...companyFields
       } = form;
       const res = await updateCompanySettings({
@@ -411,6 +416,8 @@ function CompanyTab() {
           bankName: (bankName || "").trim(),
           ifsc: (ifsc || "").trim().toUpperCase(),
           electronicRefNo: (electronicRefNo || "").trim(),
+          gstPercent: Math.max(0, parseFloat(gstPercent) || 0),
+          sgstPercent: Math.max(0, parseFloat(sgstPercent) || 0),
         },
       });
       if (res.success) {
@@ -553,6 +560,35 @@ function CompanyTab() {
               placeholder="Optional"
             />
           </FieldRow>
+        </div>
+
+        <div className="pt-2 border-t space-y-3">
+          <Label className="text-sm font-medium">Tax details (Invoice billing)</Label>
+          <p className="text-xs text-muted-foreground">
+            GST and SGST % applied on invoice taxable amount when creating bills.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FieldRow label="GST %" hint="e.g. 9 for CGST-style GST">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.gstPercent}
+                onChange={set("gstPercent")}
+                placeholder="0"
+              />
+            </FieldRow>
+            <FieldRow label="SGST %" hint="e.g. 9">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.sgstPercent}
+                onChange={set("sgstPercent")}
+                placeholder="0"
+              />
+            </FieldRow>
+          </div>
         </div>
       </div>
 

@@ -4,6 +4,35 @@ import { logCreate, logUpdate, logDelete } from '../utils/auditLogger.js';
 import { logDatabaseError, logNotFoundError, logBusinessError } from '../utils/errorLogger.js';
 import { postInvoice, reverseInvoice } from './accountingService.js';
 
+function parseTaxPercent(value) {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function calcInvoiceTaxFromCompany(taxableAmount, companySettings) {
+  const attrs =
+    companySettings?.customAttributes && typeof companySettings.customAttributes === 'object'
+      ? companySettings.customAttributes
+      : {};
+  const gstPercent = parseTaxPercent(attrs.gstPercent ?? 0);
+  const sgstPercent = parseTaxPercent(attrs.sgstPercent ?? 0);
+  const taxable = Math.round((Number(taxableAmount) || 0) * 100) / 100;
+  const gstAmount = Math.round(taxable * (gstPercent / 100) * 100) / 100;
+  const sgstAmount = Math.round(taxable * (sgstPercent / 100) * 100) / 100;
+  const taxAmount = Math.round((gstAmount + sgstAmount) * 100) / 100;
+  const totalAmount = Math.round((taxable + taxAmount) * 100) / 100;
+  return {
+    taxableAmount: taxable,
+    gstPercent,
+    sgstPercent,
+    gstAmount,
+    sgstAmount,
+    taxAmount,
+    totalAmount,
+  };
+}
+
 /**
  * Invoice Service
  * Handles business logic for combining delivered sale orders into invoices/bills.
@@ -40,7 +69,6 @@ export class InvoiceService {
       }
 
       const uniqueIds = [...new Set(saleOrderIds.map(Number))];
-      const taxAmount = parseFloat(req?.body?.taxAmount || 0);
 
       // All validation + writes happen in one transaction so a concurrent/duplicate
       // create cannot commit an invoice and then return ALREADY_INVOICED (or leave orphans).
@@ -93,7 +121,7 @@ export class InvoiceService {
         });
         if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
-        const totalAmount = orders.reduce((sum, o) => {
+        const taxableSubtotal = orders.reduce((sum, o) => {
           const lensPrice = o.lensPrice || 0;
           const extras = (o.fittingPrice || 0) + (o.tintingPrice || 0)
             + (o.rightEyeExtra || 0) + (o.leftEyeExtra || 0);
@@ -104,7 +132,10 @@ export class InvoiceService {
           return sum + (lensPrice - discountAmt + extras + additional);
         }, 0);
 
-        const invoicedTotal = Math.round(totalAmount * 100) / 100;
+        const companySettings = await tx.companySettings.findFirst();
+        const taxBreakdown = calcInvoiceTaxFromCompany(taxableSubtotal, companySettings);
+        const invoicedTotal = taxBreakdown.totalAmount;
+        const taxAmount = taxBreakdown.taxAmount;
         const invoiceNo = await this.generateInvoiceNo(tx);
 
         // Due date: client override, else invoiceDate + customer.credit_days (default 0)
@@ -118,6 +149,14 @@ export class InvoiceService {
           resolvedDueDate.setDate(resolvedDueDate.getDate() + (Number.isFinite(creditDays) ? creditDays : 0));
         }
 
+        const taxNoteParts = [];
+        if (taxBreakdown.gstPercent > 0 || taxBreakdown.sgstPercent > 0) {
+          taxNoteParts.push(
+            `Tax: GST ${taxBreakdown.gstPercent}% = ${taxBreakdown.gstAmount.toFixed(2)}, SGST ${taxBreakdown.sgstPercent}% = ${taxBreakdown.sgstAmount.toFixed(2)}`
+          );
+        }
+        const mergedNotes = [notes || null, ...taxNoteParts].filter(Boolean).join('\n') || null;
+
         const created = await tx.invoice.create({
           data: {
             invoiceNo,
@@ -127,7 +166,7 @@ export class InvoiceService {
             paidAmount: 0,
             dueDate: resolvedDueDate,
             status: 'DRAFT',
-            notes: notes || null,
+            notes: mergedNotes,
             createdBy: userId,
             updatedBy: userId,
           },
@@ -550,8 +589,21 @@ export class InvoiceService {
 
   // ──────────────────────────────────────────────────────────
   // Get delivered (unbilled) orders for a specific customer
+  // Optional startDate/endDate filter on SaleOrder.createdAt
   // ──────────────────────────────────────────────────────────
-  async getDeliveredOrders(customerId) {
+  async getDeliveredOrders(customerId, { startDate, endDate } = {}) {
+    const createdAt = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      createdAt.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      createdAt.lte = to;
+    }
+
     return prisma.saleOrder.findMany({
       where: {
         customerId: parseInt(customerId),
@@ -562,9 +614,10 @@ export class InvoiceService {
           { invoiceId: null },
           { invoice: { status: 'CANCELLED' } },
         ],
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
       },
       select: {
-        id: true, orderNo: true, orderDate: true, status: true, customerRefNo: true,
+        id: true, orderNo: true, orderDate: true, createdAt: true, status: true, customerRefNo: true,
         lensPrice: true, fittingPrice: true, tintingPrice: true,
         rightEyeExtra: true, leftEyeExtra: true, discount: true, additionalPrice: true,
         lensProduct: { select: { lens_name: true } },

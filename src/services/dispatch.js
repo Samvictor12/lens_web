@@ -40,6 +40,16 @@ export const getDispatchList = async (filters = {}) => {
     }
 };
 
+// ─── Get Dispatch by ID ───────────────────────────────────────────────────────
+
+export const getDispatchById = async (dispatchId) => {
+    try {
+        return await apiClient("get", `/v1/dispatch/${dispatchId}`);
+    } catch (error) {
+        throw new Error(error?.message || "Failed to fetch dispatch record");
+    }
+};
+
 // ─── Update Dispatch Record ───────────────────────────────────────────────────
 
 export const updateDispatch = async (dispatchId, payload) => {

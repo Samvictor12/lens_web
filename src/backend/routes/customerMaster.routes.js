@@ -14,7 +14,6 @@ const controller = new CustomerMasterController();
  *       required:
  *         - name
  *         - code
- *         - email
  *       properties:
  *         id:
  *           type: integer
@@ -113,7 +112,6 @@ const controller = new CustomerMasterController();
  *       type: object
  *       required:
  *         - name
- *         - email
  *         - createdBy
  *       properties:
  *         name:

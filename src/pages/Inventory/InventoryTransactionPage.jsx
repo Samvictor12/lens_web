@@ -1,24 +1,38 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRightLeft, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import InventoryTransactionForm from './InventoryTransactionForm';
 import { createInventoryTransaction, getInventoryDropdowns } from '@/services/inventory';
+import {
+  parseInventoryPath,
+  inventoryTabPath,
+  godownDisplayLabel,
+} from './inventoryGodown';
 
 export default function InventoryTransactionPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [dropdownData, setDropdownData] = useState({});
 
+  const { slug, godownType } = useMemo(
+    () => parseInventoryPath(location.pathname),
+    [location.pathname]
+  );
+  const backPath = inventoryTabPath(slug, 'transactions');
+
   useEffect(() => {
     const loadDropdowns = async () => {
       try {
         setIsLoading(true);
-        const response = await getInventoryDropdowns();
+        const response = await getInventoryDropdowns(
+          godownType ? { godownType } : {}
+        );
         if (!response.success) {
           throw new Error(response.message || 'Failed to load dropdown data');
         }
@@ -35,7 +49,7 @@ export default function InventoryTransactionPage() {
     };
 
     loadDropdowns();
-  }, [toast]);
+  }, [toast, godownType]);
 
   const handleSubmit = async (formData) => {
     try {
@@ -46,7 +60,7 @@ export default function InventoryTransactionPage() {
       }
 
       toast({ title: 'Success', description: 'Transaction created successfully' });
-      navigate('/inventory/transactions');
+      navigate(backPath);
     } finally {
       setIsSaving(false);
     }
@@ -76,7 +90,8 @@ export default function InventoryTransactionPage() {
             New Inventory Transaction
           </h1>
           <p className="text-xs text-muted-foreground">
-            Record an inventory inward, outward, transfer, or adjustment transaction
+            Record an inventory inward, outward, transfer, or adjustment for{' '}
+            {godownDisplayLabel(godownType)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -85,7 +100,7 @@ export default function InventoryTransactionPage() {
             variant="outline"
             size="xs"
             className="h-8 gap-1.5"
-            onClick={() => navigate('/inventory/transactions')}
+            onClick={() => navigate(backPath)}
             disabled={isSaving}
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back

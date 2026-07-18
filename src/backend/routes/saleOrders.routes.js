@@ -786,6 +786,11 @@ router.get('/inventory-queue',
   controller.getInventoryQueue.bind(controller)
 );
 
+router.post('/preview-stock-availability',
+  authenticateToken,
+  controller.previewStockAvailability.bind(controller)
+);
+
 router.get('/:id',
   authenticateToken,
   // requireRole({ module: 'Sale Orders', actions: ['read'] }),

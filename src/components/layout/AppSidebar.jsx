@@ -68,9 +68,22 @@ const navItems = [
   },
   {
     title: "Inventory",
-    url: "/inventory/items",
     icon: Package,
     key: "inventory",
+    subItems: [
+      {
+        title: "Stock Godown",
+        url: "/inventory/stock",
+        icon: Package,
+        key: "inventory",
+      },
+      {
+        title: "Rx Godown",
+        url: "/inventory/rx",
+        icon: Package,
+        key: "inventory",
+      },
+    ],
   },
   {
     title: "Purchase Orders",
