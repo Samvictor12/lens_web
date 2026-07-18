@@ -80,10 +80,6 @@ export default function PurchaseOrderCard({ purchaseOrder, onView, onEdit, onDel
 
         <div className="pt-2 border-t space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Unit Price:</span>
-            <span className="font-semibold text-xs">₹{(purchaseOrder.unitPrice || 0).toLocaleString("en-IN")}</span>
-          </div>
-          <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Total Value:</span>
             <span className="font-semibold text-xs text-primary">₹{(purchaseOrder.totalValue || 0).toLocaleString("en-IN")}</span>
           </div>

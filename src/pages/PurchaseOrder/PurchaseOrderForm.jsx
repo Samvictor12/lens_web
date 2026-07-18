@@ -1436,20 +1436,6 @@ export default function PurchaseOrderForm() {
           />
         </div>
 
-        <FormInput
-          label="Unit Price (auto)"
-          name="unitPrice"
-          type="number"
-          value={formData.unitPrice}
-          disabled={true}
-          prefix="₹"
-          helperText={
-            parseFloat(formData.quantity) > 0
-              ? `Total ÷ ${formData.quantity} qty`
-              : undefined
-          }
-        />
-
         {/* Tax — percentage dropdown from company settings */}
         <FormSelect
           label="GST / Tax"
@@ -1459,10 +1445,10 @@ export default function PurchaseOrderForm() {
           onChange={(value) => setFormData((prev) => ({ ...prev, taxType: "Percent", taxPercentage: value }))}
           placeholder="Select GST rate"
           isSearchable={false}
-          isClearable={parseFloat(formData.unitPrice) <= 0}
+          isClearable={parseFloat(formData.totalPrice) <= 0}
           disabled={isReadOnly}
           singleLine
-          required={parseFloat(formData.unitPrice) > 0}
+          required={parseFloat(formData.totalPrice) > 0}
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -1729,7 +1715,7 @@ export default function PurchaseOrderForm() {
             Raising Purchase Order from Sale Order{" "}
             <strong>{location.state.fromSaleOrder.orderNo}</strong>. Lens &amp; eye
             specifications have been pre-filled. Please select a vendor and enter the
-            unit price to complete the PO.
+            total price to complete the PO.
           </span>
         </div>
       )}

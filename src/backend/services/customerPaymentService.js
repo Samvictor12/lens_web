@@ -99,7 +99,18 @@ export class CustomerPaymentService {
         deleteStatus: false,
       },
       include: {
-        customer: { select: { id: true, code: true, name: true } },
+        customer: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            shopname: true,
+            city: true,
+            phone: true,
+            address: true,
+            state: true,
+          },
+        },
       },
       orderBy: [{ dueDate: 'asc' }, { invoiceNo: 'asc' }],
     });
@@ -127,10 +138,15 @@ export class CustomerPaymentService {
       for (const row of rows) {
         const key = row.customerId;
         if (!groupMap.has(key)) {
+          const c = row.customer || {};
           groupMap.set(key, {
             customerId: row.customerId,
-            customerName: row.customer?.name || '',
-            customerCode: row.customer?.code || '',
+            customerName: c.shopname || c.name || '',
+            customerCode: c.code || '',
+            shopname: c.shopname || '',
+            city: c.city || '',
+            phone: c.phone || '',
+            address: [c.address, c.city, c.state].filter(Boolean).join(', '),
             invoices: [],
           });
         }
