@@ -21,7 +21,7 @@ The application provides a comprehensive ERP and management system for an optica
 * **Performance:** Fast loading and responsiveness for high-volume tabular inventory screens.
 * **Usability:** Keyboard-wedge scanning support to enable fast shop-floor input without visual interruption.
 * **Reliability & Consistency:** Transactional database operations to ensure stock quantities, reservation states, and financial ledgers never diverge.
-* **Security:** Role-scoped data filtering (e.g. delivery persons only seeing their assigned dispatches).
+* **Security:** Role-scoped data filtering (e.g. delivery persons only seeing their assigned dispatches). Session continuity uses short-lived access JWTs (`JWT_EXPIRES_IN`, default 15m) plus a longer refresh token (`REFRESH_TOKEN_EXPIRES_IN`, default 7d, one DB row per user). Access renews silently while refresh is valid; device forced logout when refresh is expired/invalid/revoked.
 
 ---
 

@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
+import { addDuration } from '../utils/duration.js';
 
 /**
  * Authentication Service
@@ -143,9 +144,17 @@ export class AuthService {
    */
   async storeRefreshToken(userId, refreshToken) {
     try {
-      // Create refresh token table entry if it doesn't exist
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+      // DB expiry must match JWT refresh lifetime from REFRESH_TOKEN_EXPIRES_IN
+      let expiresAt;
+      try {
+        expiresAt = addDuration(new Date(), this.REFRESH_TOKEN_EXPIRES_IN);
+      } catch (parseError) {
+        console.error(
+          'Invalid REFRESH_TOKEN_EXPIRES_IN, falling back to 7d:',
+          parseError.message
+        );
+        expiresAt = addDuration(new Date(), '7d');
+      }
 
       await prisma.refreshToken.upsert({
         where: { userId },
@@ -253,6 +262,46 @@ export class AuthService {
     } catch (error) {
       console.error('Logout error:', error);
       // Don't throw error as logout should always succeed
+      return { message: 'Logged out successfully' };
+    }
+  }
+
+  /**
+   * Revoke session by refresh token (no access token required).
+   * Verifies JWT and deletes matching RefreshToken row only when token matches DB.
+   * @param {string} refreshToken
+   */
+  async logoutByRefreshToken(refreshToken) {
+    try {
+      if (!refreshToken) {
+        return { message: 'Logged out successfully' };
+      }
+
+      let decoded;
+      try {
+        decoded = jwt.verify(refreshToken, this.REFRESH_TOKEN_SECRET);
+      } catch {
+        // Invalid/expired refresh — nothing to revoke
+        return { message: 'Logged out successfully' };
+      }
+
+      if (!decoded?.userId) {
+        return { message: 'Logged out successfully' };
+      }
+
+      const storedToken = await prisma.refreshToken.findUnique({
+        where: { userId: decoded.userId }
+      });
+
+      if (storedToken && storedToken.token === refreshToken) {
+        await prisma.refreshToken.delete({
+          where: { userId: decoded.userId }
+        });
+      }
+
+      return { message: 'Logged out successfully' };
+    } catch (error) {
+      console.error('Logout by refresh token error:', error);
       return { message: 'Logged out successfully' };
     }
   }

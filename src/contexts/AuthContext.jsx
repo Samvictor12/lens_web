@@ -22,6 +22,16 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Proactive access refresh while authenticated; clear timer on logout / unmount
+  useEffect(() => {
+    if (user && authService.isAuthenticated()) {
+      authService.startProactiveRefresh();
+    } else {
+      authService.stopProactiveRefresh();
+    }
+    return () => authService.stopProactiveRefresh();
+  }, [user]);
+
   const login = async (username, password) => {
     setIsLoading(true);
     try {
@@ -39,6 +49,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    authService.stopProactiveRefresh();
     await authService.logout();
     setUser(null);
   };

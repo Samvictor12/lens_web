@@ -291,9 +291,23 @@ router.post('/refresh', authController.refreshToken.bind(authController));
  * /api/auth/logout:
  *   post:
  *     summary: User logout
+ *     description: >
+ *       Revokes the server refresh session. Prefer sending `refreshToken` in the body
+ *       so logout works when the access token is already expired. Optionally send
+ *       Authorization Bearer access token as a fallback.
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 description: Refresh token used to revoke the DB session without a valid access JWT
  *     responses:
  *       200:
  *         description: Logged out successfully
@@ -308,12 +322,11 @@ router.post('/refresh', authController.refreshToken.bind(authController));
  *                 message:
  *                   type: string
  *                   example: "Logged out successfully"
- *       401:
- *         description: Authentication required
  *       500:
  *         description: Internal server error
  */
-router.post('/logout', authenticateToken, authController.logout.bind(authController));
+// Public (no authenticateToken): revoke via refreshToken body and/or optional Bearer access
+router.post('/logout', authController.logout.bind(authController));
 
 /**
  * @swagger

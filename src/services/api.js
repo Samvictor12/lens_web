@@ -22,6 +22,40 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+const AUTH_STORAGE_KEYS = [
+  "lens_management_token",
+  "lens_management_refresh_token",
+  "lens_management_user",
+];
+
+function clearLocalAuth() {
+  AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+}
+
+async function revokeSessionBestEffort(refreshToken) {
+  if (!refreshToken) return;
+  try {
+    await fetch(`${api.defaults.baseURL}/auth/logout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Device: "Web",
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+  } catch (_) {
+    // Best-effort revoke — local clear still proceeds
+  }
+}
+
+async function failRefreshAndForceLogout(error, refreshToken) {
+  processQueue(error, null);
+  isRefreshing = false;
+  await revokeSessionBestEffort(refreshToken);
+  clearLocalAuth();
+  window.dispatchEvent(new CustomEvent("auth:session-expired"));
+}
+
 // Auto-inject headers
 api.interceptors.request.use(
   (config) => {
@@ -44,8 +78,12 @@ api.interceptors.response.use(
     if (error.response) {
       const { status } = error.response;
 
-      // Skip token refresh for login endpoint
-      if (originalRequest.url && originalRequest.url.includes('/auth/login')) {
+      // Skip token refresh for login and refresh endpoints (avoid recursion)
+      if (
+        originalRequest.url &&
+        (originalRequest.url.includes("/auth/login") ||
+          originalRequest.url.includes("/auth/refresh"))
+      ) {
         return Promise.reject(error);
       }
 
@@ -68,60 +106,54 @@ api.interceptors.response.use(
         originalRequest._retry = true;
         isRefreshing = true;
 
-        const refreshToken = localStorage.getItem("lens_management_refresh_token");
+        const refreshToken = localStorage.getItem(
+          "lens_management_refresh_token"
+        );
 
         if (!refreshToken) {
-          // No refresh token, clear storage and reject
-          isRefreshing = false;
-          localStorage.removeItem("lens_management_token");
-          localStorage.removeItem("lens_management_refresh_token");
-          localStorage.removeItem("lens_management_user");
-          
-          // Let the app handle redirect instead of hard refresh
-          const event = new CustomEvent('auth:session-expired');
-          window.dispatchEvent(event);
-          
+          await failRefreshAndForceLogout(error, null);
           return Promise.reject(error);
         }
 
         try {
-          // Attempt to refresh the token
+          // Attempt to refresh the token (raw axios — not api interceptor)
           const response = await axios.post(
             `${api.defaults.baseURL}/auth/refresh`,
             { refreshToken }
           );
 
-          if (response.data.success) {
-            const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+          const accessToken = response.data?.success
+            ? response.data?.data?.accessToken
+            : null;
+          const newRefreshToken = response.data?.data?.refreshToken;
 
-            // Update tokens in localStorage
+          if (accessToken) {
             localStorage.setItem("lens_management_token", accessToken);
-            localStorage.setItem("lens_management_refresh_token", newRefreshToken);
+            if (newRefreshToken) {
+              localStorage.setItem(
+                "lens_management_refresh_token",
+                newRefreshToken
+              );
+            }
 
-            // Update authorization header
-            api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+            api.defaults.headers.common["Authorization"] =
+              `Bearer ${accessToken}`;
             originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
 
-            // Process queued requests
             processQueue(null, accessToken);
             isRefreshing = false;
 
-            // Retry the original request
             return api(originalRequest);
           }
+
+          // Non-throwing non-success (or success without access token)
+          const failError = new Error(
+            response.data?.message || "Token refresh failed"
+          );
+          await failRefreshAndForceLogout(failError, refreshToken);
+          return Promise.reject(failError);
         } catch (refreshError) {
-          // Refresh failed, logout user
-          processQueue(refreshError, null);
-          isRefreshing = false;
-
-          localStorage.removeItem("lens_management_token");
-          localStorage.removeItem("lens_management_refresh_token");
-          localStorage.removeItem("lens_management_user");
-
-          // Let the app handle redirect and notification
-          const event = new CustomEvent('auth:session-expired');
-          window.dispatchEvent(event);
-          
+          await failRefreshAndForceLogout(refreshError, refreshToken);
           return Promise.reject(refreshError);
         }
       }

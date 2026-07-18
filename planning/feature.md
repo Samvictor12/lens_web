@@ -30,6 +30,24 @@ _(Empty until QA phase.)_
 
 ## Delivery note
 
+### Closed: Access / Refresh Token Session Continuity & Forced Logout (2026-07-14)
+
+**Status:** DONE — QA PASS (TC1–TC8, L1–L5 static), docs synced.
+
+**Shipped:**
+1. **Axios refresh lock** — always resets on non-success/throw; `/auth/refresh` excluded; concurrent 401 queue retained.
+2. **Forced logout** — clear local auth + best-effort revoke + `auth:session-expired` → toast `/login`.
+3. **Logout without live access** — public `POST /api/auth/logout` with `{ refreshToken }` deletes matching DB row.
+4. **DB TTL** — `expiresAt` from `REFRESH_TOKEN_EXPIRES_IN` via `duration.js` (not hardcoded +7d).
+5. **Proactive renew** — ~60s before access `exp`; failure → same forced logout.
+6. **Unchanged** — reuse-same-refresh; one session per user; default TTLs `15m` / `7d`.
+
+**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `Modules/Admin.md` (new), `knowledge_base/lessons_learned.md` (KB-033). No ERD/schema changes.
+
+**Code touchpoints:** `api.js`, `auth.js`, `AuthContext.jsx`, `duration.js`, `auth.service.js`, `authControllerNew.js`, `auth.routes.js`.
+
+---
+
 ### Closed: Stock Summary List SPH/CYL/ADD (2026-07-14)
 
 **Status:** DONE — QA PASS (TC1–TC6, L1–L5), docs synced. Pass N.
