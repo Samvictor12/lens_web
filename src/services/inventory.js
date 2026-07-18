@@ -16,6 +16,17 @@ export const getInventoryInwardQueue = async (params = {}) => {
   return response;
 };
 
+export const dispositionQcReturn = async (id, { disposition, remark } = {}) => {
+  const response = await apiClient(
+    "post",
+    `${INVENTORY_BASE_URL}/qc-returns/${id}/disposition`,
+    {
+      data: { disposition, remark },
+    }
+  );
+  return response;
+};
+
 export const getInventoryItemById = async (id) => {
   const response = await apiClient("get", `${INVENTORY_BASE_URL}/items/${id}`);
   return response;
@@ -152,6 +163,7 @@ export const getInventoryStockPivot = async (params = {}) => {
 export const inventoryService = {
   getInventoryItems,
   getInventoryInwardQueue,
+  dispositionQcReturn,
   getInventoryItemById,
   createInventoryItem,
   updateInventoryItem,

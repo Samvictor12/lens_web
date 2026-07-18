@@ -540,8 +540,17 @@ export class SaleOrderWorkflowService {
                 throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
               }
 
-              // 2. Find a location and tray to auto-inward into
-              const location = await tx.locationMaster.findFirst({ where: { deleteStatus: false } });
+              // 2. Find a location/tray matching SO godown (RX vs STOCK)
+              const preferredGodown =
+                so.procurementType === 'STOCK' ? 'STOCK' : 'RX';
+              let location = await tx.locationMaster.findFirst({
+                where: { deleteStatus: false, godownType: preferredGodown },
+              });
+              if (!location) {
+                location = await tx.locationMaster.findFirst({
+                  where: { deleteStatus: false },
+                });
+              }
               if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
               const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
               if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');

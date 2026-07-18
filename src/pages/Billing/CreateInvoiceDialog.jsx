@@ -19,6 +19,11 @@ import {
   getAwaitingInvoiceCustomers,
   createInvoice,
 } from "@/services/invoice";
+import { useCompany } from "@/contexts/CompanyContext";
+import {
+  getInvoiceTaxRatesFromCompany,
+  calcInvoiceTaxBreakdown,
+} from "@/utils/gstRates";
 import { fmt, orderTotal } from "./Billing.constants";
 
 function formatLocalDate(d) {
@@ -30,6 +35,7 @@ function formatLocalDate(d) {
 
 export default function CreateInvoiceDialog({ open, onClose, initialCustomerId = "" }) {
   const qc = useQueryClient();
+  const { company } = useCompany();
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [dueDate, setDueDate] = useState("");
@@ -124,6 +130,12 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   const selectedTotal = deliveredOrders
     .filter((o) => selectedOrderIds.includes(o.id))
     .reduce((s, o) => s + orderTotal(o), 0);
+
+  const taxRates = useMemo(() => getInvoiceTaxRatesFromCompany(company), [company]);
+  const taxBreakdown = useMemo(
+    () => calcInvoiceTaxBreakdown(selectedTotal, taxRates.gstPercent, taxRates.sgstPercent),
+    [selectedTotal, taxRates.gstPercent, taxRates.sgstPercent]
+  );
 
   const selectedCustomerCreditDays = useMemo(() => {
     const cust = (customersRes?.data || []).find((c) => String(c.id) === String(customerId));
@@ -252,9 +264,23 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
           )}
 
           {/* Always show selection summary — defaults to 0 */}
-          <div className="flex justify-between items-center bg-muted px-3 py-2 rounded-md text-sm font-medium">
-            <span>{selectedOrderIds.length} order(s) selected</span>
-            <span className="text-base font-bold">{fmt(selectedTotal)}</span>
+          <div className="space-y-2 bg-muted px-3 py-2 rounded-md text-sm">
+            <div className="flex justify-between items-center font-medium">
+              <span>{selectedOrderIds.length} order(s) selected</span>
+              <span>Taxable {fmt(taxBreakdown.taxableAmount)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground text-xs">
+              <span>GST ({taxBreakdown.gstPercent}%)</span>
+              <span>{fmt(taxBreakdown.gstAmount)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground text-xs">
+              <span>SGST ({taxBreakdown.sgstPercent}%)</span>
+              <span>{fmt(taxBreakdown.sgstAmount)}</span>
+            </div>
+            <div className="flex justify-between items-center border-t pt-2 text-base font-bold">
+              <span>Final total</span>
+              <span>{fmt(taxBreakdown.totalAmount)}</span>
+            </div>
           </div>
 
           <FormInput

@@ -99,6 +99,10 @@ export default function InvoiceDetailDialog({
                 <span className="font-bold text-base">{fmt(invoice.totalAmount)}</span>
               </div>
               <div>
+                <span className="text-muted-foreground block">Tax (GST + SGST)</span>
+                <span className="font-medium">{fmt(invoice.taxAmount || 0)}</span>
+              </div>
+              <div>
                 <span className="text-muted-foreground block">Paid Amount</span>
                 <span className="font-bold text-base text-green-600">
                   {fmt(invoice.paidAmount)}

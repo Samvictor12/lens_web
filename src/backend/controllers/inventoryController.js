@@ -126,6 +126,52 @@ export class InventoryController {
   }
 
   /**
+   * Dispose or Reuse a QC return from Inward Queue
+   * @route POST /api/inventory/qc-returns/:id/disposition
+   */
+  async dispositionQcReturn(req, res, next) {
+    try {
+      const idValidation = validateIdParam(req.params.id);
+      if (!idValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid QC return ID',
+          errors: idValidation.errors,
+        });
+      }
+
+      const disposition = String(req.body?.disposition || '').trim().toUpperCase();
+      if (disposition !== 'REUSE' && disposition !== 'DISPOSE') {
+        return res.status(400).json({
+          success: false,
+          message: 'disposition must be REUSE or DISPOSE',
+        });
+      }
+
+      const remark =
+        typeof req.body?.remark === 'string' ? req.body.remark.trim() : '';
+
+      const result = await this.inventoryService.dispositionQcReturn(
+        idValidation.data.id,
+        disposition,
+        remark || null,
+        req.user?.id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        message:
+          disposition === 'REUSE'
+            ? 'Lens returned to available stock'
+            : 'Lens marked as disposed',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get inventory item by ID
    * @route GET /api/inventory/items/:id
    */

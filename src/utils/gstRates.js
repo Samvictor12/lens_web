@@ -30,3 +30,45 @@ export function gstRatesToSelectOptions(rates) {
     value: r.value,
   }));
 }
+
+function parsePercent(value) {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Invoice billing GST / SGST % from company Tax details (customAttributes).
+ */
+export function getInvoiceTaxRatesFromCompany(company) {
+  const attrs =
+    company?.customAttributes && typeof company.customAttributes === "object"
+      ? company.customAttributes
+      : {};
+  return {
+    gstPercent: parsePercent(attrs.gstPercent ?? attrs.invoiceGstPercent ?? 0),
+    sgstPercent: parsePercent(attrs.sgstPercent ?? attrs.invoiceSgstPercent ?? 0),
+  };
+}
+
+/**
+ * Split taxable amount into GST + SGST and net total.
+ */
+export function calcInvoiceTaxBreakdown(taxableAmount, gstPercent, sgstPercent) {
+  const taxable = Math.round((Number(taxableAmount) || 0) * 100) / 100;
+  const gstP = parsePercent(gstPercent);
+  const sgstP = parsePercent(sgstPercent);
+  const gstAmount = Math.round(taxable * (gstP / 100) * 100) / 100;
+  const sgstAmount = Math.round(taxable * (sgstP / 100) * 100) / 100;
+  const taxAmount = Math.round((gstAmount + sgstAmount) * 100) / 100;
+  const totalAmount = Math.round((taxable + taxAmount) * 100) / 100;
+  return {
+    taxableAmount: taxable,
+    gstPercent: gstP,
+    sgstPercent: sgstP,
+    gstAmount,
+    sgstAmount,
+    taxAmount,
+    totalAmount,
+  };
+}

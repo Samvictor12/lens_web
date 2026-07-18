@@ -54,7 +54,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0, godownType })
       });
       if (response.success) {
         setTransactions(response.data || []);
-        setTotalCount(response.pagination?.total || 0);
+        setTotalCount(response.pagination?.totalItems || response.pagination?.total || 0);
       }
     } catch (error) {
       toast({

@@ -184,6 +184,10 @@ router.get('/inward-queue', (req, res, next) => {
   inventoryController.getInventoryInwardQueue(req, res, next);
 });
 
+router.post('/qc-returns/:id/disposition', (req, res, next) => {
+  inventoryController.dispositionQcReturn(req, res, next);
+});
+
 /**
  * @swagger
  * /api/inventory/items/{id}:

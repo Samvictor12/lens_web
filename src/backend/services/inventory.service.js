@@ -91,27 +91,90 @@ function inventoryStockGodownWhere(godownType, extra = {}) {
   return { ...extra, AND: [...(extra.AND || []), ...clauses] };
 }
 
-/** Transaction filter: location match + never opposite lens type. */
+/**
+ * Transaction filter aligned with Inward Queue / KB-028:
+ * STOCK vs RX is primarily procurementType (+ lens type), not only location.
+ * Location still matches when present; RX PO inwarded into a STOCK location
+ * must still appear under Rx Godown (and not under Stock).
+ */
 function transactionGodownWhere(godownType) {
   const gt = normalizeGodownType(godownType);
   if (!gt) return {};
-  const oppositeType = gt === 'RX' ? 'STOCK' : 'RX';
+
+  if (gt === 'RX') {
+    return {
+      AND: [
+        {
+          OR: [
+            { fromLocation: { godownType: 'RX' } },
+            { toLocation: { godownType: 'RX' } },
+            { inventoryItem: { location: { godownType: 'RX' } } },
+            { saleOrder: { procurementType: 'RX' } },
+            {
+              AND: [
+                { purchaseOrder: { saleOrder: { procurementType: 'RX' } } },
+                {
+                  NOT: {
+                    purchaseOrder: {
+                      lensType: { name: { equals: 'STOCK', mode: 'insensitive' } },
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              inventoryItem: {
+                lensType: { name: { equals: 'RX', mode: 'insensitive' } },
+              },
+            },
+          ],
+        },
+        {
+          NOT: {
+            inventoryItem: {
+              lensType: { name: { equals: 'STOCK', mode: 'insensitive' } },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  // STOCK
   return {
     AND: [
       {
         OR: [
-          { fromLocation: { godownType: gt } },
-          { toLocation: { godownType: gt } },
-          { inventoryItem: { location: { godownType: gt } } },
+          { fromLocation: { godownType: 'STOCK' } },
+          { toLocation: { godownType: 'STOCK' } },
+          { inventoryItem: { location: { godownType: 'STOCK' } } },
+          { saleOrder: { procurementType: 'STOCK' } },
+          {
+            AND: [
+              { purchaseOrderId: { not: null } },
+              {
+                OR: [
+                  { purchaseOrder: { saleOrderId: null } },
+                  { purchaseOrder: { saleOrder: { procurementType: 'STOCK' } } },
+                  {
+                    purchaseOrder: {
+                      lensType: { name: { equals: 'STOCK', mode: 'insensitive' } },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
         ],
       },
       {
         NOT: {
           inventoryItem: {
-            lensType: { name: { equals: oppositeType, mode: 'insensitive' } },
+            lensType: { name: { equals: 'RX', mode: 'insensitive' } },
           },
         },
       },
+      RX_SOURCE_EXCLUSION_FILTER,
     ],
   };
 }
@@ -451,10 +514,152 @@ export class InventoryService {
             .some((value) => value.toLowerCase().includes(normalizedSearch));
         });
 
-      const total = queueItems.length;
+      // QC returns (Reject → Inventory / Scrap) pending Dispose or Reuse
+      const qcReturnWhere = {
+        status: 'PENDING',
+        ...(gt === 'RX' || gt === 'STOCK'
+          ? {
+              OR: [
+                { inventoryItem: { location: { godownType: gt } } },
+                {
+                  AND: [
+                    { inventoryItemId: null },
+                    { saleOrder: { procurementType: gt } },
+                  ],
+                },
+              ],
+            }
+          : {}),
+      };
+
+      const qcReturns = await prisma.inventoryQcReturn.findMany({
+        where: qcReturnWhere,
+        include: {
+          saleOrder: {
+            select: {
+              id: true,
+              orderNo: true,
+              customerRefNo: true,
+              procurementType: true,
+              customer: { select: { id: true, name: true, code: true } },
+            },
+          },
+          inventoryItem: {
+            include: {
+              lensProduct: {
+                select: { id: true, lens_name: true, product_code: true },
+              },
+              coating: { select: { id: true, name: true } },
+              location: { select: { id: true, name: true, godownType: true } },
+              tray: { select: { id: true, name: true } },
+            },
+          },
+          createdByUser: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const sourceLabel = (status) => {
+        switch (status) {
+          case 'PRE_QC_REJECTED':
+            return 'Return from Pre-QC';
+          case 'POST_QC_REJECTED':
+            return 'Return from Post-QC';
+          case 'PRE_QC_SCRAPPED':
+            return 'Scrap — Pre-QC';
+          case 'POST_QC_SCRAPPED':
+            return 'Scrap — Post-QC';
+          default:
+            return status || 'QC Return';
+        }
+      };
+
+      const returnQueueItems = qcReturns
+        .map((r) => {
+          const item = r.inventoryItem;
+          const eyeParts = [];
+          if (item?.rightEye) {
+            eyeParts.push(
+              `R ${item.rightSpherical || '0'}/${item.rightCylindrical || '0'}`
+            );
+          }
+          if (item?.leftEye) {
+            eyeParts.push(
+              `L ${item.leftSpherical || '0'}/${item.leftCylindrical || '0'}`
+            );
+          }
+          return {
+            id: `qcr-${r.id}`,
+            queueType: 'QC_RETURN',
+            qcReturnId: r.id,
+            receiptId: null,
+            receiptNumber: r.saleOrder?.orderNo || `SO-${r.saleOrderId}`,
+            purchaseOrderId: null,
+            poNumber: r.saleOrder?.customerRefNo || '—',
+            orderType: 'QC_RETURN',
+            vendor: r.saleOrder?.customer
+              ? {
+                  id: r.saleOrder.customer.id,
+                  name: r.saleOrder.customer.name,
+                  code: r.saleOrder.customer.code,
+                }
+              : null,
+            lensProduct: item?.lensProduct || null,
+            lensType: null,
+            coating: item?.coating || null,
+            location: item?.location || null,
+            tray: item?.tray || null,
+            eyeSummary: eyeParts.join(' · ') || '—',
+            receivedDate: r.createdAt,
+            actualDeliveryDate: null,
+            createdAt: r.createdAt,
+            supplierInvoiceNo: null,
+            totalReceivedQty: 1,
+            inwardedQty: 0,
+            pendingQty: 1,
+            status: 'PENDING_RETURN',
+            sourceStatus: r.sourceStatus,
+            sourceLabel: sourceLabel(r.sourceStatus),
+            rejectRemark: r.rejectRemark || '',
+            saleOrderId: r.saleOrderId,
+            inventoryItemId: r.inventoryItemId,
+            createdByUser: r.createdByUser || null,
+          };
+        })
+        .filter((item) => {
+          if (!normalizedSearch) return true;
+          return [
+            item.receiptNumber,
+            item.poNumber,
+            item.vendor?.name,
+            item.vendor?.code,
+            item.lensProduct?.lens_name,
+            item.lensProduct?.product_code,
+            item.rejectRemark,
+            item.sourceLabel,
+            item.eyeSummary,
+          ]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+        });
+
+      // Tag PO rows for the UI
+      const poQueueItems = queueItems.map((item) => ({
+        ...item,
+        queueType: 'PO_RECEIPT',
+        sourceLabel: null,
+        rejectRemark: null,
+        qcReturnId: null,
+      }));
+
+      const merged = [...returnQueueItems, ...poQueueItems].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
+      const total = merged.length;
       const totalPages = Math.max(1, Math.ceil(total / limit));
       const skip = (page - 1) * limit;
-      const paginatedItems = queueItems.slice(skip, skip + limit);
+      const paginatedItems = merged.slice(skip, skip + limit);
 
       return {
         queueItems: paginatedItems,
@@ -473,6 +678,101 @@ export class InventoryService {
         error.message || 'Failed to fetch inventory inward queue',
         500,
         'FETCH_INVENTORY_INWARD_QUEUE_ERROR'
+      );
+    }
+  }
+
+  /**
+   * Dispose or Reuse a QC-returned lens from Inward Queue.
+   * @param {number} qcReturnId
+   * @param {'REUSE'|'DISPOSE'} disposition
+   * @param {string} [remark]
+   * @param {number} userId
+   */
+  async dispositionQcReturn(qcReturnId, disposition, remark, userId) {
+    const action = String(disposition || '').toUpperCase();
+    if (action !== 'REUSE' && action !== 'DISPOSE') {
+      throw new APIError('disposition must be REUSE or DISPOSE', 400, 'INVALID_DISPOSITION');
+    }
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const row = await tx.inventoryQcReturn.findUnique({
+          where: { id: qcReturnId },
+          include: { inventoryItem: true },
+        });
+        if (!row) {
+          throw new APIError('QC return not found', 404, 'QC_RETURN_NOT_FOUND');
+        }
+        if (row.status !== 'PENDING') {
+          throw new APIError('This return was already processed', 400, 'QC_RETURN_ALREADY_DONE');
+        }
+
+        const item = row.inventoryItem;
+        if (item && !item.deleteStatus) {
+          const qty = item.quantity || 1;
+          if (action === 'REUSE') {
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: {
+                status: 'AVAILABLE',
+                saleOrderId: null,
+                reservedDate: null,
+                notes: [
+                  item.notes,
+                  remark ? `Reuse note: ${remark}` : null,
+                  'Returned to stock (Reuse)',
+                ]
+                  .filter(Boolean)
+                  .join(' | '),
+                updatedBy: userId ?? null,
+              },
+            });
+            await this.updateInventoryStock(item, qty, 'MAKE_AVAILABLE', tx);
+          } else {
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: {
+                status: 'DAMAGED',
+                saleOrderId: null,
+                reservedDate: null,
+                notes: [
+                  item.notes,
+                  remark ? `Dispose note: ${remark}` : null,
+                  'Disposed after QC return',
+                ]
+                  .filter(Boolean)
+                  .join(' | '),
+                updatedBy: userId ?? null,
+              },
+            });
+            await this.updateInventoryStock(item, qty, 'WRITE_OFF_HOLD', tx);
+          }
+        }
+
+        return tx.inventoryQcReturn.update({
+          where: { id: qcReturnId },
+          data: {
+            status: action === 'REUSE' ? 'REUSED' : 'DISPOSED',
+            dispositionRemark: remark || null,
+            disposedAt: new Date(),
+            disposedBy: userId ?? null,
+          },
+          include: {
+            saleOrder: { select: { id: true, orderNo: true } },
+            inventoryItem: {
+              select: { id: true, status: true, serialNo: true },
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      console.error('Error disposing QC return:', error);
+      throw new APIError(
+        error.message || 'Failed to process QC return',
+        500,
+        'QC_RETURN_DISPOSITION_ERROR'
       );
     }
   }
@@ -1083,7 +1383,7 @@ export class InventoryService {
         where: stockKey
       });
 
-      if (!existingStock && (operation === 'RESERVE' || operation === 'UNRESERVE' || operation === 'CONSUME_RESERVED')) {
+      if (!existingStock && (operation === 'RESERVE' || operation === 'UNRESERVE' || operation === 'CONSUME_RESERVED' || operation === 'RELEASE_RESERVED_HOLD' || operation === 'MAKE_AVAILABLE' || operation === 'WRITE_OFF_HOLD')) {
         // A stock bucket should already exist from the original inward —
         // do not fabricate one with reservedStock but zero totalStock.
         console.error(
@@ -1119,6 +1419,16 @@ export class InventoryService {
         } else if (operation === 'UNRESERVE') {
           updateData.availableStock = existingStock.availableStock + Math.abs(quantity);
           updateData.reservedStock = Math.max(0, existingStock.reservedStock - Math.abs(quantity));
+        } else if (operation === 'RELEASE_RESERVED_HOLD') {
+          // QC return: leave reserved hold without making available until Reuse
+          updateData.reservedStock = Math.max(0, existingStock.reservedStock - Math.abs(quantity));
+        } else if (operation === 'MAKE_AVAILABLE') {
+          // After RELEASE_RESERVED_HOLD — put units back into available without changing total
+          updateData.availableStock = existingStock.availableStock + Math.abs(quantity);
+        } else if (operation === 'WRITE_OFF_HOLD') {
+          // Dispose after RELEASE_RESERVED_HOLD — write off total into damaged (available unchanged)
+          updateData.totalStock = Math.max(0, existingStock.totalStock - Math.abs(quantity));
+          updateData.damagedStock = existingStock.damagedStock + Math.abs(quantity);
         } else if (operation === 'CONSUME_RESERVED') {
           updateData.totalStock = Math.max(0, existingStock.totalStock - Math.abs(quantity));
           updateData.reservedStock = Math.max(0, existingStock.reservedStock - Math.abs(quantity));
