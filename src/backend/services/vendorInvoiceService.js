@@ -4,11 +4,12 @@ import {
   round2,
   computePayableAmount,
   PO_PAYABLE_SELECT,
-  PO_PAYMENT_ELIGIBLE_STATUSES,
+  PO_VENDOR_INVOICE_ELIGIBLE_STATUSES,
+  hasSupplierInvoiceNo,
 } from '../utils/poPayable.js';
 import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
 
-const ELIGIBLE_PO_STATUSES = PO_PAYMENT_ELIGIBLE_STATUSES;
+const ELIGIBLE_PO_STATUSES = PO_VENDOR_INVOICE_ELIGIBLE_STATUSES;
 
 async function generateInvoiceNumber() {
   const year = new Date().getFullYear();
@@ -113,6 +114,62 @@ export class VendorInvoiceService {
   }
 
   /**
+   * POs eligible for Vendor Invoice create:
+   * - status ∈ PO_VENDOR_INVOICE_ELIGIBLE_STATUSES (not INVOICE_RECEIVED/PAID)
+   * - not linked via VendorInvoiceItem to a non-cancelled VendorInvoice
+   * - supplierInvoiceNo null/empty (legacy/Excel mark excluded)
+   */
+  async listEligiblePOs(vendorId) {
+    if (!vendorId) throw new APIError('vendorId is required', 400, 'VALIDATION_ERROR');
+    const vid = parseInt(vendorId, 10);
+
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: vid },
+      select: { id: true, name: true, code: true },
+    });
+    if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
+
+    const invoicedLinks = await prisma.vendorInvoiceItem.findMany({
+      where: {
+        vendorInvoice: { deleteStatus: false, status: { not: 'CANCELLED' }, vendorId: vid },
+      },
+      select: { purchaseOrderId: true },
+    });
+    const invoicedPoIds = [...new Set(invoicedLinks.map((l) => l.purchaseOrderId))];
+
+    const pos = await prisma.purchaseOrder.findMany({
+      where: {
+        vendorId: vid,
+        deleteStatus: false,
+        status: { in: ELIGIBLE_PO_STATUSES },
+        AND: [
+          { OR: [{ supplierInvoiceNo: null }, { supplierInvoiceNo: '' }] },
+        ],
+        ...(invoicedPoIds.length ? { id: { notIn: invoicedPoIds } } : {}),
+      },
+      select: { ...PO_PAYABLE_SELECT },
+      orderBy: [{ orderDate: 'desc' }, { poNumber: 'asc' }],
+    });
+
+    return {
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      vendorCode: vendor.code,
+      purchaseOrders: pos.map((po) => ({
+        purchaseOrderId: po.id,
+        poNumber: po.poNumber,
+        status: po.status,
+        orderDate: po.orderDate,
+        expectedDeliveryDate: po.expectedDeliveryDate,
+        subtotal: round2(parseFloat(po.subtotal) || 0),
+        taxAmount: round2(parseFloat(po.taxAmount) || 0),
+        totalValue: computePayableAmount(po),
+        receivedQty: parseFloat(po.receivedQty) || 0,
+      })),
+    };
+  }
+
+  /**
    * Register a vendor invoice against one or more PO(s). Locks in the actual supplier
    * invoice amounts on the PO rows (mirrors legacy vendorPaymentService.create behavior)
    * and creates an OUTSTANDING VendorInvoice for later payment allocation.
@@ -136,6 +193,13 @@ export class VendorInvoiceService {
     for (const po of pos) {
       if (!ELIGIBLE_PO_STATUSES.includes(po.status)) {
         throw new APIError(`PO ${po.poNumber} is not eligible for invoicing`, 400, 'PO_NOT_ELIGIBLE');
+      }
+      if (hasSupplierInvoiceNo(po)) {
+        throw new APIError(
+          `PO ${po.poNumber} already has a supplier invoice number and cannot be re-invoiced`,
+          400,
+          'PO_ALREADY_INVOICED'
+        );
       }
     }
 

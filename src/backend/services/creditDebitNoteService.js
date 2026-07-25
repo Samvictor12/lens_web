@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-import { postCreditNote, postDebitNote } from './accountingService.js';
+import { postDebitNote } from './accountingService.js';
 
 function round2(n) {
   return Math.round(parseFloat(n) * 100) / 100;
@@ -73,7 +73,11 @@ export class CreditDebitNoteService {
   }
 
   async createDebitNote({ customerId, invoiceId, amount, taxAmount = 0, reason, noteDate }, userId) {
-    return this._create('debit', { customerId, invoiceId, amount, taxAmount, reason, noteDate }, userId);
+    throw new APIError(
+      'Customer debit notes are disabled. Use Credit Notes only.',
+      400,
+      'CUSTOMER_DEBIT_NOTE_DISABLED'
+    );
   }
 
   async _create(kind, { customerId, invoiceId, amount, taxAmount, reason, noteDate }, userId) {
@@ -119,25 +123,13 @@ export class CreditDebitNoteService {
         },
       });
 
-      // CN reduces balance, DN increases it (per resolved clarification #2).
-      await tx.customer.update({
-        where: { id: cid },
-        data: {
-          outstanding_credit: isCredit
-            ? { decrement: Math.round(amt) }
-            : { increment: Math.round(amt) },
-        },
-      });
-
-      if (isCredit) {
-        await postCreditNote(tx, {
-          creditNoteId: note.id,
-          noteNumber,
-          amount: amt,
-          taxAmount: tax,
-          customer,
-        }, userId);
-      } else {
+      // M7: Customer Credit Note is document-only — no outstanding_credit / ledger posting.
+      // Customer Debit Note keeps existing AR posting behavior.
+      if (!isCredit) {
+        await tx.customer.update({
+          where: { id: cid },
+          data: { outstanding_credit: { increment: Math.round(amt) } },
+        });
         await postDebitNote(tx, {
           debitNoteId: note.id,
           noteNumber,
@@ -159,15 +151,26 @@ export class CreditDebitNoteService {
 
     return prisma.$transaction(async (tx) => {
       const isCredit = model === 'creditNote';
-      // Reverse the AR balance effect of the original note.
-      await tx.customer.update({
-        where: { id: note.customerId },
-        data: {
-          outstanding_credit: isCredit
-            ? { increment: Math.round(note.amount) }
-            : { decrement: Math.round(note.amount) },
-        },
-      });
+
+      if (isCredit) {
+        // M7: only reverse outstanding if a historical CREDIT_NOTE FT exists.
+        const postedTxn = await tx.financialTransaction.findFirst({
+          where: { referenceType: 'CREDIT_NOTE', referenceId: note.id },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (postedTxn) {
+          await tx.customer.update({
+            where: { id: note.customerId },
+            data: { outstanding_credit: { increment: Math.round(note.amount) } },
+          });
+        }
+      } else {
+        // Debit notes always posted AR — reverse on cancel.
+        await tx.customer.update({
+          where: { id: note.customerId },
+          data: { outstanding_credit: { decrement: Math.round(note.amount) } },
+        });
+      }
 
       return tx[model].update({
         where: { id: note.id },

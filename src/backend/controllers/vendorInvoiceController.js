@@ -10,6 +10,9 @@ export class VendorInvoiceController {
   async getOutstanding(req, res, next) {
     try { res.json({ success: true, data: await vendorInvoiceService.listOutstanding(req.query.vendorId) }); } catch (e) { next(e); }
   }
+  async getEligiblePOs(req, res, next) {
+    try { res.json({ success: true, data: await vendorInvoiceService.listEligiblePOs(req.query.vendorId) }); } catch (e) { next(e); }
+  }
   async create(req, res, next) {
     try {
       let payload = req.body;

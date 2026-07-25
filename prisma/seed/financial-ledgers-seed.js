@@ -31,6 +31,8 @@ const SYSTEM_LEDGERS = [
   { ledgerCode: 'AC-2003', ledgerName: 'GST Output Collected', ledgerType: 'LIABILITY', description: 'GST collected on sales', isSystemLedger: true },
   { ledgerCode: 'AC-3001', ledgerName: 'Sales Revenue', ledgerType: 'INCOME', description: 'Net lens sales revenue', isSystemLedger: true },
   { ledgerCode: 'AC-3002', ledgerName: 'Other Income', ledgerType: 'INCOME', description: 'Miscellaneous income', isSystemLedger: false },
+  { ledgerCode: 'AC-3003', ledgerName: 'Bank Transfer Income', ledgerType: 'INCOME', description: 'Incoming bank transfers', isSystemLedger: false },
+  { ledgerCode: 'AC-3004', ledgerName: 'Loan Income', ledgerType: 'INCOME', description: 'Loan proceeds received', isSystemLedger: false },
   { ledgerCode: 'AC-4001', ledgerName: 'Purchase / COGS', ledgerType: 'EXPENSE', description: 'Cost of goods purchased', isSystemLedger: true },
   { ledgerCode: 'AC-4002', ledgerName: 'Salary & Wages', ledgerType: 'EXPENSE', description: 'Employee salaries', isSystemLedger: false },
   { ledgerCode: 'AC-4003', ledgerName: 'Rent Expense', ledgerType: 'EXPENSE', description: 'Shop and office rent', isSystemLedger: false },
@@ -51,6 +53,11 @@ const EXPENSE_CATEGORIES = [
   { name: 'Marketing', ledgerCode: 'AC-4006' },
   { name: 'Office Supplies', ledgerCode: 'AC-4007' },
   { name: 'Repairs', ledgerCode: 'AC-4008' },
+];
+
+const INCOME_CATEGORIES = [
+  { name: 'Bank Transfer', ledgerCode: 'AC-3003' },
+  { name: 'Loan', ledgerCode: 'AC-3004' },
 ];
 
 export async function seedFinancialLedgers(client = prisma) {
@@ -88,6 +95,17 @@ export async function seedFinancialLedgers(client = prisma) {
     });
   }
   console.log(`   ✅ ${EXPENSE_CATEGORIES.length} expense categories upserted\n`);
+
+  console.log('📂 Seeding income categories…');
+  for (const cat of INCOME_CATEGORIES) {
+    const ledger = await client.ledger.findFirst({ where: { ledgerCode: cat.ledgerCode } });
+    await client.incomeCategory.upsert({
+      where: { name: cat.name },
+      update: { ledger_id: ledger?.id ?? null },
+      create: { name: cat.name, ledger_id: ledger?.id ?? null, createdBy: SYSTEM_USER_ID },
+    });
+  }
+  console.log(`   ✅ ${INCOME_CATEGORIES.length} income categories upserted\n`);
 }
 
 async function main() {

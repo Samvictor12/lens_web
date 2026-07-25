@@ -132,4 +132,29 @@ export class LedgerService {
       orderBy: { ledgerCode: 'asc' },
     });
   }
+
+  /** Cash / Bank / Capital posting ledgers for Income From/To pickers. */
+  async getCashBankCapitalLedgers() {
+    return prisma.ledger.findMany({
+      where: {
+        delete_status: false,
+        active_status: true,
+        allowsDirectPosting: true,
+        isGroupLedger: false,
+        OR: [
+          { accountGroup: { groupCode: { in: ['GRP-CASH', 'GRP-BANK', 'GRP-CAPITAL'] } } },
+          { ledgerCode: { in: ['AC-1001', 'AC-1002', 'AC-5001'] }, accountGroupId: null },
+        ],
+      },
+      select: {
+        id: true,
+        ledgerCode: true,
+        ledgerName: true,
+        bankDetails: true,
+        currentBalance: true,
+        accountGroup: { select: { groupCode: true, groupName: true } },
+      },
+      orderBy: { ledgerCode: 'asc' },
+    });
+  }
 }

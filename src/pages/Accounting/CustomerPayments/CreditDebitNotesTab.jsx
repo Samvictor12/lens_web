@@ -54,7 +54,10 @@ export default function CreditDebitNotesTab({ type = "credit", customers = [] })
   }, [load]);
 
   const handleCancel = async (note) => {
-    if (!window.confirm(`Cancel ${label} ${note.noteNumber}? This will reverse its balance effect.`)) return;
+    const confirmMsg = isCredit
+      ? `Cancel ${label} ${note.noteNumber}? The note will be marked cancelled.`
+      : `Cancel ${label} ${note.noteNumber}? This will reverse its balance effect.`;
+    if (!window.confirm(confirmMsg)) return;
     try {
       const res = await cancelCreditDebitNote(note.id, type);
       if (res.success) {
@@ -71,7 +74,7 @@ export default function CreditDebitNotesTab({ type = "credit", customers = [] })
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground">
           {isCredit
-            ? "Reduces the customer's outstanding AR balance."
+            ? "Document-only credit note (printable/auditable). Does not change customer outstanding."
             : "Increases the customer's outstanding AR balance."}
         </p>
         <div className="flex items-center gap-1.5">

@@ -244,10 +244,9 @@ export default function VendorPaymentsMain() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="grid w-full grid-cols-4 mb-4 flex-shrink-0">
+        <TabsList className="grid w-full grid-cols-3 mb-4 flex-shrink-0">
           <TabsTrigger value="outstanding">Outstanding Invoices</TabsTrigger>
           <TabsTrigger value="history">Payment History</TabsTrigger>
-          <TabsTrigger value="creditNotes">Credit Notes</TabsTrigger>
           <TabsTrigger value="debitNotes">Debit Notes</TabsTrigger>
         </TabsList>
 
@@ -388,10 +387,6 @@ export default function VendorPaymentsMain() {
           </div>
         </TabsContent>
 
-        <TabsContent value="creditNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
-          <VendorCreditDebitNotesTab type="credit" vendors={vendors} />
-        </TabsContent>
-
         <TabsContent value="debitNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
           <VendorCreditDebitNotesTab type="debit" vendors={vendors} />
         </TabsContent>
@@ -424,6 +419,7 @@ export default function VendorPaymentsMain() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         payment={loadingDetail ? null : selectedPayment}
+        onCancelled={() => setRefreshKey((k) => k + 1)}
       />
     </div>
   );

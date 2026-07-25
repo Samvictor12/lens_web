@@ -23,6 +23,7 @@ export async function createVendorPayment(payload, invoiceFile) {
 }
 
 export const closeVendorPayment = (id) => apiClient("patch", `${BASE}/${id}/close`);
+export const cancelVendorPayment = (id) => apiClient("patch", `${BASE}/${id}/cancel`);
 
 /** M5: invoice-first payment workflow — pay against outstanding VendorInvoice rows. */
 export const getOutstandingVendorInvoices = (vendorId) =>

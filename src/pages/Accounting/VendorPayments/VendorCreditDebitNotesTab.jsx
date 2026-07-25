@@ -54,7 +54,10 @@ export default function VendorCreditDebitNotesTab({ type = "credit", vendors = [
   }, [load]);
 
   const handleCancel = async (note) => {
-    if (!window.confirm(`Cancel ${label} ${note.noteNumber}? This will reverse its balance effect.`)) return;
+    const confirmMsg = isCredit
+      ? `Cancel ${label} ${note.noteNumber}? This will reverse its balance effect.`
+      : `Cancel ${label} ${note.noteNumber}? The note will be marked cancelled.`;
+    if (!window.confirm(confirmMsg)) return;
     try {
       const res = await cancelVendorCreditDebitNote(note.id, type);
       if (res.success) {
@@ -70,7 +73,9 @@ export default function VendorCreditDebitNotesTab({ type = "credit", vendors = [
     <div className="flex flex-col gap-2 min-h-0 flex-1">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground">
-          {isCredit ? "Reduces the vendor's outstanding AP balance." : "Increases the vendor's outstanding AP balance."}
+          {isCredit
+            ? "Reduces the vendor's outstanding AP balance."
+            : "Document-only debit note (printable/auditable). Does not change vendor AP balance."}
         </p>
         <div className="flex items-center gap-1.5">
           <Refresh onClick={() => setRefreshKey((k) => k + 1)} />

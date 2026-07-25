@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-import { postVendorCreditNote, postVendorDebitNote } from './accountingService.js';
+import { postVendorCreditNote } from './accountingService.js';
 
 function round2(n) {
   return Math.round(parseFloat(n) * 100) / 100;
@@ -65,7 +65,11 @@ export class VendorCreditDebitNoteService {
   }
 
   async createCreditNote({ vendorId, vendorInvoiceId, amount, taxAmount = 0, reason, noteDate }, userId) {
-    return this._create('credit', { vendorId, vendorInvoiceId, amount, taxAmount, reason, noteDate }, userId);
+    throw new APIError(
+      'Vendor credit notes are disabled. Use Debit Notes only.',
+      400,
+      'VENDOR_CREDIT_NOTE_DISABLED'
+    );
   }
 
   async createDebitNote({ vendorId, vendorInvoiceId, amount, taxAmount = 0, reason, noteDate }, userId) {
@@ -117,9 +121,8 @@ export class VendorCreditDebitNoteService {
 
       if (isCredit) {
         await postVendorCreditNote(tx, { creditNoteId: note.id, noteNumber, amount: amt, taxAmount: tax, vendor }, userId);
-      } else {
-        await postVendorDebitNote(tx, { debitNoteId: note.id, noteNumber, amount: amt, taxAmount: tax, vendor }, userId);
       }
+      // M7: Vendor Debit Note is document-only — no postVendorDebitNote / AP movement.
 
       return note;
     });
@@ -131,6 +134,7 @@ export class VendorCreditDebitNoteService {
     if (!note) throw new APIError('Note not found', 404, 'NOT_FOUND');
     if (note.status === 'CANCELLED') throw new APIError('Note already cancelled', 400, 'ALREADY_CANCELLED');
 
+    // M7: Vendor DN cancel is status-only (no AP balance fields). Vendor CN unchanged (status-only today).
     return prisma[model].update({
       where: { id: note.id },
       data: { status: 'CANCELLED', updatedBy: userId },

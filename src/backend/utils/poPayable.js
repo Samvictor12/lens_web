@@ -22,10 +22,19 @@ export const PO_PAYABLE_SELECT = {
   orderDate: true,
   expectedDeliveryDate: true,
   vendorId: true,
+  supplierInvoiceNo: true,
 };
 
 /** POs eligible for vendor payment (received, not yet fully paid to vendor). */
 export const PO_PAYMENT_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED', 'INVOICE_RECEIVED'];
+
+/** POs eligible for new Vendor Invoice registration (excludes INVOICE_RECEIVED / PAID). */
+export const PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED'];
+
+/** True when PO already has a legacy/Excel supplier invoice mark. */
+export function hasSupplierInvoiceNo(po) {
+  return !!(po?.supplierInvoiceNo && String(po.supplierInvoiceNo).trim());
+}
 
 /**
  * After vendor payment: set status to PAID only when fully paid (no partial-paid stage).
@@ -44,7 +53,10 @@ export async function syncPoPaidStatus(tx, poIds, userId) {
 
   const [allocations] = await Promise.all([
     tx.vendorPaymentVoucherItem.findMany({
-      where: { purchaseOrderId: { in: uniqueIds } },
+      where: {
+        purchaseOrderId: { in: uniqueIds },
+        voucher: { cancelledStatus: false, delete_status: false },
+      },
       select: { purchaseOrderId: true, allocatedAmount: true },
     }),
   ]);

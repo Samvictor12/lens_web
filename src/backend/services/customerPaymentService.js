@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-import { generateReceiptNumber, postCustomerPaymentReceipt } from './accountingService.js';
+import { generateReceiptNumber, postCustomerPaymentReceipt, postReversingTransaction } from './accountingService.js';
 import { distributePayment } from '../utils/paymentAllocation.js';
 
 function round2(n) {
@@ -342,6 +342,132 @@ export class CustomerPaymentService {
       }, userId);
 
       return voucher;
+    });
+  }
+
+  /**
+   * Cancel / reverse a customer payment receipt (full voucher only).
+   * Restores invoice paid amounts, customer outstanding/advance, reverses ledger FT.
+   */
+  async cancelReceipt(id, userId) {
+    const voucherId = parseInt(id, 10);
+    const voucher = await prisma.customerPaymentVoucher.findFirst({
+      where: { id: voucherId, delete_status: false },
+      include: {
+        items: {
+          include: {
+            invoice: {
+              select: {
+                id: true,
+                invoiceNo: true,
+                totalAmount: true,
+                paidAmount: true,
+                status: true,
+                saleOrders: { select: { id: true } },
+              },
+            },
+          },
+        },
+        payments: true,
+      },
+    });
+    if (!voucher) throw new APIError('Receipt not found', 404, 'NOT_FOUND');
+    if (voucher.cancelledStatus) {
+      throw new APIError('Receipt already cancelled', 400, 'ALREADY_CANCELLED');
+    }
+
+    const originalTxn = await prisma.financialTransaction.findFirst({
+      where: {
+        transactionType: 'RECEIPT',
+        referenceType: 'RECEIPT',
+        referenceId: voucherId,
+        isPosted: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (originalTxn?.isReconciled) {
+      throw new APIError(
+        'Payment is bank-reconciled and cannot be cancelled',
+        400,
+        'BANK_RECONCILED'
+      );
+    }
+
+    const advance = round2(voucher.advanceAmount);
+    const allocationSum = round2(
+      voucher.items.reduce((s, i) => s + parseFloat(i.allocatedAmount), 0)
+    );
+
+    return prisma.$transaction(async (tx) => {
+      if (originalTxn) {
+        await postReversingTransaction(
+          tx,
+          originalTxn.id,
+          userId,
+          `Cancel receipt ${voucher.receiptNumber}`
+        );
+      }
+
+      for (const item of voucher.items) {
+        const alloc = round2(item.allocatedAmount);
+        if (alloc <= 0) continue;
+        const inv = item.invoice;
+        const newPaid = round2(Math.max(0, parseFloat(inv.paidAmount) - alloc));
+        const total = round2(inv.totalAmount);
+        let newStatus = 'ISSUED';
+        if (newPaid >= total - 0.01) newStatus = 'PAID';
+        else if (newPaid > 0.01) newStatus = 'PARTIALLY_PAID';
+
+        await tx.invoice.update({
+          where: { id: inv.id },
+          data: { paidAmount: newPaid, status: newStatus, updatedBy: userId },
+        });
+
+        // If invoice is no longer fully paid, reopen linked sale orders that were COMPLETED by this payment.
+        if (newStatus !== 'PAID' && inv.saleOrders?.length) {
+          await tx.saleOrder.updateMany({
+            where: {
+              id: { in: inv.saleOrders.map((s) => s.id) },
+              status: 'COMPLETED',
+            },
+            data: { status: 'INVOICED', updatedBy: userId },
+          });
+        }
+      }
+
+      // Soft-handle linked Payment rows so they no longer count as live receipts.
+      if (voucher.payments?.length) {
+        await tx.payment.deleteMany({ where: { voucherId } });
+      }
+
+      if (allocationSum > 0) {
+        await tx.customer.update({
+          where: { id: voucher.customerId },
+          data: { outstanding_credit: { increment: Math.round(allocationSum) } },
+        });
+      }
+      if (advance > 0) {
+        await tx.customer.update({
+          where: { id: voucher.customerId },
+          data: { advance_credit: { decrement: advance } },
+        });
+      }
+
+      return tx.customerPaymentVoucher.update({
+        where: { id: voucherId },
+        data: {
+          cancelledStatus: true,
+          cancelledAt: new Date(),
+          updatedBy: userId,
+        },
+        include: {
+          customer: { select: { id: true, code: true, name: true } },
+          bankLedger: { select: { id: true, ledgerName: true } },
+          items: {
+            include: { invoice: { select: { id: true, invoiceNo: true } } },
+          },
+        },
+      });
     });
   }
 }

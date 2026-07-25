@@ -47,6 +47,8 @@ const LEDGER_GROUP_MAP = {
   'AC-2003': 'GRP-GST-OUTPUT',
   'AC-3001': 'GRP-DIRECT-INCOME',
   'AC-3002': 'GRP-INDIRECT-INCOME',
+  'AC-3003': 'GRP-INDIRECT-INCOME',
+  'AC-3004': 'GRP-INDIRECT-INCOME',
   'AC-4001': 'GRP-DIRECT-EXP',
   'AC-5001': 'GRP-CAPITAL',
   'AC-5002': 'GRP-CAPITAL',
@@ -175,6 +177,12 @@ export async function seedAccountGroups(client = prisma, userId = SYSTEM_USER_ID
   }
 
   console.log('   ✅ Ledger group mapping complete\n');
+
+  // Ensure Owner's Capital is postable for Income From/To pickers
+  await client.ledger.updateMany({
+    where: { ledgerCode: 'AC-5001', delete_status: false },
+    data: { allowsDirectPosting: true, isGroupLedger: false },
+  });
   return codeToId;
 }
 

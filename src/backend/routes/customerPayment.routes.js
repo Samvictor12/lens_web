@@ -11,5 +11,6 @@ router.get('/', ...guard, ctrl.list.bind(ctrl));
 router.get('/:id', ...guard, ctrl.getById.bind(ctrl));
 router.post('/', ...guard, ctrl.create.bind(ctrl));
 router.patch('/:id/close', ...guard, ctrl.close.bind(ctrl));
+router.patch('/:id/cancel', ...guard, ctrl.cancel.bind(ctrl));
 
 export default router;

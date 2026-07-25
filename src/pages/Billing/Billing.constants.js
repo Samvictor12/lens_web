@@ -78,7 +78,6 @@ function formatEyeSpecs(prefix, order) {
     ["CYL", `${prefix}Cylindrical`],
     ["AXIS", `${prefix}Axis`],
     ["ADD", `${prefix}Add`],
-    ["DIA", `${prefix}Dia`],
   ];
   const parts = fields
     .map(([label, key]) => (hasSpec(order?.[key]) ? `${label}:${order[key]}` : null))

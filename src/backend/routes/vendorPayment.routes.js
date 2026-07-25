@@ -14,5 +14,6 @@ router.get('/:id', ...guard, ctrl.getById.bind(ctrl));
 router.post('/', ...guard, vendorInvoiceUpload.single('invoiceCopy'), ctrl.create.bind(ctrl));
 router.post('/from-invoices', ...guard, ctrl.createFromInvoices.bind(ctrl));
 router.patch('/:id/close', ...guard, ctrl.close.bind(ctrl));
+router.patch('/:id/cancel', ...guard, ctrl.cancel.bind(ctrl));
 
 export default router;

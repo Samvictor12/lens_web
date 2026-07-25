@@ -62,8 +62,14 @@ graph TD
 * **Payment traceability:** Customer/vendor payment history and detail views show expandable breakdown trees with navigation to Billing invoice detail or PO view.
 * **Billing Tax Invoice (2026-07-14):** Preview/print HTML matches M.V.V Tax Invoice layout (`buildInvoiceHtml` / `printInvoice`); line **Ref No.** = `SaleOrder.customerRefNo`; seller extras (PAN, state code, bank/IFSC) from `CompanySettings.customAttributes` when set.
 * **Invoice due date:** `Invoice.dueDate` = invoice date + `Customer.credit_days` when client omits override.
-* **Payment UX:** Vendor/Customer Payment History are multi-column registers; Record Payment and New Payment both select via Outstanding PO/Invoice List UI. Vendor payment GST % from Company Settings (`getGstRatesFromSettings`); tax amount = base × %.
+* **Payment UX:** Vendor payments are **invoice-first** (`POST /api/vendor-payments/from-invoices`); Customer/Vendor Payment History are multi-column registers; Record Payment uses Outstanding Invoice/Vendor-Invoice List UI. Cancel payment reverses FT via `postReversingTransaction` and restores allocations (blocked if reconciled). Vendor payment GST % from Company Settings when registering invoices.
+* **Vendor Invoice create:** Eligible PO list excludes POs already linked to a non-cancelled `VendorInvoice`.
 * **Expenses:** Category from Expense Category (type auto-fills); optional `Expense.dueDate`; Payment Account from `getCashBankLedgers()` (service returns array — do not check `.success` on client).
+* **Income & Bank Accounts (2026-07-25):** Income vouchers use **From + To** ledgers (Cash / Bank / Capital); posting **Dr To / Cr From**. Bank Account manage CRUD for GRP-CASH/GRP-BANK. Permissions `income`, `income_categories`, `bank_accounts` must stay in `role.constants.js` + `role-seed.js` (KB-026/034).
+* **Notes:** Customer Payments show **Credit Notes** only; Vendor Payments show **Debit Notes** only. New Customer CN / Vendor DN are document-only (no party AR/AP).
+* **Vendor Invoice eligible POs:** Exclude already-invoiced POs (VI item link, or status INVOICE_RECEIVED/PAID, or supplierInvoiceNo set).
+* **Billing / DC print:** Goods description specs exclude DIA (`formatEyeSpecs` in `Billing.constants.js`; DC reuses same helper).
+* **Dispatch lists:** Ready-for-dispatch and dispatch-copy lists order by `createdAt` descending.
 
 ---
 

@@ -1,14 +1,12 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-import { generateVoucherNumber, postVendorPayment } from './accountingService.js';
+import { generateVoucherNumber, postVendorPayment, postReversingTransaction } from './accountingService.js';
 import {
   round2,
   computePayableAmount,
   PO_PAYABLE_SELECT,
   PO_PAYMENT_ELIGIBLE_STATUSES,
-  syncPoPaidStatus,
 } from '../utils/poPayable.js';
-import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
 import vendorInvoiceService from './vendorInvoiceService.js';
 
 const ELIGIBLE_PO_STATUSES = PO_PAYMENT_ELIGIBLE_STATUSES;
@@ -53,6 +51,7 @@ export class VendorPaymentService {
           items: {
             include: {
               purchaseOrder: { select: { id: true, poNumber: true, orderDate: true } },
+              vendorInvoice: { select: { id: true, invoiceNumber: true } },
             },
           },
         },
@@ -71,7 +70,12 @@ export class VendorPaymentService {
       include: {
         vendor: true,
         bankLedger: true,
-        items: { include: { purchaseOrder: { select: { id: true, poNumber: true, totalValue: true, receivedQty: true, orderDate: true } } } },
+        items: {
+          include: {
+            purchaseOrder: { select: { id: true, poNumber: true, totalValue: true, receivedQty: true, orderDate: true } },
+            vendorInvoice: { select: { id: true, invoiceNumber: true, totalAmount: true, paidAmount: true, status: true } },
+          },
+        },
         createdByUser: { select: { id: true, name: true } },
       },
     });
@@ -103,7 +107,10 @@ export class VendorPaymentService {
 
     const poIds = pos.map((p) => p.id);
     const allocations = await prisma.vendorPaymentVoucherItem.findMany({
-      where: { purchaseOrderId: { in: poIds } },
+      where: {
+        purchaseOrderId: { in: poIds },
+        voucher: { cancelledStatus: false, delete_status: false },
+      },
       select: { purchaseOrderId: true, allocatedAmount: true },
     });
 
@@ -213,227 +220,13 @@ export class VendorPaymentService {
     return { groups: Array.from(groupMap.values()) };
   }
 
-  async create(payload, userId, invoiceFile) {
-    const {
-      vendorId,
-      paymentDate,
-      bankLedgerId,
-      referenceNo,
-      notes,
-      totalAmount,
-      subtotalAmount,
-      taxAmount,
-      vendorInvoiceNo,
-      items,
-      poIds,
-    } = payload;
-    const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-
-    if (!vendorId || !paymentMethod || !bankLedgerId) {
-      throw new APIError('vendorId, paymentMethod, bankLedgerId required', 400, 'VALIDATION_ERROR');
-    }
-    if (!invoiceFile) {
-      throw new APIError('Vendor invoice copy (PDF or image) is required', 400, 'INVOICE_COPY_REQUIRED');
-    }
-    if (!vendorInvoiceNo?.trim()) {
-      throw new APIError('Vendor invoice number is required', 400, 'VALIDATION_ERROR');
-    }
-
-    const total = round2(totalAmount);
-    const subtotal = round2(subtotalAmount);
-    const tax = round2(taxAmount);
-
-    if (total <= 0) throw new APIError('Total amount must be greater than zero', 400, 'VALIDATION_ERROR');
-    if (subtotal < 0 || tax < 0) {
-      throw new APIError('Subtotal and GST must be zero or greater', 400, 'VALIDATION_ERROR');
-    }
-    if (Math.abs(subtotal + tax - total) > 0.01) {
-      throw new APIError(
-        `Invoice subtotal (${subtotal}) + GST (${tax}) must equal total (${total})`,
-        400,
-        'INVOICE_TOTAL_MISMATCH'
-      );
-    }
-
-    let lineItems = items || [];
-    if (!lineItems.length && poIds?.length) {
-      throw new APIError('Each PO must include subtotal, GST, and payment amount', 400, 'VALIDATION_ERROR');
-    }
-    if (!lineItems.length) {
-      throw new APIError('At least one PO line is required', 400, 'VALIDATION_ERROR');
-    }
-
-    const poIdsResolved = lineItems.map((i) => parseInt(i.purchaseOrderId));
-    const pos = await prisma.purchaseOrder.findMany({
-      where: { id: { in: poIdsResolved }, vendorId: parseInt(vendorId), deleteStatus: false },
-      select: { ...PO_PAYABLE_SELECT },
-    });
-
-    if (pos.length !== poIdsResolved.length) {
-      throw new APIError('One or more POs do not belong to this vendor', 400, 'INVALID_PO');
-    }
-
-    for (const po of pos) {
-      if (!ELIGIBLE_PO_STATUSES.includes(po.status)) {
-        throw new APIError(`PO ${po.poNumber} is not eligible for payment`, 400, 'PO_NOT_ELIGIBLE');
-      }
-    }
-
-    const outstandingMap = Object.fromEntries(
-      (await this._buildOutstandingForPos(pos)).map((r) => [r.purchaseOrderId, r])
+  async create(_payload, _userId, _invoiceFile) {
+    // M2: PO-direct creates are deprecated — use invoice-first /from-invoices.
+    throw new APIError(
+      'PO-direct vendor payments are deprecated. Register a vendor invoice and pay via POST /api/vendor-payments/from-invoices.',
+      400,
+      'USE_INVOICE_PAYMENT'
     );
-
-    const normalizedItems = [];
-    let itemsSubtotal = 0;
-    let itemsTax = 0;
-    let itemsAllocated = 0;
-
-    for (const item of lineItems) {
-      const poId = parseInt(item.purchaseOrderId);
-      const po = pos.find((p) => p.id === poId);
-      const lineSubtotal = round2(item.subtotalAmount);
-      const lineTax = round2(item.taxAmount);
-      const lineTotal = round2(lineSubtotal + lineTax);
-      const allocated = round2(item.allocatedAmount ?? lineTotal);
-
-      if (lineSubtotal < 0 || lineTax < 0) {
-        throw new APIError(`Invalid amounts for PO ${po?.poNumber || poId}`, 400, 'VALIDATION_ERROR');
-      }
-      if (Math.abs(lineTotal - (lineSubtotal + lineTax)) > 0.01) {
-        throw new APIError(`PO ${po?.poNumber || poId}: subtotal + GST must equal line total`, 400, 'PO_LINE_MISMATCH');
-      }
-      if (allocated > lineTotal + 0.01) {
-        throw new APIError(`Payment for PO ${po?.poNumber || poId} exceeds invoice line total`, 400, 'OVER_ALLOCATION');
-      }
-      if (allocated <= 0) {
-        throw new APIError(`Payment amount required for PO ${po?.poNumber || poId}`, 400, 'VALIDATION_ERROR');
-      }
-
-      const row = outstandingMap[poId];
-      if (row?.needsPricing) {
-        if (allocated > lineTotal + 0.01) {
-          throw new APIError(
-            `Allocation for ${po?.poNumber || poId} exceeds declared PO invoice total`,
-            400,
-            'OVER_ALLOCATION'
-          );
-        }
-      } else if (allocated > (row?.outstanding ?? 0) + 0.01) {
-        throw new APIError(
-          `Allocation for ${po?.poNumber || poId} exceeds PO outstanding`,
-          400,
-          'OVER_ALLOCATION'
-        );
-      }
-
-      itemsSubtotal = round2(itemsSubtotal + lineSubtotal);
-      itemsTax = round2(itemsTax + lineTax);
-      itemsAllocated = round2(itemsAllocated + allocated);
-
-      normalizedItems.push({
-        purchaseOrderId: poId,
-        subtotalAmount: lineSubtotal,
-        taxAmount: lineTax,
-        allocatedAmount: allocated,
-        poInvoiceTotal: lineTotal,
-        notes: item.notes || null,
-      });
-    }
-
-    if (Math.abs(itemsSubtotal - subtotal) > 0.01) {
-      throw new APIError(
-        `Sum of PO subtotals (${itemsSubtotal}) must equal invoice subtotal (${subtotal})`,
-        400,
-        'SUBTOTAL_MISMATCH'
-      );
-    }
-    if (Math.abs(itemsTax - tax) > 0.01) {
-      throw new APIError(
-        `Sum of PO GST (${itemsTax}) must equal invoice GST (${tax})`,
-        400,
-        'TAX_MISMATCH'
-      );
-    }
-    if (Math.abs(itemsAllocated - total) > 0.01) {
-      throw new APIError(
-        `Sum of PO payments (${itemsAllocated}) must equal total payment (${total})`,
-        400,
-        'ALLOCATION_MISMATCH'
-      );
-    }
-
-    const vendor = await prisma.vendor.findUnique({
-      where: { id: parseInt(vendorId) },
-      select: { id: true, code: true, ledgerId: true },
-    });
-    if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
-
-    const voucherNumber = await generateVoucherNumber();
-    const invoiceCopyPath = `${UPLOADS_PUBLIC_PREFIX}/${invoiceFile.filename}`;
-    const now = new Date();
-
-    return prisma.$transaction(async (tx) => {
-      for (const item of normalizedItems) {
-        const po = pos.find((p) => p.id === item.purchaseOrderId);
-        await tx.purchaseOrder.update({
-          where: { id: item.purchaseOrderId },
-          data: {
-            subtotal: item.subtotalAmount,
-            taxAmount: item.taxAmount,
-            totalValue: item.poInvoiceTotal,
-            supplierInvoiceNo: vendorInvoiceNo.trim(),
-            status: po?.status === 'PAID' ? 'PAID' : 'INVOICE_RECEIVED',
-            updatedBy: userId,
-          },
-        });
-      }
-
-      const voucher = await tx.vendorPaymentVoucher.create({
-        data: {
-          voucherNumber,
-          vendorId: parseInt(vendorId),
-          paymentDate: paymentDate ? new Date(paymentDate) : now,
-          totalAmount: total,
-          subtotalAmount: subtotal,
-          taxAmount: tax,
-          vendorInvoiceNo: vendorInvoiceNo.trim(),
-          invoiceCopyPath,
-          paymentMethod,
-          bankLedgerId: parseInt(bankLedgerId),
-          referenceNo: referenceNo || null,
-          notes: notes || null,
-          closedStatus: true,
-          closedAt: now,
-          createdBy: userId,
-          items: {
-            create: normalizedItems.map((item) => ({
-              purchaseOrderId: item.purchaseOrderId,
-              subtotalAmount: item.subtotalAmount,
-              taxAmount: item.taxAmount,
-              allocatedAmount: item.allocatedAmount,
-              notes: item.notes,
-            })),
-          },
-        },
-        include: { items: true },
-      });
-
-      await postVendorPayment(tx, {
-        voucherId: voucher.id,
-        voucherNumber,
-        totalAmount: total,
-        bankLedgerId: parseInt(bankLedgerId),
-        vendor,
-      }, userId);
-
-      await syncPoPaidStatus(
-        tx,
-        normalizedItems.map((i) => i.purchaseOrderId),
-        userId
-      );
-
-      return voucher;
-    });
   }
 
   // ── M5: Invoice-first payment workflow ──────────────────────────────────
@@ -576,4 +369,161 @@ export class VendorPaymentService {
       return voucher;
     });
   }
+
+  /**
+   * Cancel / reverse a vendor payment voucher (full voucher only).
+   * Restores VendorInvoice paid/status and/or legacy PO payment state; reverses FT.
+   */
+  async cancelVoucher(id, userId) {
+    const voucherId = parseInt(id, 10);
+    const voucher = await prisma.vendorPaymentVoucher.findFirst({
+      where: { id: voucherId, delete_status: false },
+      include: {
+        items: {
+          include: {
+            vendorInvoice: {
+              select: { id: true, invoiceNumber: true, totalAmount: true, paidAmount: true, status: true },
+            },
+            purchaseOrder: {
+              select: { id: true, poNumber: true, status: true, totalValue: true },
+            },
+          },
+        },
+      },
+    });
+    if (!voucher) throw new APIError('Voucher not found', 404, 'NOT_FOUND');
+    if (voucher.cancelledStatus) {
+      throw new APIError('Voucher already cancelled', 400, 'ALREADY_CANCELLED');
+    }
+
+    const originalTxn = await prisma.financialTransaction.findFirst({
+      where: {
+        transactionType: 'PAYMENT',
+        referenceId: voucherId,
+        isPosted: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (originalTxn?.isReconciled) {
+      throw new APIError(
+        'Payment is bank-reconciled and cannot be cancelled',
+        400,
+        'BANK_RECONCILED'
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      if (originalTxn) {
+        await postReversingTransaction(
+          tx,
+          originalTxn.id,
+          userId,
+          `Cancel voucher ${voucher.voucherNumber}`
+        );
+      }
+
+      const affectedPoIds = new Set();
+
+      for (const item of voucher.items) {
+        const alloc = round2(item.allocatedAmount);
+        if (alloc <= 0) continue;
+
+        if (item.vendorInvoiceId && item.vendorInvoice) {
+          const inv = item.vendorInvoice;
+          const newPaid = round2(Math.max(0, parseFloat(inv.paidAmount) - alloc));
+          const total = round2(inv.totalAmount);
+          let newStatus = 'OUTSTANDING';
+          if (newPaid >= total - 0.01) newStatus = 'PAID';
+          else if (newPaid > 0.01) newStatus = 'PARTIALLY_PAID';
+
+          await tx.vendorInvoice.update({
+            where: { id: inv.id },
+            data: { paidAmount: newPaid, status: newStatus, updatedBy: userId },
+          });
+
+          // Re-open linked POs that were marked PAID when invoice was fully paid.
+          if (newStatus !== 'PAID') {
+            const poLinks = await tx.vendorInvoiceItem.findMany({
+              where: { vendorInvoiceId: inv.id },
+              select: { purchaseOrderId: true },
+            });
+            for (const link of poLinks) {
+              affectedPoIds.add(link.purchaseOrderId);
+            }
+          }
+        }
+
+        if (item.purchaseOrderId) {
+          affectedPoIds.add(item.purchaseOrderId);
+        }
+      }
+
+      // Downgrade PAID POs back to INVOICE_RECEIVED when no longer fully paid
+      // (exclude this cancelled voucher from paid sums).
+      for (const poId of affectedPoIds) {
+        const po = await tx.purchaseOrder.findFirst({
+          where: { id: poId, deleteStatus: false },
+          select: PO_PAYABLE_SELECT,
+        });
+        if (!po || po.status === 'CANCELLED') continue;
+
+        const remainingAllocs = await tx.vendorPaymentVoucherItem.findMany({
+          where: {
+            purchaseOrderId: poId,
+            voucher: { cancelledStatus: false, delete_status: false, id: { not: voucherId } },
+          },
+          select: { allocatedAmount: true },
+        });
+        // Also count invoice-first payments still active against this PO's invoices.
+        const invoiceLinks = await tx.vendorInvoiceItem.findMany({
+          where: { purchaseOrderId: poId },
+          select: { vendorInvoiceId: true },
+        });
+        const invIds = invoiceLinks.map((l) => l.vendorInvoiceId);
+        let invoicePaid = 0;
+        if (invIds.length) {
+          const invPayments = await tx.vendorPaymentVoucherItem.findMany({
+            where: {
+              vendorInvoiceId: { in: invIds },
+              voucher: { cancelledStatus: false, delete_status: false, id: { not: voucherId } },
+            },
+            select: { allocatedAmount: true },
+          });
+          invoicePaid = invPayments.reduce((s, a) => s + parseFloat(a.allocatedAmount), 0);
+        }
+        const poDirectPaid = remainingAllocs.reduce((s, a) => s + parseFloat(a.allocatedAmount), 0);
+        const paid = round2(poDirectPaid + invoicePaid);
+        const payable = computePayableAmount(po);
+
+        if (po.status === 'PAID' && (payable <= 0.01 || paid < payable - 0.01)) {
+          await tx.purchaseOrder.update({
+            where: { id: poId },
+            data: { status: 'INVOICE_RECEIVED', updatedBy: userId },
+          });
+        }
+      }
+
+      return tx.vendorPaymentVoucher.update({
+        where: { id: voucherId },
+        data: {
+          cancelledStatus: true,
+          cancelledAt: new Date(),
+          updatedBy: userId,
+        },
+        include: {
+          vendor: { select: { id: true, code: true, name: true } },
+          bankLedger: { select: { id: true, ledgerName: true } },
+          items: {
+            include: {
+              purchaseOrder: { select: { id: true, poNumber: true } },
+              vendorInvoice: { select: { id: true, invoiceNumber: true } },
+            },
+          },
+        },
+      });
+    });
+  }
 }
+
+export default new VendorPaymentService();
+

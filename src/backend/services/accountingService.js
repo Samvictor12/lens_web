@@ -47,6 +47,17 @@ export async function generateExpenseNumber() {
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
+export async function generateIncomeNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `INC-${year}-`;
+  const last = await prisma.income.findFirst({
+    where: { incomeNumber: { startsWith: prefix } },
+    orderBy: { incomeNumber: 'desc' },
+  });
+  const next = last ? parseInt(last.incomeNumber.split('-').pop()) + 1 : 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
 // ── System ledger lookup by code ─────────────────────────────────────────────
 
 async function getLedger(tx, code) {
@@ -349,6 +360,66 @@ export async function postExpense(tx, { expenseId, expenseNumber, amount, catego
   }, [
     { ledgerId: expLedger.id, entryType: 'DEBIT', amount, description: `Expense — ${description}` },
     { ledgerId: bankLedger.id, entryType: 'CREDIT', amount, description: `Paid from ${bankLedger.ledgerName}` },
+  ], userId);
+}
+
+/**
+ * Auto-post on income creation (M2 From/To).
+ * Dr To ledger, Cr From ledger (Cash / Bank / Capital transfer-style for all categories).
+ */
+export async function postIncome(tx, { incomeId, incomeNumber, amount, fromLedgerId, toLedgerId, description }, userId) {
+  if (!fromLedgerId || !toLedgerId) {
+    throw new APIError('fromLedgerId and toLedgerId are required', 400, 'VALIDATION_ERROR');
+  }
+  if (parseInt(fromLedgerId, 10) === parseInt(toLedgerId, 10)) {
+    throw new APIError('From and To ledgers must be different', 400, 'SAME_LEDGER');
+  }
+
+  const TRANSFER_GROUPS = ['GRP-CASH', 'GRP-BANK', 'GRP-CAPITAL'];
+  const FALLBACK_CODES = ['AC-1001', 'AC-1002', 'AC-5001'];
+
+  const [fromLedger, toLedger] = await Promise.all([
+    tx.ledger.findUnique({
+      where: { id: parseInt(fromLedgerId, 10) },
+      include: { accountGroup: { select: { groupCode: true } } },
+    }),
+    tx.ledger.findUnique({
+      where: { id: parseInt(toLedgerId, 10) },
+      include: { accountGroup: { select: { groupCode: true } } },
+    }),
+  ]);
+  if (!fromLedger) throw new APIError('From ledger not found', 400, 'LEDGER_NOT_FOUND');
+  if (!toLedger) throw new APIError('To ledger not found', 400, 'LEDGER_NOT_FOUND');
+
+  for (const [label, ledger] of [['From', fromLedger], ['To', toLedger]]) {
+    if (ledger.delete_status || !ledger.active_status) {
+      throw new APIError(`${label} ledger is inactive`, 400, 'LEDGER_INACTIVE');
+    }
+    if (!ledger.allowsDirectPosting || ledger.isGroupLedger) {
+      throw new APIError(`${label} ledger does not allow direct posting`, 400, 'LEDGER_NOT_POSTABLE');
+    }
+    const groupCode = ledger.accountGroup?.groupCode;
+    const ok =
+      (groupCode && TRANSFER_GROUPS.includes(groupCode)) ||
+      (!groupCode && FALLBACK_CODES.includes(ledger.ledgerCode));
+    if (!ok) {
+      throw new APIError(
+        `${label} ledger must be under Cash, Bank, or Capital`,
+        400,
+        'LEDGER_GROUP_INVALID'
+      );
+    }
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'JOURNAL',
+    referenceType: 'INCOME',
+    referenceId: incomeId,
+    referenceNumber: incomeNumber,
+    description: description || `Income — ${incomeNumber}`,
+  }, [
+    { ledgerId: toLedger.id, entryType: 'DEBIT', amount, description: `To ${toLedger.ledgerName}` },
+    { ledgerId: fromLedger.id, entryType: 'CREDIT', amount, description: `From ${fromLedger.ledgerName}` },
   ], userId);
 }
 

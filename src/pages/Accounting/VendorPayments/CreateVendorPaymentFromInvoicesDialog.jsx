@@ -316,7 +316,7 @@ export default function CreateVendorPaymentFromInvoicesDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving || !canSave}>
-            {saving ? "Creating voucher..." : `Create Voucher ${paymentAmount > 0 ? fmt(paymentAmount) : ""}`}
+            {saving ? "Recording…" : `Record ${paymentAmount > 0 ? fmt(paymentAmount) : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

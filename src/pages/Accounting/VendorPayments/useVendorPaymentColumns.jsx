@@ -91,18 +91,30 @@ export const useVendorPaymentColumns = (onView, { expandedIds = [], onToggleExpa
       accessorKey: "closedStatus",
       header: "Status",
       sortable: false,
-      cell: (p) => (
-        <Badge
-          variant="outline"
-          className={`text-xs font-normal ${
-            p.closedStatus
-              ? "border-green-300 text-green-700 bg-green-50"
-              : "border-amber-300 text-amber-700 bg-amber-50"
-          }`}
-        >
-          {p.closedStatus ? "Closed" : "Open"}
-        </Badge>
-      ),
+      cell: (p) => {
+        if (p.cancelledStatus) {
+          return (
+            <Badge
+              variant="outline"
+              className="text-xs font-normal border-red-300 text-red-700 bg-red-50"
+            >
+              Cancelled / Reversed
+            </Badge>
+          );
+        }
+        return (
+          <Badge
+            variant="outline"
+            className={`text-xs font-normal ${
+              p.closedStatus
+                ? "border-green-300 text-green-700 bg-green-50"
+                : "border-amber-300 text-amber-700 bg-amber-50"
+            }`}
+          >
+            {p.closedStatus ? "Closed" : "Open"}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: "vendorInvoiceNo",

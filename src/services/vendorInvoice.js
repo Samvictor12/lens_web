@@ -13,6 +13,10 @@ export const getOutstandingVendorInvoicesFor = (vendorId) =>
   vendorId
     ? apiClient("get", `${BASE}/outstanding`, { params: { vendorId } })
     : apiClient("get", `${BASE}/outstanding`);
+
+export const getEligiblePOsForVendorInvoice = (vendorId) =>
+  apiClient("get", `${BASE}/eligible-pos`, { params: { vendorId } });
+
 export const cancelVendorInvoice = (id) => apiClient("patch", `${BASE}/${id}/cancel`);
 
 export async function createVendorInvoice(payload, invoiceFile) {

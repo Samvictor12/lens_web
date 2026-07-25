@@ -15,8 +15,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
-import { createVendorInvoice } from "@/services/vendorInvoice";
-import { getOutstandingPOs } from "@/services/vendorPayment";
+import { createVendorInvoice, getEligiblePOsForVendorInvoice } from "@/services/vendorInvoice";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -90,7 +89,7 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
       return;
     }
     setLoadingPOs(true);
-    getOutstandingPOs(form.vendorId)
+    getEligiblePOsForVendorInvoice(form.vendorId)
       .then((res) => {
         const pos = (res.data?.purchaseOrders || []).map((po) => ({
           id: po.purchaseOrderId,
@@ -100,7 +99,7 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
           subtotal: po.subtotal,
           taxAmount: po.taxAmount,
           totalValue: po.totalValue,
-          needsPricing: po.needsPricing,
+          needsPricing: !(parseFloat(po.subtotal) > 0),
         }));
         setOutstandingPOs(pos);
       })

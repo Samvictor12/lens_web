@@ -32,4 +32,13 @@ export class CustomerPaymentController {
       });
     } catch (e) { next(e); }
   }
+  async cancel(req, res, next) {
+    try {
+      res.json({
+        success: true,
+        data: await service.cancelReceipt(parseInt(req.params.id), req.user.id),
+        message: 'Receipt cancelled / reversed',
+      });
+    } catch (e) { next(e); }
+  }
 }

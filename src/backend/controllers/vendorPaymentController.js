@@ -34,6 +34,15 @@ export class VendorPaymentController {
   async close(req, res, next) {
     try { res.json({ success: true, data: await service.closeVoucher(parseInt(req.params.id), req.user.id), message: 'Voucher closed' }); } catch (e) { next(e); }
   }
+  async cancel(req, res, next) {
+    try {
+      res.json({
+        success: true,
+        data: await service.cancelVoucher(parseInt(req.params.id), req.user.id),
+        message: 'Voucher cancelled / reversed',
+      });
+    } catch (e) { next(e); }
+  }
 
   // M5: invoice-first payment workflow
   async getOutstandingInvoices(req, res, next) {

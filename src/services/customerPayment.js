@@ -8,3 +8,4 @@ export const getCustomerPayments = (params = {}) => apiClient("get", BASE, { par
 export const getCustomerPaymentById = (id) => apiClient("get", `${BASE}/${id}`);
 export const createCustomerPayment = (data) => apiClient("post", BASE, { data });
 export const closeCustomerPayment = (id) => apiClient("patch", `${BASE}/${id}/close`);
+export const cancelCustomerPayment = (id) => apiClient("patch", `${BASE}/${id}/cancel`);

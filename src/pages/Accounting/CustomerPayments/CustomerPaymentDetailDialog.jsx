@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Printer } from "lucide-react";
 import {
   Dialog,
@@ -8,22 +9,54 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import PaymentBreakdownTree from "@/components/accounting/PaymentBreakdownTree";
+import { cancelCustomerPayment } from "@/services/customerPayment";
 import {
   PAYMENT_METHOD_LABELS,
   printCustomerPaymentReceipt,
 } from "./CustomerPayments.constants";
 
-export default function CustomerPaymentDetailDialog({ open, onOpenChange, payment }) {
+export default function CustomerPaymentDetailDialog({ open, onOpenChange, payment, onCancelled }) {
+  const { toast } = useToast();
+  const [cancelling, setCancelling] = useState(false);
+
   if (!payment) return null;
 
   const advance = parseFloat(payment.advanceAmount || 0);
+  const isCancelled = !!payment.cancelledStatus;
+
+  const handleCancel = async () => {
+    if (isCancelled) return;
+    if (!window.confirm(`Cancel / reverse receipt ${payment.receiptNumber}? This reverses ledger postings and restores invoice balances.`)) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await cancelCustomerPayment(payment.id);
+      toast({ title: "Receipt cancelled / reversed" });
+      onOpenChange(false);
+      onCancelled?.();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Cancel failed";
+      toast({ variant: "destructive", title: msg });
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Receipt — {payment.receiptNumber}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Receipt — {payment.receiptNumber}
+            {isCancelled && (
+              <Badge variant="outline" className="text-xs border-red-300 text-red-700 bg-red-50">
+                Cancelled / Reversed
+              </Badge>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm py-2">
@@ -92,6 +125,16 @@ export default function CustomerPaymentDetailDialog({ open, onOpenChange, paymen
         )}
 
         <DialogFooter className="flex flex-wrap gap-2 pt-2">
+          {!isCancelled && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={cancelling}
+              onClick={handleCancel}
+            >
+              {cancelling ? "Cancelling…" : "Cancel / Reverse"}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Printer, ExternalLink } from "lucide-react";
 import {
   Dialog,
@@ -8,17 +9,41 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import PaymentBreakdownTree from "@/components/accounting/PaymentBreakdownTree";
-import { vendorInvoiceCopyUrl } from "@/services/vendorPayment";
+import { cancelVendorPayment, vendorInvoiceCopyUrl } from "@/services/vendorPayment";
 import {
   PAYMENT_METHOD_LABELS,
   printVendorPaymentVoucher,
 } from "./VendorPayments.constants";
 
-export default function VendorPaymentDetailDialog({ open, onOpenChange, payment }) {
+export default function VendorPaymentDetailDialog({ open, onOpenChange, payment, onCancelled }) {
+  const { toast } = useToast();
+  const [cancelling, setCancelling] = useState(false);
+
   if (!payment) return null;
 
   const invoiceUrl = vendorInvoiceCopyUrl(payment.invoiceCopyPath);
+  const isCancelled = !!payment.cancelledStatus;
+
+  const handleCancel = async () => {
+    if (isCancelled) return;
+    if (!window.confirm(`Cancel / reverse voucher ${payment.voucherNumber}? This reverses ledger postings and restores invoice balances.`)) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await cancelVendorPayment(payment.id);
+      toast({ title: "Voucher cancelled / reversed" });
+      onOpenChange(false);
+      onCancelled?.();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Cancel failed";
+      toast({ variant: "destructive", title: msg });
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -26,6 +51,11 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Payment — {payment.voucherNumber}
+            {isCancelled && (
+              <Badge variant="outline" className="text-xs border-red-300 text-red-700 bg-red-50">
+                Cancelled / Reversed
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -40,12 +70,6 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
               {new Date(payment.paymentDate).toLocaleDateString("en-IN")}
             </p>
           </div>
-          {payment.vendorInvoiceNo && (
-            <div>
-              <p className="text-xs text-muted-foreground">Vendor Invoice No.</p>
-              <p className="font-medium">{payment.vendorInvoiceNo}</p>
-            </div>
-          )}
           <div>
             <p className="text-xs text-muted-foreground">Method</p>
             <Badge variant="outline" className="text-xs font-normal mt-0.5">
@@ -57,29 +81,9 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
             <p className="font-medium">{payment.referenceNo || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Payment Account</p>
+            <p className="text-xs text-muted-foreground">Paying Account</p>
             <p className="font-medium">{payment.bankLedger?.ledgerName || "—"}</p>
           </div>
-          {(payment.subtotalAmount != null || payment.taxAmount != null) && (
-            <>
-              <div>
-                <p className="text-xs text-muted-foreground">Invoice Subtotal</p>
-                <p className="font-medium">
-                  ₹{parseFloat(payment.subtotalAmount || 0).toLocaleString("en-IN", {
-                    minimumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">GST</p>
-                <p className="font-medium">
-                  ₹{parseFloat(payment.taxAmount || 0).toLocaleString("en-IN", {
-                    minimumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-            </>
-          )}
           <div>
             <p className="text-xs text-muted-foreground">Total Amount</p>
             <p className="font-bold text-base">
@@ -88,14 +92,23 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
               })}
             </p>
           </div>
+          {payment.vendorInvoiceNo && (
+            <div>
+              <p className="text-xs text-muted-foreground">Vendor Invoice No.</p>
+              <p className="font-medium">{payment.vendorInvoiceNo}</p>
+            </div>
+          )}
           {invoiceUrl && (
-            <div className="col-span-2">
-              <p className="text-xs text-muted-foreground mb-1">Invoice Copy</p>
-              <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-3.5 w-3.5" /> View uploaded invoice
-                </a>
-              </Button>
+            <div>
+              <p className="text-xs text-muted-foreground">Invoice Copy</p>
+              <a
+                href={invoiceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                View <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
           )}
           {payment.notes && (
@@ -122,6 +135,16 @@ export default function VendorPaymentDetailDialog({ open, onOpenChange, payment 
         )}
 
         <DialogFooter className="flex flex-wrap gap-2 pt-2">
+          {!isCancelled && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={cancelling}
+              onClick={handleCancel}
+            >
+              {cancelling ? "Cancelling…" : "Cancel / Reverse"}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

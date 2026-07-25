@@ -77,6 +77,9 @@ import ChartOfAccounts from "./pages/Accounting/ChartOfAccounts/ChartOfAccountsM
 import ExpenseCategories from "./pages/ExpenseCategory/ExpenseCategoryMain";
 import ExpenseCategoryForm from "./pages/ExpenseCategory/ExpenseCategoryForm";
 import ExpensesMain from "./pages/Accounting/Expenses/ExpensesMain";
+import IncomeMain from "./pages/Accounting/Income/IncomeMain";
+import BankAccountsMain from "./pages/Accounting/BankAccounts/BankAccountsMain";
+import IncomeCategoryMain from "./pages/IncomeCategory/IncomeCategoryMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
 import CustomerPayments from "./pages/Accounting/CustomerPayments/CustomerPaymentsMain";
 import FinancialReports from "./pages/Accounting/FinancialReports";
@@ -223,6 +226,8 @@ const AppRoutes = () => (
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
 
       <Route path="/accounts/expenses" element={<ProtectedRoute><ExpensesMain /></ProtectedRoute>} />
+      <Route path="/accounts/income" element={<ProtectedRoute><IncomeMain /></ProtectedRoute>} />
+      <Route path="/accounts/bank-accounts" element={<ProtectedRoute><BankAccountsMain /></ProtectedRoute>} />
       <Route path="/accounts/customer-payments" element={<ProtectedRoute><CustomerPayments /></ProtectedRoute>} />
       <Route path="/accounts/vendor-payments" element={<ProtectedRoute><VendorPayments /></ProtectedRoute>} />
       <Route path="/accounts/bank-reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
@@ -230,6 +235,7 @@ const AppRoutes = () => (
       <Route path="/masters/expense-categories" element={<ProtectedRoute><ExpenseCategories /></ProtectedRoute>} />
       <Route path="/masters/expense-categories/:mode" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
       <Route path="/masters/expense-categories/:mode/:id" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
+      <Route path="/masters/income-categories" element={<ProtectedRoute><IncomeCategoryMain /></ProtectedRoute>} />
       <Route path="/accounts/reports" element={<ProtectedRoute><FinancialReports /></ProtectedRoute>} />
       <Route path="/accounts/gst-reports" element={<ProtectedRoute><GstReports /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />

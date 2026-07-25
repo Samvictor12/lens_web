@@ -103,8 +103,8 @@ Represents sales orders placed by Customers. Triggers stock reservations via `re
 ### 5. Customer
 Represents customer accounts. Tracks credit limits and exposure dynamically using `credit_limit`, `outstanding_credit`, `reserved_amount` (uninvoiced SO exposure), **`advance_credit`** (prepaid balance from customer payment vouchers with `advanceAmount > 0`, added 2026-07-05), and **`credit_days`** (integer payment terms; invoice `dueDate` = invoice date + credit days when not overridden, added 2026-07-14).
 
-### 6. Customer Payment Voucher (2026-07-05)
-Header table for consolidated customer receipts. One voucher → one `FinancialTransaction` (`RECEIPT`). Lines in `CustomerPaymentVoucherItem` allocate amounts to invoices; subsidiary `Payment` rows link via `Payment.voucherId`.
+### 6. Customer Payment Voucher (2026-07-05; cancel 2026-07-25)
+Header table for consolidated customer receipts. One voucher → one `FinancialTransaction` (`RECEIPT`). Lines in `CustomerPaymentVoucherItem` allocate amounts to invoices; subsidiary `Payment` rows link via `Payment.voucherId`. **`cancelledStatus` / `cancelledAt`** — cancel posts reversing txn and restores allocations; blocked if original FT `isReconciled`.
 
 ```
 CustomerPaymentVoucher ||--o{ CustomerPaymentVoucherItem : "allocates"
@@ -113,8 +113,8 @@ CustomerPaymentVoucherItem }o--|| Invoice : "clears"
 Payment }o--o| CustomerPaymentVoucher : "voucherId"
 ```
 
-### 7. Vendor Payment Voucher
-Existing model; enhanced 2026-07-05 with outstanding PO queue and FIFO allocation. `VendorPaymentVoucherItem` links payments to `PurchaseOrder` rows; partially paid POs remain payable until outstanding reaches zero.
+### 7. Vendor Payment Voucher & Vendor Invoice
+Invoice-first payables (2026-07): `VendorInvoice` / `VendorInvoiceItem` link supplier invoices to POs; `VendorPaymentVoucherItem.vendorInvoiceId` allocates payments. **`cancelledStatus` / `cancelledAt`** on vouchers (2026-07-25). Eligible-PO query excludes POs already on a non-cancelled Vendor Invoice.
 
 ### 8. Account Groups & Ledger Classification (2026-07-05)
 
@@ -141,3 +141,9 @@ Ledger ||--o{ Ledger : "parentLedgerId (AR/AP sub-ledgers)"
 
 ### 9. Expense (2026-07-14)
 `Expense.dueDate` (`DateTime?`) stores optional payment due date distinct from `expenseDate`. Category still drives DIRECT/INDIRECT via `ExpenseCategory.expenseType`.
+
+### 10. Income & Income Category (2026-07-25; From/To follow-up)
+Mirrors Expense: `IncomeCategory` + `Income`. Create requires `fromLedgerId` + `toLedgerId` (Cash/Bank/Capital posting ledgers). Posting **Dr To, Cr From**. Legacy `bankLedgerId` optional/nullable after migration `20260725100000_income_from_to_ledgers`.
+
+### 11. Credit / Debit Notes behavior (2026-07-25)
+UI: Customer **Credit Note** only; Vendor **Debit Note** only (create of Customer DN / Vendor CN rejected). New Customer CN / Vendor DN are document-only (no party AR/AP FT). Historical other note types remain in DB.

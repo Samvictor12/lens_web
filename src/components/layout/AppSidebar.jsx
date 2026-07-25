@@ -27,6 +27,8 @@ import {
   BookOpen,
   CreditCard,
   TrendingDown,
+  TrendingUp,
+  Building2,
   RefreshCw,
   Scale,
   Circle,
@@ -132,7 +134,9 @@ const navItems = [
     icon: BookOpen,
     subItems: [
       { title: "Chart of Accounts", url: "/accounts/ledgers", icon: BookOpen, key: "chart_of_accounts" },
+      { title: "Bank Accounts", url: "/accounts/bank-accounts", icon: Building2, key: "bank_accounts" },
       { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown, key: "expenses" },
+      { title: "Income", url: "/accounts/income", icon: TrendingUp, key: "income" },
       { title: "Customer Payments", url: "/accounts/customer-payments", icon: CreditCard, key: "customer_payments" },
       { title: "Vendor Payments", url: "/accounts/vendor-payments", icon: CreditCard, key: "vendor_payments" },
       { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw, key: "bank_reconciliation" },
@@ -159,6 +163,12 @@ const masterItems = [
     url: "/masters/expense-categories",
     icon: Tag,
     key: "expense_categories",
+  },
+  {
+    title: "Income Categories",
+    url: "/masters/income-categories",
+    icon: Tag,
+    key: "income_categories",
   },
   {
     title: "Customers",

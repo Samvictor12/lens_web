@@ -8,10 +8,10 @@ The application provides a comprehensive ERP and management system for an optica
 * **Catalog & Master Data:** Lens products, categories, materials, coatings, fittings, diameters, tinting, brands, pricing, and promotional offers.
 * **CRM (Customer Management):** Customer profile management (including **Credit Days** for invoice due-date calculation) and customer portals.
 * **Procurement:** Vendor records, purchase orders (PO), vendor payment processing, and inward receipt queues.
-* **Sales & Logistics:** Sale order (SO) forms, SO workflows, invoicing/billing (**M.V.V-style Tax Invoice** preview/print with SO customer Ref No and due date from Credit Days), and dispatch/delivery agent routing.
+* **Sales & Logistics:** Sale order (SO) forms, SO workflows, invoicing/billing (**M.V.V-style Tax Invoice** preview/print with SO customer Ref No and due date from Credit Days; goods description **without DIA**), and dispatch/delivery agent routing (lists sorted by **createdAt desc**).
 * **Inventory Management:** Physical stock items, tray allocation, FIFO stock-picking (STOCK-type PO items are general stock; RX-type PO items are reserved to their SO; SPH/CYL/ADD null/empty ≡ 0 at match time; SO Request Queue + Inventory Dashboard Reserved use in-memory FIFO soft allocation `softReservedQty` + shortage-aware Raise PO), stock-type Inward Queue filtering, tray-to-tray transfers (including same-location / partial qty), inventory transactions, stock-level alerting, and Stock Summary Expandable List rows split by SPH/CYL/ADD with compact power text after the product name.
 * **Quality & Shop Floor:** Check sheets, production operators, quality operator screens, and barcode/QR wedge scanning interfaces.
-* **Financial Accounting:** Ledger, **Account Groups & industry Chart of Accounts**, **Customer & Vendor Payment Vouchers** (rich payment-history registers; Outstanding List UI for Record/New Payment; vendor GST % from Company Settings), Bank Reconciliation, Expenses (category-driven type, due date, cash/bank Payment Account), Group Summary / Balance Sheet / Profit & Loss reporting.
+* **Financial Accounting:** Ledger, **Account Groups & industry Chart of Accounts**, **Customer & Vendor Payment Vouchers** (invoice-first vendor pay; cancel→reverse; Outstanding List UI), **Vendor Invoices** (eligible-PO picker), Customer Credit Note / Vendor Debit Note (document-only), Bank Reconciliation, Expenses, **Income** (Bank Transfer, Loan, …) + **Bank Account manage**, Group Summary / Balance Sheet / Profit & Loss reporting.
 * **Admin Controls:** User profiles, role-based access control, settings (printers, metadata), and system logs.
 
 ---
@@ -62,6 +62,9 @@ The application provides a comprehensive ERP and management system for an optica
 | Accounting — Chart of Accounts, Ledger, Financial Reports | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Bank Reconciliation | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Expenses / Expense Category | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
+| Accounting — Income / Income Category | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
+| Accounting — Bank Account manage | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
+| Accounting — Vendor Invoices + Payment Cancel/Reverse | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Vendor Payment Vouchers | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Accounting — Customer Payment Receipts | Accounting | DONE | [Accounting](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Accounting.md) |
 | Check Sheet (QA) | Quality | DONE | [Quality](file:///d:/Personal/workspace/Lens_Project/Sources/lens_web/planning/Modules/Quality.md) |

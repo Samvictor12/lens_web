@@ -72,13 +72,17 @@ The second tab in the Billing page (`/billing`) was renamed from "Dispatch Order
 ## Quick Close — Payment Routing (2026-07-05)
 Record Payment and Quick Close on Billing invoices **navigate to Accounting Customer Payments** (`/accounts/customer-payments?customerId=&invoiceId=&openForm=1`) with the invoice pre-selected. The legacy `RecordPaymentDialog` is no longer the entry point. `POST /api/invoices/:id/payments` returns HTTP 410.
 
-## Tax Invoice Preview & Print (2026-07-14)
-* **Layout:** `buildInvoiceHtml` / `printInvoice` in `Billing.constants.js` (and `InvoicePreviewDialog` iframe) follow the M.V.V Tax Invoice template — copy headers, seller/buyer blocks, line table (SR, Order No, **Ref No.**, Description with optical specs, Rate, Taxable, Qty, HSN, Discount, DC No.), notes/totals, amount in words, GST declaration, bank block, signatory.
+## Tax Invoice Preview & Print (2026-07-14; DIA removed 2026-07-25)
+* **Layout:** `buildInvoiceHtml` / `printInvoice` in `Billing.constants.js` (and `InvoicePreviewDialog` iframe) follow the M.V.V Tax Invoice template — copy headers, seller/buyer blocks, line table with optical specs in Description, notes/totals, amount in words, GST declaration, bank block, signatory.
+* **Specs on print:** SPH / CYL / AXIS / ADD only — **DIA excluded** from `formatEyeSpecs` (shared with Dispatch Challan via `formatGoodsDescription`).
 * **Ref No.:** Per linked SO line = `SaleOrder.customerRefNo` (blank → `—`).
 * **Due Date:** Create Invoice auto-fills from customer `creditDays`; server falls back to invoice date + `credit_days` when omitted. Shown on preview/print.
 * **Optional seller fields:** PAN / STATE CODE / bank A/C / IFSC / electronic ref from `CompanySettings.customAttributes` when present; otherwise blank/`—`. No PDF library (HTML print — KB-004).
 
+## Dispatch list sort (2026-07-25)
+Ready-for-dispatch and dispatch-copy list APIs in `dispatchService.js` order by **`createdAt` descending** (newest first). Filters/status gates unchanged.
+
 ## Linkages & Dependencies
 * **CRM Module:** References `Customer` records and updates credit fields (`reserved_amount`, `outstanding_credit`, `advance_credit`, `credit_days`).
-* **Accounting Module:** Customer payment receipts via `CustomerPaymentVoucher` + `postCustomerPaymentReceipt()` in `accountingService.js`. Requires `bankLedgerId` from `GET /api/ledgers/cash-bank`.
-* **Logistics Module:** Sale Orders must reach `DELIVERED` status (via Dispatch flow) before they appear in the Awaiting Invoice tab and can be invoiced.
+* **Accounting Module:** Customer payment receipts via `CustomerPaymentVoucher` + `postCustomerPaymentReceipt()`; cancel reverses via `postReversingTransaction`. Requires `bankLedgerId` from cash/bank ledgers. New Customer Credit Notes are document-only (no AR).
+* **Logistics Module:** Sale Orders must reach `DELIVERED` status (via Dispatch flow) before they appear in the Awaiting Invoice tab and can be invoiced. DC print reuses Billing goods-description helper (no DIA).

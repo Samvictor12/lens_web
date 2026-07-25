@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Application Update Bundle — WebSocket, SO Alternate, Invoice, Payments, GST",
+  "feature": "Vendor Invoice PO Filter Fix, Income From/To Ledgers, CN/DN Tab Cleanup",
   "active_feature_file": "planning/feature.md",
   "phase": "COMPLETED",
   "HUMAN_APPROVED": true,
   "state_tag": "COMPLETED",
-  "last_agent": "reviewer",
-  "at": "2026-07-19T00:19:00+05:30"
+  "last_agent": "orchestrator",
+  "at": "2026-07-25T10:15:00+05:30"
 }

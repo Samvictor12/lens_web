@@ -7,6 +7,7 @@ const router = Router();
 const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
 router.get('/outstanding', ...guard, vendorInvoiceController.getOutstanding.bind(vendorInvoiceController));
+router.get('/eligible-pos', ...guard, vendorInvoiceController.getEligiblePOs.bind(vendorInvoiceController));
 router.get('/', ...guard, vendorInvoiceController.list.bind(vendorInvoiceController));
 router.get('/:id', ...guard, vendorInvoiceController.getById.bind(vendorInvoiceController));
 router.post('/', ...guard, vendorInvoiceUpload.single('invoiceCopy'), vendorInvoiceController.create.bind(vendorInvoiceController));

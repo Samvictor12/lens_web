@@ -44,4 +44,11 @@ export class LedgerController {
       res.json({ success: true, data });
     } catch (e) { next(e); }
   }
+
+  async getCashBankCapitalLedgers(req, res, next) {
+    try {
+      const data = await service.getCashBankCapitalLedgers();
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
 }

@@ -144,6 +144,11 @@ model User {
   expenseCreatedBy               Expense[]                @relation("expenseCreatedBy")
   expenseUpdatedBy               Expense[]                @relation("expenseUpdatedBy")
   expLogCreatedBy                ExpenseLog[]             @relation("expLogCreatedBy")
+  incomeCatCreatedBy             IncomeCategory[]         @relation("incomeCatCreatedBy")
+  incomeCatUpdatedBy             IncomeCategory[]         @relation("incomeCatUpdatedBy")
+  incomeCreatedBy                Income[]                 @relation("incomeCreatedBy")
+  incomeUpdatedBy                Income[]                 @relation("incomeUpdatedBy")
+  incomeLogCreatedBy             IncomeLog[]              @relation("incomeLogCreatedBy")
   accountGroupCreatedBy          AccountGroup[]           @relation("accountGroupCreatedBy")
   accountGroupUpdatedBy          AccountGroup[]           @relation("accountGroupUpdatedBy")
   creditNoteCreatedBy            CreditNote[]             @relation("creditNoteCreatedBy")
@@ -1552,6 +1557,10 @@ model Ledger {
   transactionEntries TransactionEntry[]
   expenseCategories  ExpenseCategory[]        @relation("expCategoryLedger")
   expenses           Expense[]                @relation("expenseBankLedger")
+  incomeCategories   IncomeCategory[]         @relation("incomeCategoryLedger")
+  incomes            Income[]                 @relation("incomeBankLedger")
+  incomesFrom        Income[]                 @relation("incomeFromLedger")
+  incomesTo          Income[]                 @relation("incomeToLedger")
   vpvBankLedger      VendorPaymentVoucher[]   @relation("vpvBankLedger")
   cpvBankLedger      CustomerPaymentVoucher[] @relation("cpvBankLedger")
   invoicePayments    Invoice[]                @relation("invoicePaymentLedger")
@@ -1586,6 +1595,7 @@ enum ReferenceType {
   VENDOR_INVOICE // Vendor invoice, registered ahead of payment (M5)
   VENDOR_CREDIT_NOTE // Vendor credit note (M5)
   VENDOR_DEBIT_NOTE // Vendor debit note (M5)
+  INCOME // Manual income receipt (M6)
 }
 
 // Financial Transaction Header (Double-entry accounting)
@@ -1767,6 +1777,8 @@ model VendorPaymentVoucher {
   delete_status   Boolean                    @default(false)
   closedStatus    Boolean                    @default(true)
   closedAt        DateTime?
+  cancelledStatus Boolean                    @default(false)
+  cancelledAt     DateTime?
   createdAt       DateTime                   @default(now())
   createdBy       Int
   updatedAt       DateTime                   @updatedAt
@@ -1816,6 +1828,8 @@ model CustomerPaymentVoucher {
   delete_status Boolean                      @default(false)
   closedStatus  Boolean                      @default(true)
   closedAt      DateTime?
+  cancelledStatus Boolean                    @default(false)
+  cancelledAt     DateTime?
   createdAt     DateTime                     @default(now())
   createdBy     Int
   updatedAt     DateTime                     @updatedAt
@@ -2076,4 +2090,71 @@ model ExpenseLog {
   createdByUser User     @relation("expLogCreatedBy", fields: [createdBy], references: [id])
 
   @@index([expenseId])
+}
+
+// ============================================================
+// M6 — Income Category / Income (mirror of Expense)
+// ============================================================
+
+model IncomeCategory {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  ledger_id     Int?
+  active_status Boolean  @default(true)
+  delete_status Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  createdBy     Int
+  updatedAt     DateTime @updatedAt
+  updatedBy     Int?
+  ledger        Ledger?  @relation("incomeCategoryLedger", fields: [ledger_id], references: [id])
+  createdByUser User     @relation("incomeCatCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("incomeCatUpdatedBy", fields: [updatedBy], references: [id])
+  incomes       Income[]
+}
+
+model Income {
+  id            Int            @id @default(autoincrement())
+  incomeNumber  String         @unique
+  categoryId    Int
+  amount        Decimal        @db.Decimal(15, 2)
+  paymentMethod PaymentMethod
+  bankLedgerId  Int? // legacy deposit account; dual-read — prefer toLedgerId
+  fromLedgerId  Int
+  toLedgerId    Int
+  incomeDate    DateTime       @default(now())
+  description   String
+  referenceNo   String?
+  notes         String?
+  active_status Boolean        @default(true)
+  delete_status Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  createdBy     Int
+  updatedAt     DateTime       @updatedAt
+  updatedBy     Int?
+  category      IncomeCategory @relation(fields: [categoryId], references: [id])
+  bankLedger    Ledger?        @relation("incomeBankLedger", fields: [bankLedgerId], references: [id])
+  fromLedger    Ledger         @relation("incomeFromLedger", fields: [fromLedgerId], references: [id])
+  toLedger      Ledger         @relation("incomeToLedger", fields: [toLedgerId], references: [id])
+  createdByUser User           @relation("incomeCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?          @relation("incomeUpdatedBy", fields: [updatedBy], references: [id])
+  logs          IncomeLog[]
+
+  @@index([incomeDate])
+  @@index([categoryId])
+  @@index([fromLedgerId])
+  @@index([toLedgerId])
+}
+
+model IncomeLog {
+  id            Int      @id @default(autoincrement())
+  incomeId      Int
+  oldValues     Json
+  newValues     Json
+  changeNote    String?
+  createdAt     DateTime @default(now())
+  createdBy     Int
+  income        Income   @relation(fields: [incomeId], references: [id])
+  createdByUser User     @relation("incomeLogCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([incomeId])
 }

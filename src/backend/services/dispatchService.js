@@ -143,7 +143,7 @@ export const getReadyForDispatch = async (user, filters = {}) => {
   return prisma.saleOrder.findMany({
     where,
     include: SALE_ORDER_INCLUDE,
-    orderBy: [{ estimatedDate: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   });
 };
 
@@ -294,7 +294,7 @@ export const getDispatchList = async (user, filters = {}) => {
     prisma.dispatchCopy.findMany({
       where,
       include: DISPATCH_COPY_INCLUDE,
-      orderBy: [{ expectedDeliveryDate: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip,
       take: Number(limit),
     }),
@@ -535,7 +535,7 @@ export const getDispatchOrders = async (user, filters = {}) => {
   return prisma.saleOrder.findMany({
     where,
     include: SALE_ORDER_INCLUDE,
-    orderBy: [{ estimatedDate: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   });
 };
 
