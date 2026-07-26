@@ -740,7 +740,7 @@ enum POStatus {
 model PurchaseOrder {
   id           Int     @id @default(autoincrement())
   poNumber     String  @unique // Auto-generated: PO-2025-001
-  reference_id String? @unique // From vendor's external application (e.g., PUR1548)
+  reference_id String? // Optional vendor/customer reference (not globally unique — same ref allowed across POs)
 
   // Vendor & Sale Order
   vendorId    Int?

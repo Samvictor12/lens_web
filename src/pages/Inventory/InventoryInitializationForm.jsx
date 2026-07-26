@@ -8,7 +8,6 @@ import { FormInput } from "@/components/ui/form-input";
 import { useToast } from "@/hooks/use-toast";
 import { getInventoryDropdowns, bulkInwardFromGrid, getTrayOccupancy } from "@/services/inventory";
 import { getTraysByLocation } from "@/services/tray";
-import { getLensProductsDropdown } from "@/services/saleOrder";
 
 const fmtPower = (v) => {
   const n = parseFloat(v);
@@ -72,16 +71,12 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   const loadDropdownData = async () => {
     try {
       setIsLoading(true);
-      const [invRes, lensRes] = await Promise.all([
-        getInventoryDropdowns(godownType ? { godownType } : {}),
-        getLensProductsDropdown(),
-      ]);
+      // Godown-scoped dropdowns: Stock Godown → STOCK products only; Rx → RX only
+      const invRes = await getInventoryDropdowns(godownType ? { godownType } : {});
       if (invRes.success) {
         setLocations(invRes.data?.locations || []);
         setCoatings(invRes.data?.coatings || []);
-      }
-      if (lensRes.success) {
-        setLensProducts(lensRes.data || []);
+        setLensProducts(invRes.data?.lensProducts || []);
       }
     } catch {
       toast({ title: "Error", description: "Failed to load dropdown data", variant: "destructive" });
@@ -316,6 +311,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         coating_id: coating_id ? parseInt(coating_id, 10) : null,
         costPrice: parseFloat(costPrice) || 0,
         defaultDia: "70",
+        godownType: godownType || undefined,
         rows,
       });
       if (res.success) {
@@ -345,9 +341,12 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
       <Card className="w-full max-w-5xl max-h-[95vh] overflow-y-auto">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div>
-            <CardTitle>Initialize Stock (Grid)</CardTitle>
+            <CardTitle>
+              Initialize Stock (Grid)
+              {godownType ? ` · ${godownType === "RX" ? "Rx" : "Stock"} Godown` : ""}
+            </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Step {step} of 2 · Product & ranges → Spec grid & Location / Tray allocation
+              Step {step} of 2 · {godownType || "All"} lens products only → Spec grid & Location / Tray allocation
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" disabled={isSaving}>

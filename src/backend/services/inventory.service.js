@@ -245,12 +245,55 @@ function transactionGodownWhere(godownType) {
 export class InventoryService {
   
   /**
+   * Ensure lens product type matches the target godown (STOCK ↔ STOCK, RX ↔ RX).
+   */
+  async assertLensProductMatchesGodown(lensId, godownTypeOrLocationId, { locationId } = {}) {
+    const gt =
+      normalizeGodownType(godownTypeOrLocationId) ||
+      (locationId
+        ? (
+            await prisma.locationMaster.findFirst({
+              where: { id: parseInt(locationId, 10), deleteStatus: false },
+              select: { godownType: true },
+            })
+          )?.godownType
+        : null);
+
+    if (!gt || !lensId) return;
+
+    const lens = await prisma.lensProductMaster.findFirst({
+      where: { id: parseInt(lensId, 10), deleteStatus: false },
+      select: {
+        id: true,
+        lens_name: true,
+        type: { select: { id: true, name: true } },
+      },
+    });
+    if (!lens) {
+      throw new APIError('Lens product not found', 404, 'LENS_NOT_FOUND');
+    }
+
+    const lensTypeName = String(lens.type?.name || '').trim().toUpperCase();
+    if (lensTypeName && lensTypeName !== gt) {
+      throw new APIError(
+        `Lens product "${lens.lens_name}" is ${lensTypeName} and cannot be added to ${gt} Godown`,
+        400,
+        'LENS_GODOWN_MISMATCH'
+      );
+    }
+  }
+
+  /**
    * Create a new inventory item (inward entry)
    * @param {Object} itemData - Inventory item data
    * @returns {Promise<Object>} Created inventory item with transaction
    */
   async createInventoryItem(itemData) {
     try {
+      await this.assertLensProductMatchesGodown(itemData.lens_id, null, {
+        locationId: itemData.location_id,
+      });
+
       return await prisma.$transaction(async (prisma) => {
         // Generate transaction number
         const transactionNo = await this.generateTransactionNumber();
@@ -1814,8 +1857,20 @@ export class InventoryService {
 
       const [lensProducts, categories, lensTypes, coatings, locations, trays, vendors, inventoryItems, purchaseOrders, saleOrders] = await Promise.all([
         prisma.lensProductMaster.findMany({
-          where: { deleteStatus: false, activeStatus: true },
-          select: { id: true, lens_name: true, product_code: true },
+          where: {
+            deleteStatus: false,
+            activeStatus: true,
+            ...(gt
+              ? { type: { name: { equals: gt, mode: 'insensitive' } } }
+              : {}),
+          },
+          select: {
+            id: true,
+            lens_name: true,
+            product_code: true,
+            type_id: true,
+            type: { select: { id: true, name: true } },
+          },
           orderBy: { lens_name: 'asc' }
         }),
         prisma.lensCategoryMaster.findMany({
@@ -1901,9 +1956,15 @@ export class InventoryService {
       ]);
 
       return {
-        lensProducts: lensProducts.map((p) => ({ ...p, name: p.lens_name })),
+        lensProducts: lensProducts.map((p) => ({
+          ...p,
+          name: p.lens_name,
+          Type_id: p.type_id,
+          lensTypeName: p.type?.name || null,
+        })),
         categories,
         lensTypes,
+        types: lensTypes, // alias used by some inventory forms
         coatings,
         locations,
         trays,
@@ -2648,8 +2709,18 @@ export class InventoryService {
 
     const lens = await prisma.lensProductMaster.findUnique({
       where: { id: parseInt(lens_id, 10), deleteStatus: false },
+      include: { type: { select: { id: true, name: true } } },
     });
     if (!lens) throw new APIError("Lens product not found", 404, "LENS_NOT_FOUND");
+
+    // Prefer explicit godown from payload; else infer from first split / global location
+    const firstLocId =
+      location_id ||
+      rows?.find((r) => r.splits?.some((sp) => sp.location_id))?.splits?.find((sp) => sp.location_id)
+        ?.location_id;
+    await this.assertLensProductMatchesGodown(lens_id, payload.godownType, {
+      locationId: firstLocId,
+    });
 
     // Normalize legacy single-tray payload
     let inwardRows = rows;
@@ -2724,7 +2795,7 @@ export class InventoryService {
         const base = {
           lens_id: parseInt(lens_id, 10),
           category_id: category_id ? parseInt(category_id, 10) : lens.category_id,
-          Type_id: Type_id ? parseInt(Type_id, 10) : lens.Type_id,
+          Type_id: Type_id ? parseInt(Type_id, 10) : lens.type_id,
           coating_id: coating_id ? parseInt(coating_id, 10) : null,
           location_id: split.location_id ? parseInt(split.location_id, 10) : parseInt(location_id, 10),
           tray_id: parseInt(split.tray_id, 10),

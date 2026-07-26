@@ -318,13 +318,13 @@ export function buildInvoiceHtml(invoice, companyOverride) {
       discountSubtotal += discAmt;
 
       return `<tr>
-        <td>${idx + 1}</td>
+        <td class="c">${idx + 1}</td>
         <td>${escapeHtml(dash(o.orderNo))}</td>
         <td>${escapeHtml(dash(o.customerRefNo))}</td>
         <td class="desc">${formatGoodsDescription(o)}</td>
-        <td>${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-        <td>${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
-        <td>${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
+        <td class="r">${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+        <td class="r">${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
+        <td class="r">${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
       </tr>`;
     })
     .join("");
@@ -388,20 +388,20 @@ export function buildInvoiceHtml(invoice, companyOverride) {
 
         <section class="parties">
           <div class="party">
-            <div class="party-label">Seller (Bill From)</div>
+            <div class="party-title">Seller (Bill From)</div>
             <div class="party-name">${companyName}</div>
-            <div>GSTIN: <strong>${escapeHtml(dash(company.gstin))}</strong></div>
-            <div>PAN: ${escapeHtml(dash(sellerAttrs.pan))}</div>
-            <div>State: ${escapeHtml(dash(company.state))} &nbsp; Code: ${escapeHtml(dash(sellerAttrs.stateCode))}</div>
+            <div class="muted">GSTIN: <strong>${escapeHtml(dash(company.gstin))}</strong></div>
+            <div class="muted">PAN: ${escapeHtml(dash(sellerAttrs.pan))}</div>
+            <div class="muted">State: ${escapeHtml(dash(company.state))} &nbsp; Code: ${escapeHtml(dash(sellerAttrs.stateCode))}</div>
           </div>
           <div class="party">
-            <div class="party-label">Buyer (Bill To)</div>
+            <div class="party-title">Buyer (Bill To)</div>
             <div class="party-name">${escapeHtml(dash(customer.shopname || customer.name))}</div>
-            ${customer.shopname && customer.name ? `<div>${escapeHtml(customer.name)}</div>` : ""}
-            <div>${buyerAddress || "—"}</div>
-            ${customer.phone ? `<div>Ph: ${escapeHtml(customer.phone)}</div>` : ""}
-            <div>GSTIN: <strong>${escapeHtml(dash(customer.gstin))}</strong></div>
-            <div>State: ${escapeHtml(dash(customer.state))} &nbsp; Code: ${escapeHtml(dash(buyerAttrs.stateCode))}</div>
+            ${customer.shopname && customer.name ? `<div class="muted">${escapeHtml(customer.name)}</div>` : ""}
+            <div class="muted">${buyerAddress || "—"}</div>
+            ${customer.phone ? `<div class="muted">Ph: ${escapeHtml(customer.phone)}</div>` : ""}
+            <div class="muted">GSTIN: <strong>${escapeHtml(dash(customer.gstin))}</strong></div>
+            <div class="muted">State: ${escapeHtml(dash(customer.state))} &nbsp; Code: ${escapeHtml(dash(buyerAttrs.stateCode))}</div>
           </div>
         </section>
 
@@ -410,20 +410,20 @@ export function buildInvoiceHtml(invoice, companyOverride) {
           <div><span class="lbl">Destination</span> ${escapeHtml(destination)}</div>
         </div>
 
-        <table class="lines">
+        <table class="items">
           <thead>
             <tr>
-              <th style="width:24px">#</th>
-              <th style="width:82px">SO No</th>
-              <th style="width:68px">Ref No</th>
+              <th class="c" style="width:6%">#</th>
+              <th style="width:14%">SO No</th>
+              <th style="width:12%">Ref No</th>
               <th>Description of Goods</th>
-              <th style="width:76px">Rate</th>
-              <th style="width:88px">Additional Charges</th>
-              <th style="width:64px">Discount</th>
+              <th class="r" style="width:12%">Rate</th>
+              <th class="r" style="width:14%">Additional</th>
+              <th class="r" style="width:12%">Discount</th>
             </tr>
           </thead>
           <tbody>
-            ${orderRows || `<tr><td colspan="7" class="muted">No sale orders</td></tr>`}
+            ${orderRows || `<tr><td colspan="7" class="c muted">No sale orders</td></tr>`}
           </tbody>
         </table>
 
@@ -458,9 +458,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
         </div>
 
         <footer class="footer">
-          <div class="footer-meta">
-            <div>Print: ${printNow}</div>
-          </div>
+          <div class="print-meta">Printed ${escapeHtml(printNow)}</div>
           <div class="sign">
             <div class="sign-line">For ${companyName}</div>
             <div class="sign-box"></div>
@@ -471,88 +469,176 @@ export function buildInvoiceHtml(invoice, companyOverride) {
     </div>`;
 
   // A4 sheet geometry is identical for preview iframe and print:
-  // each .sheet = 210mm × 297mm with 12mm inner padding (content area ~186×273mm).
+  // each .sheet = 210mm × 297mm (clipped). Shell matches Dispatch Challan (ink-light).
   // @page margin:0 so print does not double-margin vs preview.
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
     <title>Tax Invoice ${escapeHtml(dash(invoice.invoiceNo))}</title>
     <style>
-      @page{size:A4 portrait;margin:0}
-      *{box-sizing:border-box}
-      html,body{margin:0;padding:0}
-      html{height:100%}
-      body{
-        font-family:"Segoe UI",Helvetica,Arial,sans-serif;
-        font-size:10.5px;color:#1a1a1a;line-height:1.35;
-        background:#e2e8f0;
-        padding:16px 12px 24px;
-        min-height:100%;
-        overflow:auto;
-        -webkit-print-color-adjust:exact;print-color-adjust:exact;
+      @page { size: A4 portrait; margin: 0; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      html { height: 100%; }
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 11px;
+        color: #0f172a;
+        line-height: 1.35;
+        background: #cbd5e1;
+        padding: 12px;
+        min-height: 100%;
+        overflow: auto;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
-      .sheet{
-        width:210mm;height:297mm;max-height:297mm;
-        padding:12mm;
-        margin:0 auto 16px;
-        background:#fff;
-        border:1px solid #cbd5e1;
-        box-shadow:0 2px 8px rgba(15,23,42,.08);
-        overflow:hidden;
-        display:flex;flex-direction:column;
+      .sheet {
+        width: 210mm;
+        height: 297mm;
+        max-height: 297mm;
+        margin: 0 auto 16px;
+        background: #fff;
+        border: 1px solid #94a3b8;
+        box-shadow: 0 2px 8px rgba(15,23,42,.12);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
-      .sheet-body{flex:1;min-height:0;display:flex;flex-direction:column}
-      .header{display:flex;justify-content:space-between;gap:14px;padding-bottom:10px;margin-bottom:10px;flex-shrink:0}
-      .brand{display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0}
-      .logo{max-height:44px;max-width:88px;object-fit:contain}
-      .company-name{font-size:15px;font-weight:700;letter-spacing:.02em;line-height:1.2}
-      .tagline{font-size:9px;color:#64748b;margin-top:1px}
-      .muted{color:#64748b;line-height:1.4;margin-top:1px;font-size:9.5px}
-      .inv-head{text-align:right;flex-shrink:0}
-      .doc-title{font-size:17px;font-weight:700;letter-spacing:.08em;color:#1a1a1a;margin-bottom:6px}
-      .inv-meta{display:grid;gap:3px;font-size:10.5px}
-      .inv-meta .lbl{display:inline-block;min-width:58px;color:#64748b;font-size:8px;text-transform:uppercase;letter-spacing:.04em}
-      .lbl{color:#64748b;font-size:8px;text-transform:uppercase;letter-spacing:.04em;margin-right:5px}
-      .parties{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;flex-shrink:0}
-      .party{padding:8px 10px;min-height:78px;line-height:1.4}
-      .party-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:3px}
-      .party-name{font-weight:700;font-size:11px;margin-bottom:3px}
-      .ship-row{display:flex;gap:20px;padding:6px 0;margin-bottom:8px;flex-shrink:0}
-      .ship-row > div{flex:1}
-      table.lines{width:100%;border-collapse:collapse;margin-bottom:8px}
-      table.lines th{
-        background:#fff;color:#1a1a1a;font-size:8px;text-transform:uppercase;
-        letter-spacing:.04em;font-weight:700;padding:5px 4px;text-align:left;
-        border-bottom:2px solid #1a1a1a;
+      .sheet-body {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 14mm 16mm;
       }
-      table.lines td{padding:5px 4px;vertical-align:top;border:none;text-align:left}
-      table.lines td.desc{font-size:9.5px;line-height:1.35}
-      .totals-grid{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;flex-shrink:0}
-      .charges{flex:1;display:flex;flex-direction:column;gap:4px}
-      .charge-row{display:flex;justify-content:space-between;max-width:260px;padding:3px 0;border-bottom:1px dashed #e2e8f0}
-      .words{margin-top:6px;padding:6px 0;line-height:1.35;font-size:10px}
-      .totals{width:220px;flex-shrink:0}
-      .t-row{display:flex;justify-content:space-between;padding:5px 8px}
-      .t-row.net{
-        font-weight:700;font-size:12px;color:#1a1a1a;
-        border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;
-        margin-top:4px;padding-top:8px;padding-bottom:8px;
+      .header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid #94a3b8;
+        padding-bottom: 10px;
+        margin-bottom: 12px;
+        flex-shrink: 0;
       }
-      .bank-strip{
-        display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
-        padding:8px 0;margin-bottom:8px;flex-shrink:0;
+      .brand { display: flex; gap: 10px; align-items: flex-start; max-width: 58%; }
+      .logo { max-height: 48px; max-width: 72px; object-fit: contain; }
+      .company-name { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+      .tagline { font-size: 9px; color: #64748b; margin-top: 2px; }
+      .muted { color: #475569; font-size: 10px; line-height: 1.35; margin-top: 2px; }
+      .inv-head { text-align: right; min-width: 140px; flex-shrink: 0; }
+      .doc-title {
+        font-size: 15px; font-weight: 800; letter-spacing: .08em;
+        color: #0f766e; margin-bottom: 6px;
       }
-      .decl{font-size:8.5px;color:#475569;line-height:1.4;margin-bottom:8px;flex-shrink:0}
-      .footer{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:auto;padding-top:6px;flex-shrink:0}
-      .footer-meta{font-size:8px;color:#64748b;line-height:1.4}
-      .sign{width:180px;text-align:center}
-      .sign-line{font-size:9px;margin-bottom:3px}
-      .sign-box{height:42px;margin-bottom:3px}
-      .sign-caption{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-      @media print{
-        html,body{height:auto;overflow:visible}
-        body{background:#fff;padding:0}
-        .sheet{
-          margin:0;border:none;box-shadow:none;
-          width:210mm;height:297mm;max-height:297mm;
+      .inv-meta { display: grid; gap: 3px; text-align: right; }
+      .inv-meta .lbl {
+        display: inline-block; min-width: 64px; text-align: left;
+        font-size: 8px; text-transform: uppercase; letter-spacing: .04em;
+        color: #64748b; margin-right: 6px;
+      }
+      .lbl {
+        color: #64748b; font-size: 8px; text-transform: uppercase;
+        letter-spacing: .04em; margin-right: 5px;
+      }
+      .parties {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+        flex-shrink: 0;
+      }
+      .party {
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 8px 10px;
+        background: #fff;
+        line-height: 1.4;
+      }
+      .party-title {
+        font-size: 8px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: .06em; color: #64748b; margin-bottom: 4px;
+      }
+      .party-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+      .ship-row {
+        display: flex; gap: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 6px 10px;
+        margin-bottom: 10px;
+        flex-shrink: 0;
+      }
+      .ship-row > div { flex: 1; }
+      table.items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+      }
+      table.items th, table.items td {
+        border: 1px solid #cbd5e1;
+        padding: 5px 6px;
+        vertical-align: top;
+      }
+      table.items th {
+        background: #fff;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        text-align: left;
+        font-weight: 700;
+      }
+      table.items td.desc { font-size: 10px; line-height: 1.35; }
+      .c { text-align: center; }
+      .r { text-align: right; }
+      .totals-grid {
+        display: flex; justify-content: space-between; gap: 12px;
+        margin-bottom: 10px; flex-shrink: 0;
+      }
+      .charges { flex: 1; }
+      .words { padding: 6px 0; line-height: 1.35; font-size: 10px; }
+      .totals {
+        width: 220px; flex-shrink: 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 4px 0;
+      }
+      .t-row { display: flex; justify-content: space-between; padding: 4px 10px; }
+      .t-row.net {
+        font-weight: 700; font-size: 12px;
+        border-top: 1px solid #94a3b8;
+        margin-top: 2px; padding-top: 8px; padding-bottom: 8px;
+      }
+      .bank-strip {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        flex-shrink: 0;
+      }
+      .decl {
+        font-size: 8.5px; color: #475569; line-height: 1.4;
+        margin-bottom: 8px; flex-shrink: 0;
+      }
+      .footer {
+        display: flex; justify-content: space-between; align-items: flex-end;
+        gap: 12px; margin-top: auto; padding-top: 8px; flex-shrink: 0;
+      }
+      .print-meta { font-size: 8px; color: #94a3b8; }
+      .sign { width: 180px; text-align: center; }
+      .sign-line { font-size: 9px; margin-bottom: 3px; }
+      .sign-box {
+        border-bottom: 1px solid #94a3b8;
+        height: 42px;
+        margin-bottom: 3px;
+      }
+      .sign-caption {
+        font-size: 8px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .04em;
+      }
+      @media print {
+        html, body { height: auto; overflow: visible; }
+        body { background: #fff; padding: 0; }
+        .sheet {
+          margin: 0; border: none; box-shadow: none;
+          width: 210mm; height: 297mm; max-height: 297mm;
         }
       }
     </style>

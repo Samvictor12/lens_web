@@ -58,6 +58,10 @@ import {
     orderTypeOptions,
     dispatchStatusOptions,
     eyeSpecRanges,
+    getDefaultDeliveryLeadDays,
+    buildDefaultDeliverySchedule,
+    cylRequiresAxis,
+    hasAxisEntry,
 } from "./SaleOrder.constants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { check } from "express-validator";
@@ -712,7 +716,7 @@ export default function SaleOrderForm() {
             if (!formData.rightCylindrical || formData.rightCylindrical === "") {
                 newErrors.rightCylindrical = "Cylindrical is required";
             }
-            // Axis is optional - removed required validation
+            // Axis is required when CYL has a non-zero power
             // Add is optional - removed required validation
 
             // Range validations for right eye
@@ -731,6 +735,8 @@ export default function SaleOrderForm() {
                     newErrors.rightCylindrical = "Must be a valid number";
                 } else if (Math.round(val * 100) % 25 !== 0) {
                     newErrors.rightCylindrical = "Must be in 0.25 steps";
+                } else if (cylRequiresAxis(formData.rightCylindrical) && !hasAxisEntry(formData.rightAxis)) {
+                    newErrors.rightAxis = "Axis is required (including when CYL is 0)";
                 }
             }
 
@@ -760,7 +766,7 @@ export default function SaleOrderForm() {
             if (!formData.leftCylindrical || formData.leftCylindrical === "") {
                 newErrors.leftCylindrical = "Cylindrical is required";
             }
-            // Axis is optional - removed required validation
+            // Axis is required when CYL has a non-zero power
             // Add is optional - removed required validation
 
             // Range validations for left eye
@@ -779,6 +785,8 @@ export default function SaleOrderForm() {
                     newErrors.leftCylindrical = "Must be a valid number";
                 } else if (Math.round(val * 100) % 25 !== 0) {
                     newErrors.leftCylindrical = "Must be in 0.25 steps";
+                } else if (cylRequiresAxis(formData.leftCylindrical) && !hasAxisEntry(formData.leftAxis)) {
+                    newErrors.leftAxis = "Axis is required (including when CYL is 0)";
                 }
             }
 
@@ -822,6 +830,16 @@ export default function SaleOrderForm() {
         return Object.keys(newErrors).length === 0;
     };
 
+    const getValidationAlertMessage = () => {
+        if (
+            (formData.rightEye && cylRequiresAxis(formData.rightCylindrical) && !hasAxisEntry(formData.rightAxis)) ||
+            (formData.leftEye && cylRequiresAxis(formData.leftCylindrical) && !hasAxisEntry(formData.leftAxis))
+        ) {
+            return "Please enter Axis for CYL (required even when CYL is 0)";
+        }
+        return "Please fill in all required fields correctly";
+    };
+
     const checkCustomerCreditLimit = (customerId) => {
         checkCreditLimit(customerId).then(({ outstanding_credit, credit_limit, reserved_amount }) => {
             setCustomerCreditLimit({ outstanding_credit, credit_limit, reserved_amount });
@@ -831,6 +849,32 @@ export default function SaleOrderForm() {
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         const newValue = type === "checkbox" ? checked : value;
+
+        // Creating SO: keep delivery default in sync with order date + lens type lead days
+        if (name === "orderDate" && mode === "add") {
+            const selectedType = lensTypes.find(
+                (t) => String(t.id) === String(formData.Type_id)
+            );
+            const leadDays = getDefaultDeliveryLeadDays(
+                selectedType?.name || selectedType?.label
+            );
+            const deliverySchedule =
+                leadDays != null
+                    ? buildDefaultDeliverySchedule(newValue, leadDays)
+                    : formData.deliverySchedule;
+            setFormData((prev) => ({
+                ...prev,
+                orderDate: newValue,
+                ...(deliverySchedule ? { deliverySchedule } : {}),
+            }));
+            if (errors.orderDate) {
+                setErrors((prev) => ({ ...prev, orderDate: "" }));
+            }
+            if (errors.deliverySchedule && deliverySchedule) {
+                setErrors((prev) => ({ ...prev, deliverySchedule: "" }));
+            }
+            return;
+        }
 
         setFormData((prev) => ({ ...prev, [name]: newValue }));
 
@@ -939,9 +983,10 @@ export default function SaleOrderForm() {
             return `Already same ref is used against this customer${orderHint}`;
         }
         if (customerRefStatus.status === "warning" && customerRefStatus.conflicts?.length) {
-            return customerRefStatus.conflicts
+            const others = customerRefStatus.conflicts
                 .map((c) => `${c.customerName} — ${c.lensName}`)
                 .join("\n");
+            return `Allowed — same ref also used by:\n${others}`;
         }
         return customerRefStatus.message || "";
     };
@@ -983,6 +1028,23 @@ export default function SaleOrderForm() {
         // When Type or Category changes, clear lens_id, coating_id and related price fields
         if (name === "Type_id" || name === "category_id") {
             setPriceBreakdown(null);
+            let deliveryPatch = {};
+            if (name === "Type_id" && mode === "add") {
+                const selectedType = lensTypes.find(
+                    (t) => String(t.id) === String(value)
+                );
+                const leadDays = getDefaultDeliveryLeadDays(
+                    selectedType?.name || selectedType?.label
+                );
+                if (leadDays != null) {
+                    deliveryPatch = {
+                        deliverySchedule: buildDefaultDeliverySchedule(
+                            formData.orderDate,
+                            leadDays
+                        ),
+                    };
+                }
+            }
             setFormData((prev) => ({
                 ...prev,
                 [name]: value,
@@ -995,10 +1057,14 @@ export default function SaleOrderForm() {
                 fittingPrice: 0,
                 tintingPrice: 0,
                 discount: 0,
+                ...deliveryPatch,
             }));
             if (errors.lens_id) setErrors((prev) => ({ ...prev, lens_id: "" }));
             if (errors.coating_id) setErrors((prev) => ({ ...prev, coating_id: "" }));
             if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+            if (deliveryPatch.deliverySchedule && errors.deliverySchedule) {
+                setErrors((prev) => ({ ...prev, deliverySchedule: "" }));
+            }
             return;
         }
         // When lens changes, also clear coating_id and reset price breakdown
@@ -1472,9 +1538,11 @@ export default function SaleOrderForm() {
 
         if (!validateForm()) {
             console.log("Form Data on errors:", errors);
+            const axisMsg = getValidationAlertMessage();
+            window.alert(axisMsg);
             toast({
                 title: "Validation Error",
-                description: "Please fill in all required fields correctly",
+                description: axisMsg,
                 variant: "destructive",
             });
             return;
@@ -1816,9 +1884,11 @@ export default function SaleOrderForm() {
             return false;
         }
         if (!validateForm()) {
+            const axisMsg = getValidationAlertMessage();
+            window.alert(axisMsg);
             toast({
                 title: "Validation Error",
-                description: "Please fill in all required fields correctly",
+                description: axisMsg,
                 variant: "destructive",
             });
             return false;
@@ -1929,9 +1999,11 @@ export default function SaleOrderForm() {
 
         // Validate form before saving
         if (!validateForm()) {
+            const axisMsg = getValidationAlertMessage();
+            window.alert(axisMsg);
             toast({
                 title: "Validation Error",
-                description: "Please fill in all required fields correctly",
+                description: axisMsg,
                 variant: "destructive",
             });
             return;
@@ -3074,7 +3146,7 @@ export default function SaleOrderForm() {
                                             disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                             error={errors.rightCylindrical}
                                         />
-                                        {formData.rightCylindrical && formData.rightCylindrical != 0 && (
+                                        {formData.rightEye && (
                                             <FormInput
                                                 singleLine={true} label="Axis"
                                                 type="number"
@@ -3083,6 +3155,7 @@ export default function SaleOrderForm() {
                                                 onChange={handleChange}
                                                 disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.rightEye)}
                                                 error={errors.rightAxis}
+                                                required
                                             />
                                         )}
                                         {showAddField && (
@@ -3152,7 +3225,7 @@ export default function SaleOrderForm() {
                                             disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                             error={errors.leftCylindrical}
                                         />
-                                        {formData.leftCylindrical && formData.leftCylindrical != 0 && (
+                                        {formData.leftEye && (
                                             <FormInput
                                                 singleLine={true} label="Axis"
                                                 type="number"
@@ -3161,6 +3234,7 @@ export default function SaleOrderForm() {
                                                 onChange={handleChange}
                                                 disabled={(!(isEditing && formData.status === "DRAFT") || !eyeSpecReady || !formData.leftEye)}
                                                 error={errors.leftAxis}
+                                                required
                                             />
                                         )}
                                         {showAddField && (

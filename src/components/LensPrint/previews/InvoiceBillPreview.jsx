@@ -1,109 +1,163 @@
 /**
- * Invoice / Bill — A4 (Canon LBP6030)
+ * Invoice / Bill — A4 mock (ink-light shell aligned with Dispatch Challan)
  */
 export default function InvoiceBillPreview({ data }) {
   const c = data.company;
+  const sellerAddress = [c.address, c.city, c.state, c.pincode].filter(Boolean).join(", ");
+
+  const hairline = { border: "1px solid #e2e8f0" };
+  const cell = { border: "1px solid #cbd5e1", padding: "6px 7px", verticalAlign: "top" };
+  const th = {
+    ...cell,
+    background: "#fff",
+    fontSize: "9px",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    textAlign: "left",
+    fontWeight: 700,
+  };
 
   return (
     <div
-      className="bg-white text-black shadow-md border border-gray-300 select-none"
+      className="bg-white text-black shadow-md border border-slate-400 select-none"
       style={{
         width: "210mm",
-        minHeight: "297mm",
-        padding: "15mm 20mm",
-        fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
-        lineHeight: 1.4,
+        height: "297mm",
+        maxHeight: "297mm",
+        overflow: "hidden",
+        padding: "14mm 16mm",
+        fontFamily: '"Segoe UI", Arial, sans-serif',
+        fontSize: "11px",
+        lineHeight: 1.35,
+        color: "#0f172a",
         boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
-        <div style={{ width: "65%" }}>
-          <div style={{ fontSize: "20px", fontWeight: "bold", color: "#0d9488", marginBottom: "5px" }}>
-            {c.name}
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "16px",
+          borderBottom: "1px solid #94a3b8",
+          paddingBottom: "10px",
+          marginBottom: "12px",
+        }}
+      >
+        <div style={{ maxWidth: "58%" }}>
+          <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.02em" }}>{c.name}</div>
+          {sellerAddress && (
+            <div style={{ color: "#475569", fontSize: "10px", marginTop: "2px" }}>{sellerAddress}</div>
+          )}
+          <div style={{ color: "#475569", fontSize: "10px", marginTop: "2px" }}>
+            {[c.phone && `Ph: ${c.phone}`, c.email && `Email: ${c.email}`].filter(Boolean).join(" · ")}
           </div>
-          {c.address && <div>{c.address}</div>}
-          <div>{[c.city, c.state, c.pincode].filter(Boolean).join(", ")}</div>
-          {c.phone && <div>Phone: {c.phone}</div>}
-          {c.email && <div>Email: {c.email}</div>}
-          {c.gstin && <div><strong>GSTIN: {c.gstin}</strong></div>}
+          {c.gstin && (
+            <div style={{ color: "#475569", fontSize: "10px", marginTop: "2px" }}>
+              GSTIN: <strong>{c.gstin}</strong>
+            </div>
+          )}
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: "22px", fontWeight: "bold" }}>SALE ORDER INVOICE</div>
-          <div style={{ fontSize: "15px", fontWeight: "bold", color: "#4f46e5" }}>No: {data.orderNo}</div>
-          <div style={{ marginTop: "8px" }}>Date: {data.orderDate}</div>
-          <div>Status: <strong>{data.status}</strong></div>
+        <div style={{ textAlign: "right", minWidth: "140px" }}>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 800,
+              letterSpacing: "0.08em",
+              color: "#0f766e",
+              marginBottom: "6px",
+            }}
+          >
+            SALE ORDER INVOICE
+          </div>
+          <div style={{ fontSize: "11px" }}>
+            <span style={{ display: "inline-block", minWidth: "52px", fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", marginRight: "6px" }}>
+              Order No
+            </span>
+            <strong>{data.orderNo}</strong>
+          </div>
+          <div style={{ fontSize: "11px", marginTop: "3px" }}>
+            <span style={{ display: "inline-block", minWidth: "52px", fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", marginRight: "6px" }}>
+              Date
+            </span>
+            <strong>{data.orderDate}</strong>
+          </div>
+          <div style={{ fontSize: "11px", marginTop: "3px" }}>
+            <span style={{ display: "inline-block", minWidth: "52px", fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.04em", color: "#64748b", marginRight: "6px" }}>
+              Status
+            </span>
+            <strong>{data.status}</strong>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-        <div style={{ border: "1px solid #e5e7eb", padding: "10px", backgroundColor: "#fafafa" }}>
-          <div style={{ fontSize: "10px", color: "#6b7280", textTransform: "uppercase", fontWeight: "bold" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+        <div style={{ ...hairline, borderRadius: "4px", padding: "8px 10px", background: "#fff" }}>
+          <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#64748b", marginBottom: "4px" }}>
             Bill To / Customer
           </div>
-          <div style={{ fontSize: "13px", fontWeight: 600 }}>{data.customerName}</div>
+          <div style={{ fontSize: "13px", fontWeight: 700 }}>{data.customerName}</div>
         </div>
-        <div style={{ border: "1px solid #e5e7eb", padding: "10px", backgroundColor: "#fafafa" }}>
-          <div style={{ fontSize: "10px", color: "#6b7280", textTransform: "uppercase", fontWeight: "bold" }}>
+        <div style={{ ...hairline, borderRadius: "4px", padding: "8px 10px", background: "#fff" }}>
+          <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#64748b", marginBottom: "4px" }}>
             Order References
           </div>
-          <div>Cust Ref: {data.customerRefNo}</div>
-          <div>Item Ref: {data.itemRefNo}</div>
+          <div style={{ color: "#475569", fontSize: "10px" }}>Cust Ref: {data.customerRefNo}</div>
+          <div style={{ color: "#475569", fontSize: "10px", marginTop: "2px" }}>Item Ref: {data.itemRefNo}</div>
         </div>
       </div>
 
-      <div style={{ fontSize: "12px", fontWeight: "bold", borderBottom: "2px solid #333", paddingBottom: "3px", marginBottom: "8px" }}>
-        LENS DETAILS
+      <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#64748b", marginBottom: "6px" }}>
+        Lens Details
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "12px" }}>
         <thead>
-          <tr style={{ backgroundColor: "#f3f4f6" }}>
-            <th style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "left" }}>Description</th>
-            <th style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "right" }}>Amount</th>
+          <tr>
+            <th style={th}>Description</th>
+            <th style={{ ...th, textAlign: "right", width: "28%" }}>Amount</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style={{ border: "1px solid #e5e7eb", padding: "8px" }}>{data.productLine}</td>
-            <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "right" }}>
-              ₹ {Number(data.lensPrice).toFixed(2)}
-            </td>
+            <td style={cell}>{data.productLine}</td>
+            <td style={{ ...cell, textAlign: "right" }}>₹ {Number(data.lensPrice).toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
 
       {(data.rightEye || data.leftEye) && (
         <>
-          <div style={{ fontSize: "12px", fontWeight: "bold", borderBottom: "2px solid #333", paddingBottom: "3px", marginBottom: "8px" }}>
-            PRESCRIPTION
+          <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#64748b", marginBottom: "6px" }}>
+            Prescription
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "12px" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f3f4f6" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px" }}>Eye</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px" }}>SPH</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px" }}>CYL</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px" }}>AXIS</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px" }}>ADD</th>
+              <tr>
+                <th style={th}>Eye</th>
+                <th style={{ ...th, textAlign: "center" }}>SPH</th>
+                <th style={{ ...th, textAlign: "center" }}>CYL</th>
+                <th style={{ ...th, textAlign: "center" }}>AXIS</th>
+                <th style={{ ...th, textAlign: "center" }}>ADD</th>
               </tr>
             </thead>
             <tbody>
               {data.rightEye && (
                 <tr>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}><strong>RE</strong></td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.right.sph}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.right.cyl}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.right.axis}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.right.add}</td>
+                  <td style={cell}><strong>RE</strong></td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.right.sph}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.right.cyl}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.right.axis}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.right.add}</td>
                 </tr>
               )}
               {data.leftEye && (
                 <tr>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}><strong>LE</strong></td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.left.sph}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.left.cyl}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.left.axis}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: "8px", textAlign: "center" }}>{data.left.add}</td>
+                  <td style={cell}><strong>LE</strong></td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.left.sph}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.left.cyl}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.left.axis}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{data.left.add}</td>
                 </tr>
               )}
             </tbody>
@@ -111,9 +165,27 @@ export default function InvoiceBillPreview({ data }) {
         </>
       )}
 
-      <div style={{ marginTop: "30px", fontSize: "10px", color: "#6b7280", textAlign: "center", borderTop: "1px solid #e5e7eb", paddingTop: "10px" }}>
-        {c.tagline || "Thank you for your business!"}
-      </div>
+      <footer
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: "12px",
+          marginTop: "auto",
+          paddingTop: "8px",
+        }}
+      >
+        <div style={{ fontSize: "8px", color: "#94a3b8", maxWidth: "55%" }}>
+          {c.tagline || "Thank you for your business!"}
+        </div>
+        <div style={{ width: "180px", textAlign: "center" }}>
+          <div style={{ fontSize: "9px", marginBottom: "3px" }}>For {c.name}</div>
+          <div style={{ borderBottom: "1px solid #94a3b8", height: "42px", marginBottom: "3px" }} />
+          <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Authorised Signatory
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

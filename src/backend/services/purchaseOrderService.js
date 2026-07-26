@@ -95,20 +95,8 @@ class PurchaseOrderService {
    */
   async createPurchaseOrder(poData) {
     try {
-      // Check for duplicate reference_id if provided
-      if (poData.reference_id) {
-        const existing = await prisma.purchaseOrder.findUnique({
-          where: { reference_id: poData.reference_id },
-        });
-
-        if (existing) {
-          throw new APIError(
-            "Purchase order with this reference ID already exists",
-            409,
-            "DUPLICATE_REFERENCE_ID"
-          );
-        }
-      }
+      // reference_id is optional and intentionally not globally unique
+      // (same customer ref may be reused across different customers / POs)
 
       // Handle bulk order processing
       if (poData.orderType === 'Bulk' && poData.lensBulkSelection) {
@@ -1254,23 +1242,7 @@ class PurchaseOrderService {
         throw new APIError("Purchase order not found", 404, "PO_NOT_FOUND");
       }
 
-      // Check for duplicate reference_id if being updated
-      if (updateData.reference_id && updateData.reference_id !== existing.reference_id) {
-        const duplicate = await prisma.purchaseOrder.findFirst({
-          where: {
-            reference_id: updateData.reference_id,
-            id: { not: id },
-          },
-        });
-
-        if (duplicate) {
-          throw new APIError(
-            "Purchase order with this reference ID already exists",
-            409,
-            "DUPLICATE_REFERENCE_ID"
-          );
-        }
-      }
+      // reference_id is optional and intentionally not globally unique
 
       // Handle bulk order processing if being updated to bulk or bulk data is modified
       if (updateData.orderType === 'Bulk' && updateData.lensBulkSelection) {

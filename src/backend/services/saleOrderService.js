@@ -37,6 +37,30 @@ const normalizeOpticalSpecValue = (value) => {
   return normalized === null ? '0' : normalized;
 };
 
+const cylRequiresAxis = (cylindrical) =>
+  cylindrical !== null && cylindrical !== undefined && String(cylindrical).trim() !== '';
+
+const hasAxisEntry = (axis) =>
+  axis !== null && axis !== undefined && String(axis).trim() !== '';
+
+/** Reject save when CYL is set (including 0) without Axis. */
+const assertAxisForCylPowers = (order) => {
+  if (order.rightEye !== false && cylRequiresAxis(order.rightCylindrical) && !hasAxisEntry(order.rightAxis)) {
+    throw new APIError(
+      'Right eye Axis is required when cylindrical is entered (including 0)',
+      400,
+      'AXIS_REQUIRED_FOR_CYL'
+    );
+  }
+  if (order.leftEye !== false && cylRequiresAxis(order.leftCylindrical) && !hasAxisEntry(order.leftAxis)) {
+    throw new APIError(
+      'Left eye Axis is required when cylindrical is entered (including 0)',
+      400,
+      'AXIS_REQUIRED_FOR_CYL'
+    );
+  }
+};
+
 const opticalSpecVariants = (value) => {
   const normalized = normalizeOpticalSpecValue(value);
   const variants = new Set([normalized]);
@@ -128,25 +152,26 @@ export class SaleOrderService {
   }
 
   /**
-   * Ensure customer reference is globally unique (case-insensitive).
-   * @deprecated Submit-time check replaced by checkCustomerRef (per-customer fail / cross-customer warning).
+   * Ensure customer reference is unique for this customer (case-insensitive).
+   * Same ref on a different customer is allowed.
    */
-  async assertUniqueCustomerRef(customerRefNo, excludeId = null) {
+  async assertUniqueCustomerRef(customerRefNo, customerId, excludeId = null) {
     const ref = customerRefNo?.trim();
-    if (!ref) return;
+    if (!ref || !customerId) return;
 
     const existing = await prisma.saleOrder.findFirst({
       where: {
         deleteStatus: false,
+        customerId: parseInt(customerId, 10),
         customerRefNo: { equals: ref, mode: 'insensitive' },
-        ...(excludeId ? { id: { not: excludeId } } : {}),
+        ...(excludeId ? { id: { not: parseInt(excludeId, 10) } } : {}),
       },
       select: { id: true, orderNo: true },
     });
 
     if (existing) {
       throw new APIError(
-        `Customer reference already used on order ${existing.orderNo}`,
+        `Already same ref is used against this customer (Order ${existing.orderNo})`,
         409,
         'DUPLICATE_CUSTOMER_REF',
         { existingOrderId: existing.id, orderNo: existing.orderNo }
@@ -166,7 +191,9 @@ export class SaleOrderService {
       return { status: 'pass', message: 'Reference is unique' };
     }
 
-    const parsedCustomerId = customerId ? parseInt(customerId, 10) : null;
+    const parsedCustomerId = customerId != null && customerId !== ''
+      ? parseInt(customerId, 10)
+      : null;
     const excludeFilter = excludeId ? { id: { not: parseInt(excludeId, 10) } } : {};
 
     const matches = await prisma.saleOrder.findMany({
@@ -190,8 +217,10 @@ export class SaleOrderService {
       return { status: 'pass', message: 'Reference is unique' };
     }
 
-    if (parsedCustomerId) {
-      const sameCustomerMatch = matches.find((m) => m.customerId === parsedCustomerId);
+    if (Number.isFinite(parsedCustomerId)) {
+      const sameCustomerMatch = matches.find(
+        (m) => Number(m.customerId) === parsedCustomerId
+      );
       if (sameCustomerMatch) {
         return {
           status: 'fail',
@@ -204,7 +233,7 @@ export class SaleOrderService {
 
     return {
       status: 'warning',
-      message: 'Reference is used by another customer',
+      message: 'Reference is used by another customer (still allowed)',
       conflicts: matches.map((m) => ({
         orderId: m.id,
         orderNo: m.orderNo,
@@ -358,8 +387,9 @@ export class SaleOrderService {
         }
       }
 
-      // Submit-time duplicate ref check handled on FE via checkCustomerRef API
-      // await this.assertUniqueCustomerRef(orderData.customerRefNo);
+      // Same ref is allowed across customers; block only same customer + same ref
+      await this.assertUniqueCustomerRef(orderData.customerRefNo, orderData.customerId);
+      assertAxisForCylPowers(orderData);
 
       // Generate order number
       const orderNo = await this.generateOrderNumber();
@@ -946,9 +976,21 @@ export class SaleOrderService {
       }
 
       if (updateData.customerRefNo !== undefined) {
-        // Submit-time duplicate ref check handled on FE via checkCustomerRef API
-        // await this.assertUniqueCustomerRef(updateData.customerRefNo, id);
+        await this.assertUniqueCustomerRef(
+          updateData.customerRefNo,
+          updateData.customerId ?? existing.customerId,
+          id
+        );
       }
+
+      assertAxisForCylPowers({
+        rightEye: updateData.rightEye ?? existing.rightEye,
+        leftEye: updateData.leftEye ?? existing.leftEye,
+        rightCylindrical: updateData.rightCylindrical ?? existing.rightCylindrical,
+        rightAxis: updateData.rightAxis ?? existing.rightAxis,
+        leftCylindrical: updateData.leftCylindrical ?? existing.leftCylindrical,
+        leftAxis: updateData.leftAxis ?? existing.leftAxis,
+      });
 
       // Prepare update object
       const dataToUpdate = {

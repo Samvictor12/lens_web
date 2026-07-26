@@ -139,3 +139,40 @@ export const eyeSpecRanges = {
   axis: { min: 0, max: 180 },
   add: { min: 0.0, max: 4.0 },
 };
+
+/** Default lead days from order date by lens type (STOCK / RX). */
+export function getDefaultDeliveryLeadDays(lensTypeName) {
+  const name = String(lensTypeName || "").trim().toUpperCase();
+  if (name === "STOCK") return 2;
+  if (name === "RX") return 3;
+  return null;
+}
+
+/**
+ * Axis is mandatory whenever CYL is entered — including CYL 0.
+ */
+export function cylRequiresAxis(cylindrical) {
+  return cylindrical !== null && cylindrical !== undefined && String(cylindrical).trim() !== "";
+}
+
+export function hasAxisEntry(axis) {
+  return axis !== null && axis !== undefined && String(axis).trim() !== "";
+}
+
+/**
+ * Build a datetime-local ISO string: orderDate + leadDays (local calendar).
+ * @param {string|Date|null} orderDate
+ * @param {number} leadDays
+ * @returns {string|null}
+ */
+export function buildDefaultDeliverySchedule(orderDate, leadDays) {
+  if (leadDays == null || Number.isNaN(Number(leadDays))) return null;
+  const raw = orderDate
+    ? String(orderDate).slice(0, 10)
+    : new Date().toISOString().split("T")[0];
+  const [y, m, d] = raw.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d, 12, 0, 0, 0);
+  date.setDate(date.getDate() + Number(leadDays));
+  return date.toISOString();
+}
