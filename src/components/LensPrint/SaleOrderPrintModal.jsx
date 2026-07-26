@@ -99,270 +99,289 @@ export function SaleOrderPrintModal({
 
     const hasSpecs = saleOrder?.rightEye || saleOrder?.leftEye;
 
+    const companyName = company?.companyName || "Lens Management Shop";
+    const sellerAddress = [company?.address, company?.city, company?.state, company?.pincode]
+      .filter(Boolean)
+      .join(", ");
+    const printNow = new Date().toLocaleString("en-IN");
+    const expectedDelivery = saleOrder?.expectedDeliveryDate
+      ? new Date(saleOrder.expectedDeliveryDate).toLocaleDateString("en-IN")
+      : "Standard Timeline";
+
     return `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
         <head>
           <meta charset="UTF-8">
           <title>Invoice - ${orderNo}</title>
           <style>
-            @page {
-              size: A4;
-              margin: 15mm 20mm;
-            }
+            @page { size: A4; margin: 0; }
+            * { box-sizing: border-box; }
+            html, body { margin: 0; padding: 0; }
             body {
-              font-family: Arial, sans-serif;
-              font-size: 12px;
-              color: #333;
-              line-height: 1.4;
-              margin: 0;
-              padding: 0;
-            }
-            .invoice-container {
-              width: 100%;
-            }
-            .header-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .header-left {
-              width: 65%;
-              vertical-align: top;
-            }
-            .header-right {
-              width: 35%;
-              text-align: right;
-              vertical-align: top;
-            }
-            .company-name {
-              font-size: 20px;
-              font-weight: bold;
-              color: #0d9488;
-              margin: 0 0 5px 0;
-            }
-            .title {
-              font-size: 22px;
-              font-weight: bold;
-              margin: 0 0 5px 0;
-              letter-spacing: 0.5px;
-            }
-            .details-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 25px;
-            }
-            .details-cell {
-              width: 50%;
-              vertical-align: top;
-              border: 1px solid #e5e7eb;
-              padding: 10px;
-              background-color: #fafafa;
-            }
-            .details-title {
-              font-size: 10px;
-              color: #6b7280;
-              text-transform: uppercase;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .details-val {
-              font-size: 13px;
-              font-weight: 600;
-            }
-            .section-title {
-              font-size: 12px;
-              font-weight: bold;
-              text-transform: uppercase;
-              border-bottom: 2px solid #333;
-              padding-bottom: 3px;
-              margin: 20px 0 8px 0;
-            }
-            .items-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .items-table th {
-              background-color: #f3f4f6;
-              padding: 8px;
+              font-family: "Segoe UI", Arial, sans-serif;
               font-size: 11px;
-              font-weight: bold;
-              text-align: left;
-              border: 1px solid #e5e7eb;
+              color: #0f172a;
+              background: #cbd5e1;
+              padding: 12px;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
-            .items-table td {
-              padding: 8px;
-              border: 1px solid #e5e7eb;
-              vertical-align: top;
+            .sheet {
+              width: 210mm;
+              height: 297mm;
+              max-height: 297mm;
+              margin: 0 auto;
+              background: #fff;
+              border: 1px solid #94a3b8;
+              box-shadow: 0 2px 8px rgba(15,23,42,.12);
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
             }
-            .total-row td {
-              font-weight: bold;
-              text-align: right;
-              background-color: #fafafa;
+            .sheet-body {
+              flex: 1;
+              min-height: 0;
+              display: flex;
+              flex-direction: column;
+              padding: 14mm 16mm;
             }
-            .prescription-table {
+            .header {
+              display: flex;
+              justify-content: space-between;
+              gap: 16px;
+              border-bottom: 1px solid #94a3b8;
+              padding-bottom: 10px;
+              margin-bottom: 12px;
+              flex-shrink: 0;
+            }
+            .brand { max-width: 58%; }
+            .company-name { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+            .muted { color: #475569; font-size: 10px; line-height: 1.35; margin-top: 2px; }
+            .inv-head { text-align: right; min-width: 140px; }
+            .doc-title {
+              font-size: 15px; font-weight: 800; letter-spacing: .08em;
+              color: #0f766e; margin-bottom: 6px;
+            }
+            .inv-meta { display: grid; gap: 3px; text-align: right; }
+            .inv-meta .lbl {
+              display: inline-block; min-width: 52px; text-align: left;
+              font-size: 8px; text-transform: uppercase; letter-spacing: .04em;
+              color: #64748b; margin-right: 6px;
+            }
+            .parties {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 10px;
+              margin-bottom: 12px;
+              flex-shrink: 0;
+            }
+            .party {
+              border: 1px solid #e2e8f0;
+              border-radius: 4px;
+              padding: 8px 10px;
+              background: #fff;
+            }
+            .party-title {
+              font-size: 8px; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .06em; color: #64748b; margin-bottom: 4px;
+            }
+            .party-name { font-size: 13px; font-weight: 700; }
+            table.items {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 20px;
+              margin-bottom: 12px;
             }
-            .prescription-table th {
-              background-color: #f3f4f6;
-              padding: 6px;
-              font-size: 10px;
-              font-weight: bold;
-              border: 1px solid #e5e7eb;
+            table.items th, table.items td {
+              border: 1px solid #cbd5e1;
+              padding: 6px 7px;
+              vertical-align: top;
             }
-            .prescription-table td {
-              padding: 8px;
-              border: 1px solid #e5e7eb;
-              text-align: center;
+            table.items th {
+              background: #fff;
+              font-size: 9px;
+              text-transform: uppercase;
+              letter-spacing: .04em;
+              text-align: left;
+              font-weight: 700;
+            }
+            .c { text-align: center; }
+            .r { text-align: right; }
+            .section-label {
+              font-size: 8px; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .06em; color: #64748b; margin: 4px 0 6px;
+            }
+            .totals-box {
+              width: 220px;
+              margin-left: auto;
+              border: 1px solid #e2e8f0;
+              border-radius: 4px;
+              margin-bottom: 12px;
+              flex-shrink: 0;
+            }
+            .t-row { display: flex; justify-content: space-between; padding: 4px 10px; }
+            .t-row.net {
+              font-weight: 700; font-size: 12px;
+              border-top: 1px solid #94a3b8;
+              margin-top: 2px; padding-top: 8px; padding-bottom: 8px;
             }
             .footer {
-              margin-top: 30px;
-              font-size: 10px;
-              color: #6b7280;
-              text-align: center;
-              border-top: 1px solid #e5e7eb;
-              padding-top: 10px;
+              display: flex; justify-content: space-between; align-items: flex-end;
+              gap: 12px; margin-top: auto; padding-top: 8px; flex-shrink: 0;
+            }
+            .print-meta { font-size: 8px; color: #94a3b8; max-width: 55%; }
+            .sign { width: 180px; text-align: center; }
+            .sign-line { font-size: 9px; margin-bottom: 3px; }
+            .sign-box {
+              border-bottom: 1px solid #94a3b8;
+              height: 42px;
+              margin-bottom: 3px;
+            }
+            .sign-caption {
+              font-size: 8px; font-weight: 700;
+              text-transform: uppercase; letter-spacing: .04em;
+            }
+            @media print {
+              body { background: #fff; padding: 0; }
+              .sheet {
+                margin: 0; border: none; box-shadow: none;
+                width: 210mm; height: 297mm; max-height: 297mm;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="invoice-container">
-            <table class="header-table">
-              <tr>
-                <td class="header-left">
-                  <div class="company-name">${company?.companyName || "Lens Management Shop"}</div>
-                  <div>${company?.address || ""}</div>
-                  <div>${company?.city || ""}, ${company?.state || ""} ${company?.pincode || ""}</div>
-                  ${company?.phone ? `<div>Phone: ${company.phone}</div>` : ""}
-                  ${company?.email ? `<div>Email: ${company.email}</div>` : ""}
-                  ${company?.gstin ? `<div><strong>GSTIN: ${company.gstin}</strong></div>` : ""}
-                </td>
-                <td class="header-right">
-                  <div class="title">SALE ORDER INVOICE</div>
-                  <div style="font-size: 15px; font-weight: bold; color: #4f46e5;">No: ${orderNo}</div>
-                  <div style="margin-top: 8px;">Date: ${orderDateStr}</div>
-                  <div>Status: <strong>${saleOrder?.status || "CONFIRMED"}</strong></div>
-                </td>
-              </tr>
-            </table>
+          <div class="sheet">
+            <div class="sheet-body">
+              <header class="header">
+                <div class="brand">
+                  <div class="company-name">${companyName}</div>
+                  <div class="muted">${sellerAddress || "—"}</div>
+                  <div class="muted">
+                    ${company?.phone ? `Ph: ${company.phone}` : ""}
+                    ${company?.phone && company?.email ? " · " : ""}
+                    ${company?.email ? `Email: ${company.email}` : ""}
+                  </div>
+                  ${company?.gstin ? `<div class="muted">GSTIN: <strong>${company.gstin}</strong></div>` : ""}
+                </div>
+                <div class="inv-head">
+                  <div class="doc-title">SALE ORDER INVOICE</div>
+                  <div class="inv-meta">
+                    <div><span class="lbl">Order No</span><strong>${orderNo}</strong></div>
+                    <div><span class="lbl">Date</span><strong>${orderDateStr}</strong></div>
+                    <div><span class="lbl">Status</span><strong>${saleOrder?.status || "CONFIRMED"}</strong></div>
+                  </div>
+                </div>
+              </header>
 
-            <table class="details-table">
-              <tr>
-                <td class="details-cell">
-                  <div class="details-title">Bill To / Customer</div>
-                  <div class="details-val">${custName}</div>
-                  ${shopName ? `<div>${shopName}</div>` : ""}
-                  ${custAddress ? `<div>${custAddress}</div>` : ""}
-                  ${custPhone ? `<div>Phone: ${custPhone}</div>` : ""}
-                  ${custGstin ? `<div style="margin-top: 5px;">GSTIN: ${custGstin}</div>` : ""}
-                </td>
-                <td class="details-cell">
-                  <div class="details-title">Delivery Details</div>
-                  <div>Expected Delivery: ${saleOrder?.expectedDeliveryDate ? new Date(saleOrder.expectedDeliveryDate).toLocaleDateString("en-IN") : "Standard Timeline"}</div>
-                  ${saleOrder?.notes ? `<div style="margin-top: 8px; font-style: italic;">Notes: ${saleOrder.notes}</div>` : ""}
-                </td>
-              </tr>
-            </table>
+              <section class="parties">
+                <div class="party">
+                  <div class="party-title">Bill To / Customer</div>
+                  <div class="party-name">${custName}</div>
+                  ${shopName ? `<div class="muted">${shopName}</div>` : ""}
+                  ${custAddress ? `<div class="muted">${custAddress}</div>` : ""}
+                  ${custPhone ? `<div class="muted">Phone: ${custPhone}</div>` : ""}
+                  ${custGstin ? `<div class="muted">GSTIN: ${custGstin}</div>` : ""}
+                </div>
+                <div class="party">
+                  <div class="party-title">Delivery Details</div>
+                  <div class="muted">Expected: <strong>${expectedDelivery}</strong></div>
+                  ${saleOrder?.notes ? `<div class="muted">Notes: ${saleOrder.notes}</div>` : ""}
+                </div>
+              </section>
 
-            <div class="section-title">Order Details</div>
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th>Item Description</th>
-                  <th>Lens details</th>
-                  <th style="text-align: center; width: 80px;">Qty</th>
-                  <th style="text-align: right; width: 120px;">Unit Price</th>
-                  <th style="text-align: right; width: 120px;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <strong>${saleOrder?.lensProduct?.lens_name || "Prescription Lens"}</strong>
-                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
-                      Coating: ${getCoatingName(saleOrder?.coating_id)}
-                      ${saleOrder?.fittingName || saleOrder?.fitting?.name ? ` | Fitting: ${saleOrder.fittingName || saleOrder.fitting?.name}` : ""}
-                      ${(saleOrder?.diaName ?? saleOrder?.dia?.name) != null ? ` | Dia: ${saleOrder.diaName ?? saleOrder.dia?.name}` : ""}
-                    </div>
-                  </td>
-                  <td>
-                    <div>Right Eye: ${rightEyeText}</div>
-                    <div style="margin-top: 4px;">Left Eye: ${leftEyeText}</div>
-                  </td>
-                  <td style="text-align: center; vertical-align: middle;">${saleOrder?.quantity || 1}</td>
-                  <td style="text-align: right; vertical-align: middle;">₹${(saleOrder?.unitPrice || saleOrder?.lensPrice || 0).toFixed(2)}</td>
-                  <td style="text-align: right; vertical-align: middle;">₹${(saleOrder?.subtotal || 0).toFixed(2)}</td>
-                </tr>
-                <tr class="total-row">
-                  <td colspan="4">Subtotal</td>
-                  <td>₹${(saleOrder?.subtotal || 0).toFixed(2)}</td>
-                </tr>
+              <div class="section-label">Order Details</div>
+              <table class="items">
+                <thead>
+                  <tr>
+                    <th>Item Description</th>
+                    <th>Lens details</th>
+                    <th class="c" style="width:8%">Qty</th>
+                    <th class="r" style="width:14%">Unit Price</th>
+                    <th class="r" style="width:14%">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <strong>${saleOrder?.lensProduct?.lens_name || "Prescription Lens"}</strong>
+                      <div class="muted">
+                        Coating: ${getCoatingName(saleOrder?.coating_id)}
+                        ${saleOrder?.fittingName || saleOrder?.fitting?.name ? ` | Fitting: ${saleOrder.fittingName || saleOrder.fitting?.name}` : ""}
+                        ${(saleOrder?.diaName ?? saleOrder?.dia?.name) != null ? ` | Dia: ${saleOrder.diaName ?? saleOrder.dia?.name}` : ""}
+                      </div>
+                    </td>
+                    <td>
+                      <div>Right Eye: ${rightEyeText}</div>
+                      <div style="margin-top:4px">Left Eye: ${leftEyeText}</div>
+                    </td>
+                    <td class="c">${saleOrder?.quantity || 1}</td>
+                    <td class="r">₹${(saleOrder?.unitPrice || saleOrder?.lensPrice || 0).toFixed(2)}</td>
+                    <td class="r">₹${(saleOrder?.subtotal || 0).toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="totals-box">
+                <div class="t-row"><span>Subtotal</span><span>₹${(saleOrder?.subtotal || 0).toFixed(2)}</span></div>
                 ${saleOrder?.discountPercentage ? `
-                <tr class="total-row" style="color: #16a34a;">
-                  <td colspan="4">Discount (${saleOrder.discountPercentage}%)</td>
-                  <td>-₹${((saleOrder.subtotal * saleOrder.discountPercentage) / 100).toFixed(2)}</td>
-                </tr>
+                <div class="t-row"><span>Discount (${saleOrder.discountPercentage}%)</span><span>-₹${((saleOrder.subtotal * saleOrder.discountPercentage) / 100).toFixed(2)}</span></div>
                 ` : ""}
                 ${saleOrder?.taxAmount ? `
-                <tr class="total-row">
-                  <td colspan="4">Tax Amount</td>
-                  <td>₹${saleOrder.taxAmount.toFixed(2)}</td>
-                </tr>
+                <div class="t-row"><span>Tax Amount</span><span>₹${saleOrder.taxAmount.toFixed(2)}</span></div>
                 ` : ""}
                 ${saleOrder?.roundOff ? `
-                <tr class="total-row">
-                  <td colspan="4">Round Off</td>
-                  <td>₹${saleOrder.roundOff.toFixed(2)}</td>
-                </tr>
+                <div class="t-row"><span>Round Off</span><span>₹${saleOrder.roundOff.toFixed(2)}</span></div>
                 ` : ""}
-                <tr class="total-row" style="font-size: 14px; background-color: #f3f4f6; color: #111;">
-                  <td colspan="4">Total Value</td>
-                  <td>₹${(saleOrder?.totalValue || 0).toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
+                <div class="t-row net"><span>Total Value</span><span>₹${(saleOrder?.totalValue || 0).toFixed(2)}</span></div>
+              </div>
 
-            ${hasSpecs ? `
-            <div class="section-title">Lens Specifications (Prescription)</div>
-            <table class="prescription-table">
-              <thead>
-                <tr>
-                  <th>Eye</th>
-                  <th>Spherical (SPH)</th>
-                  <th>Cylinder (CYL)</th>
-                  <th>Axis</th>
-                  <th>Addition (ADD)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${saleOrder?.rightEye ? `
-                <tr>
-                  <td><strong>Right</strong></td>
-                  <td>${saleOrder.rightSpherical || "-"}</td>
-                  <td>${saleOrder.rightCylindrical || "-"}</td>
-                  <td>${saleOrder.rightAxis ? saleOrder.rightAxis + "°" : "-"}</td>
-                  <td>${saleOrder.rightAdd || "-"}</td>
-                </tr>
-                ` : ""}
-                ${saleOrder?.leftEye ? `
-                <tr>
-                  <td><strong>Left</strong></td>
-                  <td>${saleOrder.leftSpherical || "-"}</td>
-                  <td>${saleOrder.leftCylindrical || "-"}</td>
-                  <td>${saleOrder.leftAxis ? saleOrder.leftAxis + "°" : "-"}</td>
-                  <td>${saleOrder.leftAdd || "-"}</td>
-                </tr>
-                ` : ""}
-              </tbody>
-            </table>
-            ` : ""}
+              ${hasSpecs ? `
+              <div class="section-label">Lens Specifications (Prescription)</div>
+              <table class="items">
+                <thead>
+                  <tr>
+                    <th>Eye</th>
+                    <th class="c">Spherical (SPH)</th>
+                    <th class="c">Cylinder (CYL)</th>
+                    <th class="c">Axis</th>
+                    <th class="c">Addition (ADD)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${saleOrder?.rightEye ? `
+                  <tr>
+                    <td><strong>Right</strong></td>
+                    <td class="c">${saleOrder.rightSpherical || "-"}</td>
+                    <td class="c">${saleOrder.rightCylindrical || "-"}</td>
+                    <td class="c">${saleOrder.rightAxis ? saleOrder.rightAxis + "°" : "-"}</td>
+                    <td class="c">${saleOrder.rightAdd || "-"}</td>
+                  </tr>
+                  ` : ""}
+                  ${saleOrder?.leftEye ? `
+                  <tr>
+                    <td><strong>Left</strong></td>
+                    <td class="c">${saleOrder.leftSpherical || "-"}</td>
+                    <td class="c">${saleOrder.leftCylindrical || "-"}</td>
+                    <td class="c">${saleOrder.leftAxis ? saleOrder.leftAxis + "°" : "-"}</td>
+                    <td class="c">${saleOrder.leftAdd || "-"}</td>
+                  </tr>
+                  ` : ""}
+                </tbody>
+              </table>
+              ` : ""}
 
-            <div class="footer">
-              <p>${company?.tagline || "Thank you for your business!"}</p>
-              <p style="margin-top: 15px; font-size: 8px;">Generated by Lens Management System · Printed: ${new Date().toLocaleString("en-IN")}</p>
+              <footer class="footer">
+                <div class="print-meta">
+                  ${company?.tagline || "Thank you for your business!"}
+                  <div>Printed ${printNow}</div>
+                </div>
+                <div class="sign">
+                  <div class="sign-line">For ${companyName}</div>
+                  <div class="sign-box"></div>
+                  <div class="sign-caption">Authorised Signatory</div>
+                </div>
+              </footer>
             </div>
           </div>
         </body>

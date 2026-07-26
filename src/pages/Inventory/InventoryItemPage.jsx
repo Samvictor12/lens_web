@@ -12,12 +12,18 @@ import {
   getInventoryItemById,
   updateInventoryItem,
 } from '@/services/inventory';
+import { parseInventoryPath } from './inventoryGodown';
 
 export default function InventoryItemPage() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const { godownType } = useMemo(
+    () => parseInventoryPath(location.pathname),
+    [location.pathname]
+  );
 
   const mode = useMemo(() => {
     if (location.pathname.includes('/edit/')) return 'edit';
@@ -35,7 +41,7 @@ export default function InventoryItemPage() {
       try {
         setIsLoading(true);
         const [dropdownsRes, itemRes] = await Promise.all([
-          getInventoryDropdowns(),
+          getInventoryDropdowns(godownType ? { godownType } : {}),
           id ? getInventoryItemById(parseInt(id)) : Promise.resolve({ success: true, data: null }),
         ]);
 
@@ -63,7 +69,7 @@ export default function InventoryItemPage() {
     };
 
     loadPage();
-  }, [id, toast]);
+  }, [id, toast, godownType]);
 
   const handleSubmit = async (formData) => {
     try {

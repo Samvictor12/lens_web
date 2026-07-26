@@ -14,6 +14,32 @@ const isQuarterDiopter = (val) => {
   return Math.round(n * 100) % 25 === 0;
 };
 
+/** Axis is mandatory whenever CYL is entered — including CYL 0. */
+const cylRequiresAxis = (cylindrical) =>
+  cylindrical !== null && cylindrical !== undefined && String(cylindrical).trim() !== '';
+
+const hasAxisEntry = (axis) =>
+  axis !== null && axis !== undefined && String(axis).trim() !== '';
+
+/**
+ * When CYL is present (including 0), Axis must be present for that eye.
+ */
+const validateAxisForCylPowers = (data, errors) => {
+  const checkEye = (eyeSelected, cyl, axis, axisField, label) => {
+    if (eyeSelected === false) return;
+    if (!cylRequiresAxis(cyl)) return;
+    if (!hasAxisEntry(axis)) {
+      errors.push({
+        field: axisField,
+        message: `${label} Axis is required when cylindrical is entered (including 0)`,
+      });
+    }
+  };
+
+  checkEye(data.rightEye, data.rightCylindrical, data.rightAxis, 'rightAxis', 'Right eye');
+  checkEye(data.leftEye, data.leftCylindrical, data.leftAxis, 'leftAxis', 'Left eye');
+};
+
 /**
  * Validate string length
  */
@@ -214,6 +240,8 @@ export const validateCreateSaleOrder = (data) => {
       errors.push({ field, message: `${field} must be in 0.25 steps` });
     }
   });
+
+  validateAxisForCylPowers(data, errors);
 
   // Dispatch information validation
   if (data.dispatchStatus && !isValidDispatchStatus(data.dispatchStatus)) {
@@ -430,6 +458,8 @@ export const validateUpdateSaleOrder = (data) => {
       errors.push({ field, message: `${field} must be in 0.25 steps` });
     }
   });
+
+  validateAxisForCylPowers(data, errors);
 
   if (data.material_id !== undefined && data.material_id !== null && data.material_id !== '') {
     const materialId = parseInt(data.material_id);
