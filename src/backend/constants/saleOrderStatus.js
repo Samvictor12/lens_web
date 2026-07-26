@@ -51,6 +51,7 @@ export const STATUS_LABELS = {
 /** Statuses shown in inventory SO Order Queue */
 export const INVENTORY_QUEUE_STATUSES = [
   'DRAFT',
+  'PO_RAISED',
   'PO_RECEIVED',
   'PO_CANCELLED',
   'PRE_QC_REJECTED',

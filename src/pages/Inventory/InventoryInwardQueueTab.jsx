@@ -8,6 +8,8 @@ import { Refresh } from '@/components/ui/Refresh';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table } from '@/components/ui/table';
+import { FormSelect } from '@/components/ui/form-select';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +19,8 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { getInventoryInwardQueue, dispositionQcReturn } from '@/services/inventory';
+import { getLocations } from '@/services/location';
+import { getTraysByLocation } from '@/services/tray';
 import { godownTypeToSlug, inventoryInwardDetailPath } from './inventoryGodown';
 
 const formatDate = (value) => {
@@ -40,6 +44,12 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
   const [dispositionAction, setDispositionAction] = useState(null); // REUSE | DISPOSE
   const [dispositionRemark, setDispositionRemark] = useState('');
   const [isSubmittingDisposition, setIsSubmittingDisposition] = useState(false);
+
+  const [locations, setLocations] = useState([]);
+  const [trays, setTrays] = useState([]);
+  const [locationId, setLocationId] = useState(null);
+  const [trayId, setTrayId] = useState(null);
+  const [loadingTrays, setLoadingTrays] = useState(false);
 
   useEffect(() => {
     const loadQueue = async () => {
@@ -75,10 +85,69 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
     loadQueue();
   }, [pageIndex, pageSize, refreshKey, searchQuery, toast, localRefreshKey, godownType]);
 
+  useEffect(() => {
+    if (dispositionAction !== 'REUSE') return;
+    let cancelled = false;
+    getLocations(1, 200, '', { activeStatus: true, godownType })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setLocations(
+            (res.data || []).map((loc) => ({
+              value: loc.id,
+              label: loc.name,
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLocations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dispositionAction, godownType]);
+
+  useEffect(() => {
+    if (!locationId || dispositionAction !== 'REUSE') {
+      setTrays([]);
+      setTrayId(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingTrays(true);
+    getTraysByLocation(locationId)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setTrays(
+            (res.data || []).map((t) => ({
+              value: t.id,
+              label: t.name,
+            }))
+          );
+        } else {
+          setTrays([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTrays([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTrays(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [locationId, dispositionAction]);
+
   const openDisposition = (item, action) => {
     setDispositionRow(item);
     setDispositionAction(action);
     setDispositionRemark('');
+    setLocationId(item.location?.id || null);
+    setTrayId(null);
+    setTrays([]);
   };
 
   const closeDisposition = (force = false) => {
@@ -86,15 +155,29 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
     setDispositionRow(null);
     setDispositionAction(null);
     setDispositionRemark('');
+    setLocationId(null);
+    setTrayId(null);
+    setTrays([]);
   };
 
   const submitDisposition = async () => {
     if (!dispositionRow?.qcReturnId || !dispositionAction) return;
+    if (dispositionAction === 'REUSE' && (!locationId || !trayId)) {
+      toast({
+        title: 'Location and tray required',
+        description: 'Select a location and tray before confirming Reuse.',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       setIsSubmittingDisposition(true);
       const response = await dispositionQcReturn(dispositionRow.qcReturnId, {
         disposition: dispositionAction,
         remark: dispositionRemark.trim() || undefined,
+        ...(dispositionAction === 'REUSE'
+          ? { locationId, trayId }
+          : {}),
       });
       if (!response.success) {
         throw new Error(response.message || 'Failed to process return');
@@ -103,7 +186,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
         title: dispositionAction === 'REUSE' ? 'Returned to stock' : 'Disposed',
         description:
           dispositionAction === 'REUSE'
-            ? 'Lens is available again in the same godown.'
+            ? 'Lens is AVAILABLE with a REUSED tag at the selected tray.'
             : 'Lens marked damaged and not usable.',
       });
       closeDisposition(true);
@@ -134,6 +217,11 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
                   className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-800 border-amber-200"
                 >
                   QC Return
+                </Badge>
+              )}
+              {item.eyeSide && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                  {item.eyeSide === 'RIGHT' ? 'R' : 'L'}
                 </Badge>
               )}
             </div>
@@ -252,6 +340,9 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
     [navigate, godownType]
   );
 
+  const canConfirmReuse =
+    dispositionAction !== 'REUSE' || (Boolean(locationId) && Boolean(trayId));
+
   return (
     <div className="flex flex-col h-full gap-2">
       <Card className="p-1 flex-shrink-0">
@@ -312,6 +403,12 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
                 <span className="text-muted-foreground">Source: </span>
                 {dispositionRow?.sourceLabel || '—'}
               </div>
+              {dispositionRow?.eyeSide ? (
+                <div>
+                  <span className="text-muted-foreground">Eye: </span>
+                  {dispositionRow.eyeSide === 'RIGHT' ? 'Right' : 'Left'}
+                </div>
+              ) : null}
               {dispositionRow?.rejectRemark ? (
                 <div>
                   <span className="text-muted-foreground">QC remark: </span>
@@ -321,9 +418,49 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
             </div>
             <p className="text-muted-foreground text-xs">
               {dispositionAction === 'REUSE'
-                ? 'Lens will become AVAILABLE in the same godown.'
+                ? 'Select location and tray. Lens becomes AVAILABLE with a persistent REUSED tag.'
                 : 'Lens will be marked DAMAGED and not usable.'}
             </p>
+            {dispositionAction === 'REUSE' && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">
+                    Location <span className="text-red-500">*</span>
+                  </Label>
+                  <FormSelect
+                    name="reuseLocationId"
+                    options={locations}
+                    value={locationId}
+                    onChange={(val) => {
+                      setLocationId(val);
+                      setTrayId(null);
+                    }}
+                    placeholder="Select location"
+                    isSearchable
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">
+                    Tray <span className="text-red-500">*</span>
+                  </Label>
+                  <FormSelect
+                    name="reuseTrayId"
+                    options={trays}
+                    value={trayId}
+                    onChange={setTrayId}
+                    placeholder={
+                      !locationId
+                        ? 'Select location first'
+                        : loadingTrays
+                          ? 'Loading trays…'
+                          : 'Select tray'
+                    }
+                    isSearchable
+                    disabled={!locationId || loadingTrays}
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-xs font-medium">Inventory note (optional)</label>
               <Textarea
@@ -345,7 +482,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
             </Button>
             <Button
               onClick={submitDisposition}
-              disabled={isSubmittingDisposition}
+              disabled={isSubmittingDisposition || !canConfirmReuse}
               className={
                 dispositionAction === 'DISPOSE'
                   ? 'bg-red-600 hover:bg-red-700 text-white'

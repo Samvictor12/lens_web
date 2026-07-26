@@ -12,9 +12,10 @@ import {
   getInventorySoQueue,
   issueSoToPreQc,
   raisePoFromSo,
+  confirmSoReset,
 } from '@/services/saleOrder';
 import { statusColors } from '@/pages/SaleOrder/SaleOrder.constants';
-import { queueBadge } from '@/constants/saleOrderStatus';
+import { queueBadge, RESET_ELIGIBLE } from '@/constants/saleOrderStatus';
 import {
   soRequestQueueFilters,
   soRequestQueueGroupingOptions,
@@ -87,14 +88,17 @@ function DetailRow({ label, value }) {
   );
 }
 
-function QueueCard({ order, onIssue, onAlternate, onRaisePo, busy }) {
+function QueueCard({ order, onIssue, onAlternate, onRaisePo, onConfirmReset, busy }) {
   const badge = queueBadge(order.status);
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
+  const needsReset = RESET_ELIGIBLE.includes(order.status);
+  const canIssue = ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED'].includes(order.status);
   const canRaisePo =
     ['DRAFT', 'PO_CANCELLED'].includes(order.status) &&
     !hasActiveLinkedPo(order) &&
     !order.isStockAvailable;
-  const canAlternate = order.hasAlternateStock && !order.isStockAvailable;
+  const canAlternate =
+    canIssue && order.hasAlternateStock && !order.isStockAvailable;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-3 shadow-sm hover:shadow-md transition duration-200 flex flex-col">
@@ -141,6 +145,34 @@ function QueueCard({ order, onIssue, onAlternate, onRaisePo, busy }) {
                 </Badge>
               )}
             </div>
+            {(order.issueReadiness?.right || order.issueReadiness?.left) && (
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {order.rightEye && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] py-0 px-1.5 ${
+                      order.issueReadiness.right?.alreadyHasLens
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    R: {order.issueReadiness.right?.alreadyHasLens ? 'Has lens' : 'Issue stock'}
+                  </Badge>
+                )}
+                {order.leftEye && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] py-0 px-1.5 ${
+                      order.issueReadiness.left?.alreadyHasLens
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    L: {order.issueReadiness.left?.alreadyHasLens ? 'Has lens' : 'Issue stock'}
+                  </Badge>
+                )}
+              </div>
+            )}
             <DetailRow label="Product" value={order.lensProduct?.lens_name} />
             <DetailRow label="Category" value={order.category?.name || order.lensCategory?.name} />
             <DetailRow label="Type" value={order.lensType?.name || order.type?.name} />
@@ -159,9 +191,23 @@ function QueueCard({ order, onIssue, onAlternate, onRaisePo, busy }) {
       </div>
 
       <div className="flex flex-wrap gap-2 pt-1 border-t">
-        <Button size="sm" onClick={() => onIssue(order)} disabled={busy}>
-          Issue &amp; Pre-QC
-        </Button>
+        {needsReset ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-300 text-amber-900 hover:bg-amber-50"
+            onClick={() => onConfirmReset(order)}
+            disabled={busy}
+          >
+            Confirm reset → Draft
+          </Button>
+        ) : (
+          canIssue && (
+            <Button size="sm" onClick={() => onIssue(order)} disabled={busy}>
+              Issue &amp; Pre-QC
+            </Button>
+          )
+        )}
         {canAlternate && (
           <Button
             size="sm"
@@ -279,11 +325,19 @@ export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 
     setPickModalOrder(order);
   };
 
-  const handleConfirmIssue = async (itemIds) => {
+  const handleConfirmIssue = async (pick) => {
     if (!pickModalOrder) return;
+    const itemIds = Array.isArray(pick) ? pick : pick?.itemIds || [];
+    const rightItemId = Array.isArray(pick) ? null : pick?.rightItemId ?? null;
+    const leftItemId = Array.isArray(pick) ? null : pick?.leftItemId ?? null;
     setBusy(true);
     try {
-      const res = await issueSoToPreQc(pickModalOrder.id, itemIds, isAlternatePick);
+      const res = await issueSoToPreQc(
+        pickModalOrder.id,
+        itemIds,
+        isAlternatePick,
+        { rightItemId, leftItemId }
+      );
       if (res.success) {
         toast({ title: isAlternatePick ? 'Alternate lens issued to Pre-QC' : 'Issued to Pre-QC' });
         setPickModalOrder(null);
@@ -300,6 +354,25 @@ export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 
   const handleRaisePoClick = (order) => {
     setRaisePoOrder(order);
     setIsRaisePoModalOpen(true);
+  };
+
+  const handleConfirmReset = async (order) => {
+    const remark = window.prompt(
+      `Confirm reset ${order.orderNo} to Draft before reprocess.\nReset remark (required):`
+    );
+    if (!remark?.trim()) return;
+    setBusy(true);
+    try {
+      const res = await confirmSoReset(order.id, remark.trim());
+      if (res.success) {
+        toast({ title: 'Reset to Draft', description: `${order.orderNo} is ready to reprocess.` });
+        load();
+      }
+    } catch (e) {
+      toast({ title: 'Reset failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const closeRaisePoModal = () => {
@@ -453,6 +526,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 
                 onIssue={handleIssueClick}
                 onAlternate={handleAlternateClick}
                 onRaisePo={handleRaisePoClick}
+                onConfirmReset={handleConfirmReset}
                 busy={busy}
               />
             ))}
@@ -487,6 +561,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 
                         onIssue={handleIssueClick}
                         onAlternate={handleAlternateClick}
                         onRaisePo={handleRaisePoClick}
+                        onConfirmReset={handleConfirmReset}
                         busy={busy}
                       />
                     ))}
@@ -514,6 +589,7 @@ export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 
         <StockPickModal
           saleOrderId={pickModalOrder.id}
           requiredEyes={{ rightEye: pickModalOrder.rightEye, leftEye: pickModalOrder.leftEye }}
+          issueReadiness={pickModalOrder.issueReadiness || null}
           isAlternate={isAlternatePick}
           onConfirm={handleConfirmIssue}
           onCancel={() => {

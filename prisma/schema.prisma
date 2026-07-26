@@ -1173,6 +1173,12 @@ enum InventoryQcReturnStatus {
   DISPOSED
 }
 
+/// Which SO eye an issued/returned inventory unit belongs to
+enum IssuedEyeSide {
+  RIGHT
+  LEFT
+}
+
 /// QC reject returns awaiting inventory Dispose / Reuse (shown in Inward Queue)
 model InventoryQcReturn {
   id              Int                    @id @default(autoincrement())
@@ -1180,6 +1186,7 @@ model InventoryQcReturn {
   saleOrder       SaleOrder              @relation(fields: [saleOrderId], references: [id])
   inventoryItemId Int?
   inventoryItem   InventoryItem?         @relation(fields: [inventoryItemId], references: [id])
+  eyeSide         IssuedEyeSide? // Required for new rows; null = legacy full-pair
   sourceStatus    String // PRE_QC_REJECTED | PRE_QC_SCRAPPED | POST_QC_REJECTED | POST_QC_SCRAPPED
   rejectRemark    String? // QC rejection reason (the "tag"/special remarks)
   status          InventoryQcReturnStatus @default(PENDING)
@@ -1261,10 +1268,14 @@ model InventoryItem {
   saleOrder    SaleOrder? @relation(fields: [saleOrderId], references: [id])
   reservedDate DateTime? // When reserved for sale
   soldDate     DateTime? // When actually sold
+  /// Eye attribution when reserved/issued to an SO (null = legacy)
+  issuedEye    IssuedEyeSide?
 
   // Quality & Condition
   qualityGrade String? // A, B, C grade
   notes        String? // Any special notes
+  /// Persistent REUSED tag after Inward Queue Reuse disposition
+  isReused     Boolean @default(false)
 
   // Audit Fields
   activeStatus  Boolean  @default(true)

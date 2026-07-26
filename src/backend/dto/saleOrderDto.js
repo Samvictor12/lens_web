@@ -514,6 +514,27 @@ export const validateUpdateStatus = (data) => {
     errors.push({ field: 'inventoryItemIds', message: 'inventoryItemIds must be an array of integers' });
   }
 
+  let rejectedEyes;
+  if (data.rejectedEyes !== undefined && data.rejectedEyes !== null) {
+    if (typeof data.rejectedEyes !== 'object' || Array.isArray(data.rejectedEyes)) {
+      errors.push({
+        field: 'rejectedEyes',
+        message: 'rejectedEyes must be an object with rightEye/leftEye booleans',
+      });
+    } else {
+      rejectedEyes = {
+        rightEye: Boolean(data.rejectedEyes.rightEye),
+        leftEye: Boolean(data.rejectedEyes.leftEye),
+      };
+      if (!rejectedEyes.rightEye && !rejectedEyes.leftEye) {
+        errors.push({
+          field: 'rejectedEyes',
+          message: 'At least one of rejectedEyes.rightEye or rejectedEyes.leftEye must be true',
+        });
+      }
+    }
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -528,7 +549,8 @@ export const validateUpdateStatus = (data) => {
           const num = Number(item);
           return isNaN(num) ? item : num;
         })
-      })
+      }),
+      ...(rejectedEyes !== undefined && { rejectedEyes }),
     } : null
   };
 };

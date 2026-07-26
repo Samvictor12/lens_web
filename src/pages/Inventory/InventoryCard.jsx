@@ -25,7 +25,14 @@ export default function InventoryCard({ item, onView, onEdit, onDelete, detailed
             </h3>
             <p className="text-xs text-muted-foreground">ID: {item.id}</p>
           </div>
-          <Badge className={statusColor}>{item.status}</Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge className={statusColor}>{item.status}</Badge>
+            {item.isReused && (
+              <Badge className="bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-100">
+                REUSED
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Two-column detail grid */}
@@ -163,6 +170,11 @@ export default function InventoryCard({ item, onView, onEdit, onDelete, detailed
             <Badge variant="outline" className={`${statusColor} text-xs px-1.5 py-0 h-5`}>
               {item.status}
             </Badge>
+            {item.isReused && (
+              <Badge className="bg-violet-100 text-violet-800 border-violet-200 text-[10px] px-1 py-0 h-4 hover:bg-violet-100">
+                REUSED
+              </Badge>
+            )}
             {(item.rightEye || item.leftEye) && (
               <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
                 {item.rightEye && item.leftEye ? "B/E" : item.rightEye ? "R" : "L"}

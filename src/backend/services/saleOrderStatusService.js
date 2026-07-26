@@ -159,6 +159,105 @@ export class SaleOrderStatusService {
   /**
    * Transition SO status with validation and logging
    */
+  /**
+   * Validate and normalize rejectedEyes payload for QC reject/scrap.
+   * @returns {{ rightEye: boolean, leftEye: boolean, sides: ('RIGHT'|'LEFT')[] }}
+   */
+  normalizeRejectedEyes(order, rejectedEyes) {
+    const soRight = Boolean(order.rightEye);
+    const soLeft = Boolean(order.leftEye);
+
+    let rightEye = false;
+    let leftEye = false;
+
+    if (rejectedEyes && typeof rejectedEyes === 'object') {
+      rightEye = Boolean(rejectedEyes.rightEye);
+      leftEye = Boolean(rejectedEyes.leftEye);
+    } else {
+      // Legacy callers: treat as full reject of all SO eyes
+      rightEye = soRight;
+      leftEye = soLeft;
+    }
+
+    if (!rightEye && !leftEye) {
+      throw new APIError(
+        'At least one eye must be rejected',
+        400,
+        'REJECTED_EYES_REQUIRED'
+      );
+    }
+    if (rightEye && !soRight) {
+      throw new APIError(
+        'Right eye is not on this sale order',
+        400,
+        'INVALID_REJECTED_EYE'
+      );
+    }
+    if (leftEye && !soLeft) {
+      throw new APIError(
+        'Left eye is not on this sale order',
+        400,
+        'INVALID_REJECTED_EYE'
+      );
+    }
+
+    const sides = [];
+    if (rightEye) sides.push('RIGHT');
+    if (leftEye) sides.push('LEFT');
+    return { rightEye, leftEye, sides };
+  }
+
+  /**
+   * Resolve which eye a rejected inventory row represents.
+   * Mutates `remainingSides` so dual-eye rejects get distinct RIGHT/LEFT
+   * even when items were stamped with both SO eye flags / null issuedEye.
+   */
+  resolveRejectedEyeSide(item, rejectedSides, remainingSides) {
+    let eyeSide = null;
+    if (item.issuedEye && rejectedSides.includes(item.issuedEye)) {
+      eyeSide = item.issuedEye;
+    } else if (rejectedSides.length === 1) {
+      eyeSide = rejectedSides[0];
+    } else if (item.rightEye && !item.leftEye && rejectedSides.includes('RIGHT')) {
+      eyeSide = 'RIGHT';
+    } else if (item.leftEye && !item.rightEye && rejectedSides.includes('LEFT')) {
+      eyeSide = 'LEFT';
+    } else if (remainingSides.length > 0) {
+      eyeSide = remainingSides[0];
+    } else {
+      eyeSide = rejectedSides[0] || null;
+    }
+
+    if (eyeSide) {
+      const idx = remainingSides.indexOf(eyeSide);
+      if (idx >= 0) remainingSides.splice(idx, 1);
+    }
+    return eyeSide;
+  }
+
+  /**
+   * Pick reserved/in-fitting/QC items whose issuedEye is in rejectedSides.
+   * Legacy null issuedEye: include when rejecting all SO eyes, or when SO has
+   * a single eye. Do NOT treat a single unstamped dual-eye row as rejectable
+   * on a one-eye reject (would drop the accepted eye).
+   */
+  filterItemsForRejectedEyes(items, rejectedSides, order) {
+    const soEyeCount = (order.rightEye ? 1 : 0) + (order.leftEye ? 1 : 0);
+    const rejectingAll =
+      (!order.rightEye || rejectedSides.includes('RIGHT')) &&
+      (!order.leftEye || rejectedSides.includes('LEFT'));
+
+    return items.filter((item) => {
+      if (item.issuedEye) {
+        return rejectedSides.includes(item.issuedEye);
+      }
+      // Legacy unstamped rows — both-eye reject or single-eye SO only
+      if (rejectingAll) return true;
+      if (soEyeCount === 1) return true;
+      return false;
+    });
+  }
+
   async transition({
     tx: externalTx,
     saleOrderId,
@@ -169,6 +268,7 @@ export class SaleOrderStatusService {
     referenceType,
     referenceId,
     extraOrderData = {},
+    rejectedEyes,
   }) {
     if (!SALE_ORDER_STATUSES.includes(toStatus)) {
       throw new APIError(`Invalid status: ${toStatus}`, 400, 'INVALID_STATUS');
@@ -259,16 +359,19 @@ export class SaleOrderStatusService {
         }
       }
 
-      // QC reject / scrap: immediately release reserved lenses into Inward Queue
-      // as RETURNED (pending Dispose / Reuse). SO Confirm Reset → Draft stays separate.
-      const qcReturnStatuses = [
-        'PRE_QC_REJECTED',
-        'PRE_QC_SCRAPPED',
-        'POST_QC_REJECTED',
-        'POST_QC_SCRAPPED',
-      ];
-      if (qcReturnStatuses.includes(toStatus)) {
-        const reservedItems = await tx.inventoryItem.findMany({
+      // QC reject (reusable) / scrap (immediate write-off) — per-eye aware
+      const qcRejectStatuses = ['PRE_QC_REJECTED', 'POST_QC_REJECTED'];
+      const qcScrapStatuses = ['PRE_QC_SCRAPPED', 'POST_QC_SCRAPPED'];
+      const isQcReject = qcRejectStatuses.includes(toStatus);
+      const isQcScrap = qcScrapStatuses.includes(toStatus);
+
+      if (isQcReject || isQcScrap) {
+        const { sides: rejectedSides } = this.normalizeRejectedEyes(
+          existing,
+          rejectedEyes
+        );
+
+        const linkedItems = await tx.inventoryItem.findMany({
           where: {
             saleOrderId,
             status: { in: ['RESERVED', 'IN_FITTING', 'QUALITY_CHECK'] },
@@ -276,10 +379,41 @@ export class SaleOrderStatusService {
           },
         });
 
-        for (const item of reservedItems) {
+        const toProcess = this.filterItemsForRejectedEyes(
+          linkedItems,
+          rejectedSides,
+          existing
+        );
+
+        // Fail closed: one-eye reject on dual-eye SO must not release an
+        // unstamped pair or create orphan QcReturn (inventoryItemId: null).
+        const soEyeCount =
+          (existing.rightEye ? 1 : 0) + (existing.leftEye ? 1 : 0);
+        const isOneEyeReject = soEyeCount >= 2 && rejectedSides.length === 1;
+        if (isOneEyeReject && toProcess.length === 0) {
+          const hasUnstampedLinked = linkedItems.some((item) => !item.issuedEye);
+          if (hasUnstampedLinked) {
+            throw new APIError(
+              'Cannot reject one eye while reserved stock has no per-eye stamp (issuedEye). Re-issue stock per eye, or reject both eyes.',
+              400,
+              'PARTIAL_REJECT_UNSTAMPED_PAIR'
+            );
+          }
+        }
+
+        const processedItemIds = [];
+        // Ensure each rejected physical lens gets a distinct eyeSide when both
+        // eyes are rejected (items often copy both SO rightEye/leftEye flags).
+        const remainingSides = [...rejectedSides];
+
+        for (const item of toProcess) {
           const qty = item.quantity || 1;
-          // Drop reserved hold for any linked item (status may still be RESERVED
-          // through Pre/Post QC; Math.max protects if already released)
+          const eyeSide = this.resolveRejectedEyeSide(
+            item,
+            rejectedSides,
+            remainingSides
+          );
+
           await inventoryService.updateInventoryStock(
             item,
             qty,
@@ -287,89 +421,105 @@ export class SaleOrderStatusService {
             tx
           );
 
-          await tx.inventoryItem.update({
-            where: { id: item.id },
-            data: {
-              status: 'RETURNED',
-              saleOrderId: null,
-              reservedDate: null,
-              notes: [
-                item.notes,
-                remark ? `QC reject tag: ${remark}` : null,
-                `Return from ${toStatus}`,
-              ]
-                .filter(Boolean)
-                .join(' | '),
-              updatedBy: userId ?? null,
-              updatedAt: new Date(),
-            },
-          });
+          if (isQcScrap) {
+            // Immediate write-off — no Inward Queue row
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: {
+                status: 'DAMAGED',
+                saleOrderId: null,
+                reservedDate: null,
+                issuedEye: null,
+                notes: [
+                  item.notes,
+                  remark ? `QC scrap tag: ${remark}` : null,
+                  `Scrapped from ${toStatus}`,
+                ]
+                  .filter(Boolean)
+                  .join(' | '),
+                updatedBy: userId ?? null,
+                updatedAt: new Date(),
+              },
+            });
+            await inventoryService.updateInventoryStock(
+              item,
+              qty,
+              'WRITE_OFF_HOLD',
+              tx
+            );
+          } else {
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: {
+                status: 'RETURNED',
+                saleOrderId: null,
+                reservedDate: null,
+                // Keep/stamp issuedEye so Inward Queue can label one eye per row
+                issuedEye: eyeSide || item.issuedEye || null,
+                notes: [
+                  item.notes,
+                  remark ? `QC reject tag: ${remark}` : null,
+                  eyeSide ? `Return ${eyeSide} from ${toStatus}` : `Return from ${toStatus}`,
+                ]
+                  .filter(Boolean)
+                  .join(' | '),
+                updatedBy: userId ?? null,
+                updatedAt: new Date(),
+              },
+            });
 
-          await tx.inventoryQcReturn.create({
-            data: {
+            await tx.inventoryQcReturn.create({
+              data: {
+                saleOrderId,
+                inventoryItemId: item.id,
+                eyeSide: eyeSide || null,
+                sourceStatus: toStatus,
+                rejectRemark: remark || null,
+                status: 'PENDING',
+                createdBy: userId ?? null,
+              },
+            });
+          }
+
+          processedItemIds.push(item.id);
+        }
+
+        // Legacy SO-level null-item QcReturn only when rejectable and nothing processed
+        if (isQcReject && toProcess.length === 0) {
+          for (const side of rejectedSides) {
+            await tx.inventoryQcReturn.create({
+              data: {
+                saleOrderId,
+                inventoryItemId: null,
+                eyeSide: side,
+                sourceStatus: toStatus,
+                rejectRemark: remark || null,
+                status: 'PENDING',
+                createdBy: userId ?? null,
+              },
+            });
+          }
+        }
+
+        // Soft-delete OUTWARD_SALE only for released/scrapped eyes
+        if (processedItemIds.length > 0) {
+          await tx.inventoryTransaction.deleteMany({
+            where: {
               saleOrderId,
-              inventoryItemId: item.id,
-              sourceStatus: toStatus,
-              rejectRemark: remark || null,
-              status: 'PENDING',
-              createdBy: userId ?? null,
+              type: 'OUTWARD_SALE',
+              inventoryItemId: { in: processedItemIds },
             },
           });
         }
-
-        // If no reserved items (edge case), still log a SO-level return row
-        if (reservedItems.length === 0) {
-          await tx.inventoryQcReturn.create({
-            data: {
-              saleOrderId,
-              inventoryItemId: null,
-              sourceStatus: toStatus,
-              rejectRemark: remark || null,
-              status: 'PENDING',
-              createdBy: userId ?? null,
-            },
-          });
-        }
-
-        await tx.inventoryTransaction.deleteMany({
-          where: {
-            saleOrderId,
-            type: 'OUTWARD_SALE',
-          },
-        });
       }
 
-      // Revert reservation if transitioning back to DRAFT
-      // (skip items already released via QC return)
+      // Confirm Reset → DRAFT: keep accepted retained eyes reserved on the SO.
+      // Do not unreserve SO-linked items; do not wipe their OUTWARD_SALE txns.
       if (toStatus === 'DRAFT') {
-        const reservedItems = await tx.inventoryItem.findMany({
-          where: {
-            saleOrderId: saleOrderId,
-            status: 'RESERVED',
-            deleteStatus: false
-          }
-        });
-        for (const item of reservedItems) {
-          await tx.inventoryItem.update({
-            where: { id: item.id },
-            data: {
-              status: 'AVAILABLE',
-              quantity: 1, // restore to 1
-              saleOrderId: null,
-              reservedDate: null,
-              updatedBy: userId ?? null,
-              updatedAt: new Date()
-            }
-          });
-          await inventoryService.updateInventoryStock(item, 1, 'UNRESERVE', tx);
-        }
-        // Delete OUTWARD_SALE inventory transactions linked to this sale order
-        await tx.inventoryTransaction.deleteMany({
-          where: {
-            saleOrderId: saleOrderId,
-            type: 'OUTWARD_SALE'
-          }
-        });
+        // Intentional no-op for retained accepted-eye stock after partial reject.
+        // Safety: only unreserve orphaned RESERVED rows that lack issuedEye AND
+        // are somehow still linked when no reject path ran (should be rare).
+        // Contract: do not release accepted retained eyes.
       }
 
       await this.appendLog(tx, {

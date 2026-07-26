@@ -7,6 +7,16 @@ This document details the Sale Order features, pricing logic, discount calculati
 * **Raise PO after Rx QC reject (2026-07-26):** After Confirm Reset → `DRAFT`, Raise PO succeeds even when a prior linked PO is fully `RECEIVED`. Only in-flight POs (`DRAFT` | `PO_PARTIAL_RECEIVED`) block via `PO_EXISTS`. UI gates in `InventoryRequestQueueTab` and `SaleOrderForm` match `saleOrderWorkflowService.raisePoFromSo` / `linkPoToSo`.
 * **PO Receive UI:** `PurchaseOrderReceive.jsx` shows Coating on the PO Summary and Axis on Single receive eye rows (data already on PO from `getById`).
 
+## 0b. Per-eye QC Rejection & Reprocess (2026-07-26)
+
+* **Pre-QC & Post-QC:** Reject dialog selects Left / Right / Both (subset of SO eyes) + remark; actions = Reject → Inventory (reusable) or Reject → Scrap.
+* **Accepted eye** stays reserved on the SO through reject status and Confirm Reset → `DRAFT` until a later QC Pass; only rejected eyes are released.
+* **Reusable reject:** rejected eye → `RETURNED` + PENDING `InventoryQcReturn` (`eyeSide`); scrap → immediate write-off, no Inward Queue row.
+* **Reprocess Issue:** Stock Pick shows **Issue stock** vs **Already has lens** per eye (`issueReadiness`); `issueToPreQc` requires picks only for missing eyes and stamps `issuedEye` (one unit per eye; no unstamped dual qty≥2 reserve).
+* **Auto-inward `rec_*` (2026-07-27):** creates `InventoryItem` with only the issued eye’s powers/flags from the SO (not the full L+R pair) so Stock Summary power buckets stay correct after later Reuse.
+* **Raise PO:** defaults to missing/rejected eyes only (accepted reserved eye treated as covered).
+* **Linkages:** Inventory Inward Queue Dispose/Reuse (Reuse optical canonicalize); `saleOrderStatusService` + `saleOrderWorkflowService`.
+
 ## 1. Pricing & Discount Calculations
 To ensure proper billing limits, discounts and promotional percentage offers apply **exclusively to the lens price** (coating price) and do not discount other order extras:
 * **Subtotal Components:**

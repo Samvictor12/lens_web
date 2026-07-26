@@ -1063,7 +1063,7 @@ export class SaleOrderService {
    * @param {string} [remark] - Optional remark (used for QC rejection reason)
    * @returns {Promise<Object>} Updated sale order
    */
-  async updateStatus(id, status, userId, req = null, remark = undefined, inventoryItemIds = undefined) {
+  async updateStatus(id, status, userId, req = null, remark = undefined, inventoryItemIds = undefined, rejectedEyes = undefined) {
     try {
       if (!SALE_ORDER_STATUSES.includes(status)) {
         throw new APIError(`Invalid status. Must be one of: ${SALE_ORDER_STATUSES.join(', ')}`, 400, 'INVALID_STATUS');
@@ -1093,6 +1093,13 @@ export class SaleOrderService {
         }
       });
       if (!existing) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+
+      const qcRejectOrScrap = [
+        'PRE_QC_REJECTED',
+        'PRE_QC_SCRAPPED',
+        'POST_QC_REJECTED',
+        'POST_QC_SCRAPPED',
+      ].includes(status);
 
       let updated;
       if (status === 'IN_FITTING' && inventoryItemIds && inventoryItemIds.length > 0) {
@@ -1224,6 +1231,7 @@ export class SaleOrderService {
           userId,
           remark,
           source: sourceByStatus[status] || 'USER',
+          ...(qcRejectOrScrap ? { rejectedEyes } : {}),
         });
       }
 

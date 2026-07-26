@@ -89,7 +89,10 @@ erDiagram
 ## Core Entities Description
 
 ### 1. InventoryItem
-Stores physical stock rows. Note that a single row can hold multiple units of identical specs (Sph, Cyl, Add, Coating, etc.) in a specific Tray and Location. Status flips to `RESERVED` when quantity is consumed by a Sale Order.
+Stores physical stock rows. Note that a single row can hold multiple units of identical specs (Sph, Cyl, Add, Coating, etc.) in a specific Tray and Location. Status flips to `RESERVED` when quantity is consumed by a Sale Order. **Per-eye QC (2026-07-26):** `issuedEye` (`IssuedEyeSide` RIGHT|LEFT, nullable) attributes a reserved unit to one SO eye; `isReused` (Boolean, default false) is the persistent REUSED tag after Inward Queue Reuse (location+tray required). Status `RETURNED` = pending Dispose/Reuse. **Reuse (2026-07-27):** on REUSE the row is canonicalized to one eye’s SPH/CYL/ADD + matching `rightEye`/`leftEye` flags (opposite optical fields cleared) so Stock Summary power buckets match the returned lens. **Partial reserve (2026-07-27):** reserving part of an AVAILABLE multi-qty row creates child `RESERVED` rows (`quantity: 0`, `saleOrderId` + `issuedEye`) while the source remains AVAILABLE with decremented qty.
+
+### 1b. InventoryQcReturn
+Pending QC reject returns shown in Inward Queue. Fields include `saleOrderId`, optional `inventoryItemId`, `sourceStatus`, `rejectRemark`, `status` (PENDING|REUSED|DISPOSED), and **`eyeSide`** (`IssuedEyeSide?`, required on new rows). Scrap rejects do **not** create rows. Queue listing filters by `saleOrder.procurementType` (RX vs STOCK godown), not item location godown.
 
 ### 2. InventoryTransaction
 Records all inward movements (Manual or PO Inward) and outward movements (Sale Order dispatch). Keeps track of historical unit prices and values.

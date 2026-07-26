@@ -2,16 +2,22 @@ import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
 
 // Excludes InventoryItems sourced from an RX-linked PurchaseOrder (linked to an RX sale order),
-// while keeping manually-initialized items (purchaseOrderId null) and stock-type PO items (including STOCK-type SO purchases).
-// NOT: { purchaseOrder: { saleOrder: { procurementType: 'RX' } } } — not the simpler
-// { purchaseOrder: { saleOrder: { procurementType: null } } } form, which would drop rows with no PO.
+// while keeping manually-initialized items (purchaseOrderId null), stock-type PO items, and
+// QC-reused lenses (isReused=true) which are intentionally back in general stock.
+// NOT: bare { purchaseOrder: { saleOrder: { procurementType: 'RX' } } } — that form on an
+// optional relation would also drop rows with no PO.
 const RX_SOURCE_EXCLUSION_FILTER = {
   NOT: {
-    purchaseOrder: {
-      saleOrder: {
-        procurementType: 'RX'
-      }
-    }
+    AND: [
+      { isReused: false },
+      {
+        purchaseOrder: {
+          saleOrder: {
+            procurementType: 'RX',
+          },
+        },
+      },
+    ],
   },
 };
 
@@ -39,6 +45,47 @@ function normalizePowerValue(val) {
   const n = Number(val);
   if (!Number.isFinite(n)) return "0.00";
   return n.toFixed(2);
+}
+
+/** True when SPH/CYL/ADD holds a usable (non-blank) value. */
+function opticalNonEmpty(val) {
+  return val != null && String(val).trim() !== "";
+}
+
+/**
+ * Prefer primary eye power; if empty, fall back to the other eye (FIFO cross-match rows).
+ */
+function pickEyePower(primary, fallback) {
+  return opticalNonEmpty(primary) ? primary : opticalNonEmpty(fallback) ? fallback : primary;
+}
+
+/**
+ * Eye-aware SPH/CYL/ADD coalesce for Stock Summary list / grouping / pivot.
+ * left-only → left powers (fallback right if left empty); right-only → right (fallback left);
+ * else legacy right || left.
+ */
+function coalescePower(item) {
+  const leftOnly = item.leftEye && !item.rightEye;
+  const rightOnly = item.rightEye && !item.leftEye;
+  if (leftOnly) {
+    return {
+      sph: normalizePowerValue(pickEyePower(item.leftSpherical, item.rightSpherical) || "0"),
+      cyl: normalizePowerValue(pickEyePower(item.leftCylindrical, item.rightCylindrical) || "0"),
+      add: normalizePowerValue(pickEyePower(item.leftAdd, item.rightAdd) || "0"),
+    };
+  }
+  if (rightOnly) {
+    return {
+      sph: normalizePowerValue(pickEyePower(item.rightSpherical, item.leftSpherical) || "0"),
+      cyl: normalizePowerValue(pickEyePower(item.rightCylindrical, item.leftCylindrical) || "0"),
+      add: normalizePowerValue(pickEyePower(item.rightAdd, item.leftAdd) || "0"),
+    };
+  }
+  return {
+    sph: normalizePowerValue(item.rightSpherical || item.leftSpherical || "0"),
+    cyl: normalizePowerValue(item.rightCylindrical || item.leftCylindrical || "0"),
+    add: normalizePowerValue(item.rightAdd || item.leftAdd || "0"),
+  };
 }
 
 /**
@@ -526,21 +573,12 @@ export class InventoryService {
             .some((value) => value.toLowerCase().includes(normalizedSearch));
         });
 
-      // QC returns (Reject → Inventory / Scrap) pending Dispose or Reuse
+      // QC returns (Reject → Inventory) pending Dispose or Reuse.
+      // Scope by SO procurementType only — do not OR with location godownType.
       const qcReturnWhere = {
         status: 'PENDING',
         ...(gt === 'RX' || gt === 'STOCK'
-          ? {
-              OR: [
-                { inventoryItem: { location: { godownType: gt } } },
-                {
-                  AND: [
-                    { inventoryItemId: null },
-                    { saleOrder: { procurementType: gt } },
-                  ],
-                },
-              ],
-            }
+          ? { saleOrder: { procurementType: gt } }
           : {}),
       };
 
@@ -553,6 +591,10 @@ export class InventoryService {
               orderNo: true,
               customerRefNo: true,
               procurementType: true,
+              rightSpherical: true,
+              rightCylindrical: true,
+              leftSpherical: true,
+              leftCylindrical: true,
               customer: { select: { id: true, name: true, code: true } },
             },
           },
@@ -586,20 +628,58 @@ export class InventoryService {
         }
       };
 
+      // One lens per QC return row — never join R·L on a single record.
+      const eyeSideLabel = (side, item, saleOrder) => {
+        const resolved =
+          side === 'RIGHT' || side === 'LEFT'
+            ? side
+            : item?.issuedEye === 'RIGHT' || item?.issuedEye === 'LEFT'
+              ? item.issuedEye
+              : null;
+
+        if (resolved === 'RIGHT') {
+          const sph =
+            item?.rightSpherical ?? saleOrder?.rightSpherical ?? '0';
+          const cyl =
+            item?.rightCylindrical ?? saleOrder?.rightCylindrical ?? '0';
+          return `R ${sph || '0'}/${cyl || '0'}`;
+        }
+        if (resolved === 'LEFT') {
+          const sph = item?.leftSpherical ?? saleOrder?.leftSpherical ?? '0';
+          const cyl =
+            item?.leftCylindrical ?? saleOrder?.leftCylindrical ?? '0';
+          return `L ${sph || '0'}/${cyl || '0'}`;
+        }
+        return '—';
+      };
+
+      // Legacy PENDING returns may lack eyeSide; assign distinct sides per SO
+      // so dual-reject rows don't both render "R · L".
+      const legacySidePoolBySo = new Map();
+      const resolveDisplayEyeSide = (r) => {
+        if (r.eyeSide === 'RIGHT' || r.eyeSide === 'LEFT') return r.eyeSide;
+        if (
+          r.inventoryItem?.issuedEye === 'RIGHT' ||
+          r.inventoryItem?.issuedEye === 'LEFT'
+        ) {
+          return r.inventoryItem.issuedEye;
+        }
+        const item = r.inventoryItem;
+        if (item?.rightEye && !item?.leftEye) return 'RIGHT';
+        if (item?.leftEye && !item?.rightEye) return 'LEFT';
+
+        const key = r.saleOrderId;
+        if (!legacySidePoolBySo.has(key)) {
+          legacySidePoolBySo.set(key, ['RIGHT', 'LEFT']);
+        }
+        const pool = legacySidePoolBySo.get(key);
+        return pool.length > 0 ? pool.shift() : null;
+      };
+
       const returnQueueItems = qcReturns
         .map((r) => {
           const item = r.inventoryItem;
-          const eyeParts = [];
-          if (item?.rightEye) {
-            eyeParts.push(
-              `R ${item.rightSpherical || '0'}/${item.rightCylindrical || '0'}`
-            );
-          }
-          if (item?.leftEye) {
-            eyeParts.push(
-              `L ${item.leftSpherical || '0'}/${item.leftCylindrical || '0'}`
-            );
-          }
+          const displayEyeSide = resolveDisplayEyeSide(r);
           return {
             id: `qcr-${r.id}`,
             queueType: 'QC_RETURN',
@@ -621,7 +701,9 @@ export class InventoryService {
             coating: item?.coating || null,
             location: item?.location || null,
             tray: item?.tray || null,
-            eyeSummary: eyeParts.join(' · ') || '—',
+            eyeSide: displayEyeSide,
+            eyeSummary: eyeSideLabel(displayEyeSide, item, r.saleOrder),
+            isReused: Boolean(item?.isReused),
             receivedDate: r.createdAt,
             actualDeliveryDate: null,
             createdAt: r.createdAt,
@@ -700,11 +782,25 @@ export class InventoryService {
    * @param {'REUSE'|'DISPOSE'} disposition
    * @param {string} [remark]
    * @param {number} userId
+   * @param {{ locationId?: number, trayId?: number }} [options]
    */
-  async dispositionQcReturn(qcReturnId, disposition, remark, userId) {
+  async dispositionQcReturn(qcReturnId, disposition, remark, userId, options = {}) {
     const action = String(disposition || '').toUpperCase();
     if (action !== 'REUSE' && action !== 'DISPOSE') {
       throw new APIError('disposition must be REUSE or DISPOSE', 400, 'INVALID_DISPOSITION');
+    }
+
+    const locationId =
+      options.locationId != null ? parseInt(options.locationId, 10) : null;
+    const trayId = options.trayId != null ? parseInt(options.trayId, 10) : null;
+
+    if (action === 'REUSE') {
+      if (!locationId || Number.isNaN(locationId)) {
+        throw new APIError('locationId is required for Reuse', 400, 'LOCATION_REQUIRED');
+      }
+      if (!trayId || Number.isNaN(trayId)) {
+        throw new APIError('trayId is required for Reuse', 400, 'TRAY_REQUIRED');
+      }
     }
 
     try {
@@ -722,14 +818,90 @@ export class InventoryService {
 
         const item = row.inventoryItem;
         if (item && !item.deleteStatus) {
-          const qty = item.quantity || 1;
+          // Reserved rows have quantity ~0; reuse must restore a sellable unit qty.
+          const qty = Math.max(1, item.quantity || 1);
           if (action === 'REUSE') {
-            await tx.inventoryItem.update({
+            const location = await tx.locationMaster.findFirst({
+              where: { id: locationId, deleteStatus: false },
+            });
+            if (!location) {
+              throw new APIError('Location not found', 404, 'LOCATION_NOT_FOUND');
+            }
+            const tray = await tx.trayMaster.findFirst({
+              where: {
+                id: trayId,
+                location_id: locationId,
+                deleteStatus: false,
+              },
+            });
+            if (!tray) {
+              throw new APIError(
+                'Tray not found for the selected location',
+                400,
+                'TRAY_NOT_FOUND'
+              );
+            }
+
+            const locationChanged =
+              item.location_id !== locationId || item.tray_id !== trayId;
+
+            // Restore available at the item's current (pre-move) stock bucket
+            await this.updateInventoryStock(item, qty, 'MAKE_AVAILABLE', tx);
+
+            if (locationChanged) {
+              await this.updateInventoryStock(item, qty, 'SUBTRACT', tx);
+              await this.updateInventoryStock(
+                { ...item, location_id: locationId, tray_id: trayId },
+                qty,
+                'ADD',
+                tx
+              );
+            }
+
+            // Canonicalize to single-eye optical identity so Stock Summary
+            // buckets by the returned eye (not the preferred-right coalesce).
+            const resolvedEye = (() => {
+              const side = String(row.eyeSide || item.issuedEye || '')
+                .trim()
+                .toUpperCase();
+              return side === 'RIGHT' || side === 'LEFT' ? side : null;
+            })();
+            const opticalCanonicalize = {};
+            if (resolvedEye === 'RIGHT') {
+              // Prefer right powers; if empty (symmetric cross-match gap), copy left → right.
+              opticalCanonicalize.rightEye = true;
+              opticalCanonicalize.leftEye = false;
+              opticalCanonicalize.rightSpherical = pickEyePower(item.rightSpherical, item.leftSpherical);
+              opticalCanonicalize.rightCylindrical = pickEyePower(item.rightCylindrical, item.leftCylindrical);
+              opticalCanonicalize.rightAdd = pickEyePower(item.rightAdd, item.leftAdd);
+              opticalCanonicalize.leftSpherical = null;
+              opticalCanonicalize.leftCylindrical = null;
+              opticalCanonicalize.leftAdd = null;
+            } else if (resolvedEye === 'LEFT') {
+              // Prefer left powers; FIFO left cross-match often stores power on right* only —
+              // copy right → left when left optical fields are empty, then clear right.
+              opticalCanonicalize.leftEye = true;
+              opticalCanonicalize.rightEye = false;
+              opticalCanonicalize.leftSpherical = pickEyePower(item.leftSpherical, item.rightSpherical);
+              opticalCanonicalize.leftCylindrical = pickEyePower(item.leftCylindrical, item.rightCylindrical);
+              opticalCanonicalize.leftAdd = pickEyePower(item.leftAdd, item.rightAdd);
+              opticalCanonicalize.rightSpherical = null;
+              opticalCanonicalize.rightCylindrical = null;
+              opticalCanonicalize.rightAdd = null;
+            }
+
+            const updatedItem = await tx.inventoryItem.update({
               where: { id: item.id },
               data: {
                 status: 'AVAILABLE',
+                quantity: qty,
                 saleOrderId: null,
                 reservedDate: null,
+                issuedEye: null,
+                location_id: locationId,
+                tray_id: trayId,
+                isReused: true,
+                ...opticalCanonicalize,
                 notes: [
                   item.notes,
                   remark ? `Reuse note: ${remark}` : null,
@@ -740,7 +912,30 @@ export class InventoryService {
                 updatedBy: userId ?? null,
               },
             });
-            await this.updateInventoryStock(item, qty, 'MAKE_AVAILABLE', tx);
+
+            // Record reusable return-to-stock as an inventory transaction
+            const transactionNo = await this.generateTransactionNumber(tx);
+            await tx.inventoryTransaction.create({
+              data: {
+                transactionNo,
+                type: 'ADJUSTMENT',
+                inventoryItemId: updatedItem.id,
+                quantity: qty,
+                balanceAfter: qty,
+                unitPrice: item.costPrice ?? null,
+                totalValue:
+                  item.costPrice != null ? qty * item.costPrice : null,
+                toLocationId: locationId,
+                toTrayId: trayId,
+                fromLocationId: item.location_id ?? null,
+                fromTrayId: item.tray_id ?? null,
+                saleOrderId: row.saleOrderId ?? null,
+                reason: remark
+                  ? `QC reuse return to stock: ${remark}`
+                  : 'QC reuse return to stock',
+                createdBy: userId ?? null,
+              },
+            });
           } else {
             await tx.inventoryItem.update({
               where: { id: item.id },
@@ -759,6 +954,27 @@ export class InventoryService {
               },
             });
             await this.updateInventoryStock(item, qty, 'WRITE_OFF_HOLD', tx);
+
+            const transactionNo = await this.generateTransactionNumber(tx);
+            await tx.inventoryTransaction.create({
+              data: {
+                transactionNo,
+                type: 'DAMAGE',
+                inventoryItemId: item.id,
+                quantity: -qty,
+                balanceAfter: 0,
+                unitPrice: item.costPrice ?? null,
+                totalValue:
+                  item.costPrice != null ? qty * item.costPrice : null,
+                fromLocationId: item.location_id ?? null,
+                fromTrayId: item.tray_id ?? null,
+                saleOrderId: row.saleOrderId ?? null,
+                reason: remark
+                  ? `QC return disposed: ${remark}`
+                  : 'QC return disposed',
+                createdBy: userId ?? null,
+              },
+            });
           }
         }
 
@@ -773,7 +989,14 @@ export class InventoryService {
           include: {
             saleOrder: { select: { id: true, orderNo: true } },
             inventoryItem: {
-              select: { id: true, status: true, serialNo: true },
+              select: {
+                id: true,
+                status: true,
+                serialNo: true,
+                isReused: true,
+                location_id: true,
+                tray_id: true,
+              },
             },
           },
         });
@@ -1258,8 +1481,9 @@ export class InventoryService {
    *   function's writes participate in that outer transaction instead.
    * @returns {Promise<Object>} Updated inventory item
    */
-  async reserveInventoryForSale(inventoryItemId, quantity, saleOrderId, userId, dbClient = prisma) {
+  async reserveInventoryForSale(inventoryItemId, quantity, saleOrderId, userId, dbClient = prisma, options = {}) {
     try {
+      const { issuedEye } = options;
       const runner = async (client) => {
         const inventoryItem = await client.inventoryItem.findUnique({
           where: { id: inventoryItemId }
@@ -1280,46 +1504,134 @@ export class InventoryService {
         // Quantity-aware status flip: a row's full quantity should only be
         // marked RESERVED (with saleOrderId/reservedDate set) once it is fully
         // consumed. Partial consumption keeps the row AVAILABLE with the
-        // remaining quantity decremented, so it stays visible to FIFO matching.
+        // remaining quantity decremented, so it stays visible to FIFO matching,
+        // and creates SO-linked RESERVED child unit row(s).
         const remainingQty = inventoryItem.quantity - quantity;
         const fullyConsumed = remainingQty <= 0.001;
 
-        const updateData = {
-          status: fullyConsumed ? 'RESERVED' : 'AVAILABLE',
-          quantity: Math.max(0, remainingQty),
-          updatedBy: userId,
-          updatedAt: new Date()
-        };
+        // Full consume: flip source to RESERVED (no split child).
         if (fullyConsumed) {
-          updateData.saleOrderId = saleOrderId;
-          updateData.reservedDate = new Date();
+          const updateData = {
+            status: 'RESERVED',
+            quantity: 0,
+            saleOrderId,
+            reservedDate: new Date(),
+            updatedBy: userId,
+            updatedAt: new Date()
+          };
+          if (issuedEye === 'RIGHT' || issuedEye === 'LEFT') {
+            updateData.issuedEye = issuedEye;
+          }
+
+          const updatedItem = await client.inventoryItem.update({
+            where: { id: inventoryItemId },
+            data: updateData
+          });
+
+          await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
+
+          const transactionNo = await this.generateTransactionNumber(client);
+          await client.inventoryTransaction.create({
+            data: {
+              transactionNo,
+              type: 'OUTWARD_SALE',
+              inventoryItemId,
+              quantity: -quantity,
+              balanceAfter: 0,
+              saleOrderId,
+              reason: 'Reserved for sale order',
+              createdBy: userId
+            }
+          });
+
+          return updatedItem;
         }
 
-        // Update inventory item status
-        const updatedItem = await client.inventoryItem.update({
+        // Partial consume (remainingQty > 0.001): decrement source only; keep
+        // AVAILABLE + unlinked. Create one RESERVED SO-linked child per unit.
+        await client.inventoryItem.update({
           where: { id: inventoryItemId },
-          data: updateData
-        });
-
-        // Update stock summary (move from available to reserved)
-        await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
-
-        // Create transaction for reservation
-        const transactionNo = await this.generateTransactionNumber(client);
-        await client.inventoryTransaction.create({
           data: {
-            transactionNo,
-            type: 'OUTWARD_SALE',
-            inventoryItemId: inventoryItemId,
-            quantity: -quantity,
-            balanceAfter: Math.max(0, remainingQty),
-            saleOrderId: saleOrderId,
-            reason: 'Reserved for sale order',
-            createdBy: userId
+            status: 'AVAILABLE',
+            quantity: Math.max(0, remainingQty),
+            // Explicitly leave saleOrderId / reservedDate / issuedEye unset on source
+            updatedBy: userId,
+            updatedAt: new Date()
           }
         });
 
-        return updatedItem;
+        // Single bucket RESERVE against source identity (do not double-count on children).
+        await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
+
+        const units = Math.round(quantity);
+        const reservedChildren = [];
+        const eyeStamp =
+          issuedEye === 'RIGHT' || issuedEye === 'LEFT' ? issuedEye : null;
+
+        for (let i = 0; i < units; i += 1) {
+          const child = await client.inventoryItem.create({
+            data: {
+              batchNo: inventoryItem.batchNo,
+              serialNo: inventoryItem.serialNo,
+              lens_id: inventoryItem.lens_id,
+              category_id: inventoryItem.category_id,
+              Type_id: inventoryItem.Type_id,
+              coating_id: inventoryItem.coating_id,
+              dia_id: inventoryItem.dia_id,
+              fitting_id: inventoryItem.fitting_id,
+              tinting_id: inventoryItem.tinting_id,
+              location_id: inventoryItem.location_id,
+              tray_id: inventoryItem.tray_id,
+              quantity: 0, // KB-021: RESERVED rows hold remaining unreserved amount (~0)
+              costPrice: inventoryItem.costPrice,
+              sellingPrice: inventoryItem.sellingPrice,
+              rightEye: inventoryItem.rightEye,
+              leftEye: inventoryItem.leftEye,
+              rightSpherical: inventoryItem.rightSpherical,
+              rightCylindrical: inventoryItem.rightCylindrical,
+              rightAxis: inventoryItem.rightAxis,
+              rightAdd: inventoryItem.rightAdd,
+              leftSpherical: inventoryItem.leftSpherical,
+              leftCylindrical: inventoryItem.leftCylindrical,
+              leftAxis: inventoryItem.leftAxis,
+              leftAdd: inventoryItem.leftAdd,
+              status: 'RESERVED',
+              expiryDate: inventoryItem.expiryDate,
+              manufactureDate: inventoryItem.manufactureDate,
+              inwardDate: inventoryItem.inwardDate,
+              purchaseOrderId: inventoryItem.purchaseOrderId,
+              purchaseReceiptId: inventoryItem.purchaseReceiptId,
+              vendorId: inventoryItem.vendorId,
+              saleOrderId,
+              reservedDate: new Date(),
+              issuedEye: eyeStamp,
+              qualityGrade: inventoryItem.qualityGrade,
+              notes: inventoryItem.notes,
+              isReused: inventoryItem.isReused,
+              createdBy: userId,
+              updatedBy: userId,
+            }
+          });
+
+          const transactionNo = await this.generateTransactionNumber(client);
+          await client.inventoryTransaction.create({
+            data: {
+              transactionNo,
+              type: 'OUTWARD_SALE',
+              inventoryItemId: child.id,
+              quantity: -1,
+              balanceAfter: 0,
+              saleOrderId,
+              reason: 'Reserved for sale order',
+              createdBy: userId
+            }
+          });
+
+          reservedChildren.push(child);
+        }
+
+        // Partial return: single child when Q === 1; array of children when Q > 1.
+        return units === 1 ? reservedChildren[0] : reservedChildren;
       };
 
       // If no explicit dbClient was passed, open our own transaction so this
@@ -1754,12 +2066,6 @@ export class InventoryService {
         };
       };
 
-      const coalescePower = (item) => ({
-        sph: normalizePowerValue(item.rightSpherical || item.leftSpherical || "0"),
-        cyl: normalizePowerValue(item.rightCylindrical || item.leftCylindrical || "0"),
-        add: normalizePowerValue(item.rightAdd || item.leftAdd || "0"),
-      });
-
       if (!isGrouped) {
         // No grouping - return raw items directly, excluding RX-sourced stock
         const where = buildItemWhere();
@@ -1779,7 +2085,7 @@ export class InventoryService {
           },
         });
 
-        // Expose flat sph/cyl/add (pivot coalesce) so list UI shows compact power text
+        // Expose flat sph/cyl/add (eye-aware coalesce) so list UI shows compact power text
         const data = items.map((item) => {
           const power = coalescePower(item);
           return { ...item, ...power };
@@ -1798,7 +2104,7 @@ export class InventoryService {
       // permanently mixes RX + non-RX quantities once accumulated, so it cannot be used
       // to answer "non-RX stock only" queries without touching its shared update lifecycle
       // (relied on elsewhere for FIFO picking / low-stock alerts).
-      // Grain includes effective optical power (rightX || leftX || '0') — same as pivot —
+      // Grain includes effective optical power (eye-aware coalesce) — same as pivot —
       // because Prisma groupBy cannot express coalesce; aggregate in memory.
       const itemWhere = buildItemWhere({ requireActiveLens: true });
 
@@ -1809,6 +2115,8 @@ export class InventoryService {
           status: true,
           costPrice: true,
           inwardDate: true,
+          rightEye: true,
+          leftEye: true,
           rightSpherical: true,
           rightCylindrical: true,
           rightAdd: true,
@@ -2665,6 +2973,8 @@ export class InventoryService {
           id: true,
           quantity: true,
           status: true,
+          rightEye: true,
+          leftEye: true,
           rightSpherical: true,
           rightCylindrical: true,
           rightAdd: true,
@@ -2672,6 +2982,7 @@ export class InventoryService {
           leftCylindrical: true,
           leftAdd: true,
           lens_id: true,
+          coating_id: true,
           lensProduct: {
             select: { id: true, lens_name: true, product_code: true }
           },
@@ -2709,9 +3020,7 @@ export class InventoryService {
           }
         }
 
-        const sphVal = normalizePowerValue(item.rightSpherical || item.leftSpherical || '0');
-        const cylVal = normalizePowerValue(item.rightCylindrical || item.leftCylindrical || '0');
-        const addVal = normalizePowerValue(item.rightAdd || item.leftAdd || '0');
+        const { sph: sphVal, cyl: cylVal, add: addVal } = coalescePower(item);
 
         // Identity: lens + coating + normalized power (lensType is display-only).
         const prodKey = `${item.lens_id}|${item.coating_id ?? '0'}|${sphVal}|${cylVal}|${addVal}`;

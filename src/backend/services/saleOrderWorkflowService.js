@@ -114,22 +114,150 @@ export async function computeQueueSoftAllocation({ procurementType } = {}) {
 
 /**
  * Shortage eyes for a single SO under queue-wide FIFO soft allocation.
+ * Accepted reserved eyes (after partial reject) count as covered.
  */
 async function getSoftShortageForSaleOrder(saleOrderId) {
   const so = await prisma.saleOrder.findUnique({
     where: { id: saleOrderId },
-    select: { procurementType: true },
+    select: {
+      id: true,
+      rightEye: true,
+      leftEye: true,
+      procurementType: true,
+    },
   });
   const softOpts =
     so?.procurementType === 'STOCK' || so?.procurementType === 'RX'
       ? { procurementType: so.procurementType }
       : {};
   const { byOrderId } = await computeQueueSoftAllocation(softOpts);
-  const result = byOrderId.get(saleOrderId);
-  if (!result) {
-    return { shortageRight: false, shortageLeft: false, isStockAvailable: false };
-  }
+  const result = byOrderId.get(saleOrderId) || {
+    shortageRight: false,
+    shortageLeft: false,
+    isStockAvailable: false,
+  };
+
+  const readiness = await getIssueEyeReadiness(saleOrderId, so);
+  // Accepted reserved eye is covered — not a PO shortage
+  if (readiness.right.alreadyHasLens) result.shortageRight = false;
+  if (readiness.left.alreadyHasLens) result.shortageLeft = false;
+  // Eyes not on SO are never shortage
+  if (!so?.rightEye) result.shortageRight = false;
+  if (!so?.leftEye) result.shortageLeft = false;
+  result.isStockAvailable =
+    (!so?.rightEye || readiness.right.alreadyHasLens || !result.shortageRight) &&
+    (!so?.leftEye || readiness.left.alreadyHasLens || !result.shortageLeft);
+
   return result;
+}
+
+/**
+ * Per-eye issue readiness from SO-linked reserved/in-fitting/QC items.
+ */
+export async function getIssueEyeReadiness(saleOrderId, order = null, db = prisma) {
+  const so =
+    order ||
+    (await db.saleOrder.findUnique({
+      where: { id: saleOrderId },
+      select: { id: true, rightEye: true, leftEye: true },
+    }));
+
+  const reserved = await db.inventoryItem.findMany({
+    where: {
+      saleOrderId,
+      status: { in: ['RESERVED', 'IN_FITTING', 'QUALITY_CHECK'] },
+      deleteStatus: false,
+    },
+    select: {
+      id: true,
+      serialNo: true,
+      issuedEye: true,
+      status: true,
+    },
+  });
+
+  const rightItem =
+    reserved.find((i) => i.issuedEye === 'RIGHT') ||
+    // Legacy single-eye / single-item without stamp
+    (so?.rightEye &&
+    !so?.leftEye &&
+    reserved.length === 1 &&
+    !reserved[0].issuedEye
+      ? reserved[0]
+      : null);
+  const leftItem =
+    reserved.find((i) => i.issuedEye === 'LEFT') ||
+    (so?.leftEye &&
+    !so?.rightEye &&
+    reserved.length === 1 &&
+    !reserved[0].issuedEye
+      ? reserved[0]
+      : null);
+
+  // Dual-eye legacy pair: one unstamped reserved item covers both eyes
+  if (
+    so?.rightEye &&
+    so?.leftEye &&
+    !rightItem &&
+    !leftItem &&
+    reserved.length === 1 &&
+    !reserved[0].issuedEye
+  ) {
+    return {
+      right: {
+        needsIssue: false,
+        alreadyHasLens: true,
+        reservedItemId: reserved[0].id,
+        serialNo: reserved[0].serialNo,
+      },
+      left: {
+        needsIssue: false,
+        alreadyHasLens: true,
+        reservedItemId: reserved[0].id,
+        serialNo: reserved[0].serialNo,
+      },
+    };
+  }
+
+  // Dual-eye legacy: if two unstamped reserved items, treat as both covered
+  if (
+    so?.rightEye &&
+    so?.leftEye &&
+    !rightItem &&
+    !leftItem &&
+    reserved.length >= 2 &&
+    reserved.every((i) => !i.issuedEye)
+  ) {
+    return {
+      right: {
+        needsIssue: false,
+        alreadyHasLens: true,
+        reservedItemId: reserved[0].id,
+        serialNo: reserved[0].serialNo,
+      },
+      left: {
+        needsIssue: false,
+        alreadyHasLens: true,
+        reservedItemId: reserved[1].id,
+        serialNo: reserved[1].serialNo,
+      },
+    };
+  }
+
+  return {
+    right: {
+      needsIssue: Boolean(so?.rightEye) && !rightItem,
+      alreadyHasLens: Boolean(so?.rightEye) && Boolean(rightItem),
+      reservedItemId: rightItem?.id ?? null,
+      serialNo: rightItem?.serialNo ?? null,
+    },
+    left: {
+      needsIssue: Boolean(so?.leftEye) && !leftItem,
+      alreadyHasLens: Boolean(so?.leftEye) && Boolean(leftItem),
+      reservedItemId: leftItem?.id ?? null,
+      serialNo: leftItem?.serialNo ?? null,
+    },
+  };
 }
 
 export class SaleOrderWorkflowService {
@@ -199,9 +327,26 @@ export class SaleOrderWorkflowService {
 
     const enrichedOrders = await Promise.all(orders.map(async (order) => {
       const alloc = softAlloc.byOrderId.get(order.id);
-      const isStockAvailable = alloc ? alloc.isStockAvailable : false;
-      const shortageRight = alloc ? alloc.shortageRight : Boolean(order.rightEye);
-      const shortageLeft = alloc ? alloc.shortageLeft : Boolean(order.leftEye);
+      let isStockAvailable = alloc ? alloc.isStockAvailable : false;
+      let shortageRight = alloc ? alloc.shortageRight : Boolean(order.rightEye);
+      let shortageLeft = alloc ? alloc.shortageLeft : Boolean(order.leftEye);
+
+      const eyeReadiness = await getIssueEyeReadiness(order.id, order);
+      if (eyeReadiness.right.alreadyHasLens) shortageRight = false;
+      if (eyeReadiness.left.alreadyHasLens) shortageLeft = false;
+      if (!order.rightEye) shortageRight = false;
+      if (!order.leftEye) shortageLeft = false;
+
+      // Soft stock only needed for eyes that still need issue
+      const rightOk =
+        !order.rightEye ||
+        eyeReadiness.right.alreadyHasLens ||
+        !shortageRight;
+      const leftOk =
+        !order.leftEye ||
+        eyeReadiness.left.alreadyHasLens ||
+        !shortageLeft;
+      isStockAvailable = rightOk && leftOk;
 
       // Alternate-lens badge (M2): only relevant when the exact-match is short.
       let hasAlternateStock = false;
@@ -210,8 +355,12 @@ export class SaleOrderWorkflowService {
           const altMatches = await saleOrderService.getAlternateMatchingInventory(order.id, {
             applySoftClaims: true,
           });
-          const rightHasAlt = order.rightEye && (altMatches.rightEyeMatches || []).length > 0;
-          const leftHasAlt = order.leftEye && (altMatches.leftEyeMatches || []).length > 0;
+          const rightHasAlt =
+            eyeReadiness.right.needsIssue &&
+            (altMatches.rightEyeMatches || []).length > 0;
+          const leftHasAlt =
+            eyeReadiness.left.needsIssue &&
+            (altMatches.leftEyeMatches || []).length > 0;
           hasAlternateStock = rightHasAlt || leftHasAlt;
         } catch (e) {
           console.error(`Alternate stock check failed for SO ${order.id}:`, e);
@@ -224,6 +373,10 @@ export class SaleOrderWorkflowService {
         shortageRight,
         shortageLeft,
         hasAlternateStock,
+        issueReadiness: {
+          right: eyeReadiness.right,
+          left: eyeReadiness.left,
+        },
       };
     }));
 
@@ -498,7 +651,12 @@ export class SaleOrderWorkflowService {
   }
 
   /** Issue stock and move SO to PRE_QC (log STOCK_ISSUED + PRE_QC) */
-  async issueToPreQc(saleOrderId, userId, { inventoryItemIds = [], isAlternate = false } = {}) {
+  async issueToPreQc(saleOrderId, userId, {
+    inventoryItemIds = [],
+    rightItemId = null,
+    leftItemId = null,
+    isAlternate = false,
+  } = {}) {
     return prisma.$transaction(async (tx) => {
       const so = await tx.saleOrder.findUnique({
         where: { id: saleOrderId, deleteStatus: false },
@@ -510,9 +668,15 @@ export class SaleOrderWorkflowService {
       });
       if (!so) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
 
-      const allowedFrom = ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED', 'PRE_QC_REJECTED', 'POST_QC_REJECTED', 'PRE_QC_SCRAPPED', 'POST_QC_SCRAPPED'];
+      const allowedFrom = ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED'];
       if (!allowedFrom.includes(so.status)) {
-        throw new APIError(`Cannot issue from status ${so.status}`, 400, 'INVALID_STATUS');
+        throw new APIError(
+          so.status?.includes('REJECTED') || so.status?.includes('SCRAPPED')
+            ? 'Confirm Reset to Draft before issuing stock'
+            : `Cannot issue from status ${so.status}`,
+          400,
+          'INVALID_STATUS'
+        );
       }
 
       const openPo = so.purchaseOrders.find((p) => ['DRAFT', 'PO_PARTIAL_RECEIVED'].includes(p.status));
@@ -520,9 +684,60 @@ export class SaleOrderWorkflowService {
         throw new APIError('Open PO blocks shelf issue until PO is fully received or cancelled', 400, 'OPEN_PO');
       }
 
-      const requiredEyes = (so.rightEye ? 1 : 0) + (so.leftEye ? 1 : 0);
-      if (requiredEyes === 2 && inventoryItemIds.length > 0 && inventoryItemIds.length < 2) {
-        throw new APIError('Both RE and LE inventory items required', 400, 'BOTH_EYES_REQUIRED');
+      const readiness = await getIssueEyeReadiness(saleOrderId, so, tx);
+      const needsRight = readiness.right.needsIssue;
+      const needsLeft = readiness.left.needsIssue;
+
+      // Resolve per-eye picks: prefer explicit rightItemId/leftItemId
+      let resolvedRight = rightItemId ?? null;
+      let resolvedLeft = leftItemId ?? null;
+
+      if (!resolvedRight && !resolvedLeft && Array.isArray(inventoryItemIds) && inventoryItemIds.length > 0) {
+        // Map ordered ids onto eyes that need issue (RE first, then LE)
+        const queue = [...inventoryItemIds];
+        if (needsRight) resolvedRight = queue.shift() ?? null;
+        if (needsLeft) resolvedLeft = queue.shift() ?? null;
+      }
+
+      if (needsRight && !resolvedRight) {
+        throw new APIError(
+          'Right eye inventory item required',
+          400,
+          needsLeft ? 'BOTH_EYES_REQUIRED' : 'RIGHT_EYE_REQUIRED'
+        );
+      }
+      if (needsLeft && !resolvedLeft) {
+        throw new APIError(
+          'Left eye inventory item required',
+          400,
+          needsRight ? 'BOTH_EYES_REQUIRED' : 'LEFT_EYE_REQUIRED'
+        );
+      }
+
+      // Build reservation plan with eye attribution (collapse duplicate keys)
+      const eyePicks = [];
+      if (needsRight && resolvedRight) {
+        eyePicks.push({ itemId: resolvedRight, issuedEye: 'RIGHT' });
+      }
+      if (needsLeft && resolvedLeft) {
+        eyePicks.push({ itemId: resolvedLeft, issuedEye: 'LEFT' });
+      }
+
+      const reservationPlan = [];
+      for (const pick of eyePicks) {
+        const key = String(pick.itemId);
+        const existing = reservationPlan.find((p) => p.key === key);
+        if (existing) {
+          existing.quantity += 1;
+          existing.issuedEyes.push(pick.issuedEye);
+        } else {
+          reservationPlan.push({
+            key,
+            itemId: pick.itemId,
+            quantity: 1,
+            issuedEyes: [pick.issuedEye],
+          });
+        }
       }
 
       // M2: capture the picked alternate items' actual product identity (brand,
@@ -532,7 +747,8 @@ export class SaleOrderWorkflowService {
       if (isAlternate) {
         const pickedInventoryItemIds = [
           ...new Set(
-            inventoryItemIds
+            eyePicks
+              .map((p) => p.itemId)
               .filter((itemId) => !(typeof itemId === 'string' && itemId.startsWith('rec_')))
               .map((itemId) =>
                 typeof itemId === 'string' && itemId.startsWith('inv_')
@@ -569,24 +785,15 @@ export class SaleOrderWorkflowService {
         }
       }
 
-      // Collapse duplicate picks (same inv_/rec_ for both eyes) into qty counts so
-      // we reserve N units in one call instead of failing on the second loop pass.
-      const reservationPlan = [];
-      for (const itemId of inventoryItemIds) {
-        const key = String(itemId);
-        const existing = reservationPlan.find((p) => p.key === key);
-        if (existing) existing.quantity += 1;
-        else reservationPlan.push({ key, itemId, quantity: 1 });
-      }
-
       // Reserve via the shared quantity-aware path. Runs inside this transaction
       // (tx as dbClient) so a failure rolls back all earlier reservations.
-      for (const { itemId, quantity } of reservationPlan) {
+      for (const { itemId, quantity, issuedEyes } of reservationPlan) {
         try {
           if (typeof itemId === 'string' && itemId.startsWith('rec_')) {
             // Receipt lines are auto-inwarded one unit at a time
             for (let i = 0; i < quantity; i += 1) {
               const receiptId = parseInt(itemId.replace('rec_', ''), 10);
+              const issuedEye = issuedEyes[i] || issuedEyes[0] || null;
 
               // 1. Fetch the PurchaseOrderReceipt and its purchaseOrder
               const receipt = await tx.purchaseOrderReceipt.findUnique({
@@ -613,7 +820,45 @@ export class SaleOrderWorkflowService {
               const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
               if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
 
-              // 3. Create the InventoryItem on the fly
+              // 3. Create the InventoryItem on the fly — stamp only the issued
+              // eye's powers/flags so Stock Summary does not coalesce to the other eye.
+              const eyeSide = String(issuedEye || '').trim().toUpperCase();
+              let eyePowers;
+              if (eyeSide === 'RIGHT') {
+                eyePowers = {
+                  rightEye: true,
+                  leftEye: false,
+                  rightSpherical: so.rightSpherical,
+                  rightCylindrical: so.rightCylindrical,
+                  rightAdd: so.rightAdd,
+                  leftSpherical: null,
+                  leftCylindrical: null,
+                  leftAdd: null,
+                };
+              } else if (eyeSide === 'LEFT') {
+                eyePowers = {
+                  leftEye: true,
+                  rightEye: false,
+                  leftSpherical: so.leftSpherical,
+                  leftCylindrical: so.leftCylindrical,
+                  leftAdd: so.leftAdd,
+                  rightSpherical: null,
+                  rightCylindrical: null,
+                  rightAdd: null,
+                };
+              } else {
+                // Legacy / unknown issuedEye — keep full SO pair
+                eyePowers = {
+                  rightEye: so.rightEye,
+                  leftEye: so.leftEye,
+                  rightSpherical: so.rightSpherical,
+                  rightCylindrical: so.rightCylindrical,
+                  rightAdd: so.rightAdd,
+                  leftSpherical: so.leftSpherical,
+                  leftCylindrical: so.leftCylindrical,
+                  leftAdd: so.leftAdd,
+                };
+              }
               const itemData = {
                 lens_id: so.lens_id,
                 category_id: so.category_id,
@@ -630,23 +875,13 @@ export class SaleOrderWorkflowService {
                 purchaseOrderId: receipt.purchaseOrderId,
                 purchaseReceiptId: receipt.id,
                 vendorId: receipt.purchaseOrder?.vendorId,
-                rightEye: so.rightEye,
-                leftEye: so.leftEye,
-                rightSpherical: so.rightSpherical,
-                rightCylindrical: so.rightCylindrical,
-                rightAdd: so.rightAdd,
-                leftSpherical: so.leftSpherical,
-                leftCylindrical: so.leftCylindrical,
-                leftAdd: so.leftAdd,
+                ...eyePowers,
                 status: 'AVAILABLE',
                 createdBy: userId,
               };
               const item = await tx.inventoryItem.create({ data: itemData });
 
               // 4. Record the inward transaction and update the stock summary
-              // bucket, mirroring InventoryService.createInventoryItem — without
-              // this, reserveInventoryForSale's RESERVE step below finds no
-              // matching stock bucket and silently no-ops the stock update.
               const transactionNo = await inventoryService.generateTransactionNumber(tx);
               await tx.inventoryTransaction.create({
                 data: {
@@ -677,15 +912,35 @@ export class SaleOrderWorkflowService {
                 },
               });
 
-              // 6. Reserve this item for the sale order
-              await inventoryService.reserveInventoryForSale(item.id, 1, so.id, userId, tx);
+              // 6. Reserve this item for the sale order with eye stamp
+              await inventoryService.reserveInventoryForSale(
+                item.id,
+                1,
+                so.id,
+                userId,
+                tx,
+                { issuedEye }
+              );
             }
           } else {
-            // It's a standard inventory item
+            // Standard inventory item — always one unit per eye with issuedEye
+            // stamp (even when both eyes resolve to the same inv_* source id).
+            // Sequential calls: first may split a RESERVED child + decrement
+            // source; second reserves from remaining source or fully consumes it.
             const inventoryItemId = typeof itemId === 'string' && itemId.startsWith('inv_')
               ? parseInt(itemId.replace('inv_', ''), 10)
               : parseInt(itemId, 10);
-            await inventoryService.reserveInventoryForSale(inventoryItemId, quantity, so.id, userId, tx);
+
+            for (const eye of issuedEyes) {
+              await inventoryService.reserveInventoryForSale(
+                inventoryItemId,
+                1,
+                so.id,
+                userId,
+                tx,
+                { issuedEye: eye }
+              );
+            }
           }
         } catch (err) {
           const reason = err?.message || 'Failed to reserve inventory item';
@@ -717,10 +972,16 @@ export class SaleOrderWorkflowService {
     });
     if (!po?.saleOrderId || !po.saleOrder) return null;
 
-    const requiredQty = requiredPoQty(po.saleOrder);
+    // Fullness of THIS PO only (may be single-eye after partial QC reject).
+    // Do NOT compare against the SO's full L+R pair — that blocked PO_RECEIVED
+    // when a replacement PO ordered only the rejected eye.
+    const poEyeQty =
+      (po.rightEye ? 1 : 0) + (po.leftEye ? 1 : 0);
+    const requiredQty =
+      poEyeQty > 0 ? poEyeQty : parseFloat(po.quantity) || 1;
     const isFull = cumulativeReceivedQty >= requiredQty;
 
-    if (isFull) {
+    if (isFull && po.saleOrder.status === 'PO_RAISED') {
       await saleOrderStatusService.transition({
         tx,
         saleOrderId: po.saleOrderId,
@@ -731,7 +992,7 @@ export class SaleOrderWorkflowService {
         referenceType: 'PurchaseOrder',
         referenceId: po.id,
       });
-    } else if (po.saleOrder.status === 'PO_RAISED') {
+    } else if (!isFull && po.saleOrder.status === 'PO_RAISED') {
       // partial — SO unchanged; PO status handled in PO service
     }
     return po.saleOrder;

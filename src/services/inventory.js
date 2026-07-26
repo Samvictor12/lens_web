@@ -16,12 +16,17 @@ export const getInventoryInwardQueue = async (params = {}) => {
   return response;
 };
 
-export const dispositionQcReturn = async (id, { disposition, remark } = {}) => {
+export const dispositionQcReturn = async (id, { disposition, remark, locationId, trayId } = {}) => {
   const response = await apiClient(
     "post",
     `${INVENTORY_BASE_URL}/qc-returns/${id}/disposition`,
     {
-      data: { disposition, remark },
+      data: {
+        disposition,
+        remark,
+        ...(locationId != null ? { locationId } : {}),
+        ...(trayId != null ? { trayId } : {}),
+      },
     }
   );
   return response;

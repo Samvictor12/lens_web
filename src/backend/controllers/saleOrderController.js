@@ -207,7 +207,8 @@ export class SaleOrderController {
         userId,
         req,
         validation.data.remark,
-        validation.data.inventoryItemIds
+        validation.data.inventoryItemIds,
+        validation.data.rejectedEyes
       );
 
       res.status(200).json({
@@ -551,6 +552,8 @@ export class SaleOrderController {
       const userId = req.user?.id || 1;
       const order = await saleOrderWorkflowService.issueToPreQc(validation.data, userId, {
         inventoryItemIds: req.body?.inventoryItemIds,
+        rightItemId: req.body?.rightItemId ?? null,
+        leftItemId: req.body?.leftItemId ?? null,
         isAlternate: Boolean(req.body?.isAlternate),
       });
       res.status(200).json({ success: true, message: 'Issued to Pre-QC', data: order });

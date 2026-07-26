@@ -103,13 +103,14 @@ export const deleteSaleOrder = async (id) => {
 /**
  * Update sale order status only (for status transition buttons)
  */
-export const updateSaleOrderStatus = async (id, status, remark = undefined, inventoryItemIds = undefined) => {
+export const updateSaleOrderStatus = async (id, status, remark = undefined, inventoryItemIds = undefined, rejectedEyes = undefined) => {
     try {
         const response = await apiClient("patch", `/sale-orders/${id}/status`, {
             data: { 
                 status, 
                 ...(remark !== undefined && { remark }),
-                ...(inventoryItemIds !== undefined && { inventoryItemIds })
+                ...(inventoryItemIds !== undefined && { inventoryItemIds }),
+                ...(rejectedEyes !== undefined && { rejectedEyes }),
             },
         });
         return response;
@@ -171,10 +172,15 @@ export const getInventorySoQueue = async (params = {}) => {
     }
 };
 
-export const issueSoToPreQc = async (id, inventoryItemIds = [], isAlternate = false) => {
+export const issueSoToPreQc = async (id, inventoryItemIds = [], isAlternate = false, eyeItems = {}) => {
     try {
         return await apiClient("post", `/sale-orders/${id}/issue-to-pre-qc`, {
-            data: { inventoryItemIds, ...(isAlternate ? { isAlternate: true } : {}) },
+            data: {
+                inventoryItemIds,
+                ...(eyeItems.rightItemId != null ? { rightItemId: eyeItems.rightItemId } : {}),
+                ...(eyeItems.leftItemId != null ? { leftItemId: eyeItems.leftItemId } : {}),
+                ...(isAlternate ? { isAlternate: true } : {}),
+            },
         });
     } catch (error) {
         throw new Error(error.response?.data?.message || "Failed to issue to Pre-QC");

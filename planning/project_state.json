@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Per-Eye QC Rejection & Reprocess",
+  "feature": "Partial Reserve SO-Link Split",
   "active_feature_file": "planning/feature.md",
-  "phase": "CONTRACT",
+  "phase": "COMPLETED",
   "HUMAN_APPROVED": true,
-  "state_tag": "PLAN_MODE",
+  "state_tag": "COMPLETED",
   "last_agent": "orchestrator",
-  "at": "2026-07-26T23:49:00+05:30"
+  "at": "2026-07-26T20:30:00.000Z"
 }
