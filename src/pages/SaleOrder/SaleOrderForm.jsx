@@ -1737,7 +1737,8 @@ export default function SaleOrderForm() {
             (p) =>
                 !p.deleteStatus &&
                 p.status !== "CANCELLED" &&
-                ["DRAFT", "PO_PARTIAL_RECEIVED", "RECEIVED"].includes(p.status)
+                // In-flight only — prior RECEIVED PO must not block Raise PO re-raise.
+                ["DRAFT", "PO_PARTIAL_RECEIVED"].includes(p.status)
         );
 
     const canRaisePo =

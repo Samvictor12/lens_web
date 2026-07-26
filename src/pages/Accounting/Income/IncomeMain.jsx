@@ -66,17 +66,37 @@ export default function IncomeMain() {
     }
   }, [pageIndex, pageSize, searchQuery, refreshKey]);
 
+  const fetchDialogData = useCallback(async () => {
+    // Independent loads so a ledger failure cannot wipe categories (and vice versa)
+    try {
+      const catRes = await getIncomeCategories();
+      if (catRes?.success) setCategories(catRes.data || []);
+      else if (Array.isArray(catRes)) setCategories(catRes);
+      else if (Array.isArray(catRes?.data)) setCategories(catRes.data);
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: e?.response?.data?.message || "Failed to load income categories",
+      });
+    }
+    try {
+      const ledgers = await getCashBankCapitalLedgers();
+      setTransferLedgers(Array.isArray(ledgers) ? ledgers : []);
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: e?.response?.data?.message || "Failed to load transfer accounts",
+      });
+    }
+  }, [toast]);
+
   useEffect(() => { fetchIncomes(); }, [fetchIncomes]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
+  // Reload categories + transfer ledgers whenever Record Income opens
   useEffect(() => {
-    Promise.all([getIncomeCategories(), getCashBankCapitalLedgers()])
-      .then(([catRes, ledgers]) => {
-        if (catRes?.success) setCategories(catRes.data || []);
-        else if (Array.isArray(catRes)) setCategories(catRes);
-        setTransferLedgers(Array.isArray(ledgers) ? ledgers : []);
-      })
-      .catch(() => {});
-  }, []);
+    if (!dialogOpen) return;
+    fetchDialogData();
+  }, [dialogOpen, fetchDialogData]);
 
   return (
     <div className="flex flex-col gap-3 p-4 h-full">

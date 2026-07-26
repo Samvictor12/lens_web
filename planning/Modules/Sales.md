@@ -2,6 +2,11 @@
 
 This document details the Sale Order features, pricing logic, discount calculations, and the end-to-end credit exposure lifecycle.
 
+## 0. Procurement linkage (Raise PO / Receive)
+
+* **Raise PO after Rx QC reject (2026-07-26):** After Confirm Reset → `DRAFT`, Raise PO succeeds even when a prior linked PO is fully `RECEIVED`. Only in-flight POs (`DRAFT` | `PO_PARTIAL_RECEIVED`) block via `PO_EXISTS`. UI gates in `InventoryRequestQueueTab` and `SaleOrderForm` match `saleOrderWorkflowService.raisePoFromSo` / `linkPoToSo`.
+* **PO Receive UI:** `PurchaseOrderReceive.jsx` shows Coating on the PO Summary and Axis on Single receive eye rows (data already on PO from `getById`).
+
 ## 1. Pricing & Discount Calculations
 To ensure proper billing limits, discounts and promotional percentage offers apply **exclusively to the lens price** (coating price) and do not discount other order extras:
 * **Subtotal Components:**
@@ -72,11 +77,12 @@ The second tab in the Billing page (`/billing`) was renamed from "Dispatch Order
 ## Quick Close — Payment Routing (2026-07-05)
 Record Payment and Quick Close on Billing invoices **navigate to Accounting Customer Payments** (`/accounts/customer-payments?customerId=&invoiceId=&openForm=1`) with the invoice pre-selected. The legacy `RecordPaymentDialog` is no longer the entry point. `POST /api/invoices/:id/payments` returns HTTP 410.
 
-## Tax Invoice Preview & Print (2026-07-14; DIA removed 2026-07-25)
+## Tax Invoice Preview & Print (2026-07-14; DIA removed 2026-07-25; empty amounts → 0 on 2026-07-26)
 * **Layout:** `buildInvoiceHtml` / `printInvoice` in `Billing.constants.js` (and `InvoicePreviewDialog` iframe) follow the M.V.V Tax Invoice template — copy headers, seller/buyer blocks, line table with optical specs in Description, notes/totals, amount in words, GST declaration, bank block, signatory.
 * **Specs on print:** SPH / CYL / AXIS / ADD only — **DIA excluded** from `formatEyeSpecs` (shared with Dispatch Challan via `formatGoodsDescription`).
 * **Ref No.:** Per linked SO line = `SaleOrder.customerRefNo` (blank → `—`).
 * **Due Date:** Create Invoice auto-fills from customer `creditDays`; server falls back to invoice date + `credit_days` when omitted. Shown on preview/print.
+* **Empty amounts:** Money fields (line Discount, totals Discount, Round Off, and shared `fmt`) show `0.00` / `₹0.00` when null/empty/zero — never `—`. Text/identity blanks (GSTIN, PAN, bank, dates, Ref No) still use `—` via `dash()`.
 * **Optional seller fields:** PAN / STATE CODE / bank A/C / IFSC / electronic ref from `CompanySettings.customAttributes` when present; otherwise blank/`—`. No PDF library (HTML print — KB-004).
 
 ## Dispatch list sort (2026-07-25)

@@ -30,6 +30,18 @@ function locationGodownClause(godownType) {
 }
 
 /**
+ * Normalize SPH/CYL/ADD for stock grouping keys.
+ * null/empty → "0.00"; "0" ≡ "0.00", "-1" ≡ "-1.00".
+ * Apply after coalesce (rightX || leftX || "0").
+ */
+function normalizePowerValue(val) {
+  if (val == null || String(val).trim() === "") return "0.00";
+  const n = Number(val);
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toFixed(2);
+}
+
+/**
  * Build AND clauses for stock queries scoped by godown.
  * STOCK: location STOCK + exclude RX-sourced PO stock + exclude RX lens type
  * RX: location RX + exclude STOCK lens type
@@ -1743,9 +1755,9 @@ export class InventoryService {
       };
 
       const coalescePower = (item) => ({
-        sph: item.rightSpherical || item.leftSpherical || "0",
-        cyl: item.rightCylindrical || item.leftCylindrical || "0",
-        add: item.rightAdd || item.leftAdd || "0",
+        sph: normalizePowerValue(item.rightSpherical || item.leftSpherical || "0"),
+        cyl: normalizePowerValue(item.rightCylindrical || item.leftCylindrical || "0"),
+        add: normalizePowerValue(item.rightAdd || item.leftAdd || "0"),
       });
 
       if (!isGrouped) {
@@ -1812,15 +1824,14 @@ export class InventoryService {
         },
       });
 
-      // Bucket by product dims + effective SPH/CYL/ADD. availableStock = total - reserved
-      // (same semantics as InventoryStock schema comment).
+      // Bucket by lens + coating + location + tray + normalized SPH/CYL/ADD.
+      // category_id / Type_id are display-only (first-seen representative), not identity.
+      // availableStock = total - reserved (same semantics as InventoryStock schema comment).
       const buckets = {};
       for (const item of items) {
         const power = coalescePower(item);
         const key = [
           item.lens_id,
-          item.category_id,
-          item.Type_id,
           item.coating_id,
           item.location_id,
           item.tray_id,
@@ -2698,11 +2709,12 @@ export class InventoryService {
           }
         }
 
-        const sphVal = item.rightSpherical || item.leftSpherical || '0';
-        const cylVal = item.rightCylindrical || item.leftCylindrical || '0';
-        const addVal = item.rightAdd || item.leftAdd || '0';
-        
-        const prodKey = `${item.lens_id}|${item.lensType?.id ?? '0'}|${sphVal}|${cylVal}|${addVal}|${item.coating_id ?? '0'}`;
+        const sphVal = normalizePowerValue(item.rightSpherical || item.leftSpherical || '0');
+        const cylVal = normalizePowerValue(item.rightCylindrical || item.leftCylindrical || '0');
+        const addVal = normalizePowerValue(item.rightAdd || item.leftAdd || '0');
+
+        // Identity: lens + coating + normalized power (lensType is display-only).
+        const prodKey = `${item.lens_id}|${item.coating_id ?? '0'}|${sphVal}|${cylVal}|${addVal}`;
 
         if (!productMap[prodKey]) {
           productMap[prodKey] = {

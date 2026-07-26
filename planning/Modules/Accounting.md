@@ -100,7 +100,7 @@ Expenses            Direct / Indirect   COGS, Rent, etc.
 
 Customer-owned AR and vendor-owned AP sub-ledgers are created with `accountGroupId` = Sundry Debtors / Sundry Creditors; resolved at posting via `getOwnedLedger()`.
 
-**Cash/bank picker:** `GET /api/ledgers/cash-bank` → `ledgerService.getCashBankLedgers()` filters `GRP-CASH` / `GRP-BANK` groups only.
+**Cash/bank picker:** `GET /api/ledgers/cash-bank` → `ledgerService.getCashBankLedgers()` filters `GRP-CASH` / `GRP-BANK` groups only (includes `currentBalance`). **UI (2026-07-26):** payment account selects show `{ledgerName} — ₹{balance}` via `formatCashBankLedgerLabel` (`src/utils/cashBankLedgerLabel.js`) on Vendor Payment (from invoices), Customer Payment, Expense, Billing Record Payment, and **Income From/To** (`cash-bank-capital`, optional group suffix e.g. `Cash in Hand (Cash) — ₹1,234.00`).
 
 ---
 
@@ -220,6 +220,7 @@ graph LR
 ### Income
 - Models: `IncomeCategory`, `Income` (mirror Expense pattern); seed categories **Bank Transfer**, **Loan** with Indirect Income ledgers (e.g. AC-3003 / AC-3004).
 - **From / To ledgers (2026-07-25):** Create requires `fromLedgerId` + `toLedgerId` among GRP-CASH / GRP-BANK / GRP-CAPITAL (picker `GET /api/ledgers/cash-bank-capital`). Posting **Dr To, Cr From** via `postIncome` (capital→bank, profit share to owner/partner). Soft-delete reverses via `postReversingTransaction`.
+- **UI (2026-07-26):** Record Income reloads categories + transfer ledgers on dialog open (independent loads + toast on failure). Category parse mirrors Expenses (`success` / array / `data`). From/To options show balance via `formatCashBankLedgerLabel` (group suffix kept).
 - Permissions: `income`, `income_categories` (must exist in `PERMISSION_CATALOG` + role-seed).
 
 ### Bank Account manage

@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { recordPayment } from "@/services/invoice";
 import { getCashBankLedgers } from "@/services/ledger";
+import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 import { fmt, PAYMENT_METHODS } from "./Billing.constants";
 
 export default function RecordPaymentDialog({ invoice, open, onClose, amountLocked = false }) {
@@ -170,7 +171,7 @@ export default function RecordPaymentDialog({ invoice, open, onClose, amountLock
                 <SelectContent>
                   {ledgers.map((ledger) => (
                     <SelectItem key={ledger.id} value={String(ledger.id)}>
-                      {ledger.name} ({ledger.code})
+                      {formatCashBankLedgerLabel(ledger)}
                     </SelectItem>
                   ))}
                 </SelectContent>

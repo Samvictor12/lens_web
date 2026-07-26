@@ -14,6 +14,8 @@ const inventoryService = new InventoryService();
 const saleOrderService = new SaleOrderService();
 
 const ACTIVE_PO_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
+/** Linked POs that block Raise/Link PO (in-flight only; RECEIVED does not block re-raise). */
+const IN_FLIGHT_PO_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED'];
 
 function specsMatch(so, po) {
   const fields = [
@@ -256,7 +258,7 @@ export class SaleOrderWorkflowService {
       if (!allowedFrom.includes(so.status)) {
         throw new APIError(`Cannot raise PO from status ${so.status}`, 400, 'INVALID_STATUS');
       }
-      if (so.purchaseOrders.some((p) => ACTIVE_PO_STATUSES.includes(p.status))) {
+      if (so.purchaseOrders.some((p) => IN_FLIGHT_PO_STATUSES.includes(p.status))) {
         throw new APIError('An active purchase order already exists for this sale order', 400, 'PO_EXISTS');
       }
 
@@ -431,7 +433,7 @@ export class SaleOrderWorkflowService {
       if (!['DRAFT', 'PO_CANCELLED'].includes(so.status)) {
         throw new APIError(`Cannot link PO when SO status is ${so.status}`, 400, 'INVALID_SO_STATUS');
       }
-      if (so.purchaseOrders.some((p) => ACTIVE_PO_STATUSES.includes(p.status))) {
+      if (so.purchaseOrders.some((p) => IN_FLIGHT_PO_STATUSES.includes(p.status))) {
         throw new APIError('Active PO already exists', 400, 'PO_EXISTS');
       }
       if (!specsMatch(so, po)) {

@@ -66,10 +66,11 @@ function ProcurementBadge({ type }) {
 }
 
 function hasActiveLinkedPo(order) {
+  // In-flight only — prior RECEIVED PO must not block Raise PO re-raise.
   return order?.purchaseOrders?.some(
     (p) =>
       p.status !== 'CANCELLED' &&
-      ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'].includes(p.status)
+      ['DRAFT', 'PO_PARTIAL_RECEIVED'].includes(p.status)
   );
 }
 

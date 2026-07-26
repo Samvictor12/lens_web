@@ -1,10 +1,10 @@
 {
   "v": "1.0.0",
-  "feature": "Vendor Invoice PO Filter Fix, Income From/To Ledgers, CN/DN Tab Cleanup",
+  "feature": "Per-Eye QC Rejection & Reprocess",
   "active_feature_file": "planning/feature.md",
-  "phase": "COMPLETED",
+  "phase": "CONTRACT",
   "HUMAN_APPROVED": true,
-  "state_tag": "COMPLETED",
+  "state_tag": "PLAN_MODE",
   "last_agent": "orchestrator",
-  "at": "2026-07-25T10:15:00+05:30"
+  "at": "2026-07-26T23:49:00+05:30"
 }

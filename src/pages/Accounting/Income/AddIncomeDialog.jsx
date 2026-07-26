@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { createIncome } from "@/services/income";
+import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 import { emptyIncomeForm } from "./Income.constants";
 
 export default function AddIncomeDialog({ open, onOpenChange, categories, transferLedgers, onCreated }) {
@@ -84,9 +85,11 @@ export default function AddIncomeDialog({ open, onOpenChange, categories, transf
     }
   };
 
+  // Compose optional group suffix, then reuse shared balance formatter
   const ledgerLabel = (l) => {
     const group = l.accountGroup?.groupName || l.accountGroup?.groupCode;
-    return group ? `${l.ledgerName} (${group})` : l.ledgerName;
+    const name = group ? `${l.ledgerName} (${group})` : l.ledgerName;
+    return formatCashBankLedgerLabel({ ...l, ledgerName: name });
   };
 
   return (
