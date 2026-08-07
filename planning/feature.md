@@ -6,216 +6,169 @@ This is the single shared feature document (`planning/feature.md`). Each phase o
 
 ## Requirement
 
-### Feature: Vendor Invoice PO Filter Fix, Income From/To Ledgers, CN/DN Tab Cleanup (2026-07-25)
+### Feature: Partial Reserve SO-Link Split (2026-07-27)
 
-**Source:** User follow-up after completed Payments/Income bundle.  
-**Prior feature:** COMPLETED — this is a new DRAFT.
+**Source:** Bug on `SO-2026-051` — after Issue from multi-qty stock then one-eye Pre-QC reject → Confirm Reset, SO Request Queue showed **both** eyes as Issue stock (accepted eye not retained).  
+**Prior feature:** COMPLETED — Reuse Stock Power Bucketing Fix.
 
----
-
-### M1 — Bug: Already-invoiced PO still in Register Vendor Invoice list
-
-**Report:** PO `PO-2026-024` already has a vendor invoice but still appears in the new Register Vendor Invoice PO list.
-
-**Likely cause:** `listEligiblePOs` reuses `PO_PAYMENT_ELIGIBLE_STATUSES`, which includes **`INVOICE_RECEIVED`**. After invoice registration the PO is set to `INVOICE_RECEIVED`. Exclusion relies only on `VendorInvoiceItem` links — if the PO was marked invoiced without a link (legacy payment / supplierInvoiceNo path), or link lookup misses, the PO stays listed.
-
-**Requirement:**
-1. Eligible POs for **new** Vendor Invoice must **never** include a PO that already has a non-cancelled `VendorInvoice` (via `VendorInvoiceItem`).
-2. Also exclude POs whose status is already **`INVOICE_RECEIVED`** or **`PAID`** (and keep excluding CANCELLED/CLOSED/DRAFT as today).
-3. Also exclude POs with a non-empty **`supplierInvoiceNo`** (legacy / Excel invoice mark).
-4. Align create guard with the same rules so UI and API cannot disagree.
-5. Verify with `PO-2026-024` (or equivalent): after one vendor invoice exists, PO must not appear in the create picker.
+**Docs alignment:** Per-eye QC (`KB-041`, `ARCHITECTURE` Per-eye QC / Reservation) requires SO-linked `InventoryItem` rows with `issuedEye`. `reserveInventoryForSale` today only sets `saleOrderId`/`RESERVED`/`issuedEye` when the **entire** source row qty is consumed (`KB-021`). Partial Issue leaves the row `AVAILABLE` with `saleOrderId: null` → reject finds zero linked items → orphan QcReturn (`inventoryItemId: null`) → both eyes `needsIssue`. Touches **Inventory** reserve + **Sales** `issueToPreQc`.
 
 ---
 
-### M2 — Income: Bank Transfer / capital flows need From + To ledgers
+### Problem (confirmed on SO-2026-051)
 
-**Current:** Income form has Category + single “Deposit Account” (cash/bank only). Posting is Dr Bank, Cr Income category ledger.
+1. Issue reserved qty `2` from `InventoryItem` #3 (remaining qty &gt; 0 after reserve).
+2. Source row stayed `AVAILABLE`, `saleOrderId: null`, `issuedEye: null` (partial-consume path).
+3. Pre-QC reject found no linked reserved rows → created PENDING `InventoryQcReturn` with `inventoryItemId: null`.
+4. After Reset → `DRAFT`, `getIssueEyeReadiness` saw no retained lens → R and L both **Issue stock**.
 
-**User need:** When recording **Bank Transfer** (and similar capital/owner flows), choose **From** ledger and **To** ledger. Pickers must include:
-- Cash in Hand (`GRP-CASH`)
-- Bank Accounts (`GRP-BANK`)
-- Capital accounts (`GRP-CAPITAL`) — e.g. Owner’s Capital, Partner accounts — for injecting capital into bank or sharing profit to owner/partner
-
-**Requirement:**
-1. On Income create (especially Bank Transfer / capital-style categories), require **From Ledger** and **To Ledger** (distinct).
-2. From/To options = posting ledgers under **GRP-CASH**, **GRP-BANK**, and **GRP-CAPITAL** (active, allows direct posting).
-3. Posting for these transfer-style incomes: **Dr To, Cr From** (amount), not Dr Bank / Cr Income P&L category — so capital→bank and bank→owner/partner profit share hit balance-sheet correctly.
-4. Keep a clear UX: labels **From** / **To**; category still required for classification (Bank Transfer, Loan, etc.).
-5. Seed/ensure capital ledgers usable (Owner’s Capital; allow additional partner capital ledgers via Bank Account / COA manage or Capital under same manage pattern if already possible via ledger CRUD).
-6. History/detail show From and To ledger names.
-
-**Default assumption:** All income categories use From/To among Cash/Bank/Capital for this redesign (simplest consistent UI). If Loan should stay P&L income (Cr Income ledger), say so on approve — otherwise From/To transfer posting applies to all.
+Secondary gap: when both eyes pick the same `inv_*` row, `issueToPreQc` reserves qty≥2 in one call and **leaves `issuedEye` null** (legacy pair), which also blocks reliable per-eye reject/retain.
 
 ---
 
-### M3 — Notes UI: Customer Credit Note + Vendor Debit Note only
+### Locked decisions (proposed — confirm on approve)
 
-**Requirement:**
-1. **Customer Payments:** Keep **Credit Notes** tab only — **remove Debit Notes** tab/UI (and create entry points).
-2. **Vendor Payments:** Keep **Debit Notes** tab only — **remove Credit Notes** tab/UI (and create entry points).
-3. Prefer hide/disable create APIs for removed types (`Customer Debit Note`, `Vendor Credit Note`) with clear error, or leave API unused but unreachable from UI — default: **UI removed + create endpoints reject** for the two removed types so they cannot be reintroduced casually.
-4. Existing historical Customer DN / Vendor CN records: remain in DB; no migration delete. Optional read-only archive out of scope unless requested.
-
----
-
-### Resolved defaults (edit on approve)
-
-| # | Topic | Default |
-|---|--------|---------|
-| 1 | Eligible PO exclude | VendorInvoiceItem link **OR** status INVOICE_RECEIVED/PAID **OR** supplierInvoiceNo set |
-| 2 | Income posting | From/To among Cash/Bank/Capital; Dr To / Cr From for all income categories |
-| 3 | Notes | Customer CN only; Vendor DN only |
+1. **Partial reserve must create SO-linked reserved unit row(s).** When reserving qty `Q` from an AVAILABLE row whose remaining qty stays &gt; 0: decrement source qty; create **new** `InventoryItem` row(s) with `status: RESERVED`, `saleOrderId` set, `quantity: 0` (KB-021), copy product/location/tray/optical identity from source, stamp `issuedEye` when provided; keep `InventoryStock` RESERVE behavior; `OUTWARD_SALE` txn should reference the **reserved** item id (or document if source id is kept — prefer reserved row id).
+2. **Full consume** (remaining ≈ 0): keep current behavior — flip source row to `RESERVED` + link SO + optional `issuedEye`.
+3. **`issueToPreQc` per-eye stamping:** never reserve both eyes as one unstamped qty≥2 call when eyes need issue. Reserve **one unit per eye** with `issuedEye: RIGHT` / `LEFT` (even if both picks resolve to the same source `inv_*` id — first reserve may split a child; second reserve uses remaining source or the same source id after decrement).
+4. **Reject filter hardening:** do **not** treat a single unstamped dual-eye reserved row as fully rejectable on one-eye reject when that would drop the accepted eye (prefer split/stamp so this case is rare; if one unstamped RESERVED qty-pair still exists, refuse partial reject or split before release — Contract to choose safest minimal rule).
+5. **Out of scope:** backfill historical orphan QcReturns / already-broken SOs; changing Stock Summary grain; PO inward dual-eye rewrite; UI redesign beyond readiness correctness.
 
 ---
 
-**Status:** APPROVED — 2026-07-25 (eligible-PO harden; Income From/To Cash/Bank/Capital; Customer CN + Vendor DN tabs only).
+### Business rules
+
+1. After Issue & Pre-QC for a dual-eye STOCK/RX SO from shelf stock with qty &gt; eyes needed, each issued eye has a distinct SO-linked `RESERVED` item with `issuedEye` set (or one fully-consumed source row stamped when only one unit was taken and row emptied).
+2. Reject Left only → release/return only `issuedEye: LEFT` (or that eye’s row); Right stays `RESERVED` + `saleOrderId` through Confirm Reset.
+3. After Reset → `DRAFT`, Request Queue / Stock Pick show **R: Has lens**, **L: Issue stock** (or mirror).
+4. Auto-inward `rec_*` path already reserves qty 1 with `issuedEye` — remain correct; no regression.
+
+---
+
+### Acceptance
+
+- Reproduce pattern of SO-2026-051 (Issue 2 from multi-qty row → reject one eye → Reset): accepted eye remains linked; queue shows Issue stock only for rejected eye.
+- Reject creates `InventoryQcReturn` with non-null `inventoryItemId` for the rejected unit.
+- Partial reserve leaves source row AVAILABLE with decremented qty and FIFO-visible; reserved child is SO-linked.
+- Full-row consume (reserve all remaining qty) still flips source to RESERVED without requiring an extra split row.
 
 ---
 
 ## Contract
 
-### M1 — Vendor Invoice eligible PO filter harden
-- [x] **M1.1** In `src/backend/utils/poPayable.js`, add `PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED']` (do **not** reuse `PO_PAYMENT_ELIGIBLE_STATUSES`, which includes `INVOICE_RECEIVED`). Include `supplierInvoiceNo` in `PO_PAYABLE_SELECT` (or a VI-specific select) so list/create can filter on it.
-- [x] **M1.2** Update `listEligiblePOs` in `src/backend/services/vendorInvoiceService.js` so returned POs satisfy **all**: vendor match; `deleteStatus: false`; status ∈ `PO_VENDOR_INVOICE_ELIGIBLE_STATUSES`; **not** linked via `VendorInvoiceItem` to a non-cancelled (`status ≠ CANCELLED`, `deleteStatus: false`) `VendorInvoice`; **and** `supplierInvoiceNo` is null/empty. Effectively exclude status `INVOICE_RECEIVED` / `PAID` (and CANCELLED/CLOSED/DRAFT as today).
-- [x] **M1.3** Align `create` guard in `vendorInvoiceService.js` with the same rules as M1.2 (status set, existing non-cancelled `VendorInvoiceItem` link, non-empty `supplierInvoiceNo`) so API rejects what the picker hides; keep clear error codes (`PO_NOT_ELIGIBLE` / `PO_ALREADY_INVOICED` or equivalent).
-- [x] **M1.4** No UI change required beyond current `CreateVendorInvoiceDialog.jsx` consuming `GET …/eligible-pos` — verify picker only shows the hardened list (no separate status whitelist on FE).
-
-### M2 — Income From + To ledgers (Cash / Bank / Capital)
-- [x] **M2.1** Prisma `Income` model (`prisma/schema.prisma`): add required `fromLedgerId` + `toLedgerId` (FKs to `Ledger`, relations e.g. `incomeFromLedger` / `incomeToLedger`). Keep `bankLedgerId` nullable for historical rows **or** backfill `toLedgerId = bankLedgerId` then drop/deprecate `bankLedgerId` in the same migration — prefer backfill + dual-read during transition; new creates must persist From/To.
-- [x] **M2.2** Add Prisma migration under `prisma/migrations/` for M2.1; update `Ledger` reverse relations accordingly.
-- [x] **M2.3** Extend ledger picker: add `getCashBankCapitalLedgers()` (or extend `getCashBankLedgers`) in `src/backend/services/ledgerService.js` filtering active, `allowsDirectPosting: true`, `isGroupLedger: false`, groups **`GRP-CASH` | `GRP-BANK` | `GRP-CAPITAL`**. Expose via existing cash-bank route or bank-accounts/income helper (e.g. `GET /api/ledgers/cash-bank-capital` or reuse bank-accounts list with capital included for Income only — document chosen path).
-- [x] **M2.4** Change `postIncome` in `src/backend/services/accountingService.js` to **Dr To ledger / Cr From ledger** for amount (all income categories per approved default). Stop Dr bank / Cr income-category P&L ledger. Validate both ledgers exist, allow direct posting, and belong to GRP-CASH/BANK/CAPITAL; reject identical From/To.
-- [x] **M2.5** Update `incomeService.create` / list / getById in `src/backend/services/incomeService.js` (+ `incomeController.js` payload): require `fromLedgerId`, `toLedgerId`, `categoryId`, amount, description; From ≠ To; category still required for classification — **relax** `NO_LEDGER` (category `ledger_id` not required for posting). Soft-delete/reverse path unchanged aside from FT still keyed by `INCOME`.
-- [x] **M2.6** Ensure capital pickers work: seed already has `AC-5001` Owner’s Capital under `GRP-CAPITAL` (`financial-ledgers-seed.js` / `account-groups-seed.js`). Confirm `allowsDirectPosting: true` for capital posting ledgers used in pickers; partner capital remains creatable via existing Ledger/COA manage (no mandatory Bank Accounts redesign — optional note only if capital create is missing).
-- [x] **M2.7** UI — `AddIncomeDialog.jsx` + `Income.constants.js`: replace single “Deposit Account” with required **From** and **To** selects populated from Cash/Bank/Capital ledgers; client-validate distinct; POST `fromLedgerId` / `toLedgerId`.
-- [x] **M2.8** UI — `IncomeMain.jsx` + `useIncomeColumns.jsx` (+ detail if any): load transfer ledgers; history columns show **From** and **To** ledger names (replace single “Account” column).
-
-### M3 — Customer CN only / Vendor DN only
-- [x] **M3.1** `CustomerPaymentsMain.jsx`: remove Debit Notes `TabsTrigger` + `TabsContent` (and any create entry points for customer DN). Keep Credit Notes tab wired to `CreditDebitNotesTab type="credit"`.
-- [x] **M3.2** `VendorPaymentsMain.jsx`: remove Credit Notes `TabsTrigger` + `TabsContent` (and create entry points for vendor CN). Keep Debit Notes tab wired to `VendorCreditDebitNotesTab type="debit"`.
-- [x] **M3.3** Reject create APIs: `POST /api/accounting/customer-notes/debit` (`creditDebitNoteController.createDebit` / `creditDebitNoteService.createDebitNote`) returns 4xx with clear message (e.g. customer debit notes disabled). `POST /api/accounting/vendor-notes/credit` (`vendorCreditDebitNoteController.createCredit` / `vendorCreditDebitNoteService.createCreditNote`) likewise rejects. Do **not** delete historical Customer DN / Vendor CN rows; list/get/cancel for legacy data may remain unused by UI.
+- [x] **No schema migration:** Reuse existing `InventoryItem.issuedEye` / `saleOrderId` / `status` / `quantity` and `InventoryQcReturn.inventoryItemId`. Do not add tables or columns for this feature.
+- [x] **`reserveInventoryForSale` — partial consume (remainingQty > 0.001):** Decrement source `quantity` only; keep source `status: AVAILABLE`, `saleOrderId: null`, `issuedEye: null`, `reservedDate: null`. Create **one new `InventoryItem` child per reserved unit** (`Q` children for reserve qty `Q`), each with `status: RESERVED`, `saleOrderId` set, `reservedDate` set, `quantity: 0` (KB-021), and `issuedEye` stamped when `options.issuedEye` is `RIGHT` or `LEFT` (only valid / expected with `Q === 1` from Issue path).
+- [x] **Partial child identity copy:** Each reserved child copies from source: product FKs (`lens_id`, `category_id`, `Type_id`, `coating_id`, `dia_id`, `fitting_id`, `tinting_id`), location/tray, optical fields (`rightEye`/`leftEye` + SPH/CYL/ADD/Axis), `costPrice` / `sellingPrice`, `batchNo` / `serialNo`, PO/receipt/vendor links, `isReused`, and other non-status identity fields needed for FIFO/QC identity. Set audit `createdBy`/`updatedBy` from `userId`.
+- [x] **Partial — `InventoryStock`:** Keep a single `updateInventoryStock(sourceItem, Q, 'RESERVE', dbClient)` using the source row’s bucket identity (same product/location/tray as children). Do not double-count RESERVE on children.
+- [x] **Partial — `OUTWARD_SALE`:** Prefer one `OUTWARD_SALE` txn per reserved **child** (`inventoryItemId` = child id, `quantity: -1`, `saleOrderId` set, `balanceAfter` consistent with that child). Do not leave the only outward txn pointing solely at the still-AVAILABLE source when a child was created.
+- [x] **`reserveInventoryForSale` — full consume (remainingQty ≤ 0.001):** Keep current behavior — flip **source** to `RESERVED`, set `saleOrderId` / `reservedDate`, stamp `issuedEye` when provided, `quantity: 0`; no extra split child. Keep existing `InventoryStock` RESERVE + `OUTWARD_SALE` on the source id.
+- [x] **`reserveInventoryForSale` return:** Partial path returns the reserved child item when `Q === 1`, or the list/primary reserved children when `Q > 1` (document in code); full-consume path continues to return the flipped source. Preserve `dbClient` / self-`$transaction` threading (KB-018).
+- [x] **`issueToPreQc` — no unstamped pair reserve:** Remove the branch that reserves `quantity >= 2` with `issuedEyes.length >= 2` in one call and leaves `issuedEye` null. Always reserve **one unit per eye** with `{ issuedEye: 'RIGHT' | 'LEFT' }`, even when both picks resolve to the same `inv_*` source id (sequential calls: first may create a reserved child + decrement source; second reserves from remaining source or fully consumes it).
+- [x] **`issueToPreQc` — `rec_*` path:** Leave auto-inward + per-eye `reserveInventoryForSale(..., 1, { issuedEye })` as-is; no regression (already qty-1 + stamped).
+- [x] **Reject hardening (safest minimal):** In `filterItemsForRejectedEyes`, on a dual-eye SO with a **one-eye** reject, do **not** treat a single unstamped (`issuedEye: null`) linked reserved row as rejectable (remove/stop the `items.length === 1 && rejectedSides.length === 1` include for unstamped dual-eye). Prefer stamped children from Issue so this case is rare.
+- [x] **Reject hardening — fail closed:** If a one-eye Pre-QC/Post-QC reject finds no stamped matching `issuedEye` row and would otherwise create orphan `InventoryQcReturn` with `inventoryItemId: null` while an unstamped SO-linked `RESERVED` row still exists, **refuse** the transition with a clear API error (do not release the unstamped pair; do not create null-item QcReturn). Both-eye reject / single-eye SO legacy unstamped behavior may remain.
+- [x] **Out of scope (do not implement):** Historical backfill of orphan QcReturns / already-broken SOs; Stock Summary grain changes; PO inward dual-eye rewrite; UI redesign beyond readiness correctness after Reset.
 
 ---
 
 ## Test plan
 
-- [x] **TC-M1-01: Eligible list excludes PO with VendorInvoiceItem on non-cancelled invoice**
-  - **Test Data:** Vendor V with PO in `RECEIVED`; create Vendor Invoice linking that PO (status OUTSTANDING).
-  - **Steps:** `GET /api/accounting/vendor-invoices/eligible-pos?vendorId=V`; open Register Vendor Invoice picker for V.
-  - **Expected:** Linked PO absent from API and UI picker.
+- [x] Test Case 1: Partial reserve creates SO-linked reserved child
+  - **Test Data:** AVAILABLE `InventoryItem` with `quantity >= 3`, no `saleOrderId`; reserve qty `1` with `issuedEye: 'RIGHT'` for a dual-eye SO.
+  - **Steps:** Call `reserveInventoryForSale` (or Issue one eye from that row). Inspect source + new rows + `InventoryStock` + `OUTWARD_SALE`.
+  - **Expected:** Source stays `AVAILABLE`, qty decremented by 1, `saleOrderId` null. One child: `RESERVED`, `saleOrderId` set, `quantity: 0`, `issuedEye: RIGHT`, product/location/tray/optical copied. Bucket available↓ reserved↑ by 1. `OUTWARD_SALE.inventoryItemId` is the **child** id.
 
-- [x] **TC-M1-02: Exclude status INVOICE_RECEIVED / PAID even without item link**
-  - **Test Data:** PO status `INVOICE_RECEIVED` (and separately `PAID`) with no `VendorInvoiceItem` (legacy mark).
-  - **Steps:** Call `listEligiblePOs` for that vendor.
-  - **Expected:** Neither PO appears.
+- [x] Test Case 2: Full-row consume still flips source (no split)
+  - **Test Data:** AVAILABLE row with `quantity: 1` (or reserve exact remaining qty).
+  - **Steps:** `reserveInventoryForSale` qty = remaining with `issuedEye: 'LEFT'`.
+  - **Expected:** Same row becomes `RESERVED`, `saleOrderId` set, `quantity: 0`, `issuedEye: LEFT`. No extra child row. `OUTWARD_SALE` references that source id.
 
-- [x] **TC-M1-03: Exclude non-empty supplierInvoiceNo**
-  - **Test Data:** PO status `RECEIVED` with `supplierInvoiceNo` set (e.g. Excel/legacy), no VendorInvoiceItem.
-  - **Steps:** Call `listEligiblePOs`.
-  - **Expected:** PO excluded.
+- [x] Test Case 3: Same `inv_*` for both eyes → two stamped reserves
+  - **Test Data:** Dual-eye DRAFT STOCK/RX SO; one FIFO row with `quantity >= 2`; Stock Pick selects same `inv_*` for R and L.
+  - **Steps:** `issueToPreQc` with both eyes needing issue.
+  - **Expected:** Two SO-linked `RESERVED` units with `issuedEye` RIGHT and LEFT (two children and/or full consume of remainder). No single unstamped qty≥2 reserve. SO → `PRE_QC`.
 
-- [x] **TC-M1-04: Create guard matches list (API cannot register excluded PO)**
-  - **Test Data:** PO already on non-cancelled VendorInvoice **or** `INVOICE_RECEIVED` **or** non-empty `supplierInvoiceNo`.
-  - **Steps:** `POST` Vendor Invoice including that `purchaseOrderId`.
-  - **Expected:** 400 with `PO_ALREADY_INVOICED` / `PO_NOT_ELIGIBLE` (or equivalent); no new invoice for that PO.
+- [x] Test Case 4: SO-2026-051 pattern — one-eye reject retains accepted eye
+  - **Test Data:** After Test Case 3 (or Issue 2 from multi-qty row with per-eye stamps). Pre-QC reject Left only (reusable, not scrap).
+  - **Steps:** Reject Left → Confirm Reset → `DRAFT`. Check linked items, QcReturn, Request Queue / `getIssueEyeReadiness`.
+  - **Expected:** Left released/returned; `InventoryQcReturn.inventoryItemId` non-null for Left. Right stays `RESERVED` + `saleOrderId`. Queue: R Has lens / L Issue stock (or mirror).
 
-- [x] **TC-M1-05: Regression — PO-2026-024 style case**
-  - **Test Data:** Use `PO-2026-024` (or equivalent already-invoiced PO that previously still listed).
-  - **Steps:** Open Register Vendor Invoice for its vendor; confirm eligible-pos response.
-  - **Expected:** PO does not appear after one vendor invoice exists (or after status/`supplierInvoiceNo` mark).
+- [x] Test Case 5: Unstamped dual-eye leftover — refuse one-eye reject
+  - **Test Data:** Dual-eye SO with exactly one linked `RESERVED` row, `issuedEye: null` (simulate legacy). Attempt one-eye reject.
+  - **Steps:** Transition Pre-QC reject with only one of `{ rightEye, leftEye }`.
+  - **Expected:** API error; row remains SO-linked `RESERVED`; no PENDING QcReturn with `inventoryItemId: null` for that attempt. Both-eye reject still allowed to process the unstamped row.
 
-- [x] **TC-M1-06: Still-eligible received PO remains selectable**
-  - **Test Data:** PO `RECEIVED` or `PO_PARTIAL_RECEIVED`, empty `supplierInvoiceNo`, no non-cancelled VendorInvoiceItem.
-  - **Steps:** List eligible POs; register invoice successfully.
-  - **Expected:** PO listed; create succeeds; PO then excluded on next list.
+- [x] Test Case 6: Auto-inward `rec_*` regression
+  - **Test Data:** Dual-eye SO; picks `rec_*` for an eye needing issue (pending receipt qty).
+  - **Steps:** `issueToPreQc` for that eye (or both via receipts).
+  - **Expected:** Auto-inward creates AVAILABLE then reserves qty 1 with correct `issuedEye`; no change to inward txn/`inwardedQty` behavior beyond reserve child/full-consume rules.
 
-- [x] **TC-M2-01: From/To required and must differ**
-  - **Test Data:** Valid category (Bank Transfer or Loan); same ledger id for From and To; missing From or To.
-  - **Steps:** POST create income with invalid/missing From/To; then with distinct valid ledgers.
-  - **Expected:** Validation errors when missing or equal; success when distinct.
-
-- [x] **TC-M2-02: Picker includes Cash, Bank, Capital only**
-  - **Test Data:** Seeded AC-1001 (cash), AC-1002 (bank), AC-5001 (Owner’s Capital); non-cash/bank/capital ledger exists.
-  - **Steps:** Open Record Income; inspect From/To options (or picker API).
-  - **Expected:** Options include GRP-CASH/GRP-BANK/GRP-CAPITAL posting ledgers; exclude AR/AP/income P&L/expense ledgers.
-
-- [x] **TC-M2-03: Posting is Dr To / Cr From (all categories)**
-  - **Test Data:** Amount ₹10,000; From = Owner’s Capital; To = Bank; category Bank Transfer (and repeat with Loan).
-  - **Steps:** Create income; inspect `FinancialTransaction` / entries for `referenceType: INCOME`.
-  - **Expected:** Debit To (Bank) ₹10,000; Credit From (Capital) ₹10,000; **no** credit to income-category P&L ledger.
-
-- [x] **TC-M2-04: History shows From and To names**
-  - **Test Data:** Income created per TC-M2-03.
-  - **Steps:** Open Income list/history.
-  - **Expected:** Columns (or cells) show From and To ledger names; not a single deposit-only account.
-
-- [x] **TC-M2-05: Capital → bank and bank → capital flows**
-  - **Test Data:** (A) From Capital → To Bank; (B) From Bank → To Capital (profit share / draw-style).
-  - **Steps:** Record both incomes; check ledger balances move on BS accounts only.
-  - **Expected:** Both succeed; balances update on From/To ledgers accordingly.
-
-- [x] **TC-M3-01: Customer Payments UI — Credit Notes only**
-  - **Test Data:** User with Accounts/Admin access.
-  - **Steps:** Open Customer Payments; inspect tabs; try to find Debit Notes create UI.
-  - **Expected:** Credit Notes tab present; Debit Notes tab and create entry points gone.
-
-- [x] **TC-M3-02: Vendor Payments UI — Debit Notes only**
-  - **Test Data:** Same access.
-  - **Steps:** Open Vendor Payments; inspect tabs.
-  - **Expected:** Debit Notes tab present; Credit Notes tab and create entry points gone.
-
-- [x] **TC-M3-03: Create APIs reject removed types**
-  - **Test Data:** Valid customer/vendor payloads for DN/CN.
-  - **Steps:** `POST /api/accounting/customer-notes/debit`; `POST /api/accounting/vendor-notes/credit`.
-  - **Expected:** Both rejected with clear 4xx error; no new rows.
-
-- [x] **TC-M3-04: Allowed creates still work; history preserved**
-  - **Test Data:** Existing historical Customer DN / Vendor CN if any; new Customer CN + Vendor DN.
-  - **Steps:** Create Customer Credit Note and Vendor Debit Note via UI; confirm DB still holds old DN/CN rows.
-  - **Expected:** Allowed creates succeed; historical removed-type records remain (no migration delete).
+- [x] Test Case 7: Partial reserve FIFO visibility
+  - **Test Data:** Source row after partial reserve still has remaining qty > 0.
+  - **Steps:** Run FIFO / Stock Pick match for another SO needing the same spec.
+  - **Expected:** Decremented source remains matchable (`AVAILABLE`, `saleOrderId` null). Reserved child is not double-picked as AVAILABLE.
 
 ---
+
 
 ## Test results
 
 result: PASS
 levels: L1 PASS, L2 PASS, L3 PASS, L4 PASS, L5 PASS
 
-Notes (QA 2026-07-25):
-- L1: `prisma validate` OK; Vite build OK; migration `20260725100000_income_from_to_ledgers` SQL applied for local column check (`fromLedgerId`/`toLedgerId` present). Ensure `_prisma_migrations` / deploy path records this migration on shared envs (many older migrations still pending per KB-027 db-push history).
-- L2: Income payload `fromLedgerId`/`toLedgerId` ↔ schema; ledger picker `GET /api/ledgers/cash-bank-capital`; VI eligible uses `PO_VENDOR_INVOICE_ELIGIBLE_STATUSES` + `supplierInvoiceNo`.
-- L3: Income create requires category/amount/description/From/To + `createdBy`; note create rejects preserve IDs; no DN/CN wipe migration.
-- L4: `listEligiblePOs` + create guards aligned (`PO_NOT_ELIGIBLE` / `PO_ALREADY_INVOICED`); smoke: linked `PO-2026-004` excluded; supplierInvoiceNo PO create rejected; income Dr To / Cr From (no P&L credit) for Bank Transfer + Loan; Capital↔Bank both succeed; customer DN / vendor CN → 400 `CUSTOMER_DEBIT_NOTE_DISABLED` / `VENDOR_CREDIT_NOTE_DISABLED`.
-- L5: KB-031 array unwrap for cash-bank-capital OK in IncomeMain; KB-034 N/A (no new sidebar module); KB-003 scope limited to M1–M3; no historical note delete.
-- TC-M1-05: `PO-2026-024` absent in local DB; equivalent covered via linked VI item + status/`supplierInvoiceNo` exclusions.
-- TC-M3-04: UI tabs CN-only / DN-only; allowed `createCreditNote` / `createDebitNote` paths unchanged; DebitNote/VendorCreditNote tables intact.
+method: Code-path review of `inventory.service.js` / `saleOrderWorkflowService.js` / `saleOrderStatusService.js` + `node --check` syntax + live DB rolled-back smoke via real `InventoryService.reserveInventoryForSale` / `SaleOrderStatusService.filterItemsForRejectedEyes` (fixtures: AVAILABLE item id=1 qty≥3, dual-eye SO-2026-051). All smoke mutations rolled back (`QA_SMOKE_ROLLBACK`); source qty unchanged after.
+
+- L1: Syntax OK on three focus modules; Prisma schema already has `issuedEye` / `InventoryQcReturn.inventoryItemId` (no new migration required per Contract).
+- L2: Partial path maps child `saleOrderId`/`issuedEye`/`quantity:0`; `OUTWARD_SALE.inventoryItemId` = child id; full consume keeps source id.
+- L3: Partial children set `createdBy`/`updatedBy` from `userId`; reserved rows get new PKs; QcReturn links non-null `inventoryItemId` when stamped item processed.
+- L4: Partial vs full branch; one-unit-per-eye Issue loop (no unstamped qty≥2); `filterItemsForRejectedEyes` excludes unstamped on one-eye dual-eye reject; `PARTIAL_REJECT_UNSTAMPED_PAIR` fail-closed; Confirm Reset keeps retained eyes; FIFO `AVAILABLE`+qty>0 excludes reserved children; `dbClient`/self-`$transaction` threading preserved (KB-018).
+- L5: KB-021 (RESERVED qty≈0; stock via `updateInventoryStock` RESERVE on source only for partial); KB-041 (per-eye stamp/release/retain; readiness by `issuedEye`); KB-042 (`rec_*` still stamps issued-eye powers only before qty-1 reserve).
 
 ---
 
 ## Delivery note
 
-### Closed: Vendor Invoice PO Filter Fix, Income From/To Ledgers, CN/DN Tab Cleanup (2026-07-25)
+### Closed: Partial Reserve SO-Link Split (2026-07-27)
+
+**Status:** DONE — QA PASS (L1–L5; live DB rolled-back smoke).
+
+**Shipped:**
+1. `reserveInventoryForSale` partial consume → SO-linked `RESERVED` child unit(s) with `issuedEye`; full consume still flips source.
+2. `issueToPreQc` always reserves one unit per eye with `issuedEye` (no unstamped qty≥2 pair).
+3. One-eye reject on unstamped dual-eye reserved stock fails closed (`PARTIAL_REJECT_UNSTAMPED_PAIR`).
+
+**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `DATABASE_ERD.md`, `Modules/Inventory.md`, `Modules/Sales.md`, KB-043.
+
+### Closed: Reuse Stock Power Bucketing Fix (2026-07-27)
+
+**Status:** DONE — QA PASS (L1–L5; RETEST after cross-match LEFT rework).
+
+**Shipped:**
+1. `dispositionQcReturn` REUSE canonicalizes to single-eye SPH/CYL/ADD (`eyeSide` / `issuedEye`; FIFO left cross-match right→left copy).
+2. Auto-inward `rec_*` stamps only `issuedEye` powers/flags.
+3. Shared eye-aware `coalescePower` for Stock Summary list/group/pivot.
+
+**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `DATABASE_ERD.md`, `Modules/Inventory.md`, `Modules/Sales.md`, KB-042.
+
+### Closed: Per-Eye QC Rejection & Reprocess (2026-07-26)
+
+**Status:** DONE — QA PASS (L1–L5, static/code-path; migration must be applied for live runtime).
+
+**Shipped:**
+1. Schema: `IssuedEyeSide`, `InventoryItem.issuedEye` / `isReused`, `InventoryQcReturn.eyeSide` (+ migration `20260726120000_per_eye_qc_rejection`).
+2. Pre/Post QC per-eye Reject → Inventory or Scrap; accepted eye stays reserved through Confirm Reset.
+3. Scrap = immediate write-off (no Inward Queue); reusable = PENDING QcReturn filtered by SO `procurementType`.
+4. Reuse requires location+tray + REUSED tag; Issue / Raise PO only for missing eyes.
+
+**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `DATABASE_ERD.md`, `Modules/Sales.md`, `Modules/Inventory.md`, KB-041.
+
+### Closed: Invoice Numeric Empty → Show 0 (2026-07-26)
 
 **Status:** DONE — QA PASS (L1–L5).
 
 **Shipped:**
-1. **M1** — Eligible POs: `PO_PARTIAL_RECEIVED`|`RECEIVED` only; exclude VI links, INVOICE_RECEIVED/PAID, supplierInvoiceNo.
-2. **M2** — Income From/To (Cash/Bank/Capital); posting Dr To / Cr From; migration `20260725100000_income_from_to_ledgers`.
-3. **M3** — Customer Credit Notes only; Vendor Debit Notes only; create rejects for removed types.
+1. `fmt` coerces null/empty/non-numeric → `₹0.00`.
+2. Tax Invoice line Discount / totals Discount / Round Off show `0.00` / `₹0.00` when empty (not `—`).
+3. Text/identity placeholders still use `dash()` → `—`.
 
-**Docs updated:** `ARCHITECTURE.md`, `DATABASE_ERD.md`, `Modules/Accounting.md`, KB-035.
-
-**Ops:** Apply migration; restart backend + `npx prisma generate` if client DLL was locked.
-
----
-
-### Closed: Payments Reverse, Vendor Invoice PO Filter, Dispatch Sort, Docs Dia, Income & Bank, CN/DN Behavior (2026-07-25)
-
-**Status:** DONE — QA PASS (L1–L5 after 1 REWORK for M6 role permissions / KB-026→KB-034).
-
-**Shipped:** Cancel→reverse payments; vendor invoice-first pay; dispatch `createdAt` desc; eligible-pos (hardened in follow-up); DIA off prints; Income + Bank Accounts; Customer CN + Vendor DN document-only.
-
-**Docs updated:** `Project_doc.md`, `ARCHITECTURE.md`, `DATABASE_ERD.md`, `Modules/Accounting.md`, `Modules/Sales.md`, KB-034.
-
----
+**Docs updated:** `Project_doc.md`, `Modules/Sales.md`, KB-040.

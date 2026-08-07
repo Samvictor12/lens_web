@@ -49,16 +49,18 @@ export const RESET_ELIGIBLE = [
 
 export function queueBadge(status) {
   switch (status) {
+    case 'PO_RAISED':
+      return 'PO raised — awaiting receive';
     case 'PO_RECEIVED':
       return 'PO received — issue pending';
     case 'PRE_QC_REJECTED':
-      return 'Return from Pre-QC';
+      return 'Rejected — confirm reset to reprocess';
     case 'POST_QC_REJECTED':
-      return 'Return from Post-QC';
+      return 'Rejected — confirm reset to reprocess';
     case 'PRE_QC_SCRAPPED':
-      return 'Scrap — Pre-QC';
+      return 'Scrapped — confirm reset to reprocess';
     case 'POST_QC_SCRAPPED':
-      return 'Scrap — Post-QC';
+      return 'Scrapped — confirm reset to reprocess';
     case 'PO_CANCELLED':
       return 'PO canceled';
     default:

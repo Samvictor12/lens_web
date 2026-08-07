@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,15 +16,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getSaleOrderById, updateSaleOrderStatus } from "@/services/saleOrder";
 import { statusColors } from "@/pages/SaleOrder/SaleOrder.constants";
+import { STATUS_LABELS as SO_STATUS_LABELS } from "@/constants/saleOrderStatus";
 
 const STATUS_LABELS = {
-  DRAFT: "Draft",
+  ...SO_STATUS_LABELS,
   CONFIRMED: "Confirmed",
-  IN_FITTING: "In Fitting",
-  ON_HOLD: "On Hold",
-  AWAITING_QUALITY: "Awaiting Quality",
-  READY_FOR_DISPATCH: "Ready for Dispatch",
-  DELIVERED: "Delivered",
   CLOSED: "Closed",
 };
 
@@ -114,6 +111,8 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
   const [error, setError] = useState(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectRemark, setRejectRemark] = useState("");
+  const [rejectRight, setRejectRight] = useState(false);
+  const [rejectLeft, setRejectLeft] = useState(false);
 
   const fetchOrder = async () => {
     setIsLoading(true);
@@ -160,10 +159,17 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
 
   const handleReject = async (rejectStatus) => {
     if (!rejectRemark.trim()) return;
+    if (!rejectRight && !rejectLeft) return;
     setIsUpdating(true);
     setRejectDialogOpen(false);
     try {
-      const response = await updateSaleOrderStatus(id, rejectStatus, rejectRemark.trim());
+      const response = await updateSaleOrderStatus(
+        id,
+        rejectStatus,
+        rejectRemark.trim(),
+        undefined,
+        { rightEye: rejectRight, leftEye: rejectLeft }
+      );
       if (response.success) {
         toast({ title: "Rejected — awaiting SO reset" });
         navigate(listPath);
@@ -177,6 +183,8 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
     } finally {
       setIsUpdating(false);
       setRejectRemark("");
+      setRejectRight(false);
+      setRejectLeft(false);
     }
   };
 
@@ -215,6 +223,32 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
     order.status === (mode === "pre" ? "PRE_QC" : "AWAITING_QUALITY");
   const rejectInventoryStatus = mode === "pre" ? "PRE_QC_REJECTED" : "POST_QC_REJECTED";
   const rejectScrapStatus = mode === "pre" ? "PRE_QC_SCRAPPED" : "POST_QC_SCRAPPED";
+  const canRejectRight = Boolean(order.rightEye);
+  const canRejectLeft = Boolean(order.leftEye);
+  const openRejectDialog = () => {
+    setRejectRight(canRejectRight);
+    setRejectLeft(canRejectLeft);
+    setRejectRemark("");
+    setRejectDialogOpen(true);
+  };
+
+  const acceptedCopy = (() => {
+    const stay = [];
+    const release = [];
+    if (canRejectRight) {
+      if (rejectRight) release.push("Right");
+      else stay.push("Right");
+    }
+    if (canRejectLeft) {
+      if (rejectLeft) release.push("Left");
+      else stay.push("Left");
+    }
+    if (release.length === 0) return null;
+    const parts = [];
+    if (stay.length) parts.push(`${stay.join(" & ")} will stay accepted on the SO`);
+    if (release.length) parts.push(`${release.join(" & ")} will be released`);
+    return parts.join(". ") + ".";
+  })();
 
   return (
     <div className="max-w-4xl mx-auto pb-4">
@@ -320,7 +354,7 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
             variant="outline"
             className="flex-1 h-12 text-base font-semibold border-red-400 text-red-600 hover:bg-red-50"
             disabled={isUpdating}
-            onClick={() => setRejectDialogOpen(true)}
+            onClick={openRejectDialog}
           >
             {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
           </Button>
@@ -348,7 +382,11 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
       {/* Reject dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={(open) => {
         setRejectDialogOpen(open);
-        if (!open) setRejectRemark("");
+        if (!open) {
+          setRejectRemark("");
+          setRejectRight(false);
+          setRejectLeft(false);
+        }
       }}>
         <DialogContent className="max-w-xl w-[min(100%,36rem)] mx-4 max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b">
@@ -356,8 +394,52 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
           </DialogHeader>
           <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 min-h-0">
             <p className="text-sm text-muted-foreground">
-              Choose reject type. SO person must confirm reset to Draft before re-processing.
+              Choose which eye(s) to reject and reject type. SO person must confirm reset to Draft before re-processing.
             </p>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Eyes to reject
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                {canRejectRight && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={rejectRight}
+                      onCheckedChange={(v) => setRejectRight(Boolean(v))}
+                    />
+                    Right
+                  </label>
+                )}
+                {canRejectLeft && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={rejectLeft}
+                      onCheckedChange={(v) => setRejectLeft(Boolean(v))}
+                    />
+                    Left
+                  </label>
+                )}
+                {canRejectRight && canRejectLeft && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setRejectRight(true);
+                      setRejectLeft(true);
+                    }}
+                  >
+                    Both
+                  </Button>
+                )}
+              </div>
+              {acceptedCopy && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-2.5 py-2">
+                  {acceptedCopy}
+                </p>
+              )}
+            </div>
             <Textarea
               placeholder="Enter rejection reason…"
               value={rejectRemark}
@@ -373,6 +455,8 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
               onClick={() => {
                 setRejectDialogOpen(false);
                 setRejectRemark("");
+                setRejectRight(false);
+                setRejectLeft(false);
               }}
             >
               Cancel
@@ -380,14 +464,14 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
             <Button
               variant="outline"
               className="w-full sm:w-auto border-amber-500 text-amber-700"
-              disabled={!rejectRemark.trim()}
+              disabled={!rejectRemark.trim() || (!rejectRight && !rejectLeft)}
               onClick={() => handleReject(rejectInventoryStatus)}
             >
               Reject → Inventory
             </Button>
             <Button
               className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
-              disabled={!rejectRemark.trim()}
+              disabled={!rejectRemark.trim() || (!rejectRight && !rejectLeft)}
               onClick={() => handleReject(rejectScrapStatus)}
             >
               Reject → Scrap

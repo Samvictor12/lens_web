@@ -14,6 +14,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createVendorPaymentFromInvoices } from "@/services/vendorPayment";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, previewAllocations } from "./VendorPayments.constants";
+import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -158,7 +159,10 @@ export default function CreateVendorPaymentFromInvoicesDialog({
   };
 
   const vendorOptions = vendors.map((v) => ({ id: v.id, name: v.name }));
-  const bankLedgerOptions = bankLedgers.map((l) => ({ id: l.id, name: l.ledgerName }));
+  const bankLedgerOptions = bankLedgers.map((l) => ({
+    id: l.id,
+    name: formatCashBankLedgerLabel(l),
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

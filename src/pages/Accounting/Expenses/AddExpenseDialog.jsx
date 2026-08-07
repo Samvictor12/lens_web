@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { createExpense, updateExpense } from "@/services/expense";
 import { emptyExpenseForm } from "./Expenses.constants";
+import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 
 export default function AddExpenseDialog({ open, onOpenChange, categories, bankLedgers, onCreated, editing = null }) {
   const { toast } = useToast();
@@ -231,7 +232,7 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
                 ) : (
                   bankLedgers.map((l) => (
                     <SelectItem key={l.id} value={String(l.id)}>
-                      {l.ledgerName}
+                      {formatCashBankLedgerLabel(l)}
                     </SelectItem>
                   ))
                 )}

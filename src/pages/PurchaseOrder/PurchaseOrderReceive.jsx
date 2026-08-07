@@ -249,6 +249,7 @@ export default function PurchaseOrderReceive() {
               label: def.label,
               spherical: def.sph ?? "-",
               cylindrical: def.cyl ?? "-",
+              axis: def.axis ?? null,
               add: def.add ?? null,
               orderedQty: def.orderedQty,
               alreadyReceived,
@@ -526,6 +527,12 @@ export default function PurchaseOrderReceive() {
                   <span className="text-right max-w-[60%] truncate">{po.lensProduct.lens_name}</span>
                 </div>
               )}
+              {po.coating?.name && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Coating</span>
+                  <span className="text-right max-w-[60%] truncate">{po.coating.name}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status</span>
                 <Badge variant="outline" className={`${statusColor} text-xs h-5`}>{getStatusLabel(po.status)}</Badge>
@@ -770,6 +777,7 @@ export default function PurchaseOrderReceive() {
                               <th className="px-3 py-2 text-left font-medium text-muted-foreground">Eye</th>
                               <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
                               <th className="px-3 py-2 text-left font-medium text-muted-foreground">CYL</th>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Axis</th>
                             </>
                           )}
                           <th className="px-3 py-2 text-right font-medium text-muted-foreground">PO Qty</th>
@@ -803,6 +811,7 @@ export default function PurchaseOrderReceive() {
                                 <td className="px-3 py-2 font-medium">{row.label || row.eye}</td>
                                 <td className="px-3 py-2">{row.spherical}</td>
                                 <td className="px-3 py-2">{row.cylindrical}</td>
+                                <td className="px-3 py-2">{row.axis ?? "-"}</td>
                               </>
                             )}
                             <td className="px-3 py-2 text-right">{row.orderedQty}</td>
@@ -837,7 +846,7 @@ export default function PurchaseOrderReceive() {
                       const hasEyeData = rows.some(r => r.eye);
                       const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                       const bulkCols = po.orderType === "Bulk" ? (2 + (hasEyeData ? 1 : 0)) : 0;
-                      const singleEyeCols = isSingleWithEyes ? 3 : 0;
+                      const singleEyeCols = isSingleWithEyes ? 4 : 0;
                       return (
                         <tr>
                           <td colSpan={bulkCols + singleEyeCols + 3} className="px-3 py-8 text-center text-muted-foreground">
@@ -851,7 +860,7 @@ export default function PurchaseOrderReceive() {
                     const hasEyeData = rows.some(r => r.eye);
                     const isSingleWithEyes = po.orderType !== "Bulk" && hasEyeData;
                     const bulkCols = po.orderType === "Bulk" ? (2 + (hasEyeData ? 1 : 0)) : 0;
-                    const singleEyeCols = isSingleWithEyes ? 3 : 0;
+                    const singleEyeCols = isSingleWithEyes ? 4 : 0;
                     return (
                       <tfoot>
                         <tr className="bg-muted/50 font-semibold border-t">

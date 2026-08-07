@@ -151,11 +151,21 @@ export class InventoryController {
       const remark =
         typeof req.body?.remark === 'string' ? req.body.remark.trim() : '';
 
+      const locationId =
+        req.body?.locationId !== undefined && req.body?.locationId !== null
+          ? req.body.locationId
+          : undefined;
+      const trayId =
+        req.body?.trayId !== undefined && req.body?.trayId !== null
+          ? req.body.trayId
+          : undefined;
+
       const result = await this.inventoryService.dispositionQcReturn(
         idValidation.data.id,
         disposition,
         remark || null,
-        req.user?.id
+        req.user?.id,
+        { locationId, trayId }
       );
 
       res.json({

@@ -8,20 +8,23 @@ import { getMatchingInventoryFIFO, getAlternateMatchingInventory } from "@/servi
 
 /**
  * Standalone "Inventory Stock Pick (FIFO Allocation)" modal.
- * Ported from SaleOrderForm.jsx's inline FIFO modal (~lines 3239-3400) so it
- * can be reused by the Request Queue tab's "Issue & Pre-QC" action, ahead of
- * the IN_FITTING-transition usage that already exists in SaleOrderForm.
  *
  * Props:
- *  - saleOrderId: number — order to fetch FIFO matches for
+ *  - saleOrderId: number
  *  - requiredEyes: { rightEye: boolean, leftEye: boolean }
- *  - isAlternate: boolean — when true, fetches power-only (SPH/CYL/ADD) alternate
- *    matches (ignoring coating/brand/category/lens_id) and shows actual product
- *    identity per candidate (M2)
- *  - onConfirm(itemIds: number[]): called with the selected inventory item id(s)
- *  - onCancel(): called when the modal is dismissed without confirming
+ *  - issueReadiness: optional { right: { needsIssue, alreadyHasLens, ... }, left: {...} }
+ *  - isAlternate: boolean
+ *  - onConfirm({ itemIds, rightItemId, leftItemId }): called with selected picks
+ *  - onCancel(): dismissed without confirming
  */
-export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlternate = false, onConfirm, onCancel }) {
+export default function StockPickModal({
+  saleOrderId,
+  requiredEyes = {},
+  issueReadiness = null,
+  isAlternate = false,
+  onConfirm,
+  onCancel,
+}) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -29,8 +32,21 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
   const [fifoMatches, setFifoMatches] = useState({ rightEyeMatches: [], leftEyeMatches: [] });
   const [selectedFifoItems, setSelectedFifoItems] = useState({});
 
-  const wantsRight = Boolean(requiredEyes.rightEye);
-  const wantsLeft = Boolean(requiredEyes.leftEye);
+  const soWantsRight = Boolean(requiredEyes.rightEye);
+  const soWantsLeft = Boolean(requiredEyes.leftEye);
+
+  const needsRight =
+    soWantsRight &&
+    (issueReadiness?.right?.needsIssue !== undefined
+      ? Boolean(issueReadiness.right.needsIssue)
+      : true);
+  const needsLeft =
+    soWantsLeft &&
+    (issueReadiness?.left?.needsIssue !== undefined
+      ? Boolean(issueReadiness.left.needsIssue)
+      : true);
+  const alreadyRight = soWantsRight && !needsRight;
+  const alreadyLeft = soWantsLeft && !needsLeft;
 
   useEffect(() => {
     let isMounted = true;
@@ -49,8 +65,6 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
           const leftMatches = matches.leftEyeMatches || [];
           setFifoMatches({ rightEyeMatches: rightMatches, leftEyeMatches: leftMatches });
 
-          // Prefer distinct stock lines for RE/LE. Same FIFO row for both eyes
-          // fails when that line only has qty 1 (first reserve consumes it).
           const usedCount = {};
           const takeNext = (eyeMatches) => {
             for (const m of eyeMatches) {
@@ -65,10 +79,10 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
           };
 
           const initialSelections = {};
-          if (wantsRight && rightMatches.length > 0) {
+          if (needsRight && rightMatches.length > 0) {
             initialSelections.rightEyeItemId = takeNext(rightMatches);
           }
-          if (wantsLeft && leftMatches.length > 0) {
+          if (needsLeft && leftMatches.length > 0) {
             initialSelections.leftEyeItemId = takeNext(leftMatches);
           }
           setSelectedFifoItems(initialSelections);
@@ -85,24 +99,25 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
     };
     if (saleOrderId) load();
     return () => { isMounted = false; };
-  }, [saleOrderId, wantsRight, wantsLeft, isAlternate, toast]);
+  }, [saleOrderId, needsRight, needsLeft, isAlternate, toast]);
 
   const handleConfirm = async () => {
+    const rightItemId = needsRight ? selectedFifoItems.rightEyeItemId || null : null;
+    const leftItemId = needsLeft ? selectedFifoItems.leftEyeItemId || null : null;
     const itemIds = [];
-    if (selectedFifoItems.rightEyeItemId) itemIds.push(selectedFifoItems.rightEyeItemId);
-    if (selectedFifoItems.leftEyeItemId) itemIds.push(selectedFifoItems.leftEyeItemId);
+    if (rightItemId) itemIds.push(rightItemId);
+    if (leftItemId) itemIds.push(leftItemId);
 
-    // Same stock line for RE + LE only works if that line still has qty ≥ 2
     if (
-      wantsRight &&
-      wantsLeft &&
-      selectedFifoItems.rightEyeItemId &&
-      selectedFifoItems.rightEyeItemId === selectedFifoItems.leftEyeItemId
+      needsRight &&
+      needsLeft &&
+      rightItemId &&
+      leftItemId &&
+      rightItemId === leftItemId
     ) {
-      const sharedId = selectedFifoItems.rightEyeItemId;
       const match =
-        fifoMatches.rightEyeMatches.find((m) => m.id === sharedId) ||
-        fifoMatches.leftEyeMatches.find((m) => m.id === sharedId);
+        fifoMatches.rightEyeMatches.find((m) => m.id === rightItemId) ||
+        fifoMatches.leftEyeMatches.find((m) => m.id === rightItemId);
       const available = Number(match?.quantity) || 0;
       if (available < 2) {
         toast({
@@ -117,11 +132,30 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
 
     try {
       setIsConfirming(true);
-      await onConfirm?.(itemIds);
+      await onConfirm?.({ itemIds, rightItemId, leftItemId });
     } finally {
       setIsConfirming(false);
     }
   };
+
+  const renderAlreadyHas = (label, badgeColor, readiness) => (
+    <div className="space-y-2 bg-emerald-50/60 p-4 rounded-xl border border-emerald-100">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h3 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
+          <Badge className={`${badgeColor} hover:${badgeColor} border`}>{label[0]}</Badge>
+          {label} Eye
+        </h3>
+        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+          Already has lens
+        </Badge>
+      </div>
+      <p className="text-sm text-emerald-900">
+        This eye stays reserved on the SO
+        {readiness?.serialNo ? ` (serial ${readiness.serialNo})` : readiness?.reservedItemId ? ` (item #${readiness.reservedItemId})` : ""}.
+        No pick required.
+      </p>
+    </div>
+  );
 
   const renderEyeSection = (label, badgeColor, matches, eyeKey, selectedId, onSelect) => (
     <div className="space-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
@@ -130,13 +164,18 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
           <Badge className={`${badgeColor} hover:${badgeColor} border`}>{label[0]}</Badge>
           {label} Eye
         </h3>
-        {matches.length === 0 ? (
-          <Badge variant="destructive">No Stock Available</Badge>
-        ) : (
-          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">
-            {matches.length} matching item(s) found
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="border-amber-200 text-amber-800 bg-amber-50">
+            Issue stock
           </Badge>
-        )}
+          {matches.length === 0 ? (
+            <Badge variant="destructive">No Stock Available</Badge>
+          ) : (
+            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">
+              {matches.length} matching item(s) found
+            </Badge>
+          )}
+        </div>
       </div>
 
       {matches.length === 0 ? (
@@ -195,6 +234,11 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
                     {item.isReceipt && (
                       <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border border-purple-200 text-[10px] py-0 px-1.5 uppercase font-bold">Inward Queue</Badge>
                     )}
+                    {item.isReused && (
+                      <Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100 border border-violet-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                        REUSED
+                      </Badge>
+                    )}
                     {item.inwardDate ? new Date(item.inwardDate).toLocaleDateString("en-IN", {
                       day: "2-digit", month: "short", year: "numeric",
                     }) : "—"}
@@ -251,7 +295,6 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
         </DialogHeader>
 
         <div className="min-h-0 overflow-y-auto pr-2 space-y-4 py-3">
-          {/* Sale Order Details Header Card */}
           {saleOrder && (
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs shadow-sm">
               <div>
@@ -266,7 +309,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {wantsRight && (
+                {soWantsRight && (
                   <div className="bg-blue-50/50 p-2.5 border border-blue-100 rounded-lg">
                     <span className="font-bold text-blue-800 block mb-1 text-[11px]">Right Eye Specs</span>
                     <div className="space-y-0.5 text-slate-600">
@@ -276,7 +319,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
                     </div>
                   </div>
                 )}
-                {wantsLeft && (
+                {soWantsLeft && (
                   <div className="bg-purple-50/50 p-2.5 border border-purple-100 rounded-lg">
                     <span className="font-bold text-purple-800 block mb-1 text-[11px]">Left Eye Specs</span>
                     <div className="space-y-0.5 text-slate-600">
@@ -293,7 +336,7 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
           <p className="text-sm text-slate-500">
             {isAlternate
               ? "Select an in-stock alternate lens matching this order's SPH/CYL/ADD power only (coating, brand, and category may differ). The original order details are not changed."
-              : "Select the matching available lenses to issue from inventory or inward queue before moving this order to Pre-QC."}
+              : "Select matching lenses only for eyes that need issue. Accepted eyes already reserved on the SO do not require a pick."}
           </p>
 
           {isLoading ? (
@@ -303,13 +346,23 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
             </div>
           ) : (
             <>
-              {wantsRight && renderEyeSection(
+              {alreadyRight && renderAlreadyHas(
+                "Right",
+                "bg-blue-100 text-blue-800 border-blue-200",
+                issueReadiness?.right
+              )}
+              {needsRight && renderEyeSection(
                 "Right", "bg-blue-100 text-blue-800 border-blue-200",
                 fifoMatches.rightEyeMatches, "rightEye",
                 selectedFifoItems.rightEyeItemId,
                 (id) => setSelectedFifoItems((prev) => ({ ...prev, rightEyeItemId: id }))
               )}
-              {wantsLeft && renderEyeSection(
+              {alreadyLeft && renderAlreadyHas(
+                "Left",
+                "bg-purple-100 text-purple-800 border-purple-200",
+                issueReadiness?.left
+              )}
+              {needsLeft && renderEyeSection(
                 "Left", "bg-purple-100 text-purple-800 border-purple-200",
                 fifoMatches.leftEyeMatches, "leftEye",
                 selectedFifoItems.leftEyeItemId,
@@ -328,8 +381,9 @@ export default function StockPickModal({ saleOrderId, requiredEyes = {}, isAlter
             disabled={
               isLoading ||
               isConfirming ||
-              (wantsRight && !selectedFifoItems.rightEyeItemId) ||
-              (wantsLeft && !selectedFifoItems.leftEyeItemId)
+              (needsRight && !selectedFifoItems.rightEyeItemId) ||
+              (needsLeft && !selectedFifoItems.leftEyeItemId) ||
+              (!needsRight && !needsLeft)
             }
             onClick={handleConfirm}
           >

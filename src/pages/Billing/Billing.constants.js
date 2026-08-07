@@ -2,10 +2,10 @@ import { toast } from "sonner";
 import { formatCustomerRefMrd } from "@/utils/formatCustomerRefMrd";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
-export const fmt = (n) =>
-  typeof n === "number"
-    ? `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-    : "—";
+export const fmt = (n) => {
+  const amount = Number.isFinite(Number(n)) ? Number(n) : 0;
+  return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+};
 
 /** Sum additional charges — sale orders store `{ name, value }`; tolerate legacy `amount`. */
 export function sumAdditionalPrice(additionalPrice) {
@@ -325,7 +325,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
         <td class="desc">${formatGoodsDescription(o)}</td>
         <td class="r">${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
         <td class="r">${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
-        <td class="r">${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "—"}</td>
+        <td class="r">${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
       </tr>`;
     })
     .join("");
@@ -434,14 +434,14 @@ export function buildInvoiceHtml(invoice, companyOverride) {
           </div>
           <div class="totals">
             <div class="t-row"><span>Subtotal</span><span>₹${subtotalShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
-            <div class="t-row"><span>Discount</span><span>${discountShown > 0 ? `-₹${discountShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}</span></div>
+            <div class="t-row"><span>Discount</span><span>${discountShown > 0 ? `-₹${discountShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}</span></div>
             <div class="t-row"><span>Fitting Charges</span><span>₹${fittingShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             ${tintingShown > 0 ? `<div class="t-row"><span>Tinting Charges</span><span>₹${tintingShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
             ${eyeExtrasShown > 0 ? `<div class="t-row"><span>Eye Extras</span><span>₹${eyeExtrasShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>` : ""}
             <div class="t-row"><span>Taxable</span><span>₹${taxableShown.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>GST (${sellerAttrs.gstPercent || 0}%)</span><span>₹${gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
             <div class="t-row"><span>SGST (${sellerAttrs.sgstPercent || 0}%)</span><span>₹${sgstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
-            <div class="t-row"><span>Round Off</span><span>${roundOff ? roundOff.toFixed(2) : "—"}</span></div>
+            <div class="t-row"><span>Round Off</span><span>${roundOff ? roundOff.toFixed(2) : "0.00"}</span></div>
             <div class="t-row net"><span>Net Total</span><span>₹${netTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></div>
           </div>
         </div>

@@ -21,6 +21,7 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createCustomerPayment } from "@/services/customerPayment";
+import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 import {
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
@@ -262,7 +263,7 @@ export default function CreateCustomerPaymentDialog({
                 <SelectContent className="z-[9999]">
                   {bankLedgers.map((l) => (
                     <SelectItem key={l.id} value={String(l.id)}>
-                      {l.ledgerName}
+                      {formatCashBankLedgerLabel(l)}
                     </SelectItem>
                   ))}
                 </SelectContent>
