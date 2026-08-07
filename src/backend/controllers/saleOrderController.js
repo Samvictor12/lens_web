@@ -96,6 +96,32 @@ export class SaleOrderController {
   }
 
   /**
+   * Recent active sale orders for a customer (SO create form)
+   * GET /api/sale-orders/customers/:customerId/recent
+   */
+  async getRecentByCustomer(req, res, next) {
+    try {
+      const customerId = parseInt(req.params.customerId, 10);
+      if (isNaN(customerId) || customerId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: [{ field: 'customerId', message: 'Valid customer ID is required' }],
+        });
+      }
+
+      const data = await this.saleOrderService.getRecentOrdersByCustomer(customerId);
+      res.status(200).json({
+        success: true,
+        message: 'Recent sale orders retrieved successfully',
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get a single sale order by ID
    * GET /api/sale-orders/:id
    */

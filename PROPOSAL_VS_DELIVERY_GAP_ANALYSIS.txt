@@ -1,0 +1,475 @@
+================================================================================
+PROPOSAL vs DELIVERY — GAP ANALYSIS
+Lens Billing & Inventory System
+Contract total: ₹68,000
+================================================================================
+Source of truth:
+  - Payment Milestones (proposal)
+  - Business Requirement Document (BRD) sections 1–12
+  - Codebase / LENS_APPLICATION_SCREEN_REPORT.txt (as of 2026-08)
+
+Status legend:
+  Done          = meets or matches proposal wording
+  Exceeds Scope = delivered more than the milestone wording required
+  Partial       = some of the deliverable exists; gaps remain
+  Not Done      = in current scope but not delivered
+  Future / N/A  = BRD §11 Optional/Future — NOT owed under current ₹68k scope
+  Out of Scope  = mentioned as Add-On elsewhere but not in payment milestone
+                  (treat carefully — see notes)
+
+================================================================================
+0. CRITICAL SCOPE BOUNDARY (read first)
+================================================================================
+
+BRD §11 "Optional / Future Enhancements (N/A for current Scope)" explicitly lists:
+
+  - Email & browser notifications
+  - Online payment gateway
+  - Customer / Vendor portals
+  - Multi-branch inventory
+  - Mobile app (React Native)
+  - Configurable tax rates for different products
+
+→ Vendor Portal is NOT a missing milestone item.
+→ Customer Portal is NOT a contracted deliverable (any shell built is extra).
+→ Do not deduct Phase/Final money for portals/notifications/mobile/multi-branch.
+
+Payment milestones (what IS contracted):
+
+  Advance                              ₹10,000
+  Phase 1 – Billing (Part 1)           ₹ 9,000   Sale Orders + Masters + Discounts
+  Phase 1 – Billing (Part 2)           ₹ 9,000   Invoice + Ledger + Payment Tracking
+  Phase 2 – Inventory (Part 1)         ₹10,000   Stock Management + RX PO workflow
+  Phase 2 – Inventory (Part 2)         ₹10,000   Low Stock Alerts + Inventory Reports
+  Phase 3 – Reports & Add-ons          ₹12,000   Returns, Expenses, Dashboard basics
+  Final Delivery & Handover            ₹ 8,000   User & Role Mgmt, Deployment, Training
+  ────────────────────────────────────────────
+  Total                                ₹68,000
+
+Ambiguity note:
+  BRD §6 Dispatch & Barcode Workflow is written as current process ("Updated")
+  but is NOT a named payment milestone. In practice it was built as part of the
+  order-to-cash engine (Exceeds Phase 1 / ops add-on). Flag if client disputes.
+
+================================================================================
+1. PAYMENT MILESTONE SCORECARD
+================================================================================
+
+--------------------------------------------------------------------------------
+ADVANCE — ₹10,000
+Deliverable: Project kickoff, requirement finalization, design confirmation
+--------------------------------------------------------------------------------
+Status: Done (with ongoing refinement)
+
+Evidence:
+  - Project kicked off ~Oct 2025
+  - Requirements continuously refined via WhatsApp + email (10+ months)
+  - Design/implementation evolved into full ERP beyond original thin BRD masters
+
+Notes:
+  Requirement-gathering never fully "closed" — running channel, not one-time event.
+  This does not block Advance; it explains scope creep into later phases.
+
+
+--------------------------------------------------------------------------------
+PHASE 1 – BILLING (PART 1) — ₹9,000
+Deliverable: Sale Orders + Masters + Discounts implementation
+--------------------------------------------------------------------------------
+Overall status: Exceeds Scope → treat as Done for payment
+
+BRD Phase 1 wording also includes RX/In-stock selection, FIFO, downloadable
+invoices — those sit across Part 1 + Part 2; Part 1 as paid is SO+Masters+Discounts.
+
+### — Sale Orders                          Done / Exceeds
+Proposal/BRD:
+  - Customer selected; lens type & variant; Free Fitting
+  - In-Stock → production; RX → PO
+Actual:
+  - Full SO lifecycle Draft→PO/Stock→Pre-QC→Fitting→Post-QC→Dispatch→Invoice
+  - Credit-limit lock, offers engine, Free Lens/Fitting/Only Lens
+  - Eye specs, Calculate Price, WebSocket live refresh
+  - Raise PO from SO; inventory issue path
+Verdict: Exceeds "Sale order creation & management"
+
+### — Masters                              Exceeds Scope
+Proposal masters (BRD §3):
+  Customer, Lens, Lens Variant, User, Price Mapping, Vendor (simple free-text)
+  Frame Master = Add-On
+Actual:
+  Customers (rich: GST, credit days/limit, Excel, portal tooling)
+  Vendors (full master, not free-text only)
+  Users + Roles
+  10+ lens catalog masters (Brand, Type, Category, Material, Coating, Tinting,
+    Fitting, Index, Dia, Product with coating price matrix, Offers)
+  Locations, Trays
+  Business / Expense / Income Categories
+  Check Sheets (master)
+  Frame Master: NOT built as named Frame module (fitting charge lives on
+    Lens Fitting master / SO fitting — partial substitute)
+Verdict: Far larger than BRD master list. Frame Master Add-On = Not Done
+  as a dedicated screen (debatable if covered by Fitting master).
+
+### — Discounts                            Done
+Proposal:
+  Price Mapping + manual discounts
+Actual:
+  Price Mapping / Discount Management: per-customer brand→product→coating tree
+  Manual additional charges + offers on SO
+Verdict: Done
+
+
+--------------------------------------------------------------------------------
+PHASE 1 – BILLING (PART 2) — ₹9,000
+Deliverable: Invoice + Ledger + Payment Tracking
+--------------------------------------------------------------------------------
+Overall status: Exceeds Scope → treat as Done for payment
+
+### — Invoice                              Done
+Proposal/BRD:
+  - Delivered orders → consolidated billing
+  - Bill ID; downloadable PDF/Excel
+Actual:
+  - Awaiting Invoice tab (Delivered unbilled SOs)
+  - Create Invoice multi-select; GST/SGST; due date from credit days
+  - Tax invoice HTML print (browser PDF); WhatsApp share (wa.me)
+  - Excel download for invoice list: confirm with client if required —
+    primary path is HTML print/PDF, not Excel export of invoice document
+Verdict: Done (print/PDF). Excel invoice file = verify if client insists.
+
+### — Ledger                               Exceeds Scope
+Proposal/BRD:
+  - Basic customer ledger; open/closed bills; downloadable ledger
+Actual:
+  - Full Chart of Accounts, double-entry postings
+  - Customer AR / Vendor AP ledgers auto-linked
+  - Financial Reports: P&L, Balance Sheet, Trial Balance, Day Book,
+    Cash/Bank Book, Ledger Statement, GST Reports
+Verdict: Exceeds "basic ledger" — mini accounting system
+
+### — Payment Tracking                     Done
+Proposal/BRD:
+  - Full/partial payments; Transaction ID + Mode; FIFO across bills
+Actual:
+  - Customer Payments: outstanding queue, FIFO by due date, advances
+  - Vendor Payments + Vendor Invoices (beyond BRD customer focus)
+  - Credit Notes (customer) / Debit Notes (vendor)
+Verdict: Done (and exceeded on vendor side)
+
+
+--------------------------------------------------------------------------------
+PHASE 2 – INVENTORY (PART 1) — ₹10,000
+Deliverable: Stock Management + RX PO workflow
+--------------------------------------------------------------------------------
+Overall status: Done (open bugs ≠ incomplete milestone)
+
+Proposal/BRD:
+  - Track lenses; deduct in-stock on SO use
+  - RX: PO from SO; Pending→Ordered→Received; receive unblocks production
+  - PO import by mapping Order Number, PO Value, Vendor, Item
+Actual:
+  - Dual godown Stock + RX: Dashboard, Inward, SO Request Queue,
+    Transactions, Stock Summary
+  - Soft FIFO reservation; Issue & Pre-QC; Alternate Lens; Raise PO
+  - PO Single/Bulk; Receive → Inward → Push to Inventory
+  - RX/Stock procurement linkage to SO statuses
+Gaps:
+  - PO Import Feature: UI shows "Coming Soon" (Excel upload) → Partial
+    against BRD §5 "PO Import Feature"
+  - Client email 25-07-2026: open bugs (RX stock txn visibility,
+    PO coating/axis on receive) — defect, not missing module
+Verdict: Core Done. PO Import = Partial / Not Done line item.
+
+
+--------------------------------------------------------------------------------
+PHASE 2 – INVENTORY (PART 2) — ₹10,000
+Deliverable: Low Stock Alerts + Inventory Reports
+--------------------------------------------------------------------------------
+Overall status: Partial
+
+### — Low Stock Alerts                     Done
+  - Low-stock list on Inventory Dashboard (per godown)
+  - Low-stock also on Main Dashboard (partly mock elsewhere — alerts exist)
+  - Product min/max thresholds on Lens Product
+
+### — Inventory Reports                    Partial
+BRD §5 / §9 asks for:
+  - Current Stock          → Stock Summary (pivot/list) — Done
+  - Consumed Items         → Not confirmed as dedicated report — Missing
+  - Pending POs            → Visible in PO/Inventory flows; not a formal
+                              Reports-hub report — Partial
+  - Low Stock Alerts       → Done (above)
+  - Downloadable PDF/Excel → Stock Summary export exists; Reports hub
+                              Inventory Report = "coming soon"
+Reports hub:
+  - Stock Value Report = live
+  - Inventory Report card = Coming soon
+  - Client-requested (WhatsApp/email): Fast Moving Products,
+    Stock Movement/Consumption, Rejection Report — Not confirmed built
+Verdict: Alerts Done. Reports Partial (~half). Strongest payment risk
+  on this ₹10,000 milestone.
+
+
+--------------------------------------------------------------------------------
+PHASE 3 – REPORTS & ADD-ONS — ₹12,000
+Deliverable: Returns, Expenses, Dashboard basics
+--------------------------------------------------------------------------------
+Overall status: Partial
+(BRD also lists Financial Summary / Ledger Summary under Add-Ons —
+ payment milestone text only names Returns, Expenses, Dashboard basics.)
+
+### — Returns                              Partial
+Proposal/BRD §7:
+  - Damaged/returned → sale order reopened
+  - Billing unchanged; logged as experience
+Actual:
+  - QC Reject → Inventory Reuse/Dispose (shop-floor return of lens)
+  - SO reset from reject/scrap → Draft (re-open path)
+  - NO standalone Returns / RMA screen
+  - "Billing remains unchanged; logged as experience" — not a clear
+    commercial returns/experience log module
+TASK_SO_WORKFLOW post-v1 hold: full return-to-stock/scrap txn UI
+Verdict: Partial (workflow adjacent, not BRD Returns module)
+
+### — Expenses                             Done / Exceeds
+Proposal:
+  - Direct (WiFi, electricity, labor, rent) & Indirect
+  - Exportable reports
+Actual:
+  - Expense Categories DIRECT/INDIRECT + Expenses with ledger posting
+  - Exportable financial analysis: partly via Financial Reports / expense
+    list — confirm Excel export expectation with client
+Verdict: Done (module). Report export = verify.
+
+### — Dashboard basics                     Partial
+Proposal/BRD §7:
+  - KPI widgets: Sales, Billing & Payments, Inventory, Expenses, Profitability
+  - Graphs/charts, role-based, exportable snapshots
+Actual:
+  - Main Dashboard: some live sales widgets; Outstanding / Low Stock /
+    Pending POs still dummy/mock in places
+  - Inventory Dashboard (per godown) is more complete
+  - Role-based sidebar exists; exportable dashboard snapshots weak/absent
+Verdict: Partial — basics started, not BRD-complete KPI dashboard
+
+### — Financial Summary (BRD Add-On)       Partial / Exceeds elsewhere
+  - Monthly POs + billing + payments + expenses + net gain as one report
+    → Not as a single "Financial Summary" hub card (Reports.jsx = coming soon)
+  - Accounting Financial Reports suite exceeds this for accounting view
+  - Combined ops "net gain" monthly overview = Partial / Not Done as named
+
+### — Ledger Summary (BRD Add-On)          Done (via Accounting)
+  - Customer-based ledger via COA / Ledger Statement / AR
+
+
+--------------------------------------------------------------------------------
+FINAL DELIVERY & HANDOVER — ₹8,000
+Deliverable: User & Role Management, Deployment, Training
+--------------------------------------------------------------------------------
+Overall status: Partial
+
+### — User & Role Management               Done / Exceeds
+BRD §8:
+  - Default roles: Admin, Sales, Inventory Manager, Accounts
+  - Custom roles + View/Create/Update/Delete
+  - Activity logs
+Actual:
+  - Users + Roles with Screen/Create/Edit/View/Delete matrix
+  - System Logs (audit/error) at /system/logs
+Verdict: Done / Exceeds
+
+### — Deployment                           Done (in production use)
+  - Active client use; credentials shared; ongoing production bug reports
+  - Hostinger/cloud path per BRD §10 — confirm which option was used
+Verdict: Done for practical handover of running system
+
+### — Training                             Unconfirmed / Partial
+  - No training/handover manual found in repo
+  - No documented training session evidence
+Verdict: Confirm directly with client. If training not done → Not Done
+  portion of Final ₹8,000.
+
+
+================================================================================
+2. BRD SECTIONS NOT IN PAYMENT TABLE (but in BRD body)
+================================================================================
+
+--------------------------------------------------------------------------------
+§6 Dispatch & Barcode Workflow
+--------------------------------------------------------------------------------
+Status: Mostly Done (built beyond milestone table)
+
+Built:
+  - Barcode label print (local print service) from SO
+  - Production/QC → Ready for Dispatch
+  - Dispatch hub: group by customer, multi-select → Create DC
+  - DC print; pickup → transit → delivered (signature)
+  - Dispatch Window for delivery agents
+  - Only Delivered → Billing (Awaiting Invoice)
+
+Gaps vs BRD wording:
+  - "Customers share order details via WhatsApp" = process, not system
+  - Courier-receiving dedicated screen = not a named module (SO entry covers it)
+  - Authenticity card = settings preview only, not SO print action
+  - Barcode = Order ID + Customer ID: confirm exact payload vs BRD
+
+Payment note: Not a separate milestone; delivered as ops capability.
+  If client claims it was unpaid extra, it was generally expected by §6.
+
+--------------------------------------------------------------------------------
+§9 Reports & Downloadable Documents (cross-cutting)
+--------------------------------------------------------------------------------
+Billing Reports: Sales, top-selling, outstanding
+  - Outstanding via Customer Payments / Billing — Done
+  - Sales / top-selling as dedicated Reports-hub reports — Partial / Coming soon
+  - Dashboard top product widgets — Partial live
+
+Inventory Reports: see Phase 2 Part 2
+
+Financial Summary: see Phase 3
+
+Formats PDF & Excel:
+  - Invoices: HTML→PDF print Done; Excel invoice doc = verify
+  - Stock summary Excel/PDF: Done
+  - Many report cards still Coming soon
+
+
+================================================================================
+3. EXPLICITLY OUT OF CURRENT CONTRACT (Future / N/A)
+================================================================================
+Do NOT list these as unpaid Phase gaps:
+
+  [ ] Email & browser notifications
+  [ ] Online payment gateway
+  [ ] Customer Portal (any build = goodwill / partial extra)
+  [ ] Vendor Portal                         ← not missing deliverable
+  [ ] Multi-branch inventory
+  [ ] Mobile app (React Native)
+  [ ] Configurable tax rates per product
+
+Related extras built beyond Future list (goodwill / scope creep into Done):
+  - Shop-floor Pre-QC / Fitting / Post-QC (BRD said "production & QC" lightly)
+  - Full double-entry accounting (beyond basic ledger)
+  - Bank Reconciliation, Income module, GST Reports
+  - Vendor Payments / Vendor Invoices
+  - WebSocket live refresh
+  - Customer Portal shell (login/PIN/share) — still dummy dashboard
+
+
+================================================================================
+4. WHAT WAS "MISSING" IN THE EARLIER STATUS SHEET — CORRECTED
+================================================================================
+
+Earlier concern              | Correct classification
+-----------------------------+------------------------------------------------------
+Vendor Portal                | Future / N/A — NOT a contract gap
+Customer Portal incomplete   | Future / N/A (shell = extra; dummy dashboard OK
+                             |   vs contract; not Phase 3)
+Check sheets unused on floor | Extra master; not in BRD masters list
+Authenticity card            | Not in BRD; print preview only
+SMS / WhatsApp API           | Future / N/A (wa.me share is bonus)
+GSTR filing export           | Not in BRD (GST HTML reports = extra)
+PO Excel import              | IN SCOPE (BRD §5) — Partial / Not Done
+Consumed / Fast Moving /     | IN SCOPE reports (BRD §5/§9) — Partial / Not Done
+  Rejection reports          |
+Returns standalone module    | Phase 3 IN SCOPE — Partial
+Dashboard KPI complete       | Phase 3 IN SCOPE — Partial
+Financial Summary hub card   | BRD Add-On — Partial (Accounting reports exceed
+                             |   but named monthly ops summary weak)
+Training                     | Final IN SCOPE — Unconfirmed
+Frame Master                 | BRD Add-On — Not as dedicated Frame screen
+Dispatch/Barcode             | BRD §6 — mostly Done; not a payment line
+
+
+================================================================================
+5. RECOMMENDED MILESTONE STATUSES (for client/commercial use)
+================================================================================
+
+Milestone                         Amount    Status        Notes
+--------------------------------+---------+-------------+--------------------------
+Advance                           10,000    Done          Ongoing reqs channel OK
+Phase 1 Billing Part 1             9,000    Done/Exceeds  SO+Masters+Discounts
+Phase 1 Billing Part 2             9,000    Done/Exceeds  Invoice+Ledger+Payments
+                                  ─────     (full acct)   Ledger far beyond BRD
+Phase 2 Inventory Part 1          10,000    Done*         *PO Import still open
+Phase 2 Inventory Part 2          10,000    Partial       Alerts OK; reports gap
+Phase 3 Reports & Add-ons         12,000    Partial       Expenses OK;
+                                                          Returns+Dashboard weak
+Final Delivery & Handover          8,000    Partial       Users/Deploy OK;
+                                                          Training unconfirmed
+--------------------------------+---------+-------------+--------------------------
+TOTAL                             68,000
+
+Suggested commercial framing:
+  - Phases 1.1, 1.2, 2.1, Advance: payable / paid (exceeded in places)
+  - Phase 2.2: hold residual until Inventory Reports list agreed & shipped
+  - Phase 3: hold residual until Returns + Dashboard basics accepted OR
+    renegotiate (Expenses already over-delivered; Accounting Financial
+    Reports may offset Financial Summary)
+  - Final: release on training confirmation (or document training done)
+
+Do NOT use Vendor/Customer Portal as leverage against unpaid milestones —
+they are §11 Future / N/A.
+
+
+================================================================================
+6. OPEN IN-SCOPE GAPS (action list)
+================================================================================
+
+High (tied to unpaid / Partial milestones):
+
+  P2.2 Inventory Reports
+    [ ] Current stock report (formalize if Stock Summary counts)
+    [ ] Consumed items / stock movement report
+    [ ] Pending POs report
+    [ ] Fast Moving Products (if client requested — align to BRD "top/consumed")
+    [ ] Rejection Report (client email — confirm if in BRD or extra)
+    [ ] Reports hub "Inventory Report" leave Coming soon → implement
+    [ ] PDF & Excel downloads where promised
+
+  P2.1 residual
+    [ ] PO Import (Excel map Order No, PO Value, Vendor, Item)
+    [ ] Fix client bugs: RX stock transaction visibility;
+        PO coating/axis on receive (25-07-2026)
+
+  P3
+    [ ] Returns / Re-Open Orders per BRD (reopen SO; experience log;
+        billing unchanged) — clarify acceptance vs QC-return path
+    [ ] Dashboard KPI basics: Sales, Billing & Payments, Inventory,
+        Expenses, Profitability — replace remaining mock cards
+    [ ] Financial Summary monthly overview (or accept Accounting reports
+        as substitute — get written OK)
+    [ ] Expense report export if client expects Excel
+
+  Final
+    [ ] Confirm / schedule Training
+    [ ] Short handover note (login, roles, print service, backups)
+
+
+Medium / clarify with client (may be acceptance negotiation):
+
+  [ ] Invoice Excel download (vs HTML PDF print)
+  [ ] Frame Master Add-On — needed or covered by Fitting?
+  [ ] Authenticity card — never in BRD; ignore unless promised later
+  [ ] Check sheet execution on Pre-QC/Fitting/Post-QC — not in BRD
+
+
+Out of contract (park):
+
+  [ ] Vendor Portal
+  [ ] Customer Portal live data (nice-to-have; API half-ready)
+  [ ] Notifications, payment gateway, multi-branch, mobile app, tax config
+
+
+================================================================================
+7. ONE-LINE SUMMARY
+================================================================================
+
+Against the ₹68k proposal: Billing + core Inventory + Roles/Deploy are
+substantially Done and often Exceed Scope (full accounting, shop-floor QC,
+dispatch). The real contract gaps are Inventory Reports (Phase 2.2),
+Returns + Dashboard (Phase 3), PO Import, and Training confirmation —
+NOT Vendor Portal (Future / N/A).
+
+================================================================================
+END
+================================================================================

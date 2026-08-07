@@ -29,6 +29,7 @@ export function buildPrintPreviewData(order = DUMMY_PRINT_ORDER, company = null)
     orderDate: fmtDate(order.orderDate),
     orderDateShort: fmtDateShort(order.orderDate),
     customerRefNo: order.customerRefNo || "-",
+    mrdRefNo: order.mrdRefNo || "",
     itemRefNo: order.itemRefNo || "-",
     customerName: order.customer_name,
     lensIndex: order.lensIndex,

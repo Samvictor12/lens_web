@@ -27,6 +27,7 @@ import {
     getSaleOrderById,
     updateSaleOrder,
     checkCustomerRef,
+    getRecentOrdersByCustomer,
     updateSaleOrderStatus,
     getMatchingInventoryFIFO,
     previewStockAvailability,
@@ -58,11 +59,13 @@ import {
     orderTypeOptions,
     dispatchStatusOptions,
     eyeSpecRanges,
+    statusColors,
     getDefaultDeliveryLeadDays,
     buildDefaultDeliverySchedule,
     cylRequiresAxis,
     hasAxisEntry,
 } from "./SaleOrder.constants";
+import { STATUS_LABELS } from "@/constants/saleOrderStatus";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { check } from "express-validator";
 import { checkCreditLimit } from "../../services/saleOrder";
@@ -103,6 +106,8 @@ export default function SaleOrderForm() {
     const [lensProductIndexName, setLensProductIndexName] = useState("");
     const [customerRefStatus, setCustomerRefStatus] = useState(null);
     const [isCheckingCustomerRef, setIsCheckingCustomerRef] = useState(false);
+    const [recentOrders, setRecentOrders] = useState([]);
+    const [isLoadingRecentOrders, setIsLoadingRecentOrders] = useState(false);
 
     // Print modal states
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -966,6 +971,36 @@ export default function SaleOrderForm() {
 
         return () => clearTimeout(timer);
     }, [formData.customerRefNo, formData.customerId, mode, id]);
+
+    // Recent orders for selected customer (add mode only) — own spinner, does not block form actions
+    useEffect(() => {
+        if (mode !== "add" || !formData.customerId) {
+            setRecentOrders([]);
+            setIsLoadingRecentOrders(false);
+            return;
+        }
+
+        let cancelled = false;
+        setIsLoadingRecentOrders(true);
+        setRecentOrders([]);
+
+        getRecentOrdersByCustomer(formData.customerId)
+            .then((res) => {
+                if (cancelled) return;
+                setRecentOrders(Array.isArray(res?.data) ? res.data : []);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setRecentOrders([]);
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoadingRecentOrders(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [mode, formData.customerId]);
 
     const getCustomerRefStatusMessage = () => {
         if (isCheckingCustomerRef) return "Checking reference…";
@@ -2691,28 +2726,40 @@ export default function SaleOrderForm() {
                             rows={1}
                             placeholder="Enter any additional remarks"
                         />
-                        <div className="flex gap-2 items-center">
+                        <div className="flex flex-col sm:flex-row gap-2 items-start">
+                            <div className="flex gap-2 items-center flex-1 min-w-0 w-full">
+                                <FormInput
+                                    singleLine={true}
+                                    label="Customer Ref No"
+                                    name="customerRefNo"
+                                    value={formData.customerRefNo}
+                                    onChange={handleChange}
+                                    disabled={mode !== "add" || isCreditBlocked}
+                                    placeholder="Enter customer reference"
+                                    required
+                                    error={errors.customerRefNo}
+                                    containerClassName="flex-1 min-w-0"
+                                />
+                                {renderCustomerRefStatusIcon()}
+                            </div>
                             <FormInput
                                 singleLine={true}
-                                label="Customer Ref No"
-                                name="customerRefNo"
-                                value={formData.customerRefNo}
+                                label="MRD"
+                                name="mrdRefNo"
+                                value={formData.mrdRefNo || ""}
                                 onChange={handleChange}
-                                disabled={mode !== "add" || isCreditBlocked}
-                                placeholder="Enter customer reference"
-                                required
-                                error={errors.customerRefNo}
-                                containerClassName="flex-1 min-w-0"
+                                disabled={!isEditing}
+                                placeholder="Optional MRD"
+                                containerClassName="flex-1 min-w-0 w-full"
                             />
-                            {renderCustomerRefStatusIcon()}
                         </div>
                         <FormInput
-                            singleLine={true} label="Item Ref No"
+                            singleLine={true} label="Patient Ref"
                             name="itemRefNo"
                             value={formData.itemRefNo}
                             onChange={handleChange}
                             disabled={!isEditing}
-                            placeholder="Optional item reference"
+                            placeholder="Optional patient reference"
                         />
                         <div className={`mt-4 grid divide-x divide-border border rounded-md overflow-hidden ${formData.onlyLens ? "grid-cols-2" : "grid-cols-3"}`}>
                             {[
@@ -3553,6 +3600,62 @@ export default function SaleOrderForm() {
 
                         </CardContent>
                     </Card>
+
+                    {mode === "add" && formData.customerId && (
+                        <Card>
+                            <CardHeader className="py-3">
+                                <CardTitle className="text-base">Recent Orders</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                                {isLoadingRecentOrders ? (
+                                    <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Loading recent orders…
+                                    </div>
+                                ) : recentOrders.length === 0 ? (
+                                    <p className="py-6 text-center text-sm text-muted-foreground">
+                                        No active orders for this customer.
+                                    </p>
+                                ) : (
+                                    <div className="max-h-56 overflow-y-auto border rounded-md">
+                                        <table className="w-full text-sm">
+                                            <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                                                <tr className="text-left text-xs text-muted-foreground">
+                                                    <th className="px-3 py-2 font-medium">Order No</th>
+                                                    <th className="px-3 py-2 font-medium">Date</th>
+                                                    <th className="px-3 py-2 font-medium">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {recentOrders.map((order) => (
+                                                    <tr key={order.id} className="border-t">
+                                                        <td className="px-3 py-1.5 font-medium whitespace-nowrap">
+                                                            {order.orderNo}
+                                                        </td>
+                                                        <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
+                                                            {order.orderDate
+                                                                ? new Date(order.orderDate).toLocaleDateString("en-IN")
+                                                                : "—"}
+                                                        </td>
+                                                        <td className="px-3 py-1.5">
+                                                            <Badge
+                                                                className={`${statusColors[order.status] || statusColors.DRAFT} text-3xs`}
+                                                                variant="outline"
+                                                            >
+                                                                {STATUS_LABELS[order.status] ||
+                                                                    String(order.status || "").replace(/_/g, " ") ||
+                                                                    "—"}
+                                                            </Badge>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
 
                 </div>

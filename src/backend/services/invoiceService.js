@@ -261,7 +261,7 @@ export class InvoiceService {
         saleOrders: {
           where: { deleteStatus: false },
           select: {
-            id: true, orderNo: true, status: true, orderDate: true, customerRefNo: true,
+            id: true, orderNo: true, status: true, orderDate: true, customerRefNo: true, mrdRefNo: true,
             rightEye: true, leftEye: true,
             rightSpherical: true, rightCylindrical: true, rightAxis: true, rightAdd: true, rightDia: true,
             leftSpherical: true, leftCylindrical: true, leftAxis: true, leftAdd: true, leftDia: true,

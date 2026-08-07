@@ -16,6 +16,10 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useNavigate } from "react-router-dom";
 import { SettingsModal } from "@/pages/Settings/SettingsModal";
 
+/**
+ * @deprecated Header chrome moved into AppSidebar (logo toggle + user footer).
+ * Kept commented in AppLayout; file retained for reference / easy restore.
+ */
 export const AppHeader = () => {
   const { user, logout } = useAuth();
   const { company } = useCompany();
@@ -37,6 +41,7 @@ export const AppHeader = () => {
 
   return (
     <>
+      {/*
       <header className="h-16 border-b bg-card flex items-center justify-between px-6 shadow-sm">
         <div className="flex items-center gap-4">
           <SidebarTrigger />
@@ -58,12 +63,14 @@ export const AppHeader = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-warning">
-              3
-            </Badge>
-          </Button>
+          {false && (
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-warning">
+                3
+              </Badge>
+            </Button>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -98,6 +105,7 @@ export const AppHeader = () => {
           </DropdownMenu>
         </div>
       </header>
+      */}
 
       <SettingsModal
         open={settingsOpen}
@@ -107,8 +115,3 @@ export const AppHeader = () => {
     </>
   );
 };
-
-
-
-
-

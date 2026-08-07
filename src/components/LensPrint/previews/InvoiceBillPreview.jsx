@@ -1,6 +1,8 @@
 /**
  * Invoice / Bill — A4 mock (ink-light shell aligned with Dispatch Challan)
  */
+import { formatCustomerRefMrdLabel } from "@/utils/formatCustomerRefMrd";
+
 export default function InvoiceBillPreview({ data }) {
   const c = data.company;
   const sellerAddress = [c.address, c.city, c.state, c.pincode].filter(Boolean).join(", ");
@@ -103,8 +105,15 @@ export default function InvoiceBillPreview({ data }) {
           <div style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#64748b", marginBottom: "4px" }}>
             Order References
           </div>
-          <div style={{ color: "#475569", fontSize: "10px" }}>Cust Ref: {data.customerRefNo}</div>
-          <div style={{ color: "#475569", fontSize: "10px", marginTop: "2px" }}>Item Ref: {data.itemRefNo}</div>
+          <div style={{ color: "#475569", fontSize: "10px" }}>
+            {formatCustomerRefMrdLabel(data.customerRefNo, data.mrdRefNo) ||
+              `Customer Ref : ${data.customerRefNo || ""}`}
+          </div>
+          {data.itemRefNo && data.itemRefNo !== "-" ? (
+            <div style={{ color: "#475569", fontSize: "10px", marginTop: "2px" }}>
+              Patient Ref: {data.itemRefNo}
+            </div>
+          ) : null}
         </div>
       </div>
 

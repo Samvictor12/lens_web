@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { formatCustomerRefMrd } from "@/utils/formatCustomerRefMrd";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 export const fmt = (n) =>
@@ -320,7 +321,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
       return `<tr>
         <td class="c">${idx + 1}</td>
         <td>${escapeHtml(dash(o.orderNo))}</td>
-        <td>${escapeHtml(dash(o.customerRefNo))}</td>
+        <td>${escapeHtml(dash(formatCustomerRefMrd(o.customerRefNo, o.mrdRefNo) || o.customerRefNo))}</td>
         <td class="desc">${formatGoodsDescription(o)}</td>
         <td class="r">${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
         <td class="r">${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
@@ -415,7 +416,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
             <tr>
               <th class="c" style="width:6%">#</th>
               <th style="width:14%">SO No</th>
-              <th style="width:12%">Ref No</th>
+              <th style="width:12%">Customer Ref / MRD</th>
               <th>Description of Goods</th>
               <th class="r" style="width:12%">Rate</th>
               <th class="r" style="width:14%">Additional</th>

@@ -442,6 +442,7 @@ export class SaleOrderService {
           deliverySchedule: orderData.deliverySchedule ? new Date(orderData.deliverySchedule) : null,
           remark: orderData.remark,
           itemRefNo: orderData.itemRefNo,
+          mrdRefNo: orderData.mrdRefNo,
           freeLens: orderData.freeLens ?? false,
           urgentOrder: orderData.urgentOrder ?? false,
           freeFitting: orderData.freeFitting ?? false,
@@ -2287,6 +2288,7 @@ export class SaleOrderService {
             type: existing.type,
             remark: existing.remark,
             itemRefNo: existing.itemRefNo,
+            mrdRefNo: existing.mrdRefNo,
             freeLens: existing.freeLens,
             urgentOrder: existing.urgentOrder,
             freeFitting: existing.freeFitting,
@@ -2379,6 +2381,36 @@ export class SaleOrderService {
       console.error('Error in closeAndCreateSaleOrder:', error);
       throw new APIError('Failed to close and create sale order', 500, 'CLOSE_CREATE_ORDER_ERROR');
     }
+  }
+
+  /**
+   * Recent (active) sale orders for a customer — used on SO create form.
+   * Excludes terminal statuses: DELIVERED, INVOICED, COMPLETED, CANCELLED.
+   * @param {number} customerId
+   * @returns {Promise<Array<{id:number,orderNo:string,orderDate:Date,status:string}>>}
+   */
+  async getRecentOrdersByCustomer(customerId) {
+    const id = parseInt(customerId, 10);
+    if (isNaN(id) || id <= 0) {
+      throw new APIError('Invalid customer ID', 400, 'INVALID_CUSTOMER_ID');
+    }
+
+    const EXCLUDED = ['DELIVERED', 'INVOICED', 'COMPLETED', 'CANCELLED'];
+
+    return prisma.saleOrder.findMany({
+      where: {
+        customerId: id,
+        deleteStatus: false,
+        status: { notIn: EXCLUDED },
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        orderDate: true,
+        status: true,
+      },
+      orderBy: { orderDate: 'desc' },
+    });
   }
 }
 

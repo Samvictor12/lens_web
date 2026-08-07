@@ -197,9 +197,9 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                   />
                 </div>
 
-                {/* Item Ref No */}
+                {/* Patient Ref */}
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium text-gray-700 w-[120px]">Item Ref No</Label>
+                  <Label className="text-sm font-medium text-gray-700 w-[120px]">Patient Ref</Label>
                   <Input
                     value={orderData.itemRefNo || orderData.customerRefNo}
                     onChange={(e) => setOrderData({ ...orderData, itemRefNo: e.target.value })}

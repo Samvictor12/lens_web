@@ -6,6 +6,7 @@ export const DUMMY_PRINT_ORDER = {
   orderNo: "SO-2026-003",
   orderDate: "2026-04-21",
   customerRefNo: "21/1",
+  mrdRefNo: "MRD-5562",
   itemRefNo: "21/04",
   customer_name: "Eagle Vision Optical",
   lensIndex: "1.560",

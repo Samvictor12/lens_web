@@ -17,6 +17,7 @@ import {
   getPrinterConfigs,
   printBarcodeLabels,
 } from "@/services/printerConfig";
+import { formatCustomerRefMrdLabel } from "@/utils/formatCustomerRefMrd";
 
 export function SaleOrderPrintModal({
   isOpen,
@@ -286,6 +287,19 @@ export function SaleOrderPrintModal({
                 <div class="party">
                   <div class="party-title">Delivery Details</div>
                   <div class="muted">Expected: <strong>${expectedDelivery}</strong></div>
+                  ${(() => {
+                    const custRefLine = formatCustomerRefMrdLabel(
+                      saleOrder?.customerRefNo,
+                      saleOrder?.mrdRefNo
+                    );
+                    const patientRef = saleOrder?.itemRefNo?.trim?.()
+                      ? saleOrder.itemRefNo.trim()
+                      : "";
+                    return `
+                      ${custRefLine ? `<div class="muted">${custRefLine}</div>` : ""}
+                      ${patientRef ? `<div class="muted">Patient Ref: ${patientRef}</div>` : ""}
+                    `;
+                  })()}
                   ${saleOrder?.notes ? `<div class="muted">Notes: ${saleOrder.notes}</div>` : ""}
                 </div>
               </section>

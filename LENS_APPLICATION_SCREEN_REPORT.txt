@@ -1,0 +1,707 @@
+================================================================================
+LENS WEB — APPLICATION REPORT (SCREEN-BY-SCREEN)
+================================================================================
+Generated: 2026-08-01
+
+Lens (UI brand: Vision Connect / Lens Billing & Inventory) is an optical lab ERP.
+It runs the full chain: catalog → sale order → procurement/inventory → Pre-QC →
+Fitting → Post-QC → dispatch → billing → accounting.
+
+Stack:
+  - Frontend: React 18 + Vite + Tailwind / shadcn
+  - Backend: Express 5 + Prisma 6 + PostgreSQL
+  - Auth: JWT (access + refresh), role-based permissions
+  - Live refresh: WebSocket on Sale Orders / Purchase Orders
+
+Core pipeline:
+  DRAFT → (Raise PO / Issue stock) → PRE_QC → FITTING → POST_QC → DISPATCH
+  → DELIVERED → INVOICE → PAID / COMPLETED
+
+================================================================================
+1. APPLICATION OVERVIEW
+================================================================================
+
+Area                  | What it covers
+----------------------+----------------------------------------------------------
+Masters               | Customers, vendors, users/roles, lens catalog,
+                      | locations/trays, categories
+Sales                 | Sale orders, price mapping, billing
+Procurement           | Purchase orders, receive, inward
+Inventory             | Stock + RX godowns, FIFO issue, soft reservation
+Shop floor            | Pre-QC, Fitting, Post-QC (+ check sheets)
+Logistics             | Dispatch hub + delivery window
+Accounting            | COA, expenses/income, AR/AP payments, bank recon, reports
+Admin                 | Settings (company/printers), logs, RBAC
+Portal                | Customer PIN login (dashboard still partly demo data)
+
+Sidebar is split into Main Menu and Masters, filtered by Screen permissions.
+Seeded roles: Admin, Sales, Inventory, Accounts.
+
+================================================================================
+2. END-TO-END SALE ORDER STATUS MAP
+================================================================================
+
+Status                              | Meaning              | Who acts
+------------------------------------+----------------------+-------------------
+DRAFT                               | Order created        | Sales
+PO_RAISED / PO_RECEIVED /           | Procurement path     | PO / Inventory
+  PO_CANCELLED                      |                      |
+PRE_QC / PRE_QC_REJECTED /          | Incoming lens QC     | Pre-QC
+  PRE_QC_SCRAPPED                   |                      |
+FITTING_READY / IN_FITTING /        | Fitting              | Fitting operator
+  ON_HOLD                           |                      |
+AWAITING_QUALITY /                  | Final QC             | Post-QC
+  POST_QC_REJECTED /                |                      |
+  POST_QC_SCRAPPED                  |                      |
+READY_FOR_DISPATCH                  | Ready to ship        | Dispatch
+READY_FOR_PICKUP / DISPATCHED /     | Delivery             | Dispatch / Window
+  DELIVERED                         |                      |
+INVOICED / COMPLETED                | Billed / paid        | Billing + Customer
+                                    |                      | Payments
+CANCELLED                           | Cancelled + remark   | Sales
+
+Note: Reject/scrap statuses must Reset → Draft before reprocessing.
+
+================================================================================
+3. MAIN MENU SCREENS
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 Dashboard
+--------------------------------------------------------------------------------
+Route: /dashboard
+
+Features:
+  - High-level stats (sales/revenue/stock/pending POs style)
+  - Recent sales list
+  - Low-stock list
+
+Note: Partly mock/dummy in places — not the live operational driver.
+
+
+--------------------------------------------------------------------------------
+3.2 Sale Orders
+--------------------------------------------------------------------------------
+
+### List — /sales/orders
+
+Features:
+  - Add Order (opens form in new tab)
+  - Search (order no, customer, customer ref)
+  - Filters: status, customer, date range
+  - Sortable paginated table
+  - Live refresh via WebSocket SALE_ORDER_UPDATED
+  - Columns: Order #, Customer, Ref No, Lens, Category, Date, RX/STOCK type,
+    Status (click → history), Delete
+  - Status history dialog
+  - Delete confirm dialog
+
+### Form — /sales/orders/add | edit/:id | view/:id (fullscreen)
+
+Header actions:
+  - Create / Update Order
+  - Raise PO (Draft / PO Cancelled, no active PO)
+  - Cancel SO (remark required)
+  - Print Invoice / Print Label (barcode via local print service)
+  - Create & Raise PO / Create & Print (add mode)
+  - Close & Create SO (derived child orders)
+  - Go to Billing (when Delivered/Billed)
+  - Credit-limit lock → entire form read-only when limit exceeded
+
+Order Information:
+  - Customer, order date, delivery schedule
+    (auto lead days: STOCK ~2d, RX ~3d)
+  - Urgent flag, remarks, customer ref (uniqueness check), item ref
+  - Flags: Only Lens / Free Lens / Free Fitting
+  - Applicable offers after Calculate Price:
+      PERCENTAGE, VALUE, EXCHANGE_COATING_PRICE, EXCHANGE_PRODUCT,
+      EXCHANGE_BRAND_PRICE, COATING_PROMOTION
+  - Derived orders links
+
+Lens Information:
+  - Type, Category, Lens, Fitting, Material, Tinting, Coating, Index
+  - Stock availability preview (R/L) after price calc
+
+Eye Specifications:
+  - Both / Right / Left
+  - SPH, CYL, Axis (required if CYL set), ADD, Dia
+  - Validation ranges; ADD for bifocal/progressive
+
+Pricing:
+  - Calculate Price (needs customer + lens + coating + ≥1 eye)
+  - Lens price, R/L extras, fitting, tinting
+  - Additional custom charge rows
+  - Category discount on lens price only; offer math; free lens/fitting
+  - Total breakdown card
+
+Other:
+  - Status progress bar + history
+  - Raise PO modal (vendor, eyes, RX/STOCK)
+  - FIFO stock-pick modal (legacy/alternate path)
+  - Reset from reject/scrap → Draft
+  - Credit lifecycle: SO reserves credit → invoice moves to outstanding
+    → payment clears
+
+
+--------------------------------------------------------------------------------
+3.3 Inventory (Stock Godown & RX Godown)
+--------------------------------------------------------------------------------
+Routes:
+  /inventory/stock/dashboard | inward | request-queue | transactions | stock
+  /inventory/rx/dashboard    | inward | request-queue | transactions | stock
+
+Same 5 tabs per godown:
+
+Dashboard:
+  - Counts, reserved (soft FIFO), low stock, value, trends
+  - Initialize stock wizard
+
+Inward Queue:
+  - Pending PO receipts to put away
+  - QC return Reuse / Dispose
+
+SO Request Queue:
+  - SOs needing stock
+  - Issue & Pre-QC
+  - Alternate Lens
+  - Raise PO on shortage
+  - Queue badges (PO received, QC return, scrap, etc.)
+
+Transactions:
+  - INWARD_PO, INWARD_DIRECT, OUTWARD_SALE, TRANSFER, ADJUSTMENT, DAMAGE, etc.
+
+Stock Summary:
+  - Pivot / expandable list by power
+  - Filters; Excel/PDF export
+
+Extra:
+  - New Transaction page
+  - FIFO StockPickModal
+  - Tray capacity on inward
+  - Item add/edit/view pages
+  - Legacy redirects from /inventory/* → stock paths
+
+
+--------------------------------------------------------------------------------
+3.4 Purchase Orders
+--------------------------------------------------------------------------------
+
+### List — /masters/purchase-orders
+
+Features:
+  - Tabs: Dashboard | Purchase Orders
+  - Dashboard: totals, pending, value, recent
+  - List: search, filters (status, vendor, dates), table/card
+  - Single / Bulk order type
+  - Batch Excel download
+  - Row actions: receive, edit receive, inward, download, delete
+  - WebSocket PURCHASE_ORDER_UPDATED live refresh
+
+### Form — /masters/purchase-orders/add | edit/:id | view/:id
+
+Features:
+  - Single vs Bulk
+  - Vendor, dates, lens details, eye specs (Single)
+  - Bulk combination grid
+  - Pricing + tax
+  - Receive / Cancel PO
+  - Linked SO qty
+
+### Receive — /masters/purchase-orders/receive/:id
+           — /masters/purchase-orders/receive/:id/edit/:receiptId
+
+Features:
+  - Partial / full receive
+  - Pricing; supplier invoice; receipt history
+  - STOCK: start inventory inward from receipt
+
+### Inward — .../inward/:receiptId
+           — /inventory/stock|rx/inward/:id/:receiptId
+
+Features:
+  - Location + tray splits with live capacity
+  - Push to Inventory
+
+PO statuses:
+  Draft → Partial/Full Received → Invoice Received → Paid → Closed / Cancelled
+
+
+--------------------------------------------------------------------------------
+3.5 Dispatch
+--------------------------------------------------------------------------------
+
+### Hub — /dispatch
+
+Tabs: Dashboard | Ready for Dispatch | Dispatch List
+
+Dashboard:
+  - Cards: Ready, In Transit, Delivered, Total Pending
+  - Recent dispatches
+
+Ready for Dispatch:
+  - Lists SOs in READY_FOR_DISPATCH
+  - Multi-select → Create Dispatch
+  - Delivery person, vehicle, expected date, notes
+  - Group-by customer/area/product
+
+Dispatch List:
+  - Filters: status, delivery agent, date range
+  - Pickup → In Transit → Delivered (signature)
+  - On Hold / Resume
+  - Print dispatch challan (A4 HTML)
+
+### Dispatch Window — /dispatch/window
+
+Features:
+  - Mobile/field view for delivery agents
+  - Tabs: Pickup | Delivery
+  - Bulk pickup; bulk deliver with shared signature
+  - Permission-gated (dispatch_window)
+
+DC flow:
+  PENDING (Ready for Pickup) → IN_TRANSIT → DELIVERED (ON_HOLD branch)
+
+
+--------------------------------------------------------------------------------
+3.6 Fitting Operator
+--------------------------------------------------------------------------------
+Routes: /fitting/operator , /fitting/operator/:id
+Legacy redirects: /production/operator(...)
+
+Features:
+  - Queue: FITTING_READY / IN_FITTING / ON_HOLD
+  - Search + QR scan
+  - Hold → ON_HOLD
+  - Complete → AWAITING_QUALITY (Post-QC)
+
+
+--------------------------------------------------------------------------------
+3.7 Pre-QC Operator
+--------------------------------------------------------------------------------
+Routes: /pre-qc/operator , /pre-qc/operator/:id
+
+Features:
+  - Orders in PRE_QC
+  - Search + QR scan
+  - Approve → FITTING_READY (Fitting In)
+  - Reject → Inventory (PRE_QC_REJECTED) or Scrap (PRE_QC_SCRAPPED)
+  - Remark required on reject; SO must later Reset → Draft
+
+
+--------------------------------------------------------------------------------
+3.8 Post-QC Operator (Quality)
+--------------------------------------------------------------------------------
+Routes: /quality/operator , /quality/operator/:id
+
+Features:
+  - Same UI as Pre-QC for AWAITING_QUALITY
+  - Approve → READY_FOR_DISPATCH
+  - Reject → POST_QC_REJECTED or POST_QC_SCRAPPED
+
+
+--------------------------------------------------------------------------------
+3.9 Billing
+--------------------------------------------------------------------------------
+Route: /billing
+
+Tabs: Dashboard | Awaiting Invoice | Invoices
+
+Dashboard:
+  - Stats: Total Invoices, Pending Payment, Paid, Outstanding
+  - Recent invoices
+
+Awaiting Invoice:
+  - Delivered unbilled SOs
+  - Create Bill per customer
+  - Search / group / pagination
+
+Invoices:
+  - Search, filters (status, date), group-by, table/card
+  - Create Invoice dialog: multi-select delivered orders; due date from
+    customer credit days; GST/SGST breakdown
+  - Invoice statuses: DRAFT → Issue → ISSUED → PARTIALLY_PAID → PAID / CANCELLED
+  - Preview / print tax invoice (M.V.V-style HTML)
+  - Share WhatsApp
+  - Pay / Quick Close → navigates to Customer Payments
+    (in-billing payment dialog is legacy)
+
+
+--------------------------------------------------------------------------------
+3.10 Accounting
+--------------------------------------------------------------------------------
+
+### Chart of Accounts — /accounts/ledgers
+  - Account groups + ledgers tree/list
+  - CRUD; search/filter by type
+
+### Bank Accounts — /accounts/bank-accounts
+  - BANK / CASH ledgers
+  - Opening balance; bank metadata; current balance
+
+### Expenses — /accounts/expenses
+  - List + monthly/yearly summaries
+  - Create/edit with category, bank, payment method
+
+### Income — /accounts/income
+  - Bank transfer / loan / other
+  - From → To ledger transfer
+  - Delete reverses posting
+
+### Customer Payments — /accounts/customer-payments
+  Tabs: Outstanding Invoices | Payment History | Credit Notes
+  - Multi-select FIFO allocation by due date
+  - Advances
+  - Print receipt
+  - Cancel / reverse (blocked if reconciled)
+  - Credit Notes mostly document-only (no AR change)
+  - Debit Notes can still post
+
+### Vendor Payments — /accounts/vendor-payments
+  Tabs: Outstanding Vendor Invoices | Payment History | Debit Notes
+  - Create vendor invoice from eligible PO
+  - Upload supplier invoice copy
+  - Record payment; cancel/reverse; print voucher
+
+### Bank Reconciliation — /accounts/bank-reconciliation
+  - Pick bank ledger; date range
+  - Mark entries reconciled
+  - Opening / closing summary
+
+### Financial Reports — /accounts/reports
+  - Profit & Loss
+  - Group Summary
+  - Balance Sheet
+  - Ledger Statement
+  - Trial Balance
+  - Day Book
+  - Cash / Bank Book
+  - Link into GST Reports
+
+### GST Reports — /accounts/gst-reports
+  (linked from Financial Reports; not in sidebar)
+  - Monthly Sales Report
+  - GST Collection (output vs input, CGST/SGST)
+  - Date range; print HTML
+
+
+--------------------------------------------------------------------------------
+3.11 Reports
+--------------------------------------------------------------------------------
+Route: /reports
+
+Features:
+  - Stock Value Report (live modal: date range → generate → table/download UI)
+  - Sales Report — coming soon
+  - Inventory Report — coming soon
+  - Financial Summary — stub
+
+================================================================================
+4. MASTERS
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 Party & Admin Masters
+--------------------------------------------------------------------------------
+
+Customers — /sales/customers
+  - CRUD; card/table toggle
+  - GST; credit limit / credit days
+  - Business category; city filters
+  - Excel import / export / template
+  - Customer portal activate / PIN / WhatsApp (Actions modal)
+  - Linked AR ledger
+  - Deep-link to price mapping
+  Form routes: /sales/customers/add|edit|view/:id
+
+Price Mapping / Discount Management
+  - /masters/price-mapping
+  - /sales/customers/:customerId/price-mapping
+  - Per-customer discount tree: brand → product → coating
+  - Expand/collapse; bulk save; unsaved-change tracking
+
+Vendors — /masters/vendors
+  - CRUD; card/table
+  - Category; city; active filters
+  - Linked AP ledger
+  Form routes: /masters/vendors/add|edit|view/:id
+
+Business Categories — /masters/business-categories
+  - Shared taxonomy for customers / vendors
+  - CRUD; active filter; customer usage count
+
+Departments — /masters/departments
+  - Org units for users
+  - CRUD; shows user count
+
+Users — /masters/users  (permission: users)
+  - CRUD; card/table
+  - Filters: active, department, role
+  - Auto user code
+  - Login credentials dialog (username, password, role, enable login)
+  - Vehicle # for delivery roles
+
+Roles — /masters/roles  (same users permission)
+  - CRUD
+  - Permission matrix editor (Screen / Create / Edit / View / Delete per module)
+  - Active flag
+
+Check Sheets — /masters/check-sheets
+  - QA checklist templates for Fitting / Pre-QC / Post-QC
+  - Header: name, check_key, class, type, colour
+  - Nested items CRUD after save
+
+
+--------------------------------------------------------------------------------
+4.2 Lens Catalog Masters
+--------------------------------------------------------------------------------
+Shared pattern: list + active filter + form routes add/edit/view + delete
+
+Lens Indexes — /masters/lens-index
+  - Refractive index values (indexName, description)
+
+Lens Diameters — /masters/lens-dia
+  - Diameter options
+
+Lens Categories — /masters/lens-category
+  - Product category (e.g. Single Vision — drives ADD fields on product)
+
+Lens Materials — /masters/lens-material
+  - Material master → used by Lens Product
+
+Lens Coatings — /masters/lens-coating
+  - Name, short_name, description
+  - Used in product prices, offers, price mapping
+
+Lens Tinting — /masters/lens-tinting
+  - Name, short_name, description, tinting_price
+  - Used on Sale Order
+
+Lens Fittings — /masters/lens-fitting
+  - Name, short_name, description, fitting_price
+  - Used on Sale Order / Fitting ops
+
+Lens Brands — /masters/lens-brand
+  - Brand master → Lens Product, Offers, Price Mapping
+
+Lens Types — /masters/lens-type
+  - Includes STOCK / RX and other types → Lens Product
+
+Lens Products — /masters/lens-product
+  - Composite sellable SKU
+  - Brand, category, material, type, index
+  - SPH / CYL / ADD ranges + extra charges
+  - ADD fields hidden for Single Vision
+  - Price rows (coating × price)
+  - Stock min/max thresholds
+  - Product code uniqueness
+
+Lens Offers — /masters/lens-offers
+  - Promotional pricing with date window
+  - Types: VALUE, PERCENTAGE, EXCHANGE_PRODUCT, EXCHANGE_COATING_PRICE,
+    EXCHANGE_BRAND_PRICE, COATING_PROMOTION
+  - Depends on Lens Products, Coatings, Brands
+
+
+--------------------------------------------------------------------------------
+4.3 Inventory Masters
+--------------------------------------------------------------------------------
+
+Locations — /masters/location
+  - Godown / warehouse locations
+  - Godown type: STOCK | RX
+
+Trays — /masters/tray
+  - Physical storage bins with capacity
+  - Depends on Location
+  - Capacity validation
+
+
+--------------------------------------------------------------------------------
+4.4 Accounting Category Masters
+--------------------------------------------------------------------------------
+
+Expense Categories — /masters/expense-categories
+  - DIRECT / INDIRECT classification
+  - Auto-links to expense ledger
+  - Shows linked ledger + expense usage count
+  Form routes: add/edit/view
+
+Income Categories — /masters/income-categories
+  - Inline create/edit/delete dialogs (no separate form routes)
+  - Used by Income screen for ledger posting
+
+================================================================================
+5. OTHER / SYSTEM SCREENS
+================================================================================
+
+Settings (header modal — not a route)
+  - Profile
+  - Change password / login credentials
+  - Company details (admin): name, GSTIN, address, invoice footer attrs
+  - Print Service (admin):
+      AUTHENTICITY_CARD, BARCODE_LABEL, SALE_ORDER, DISPATCH_NOTE
+      Local print-service health / test / live preview
+
+System Logs — /system/logs
+  - Tabs: Audit | Error
+  - Filters; expand change diffs; pagination
+  - Not in sidebar (direct route)
+
+Login — /login
+  - Staff username/password → JWT
+  - Tokens in localStorage
+
+No Access — /no-access
+  - Shown when user has no Screen permissions
+
+Home Redirect — /
+  - First permitted screen from priority list (homeRoutes.js)
+
+Customer Portal Login — /portal/:token
+  - Public; 6-digit PIN
+  - Session in sessionStorage
+
+Customer Portal Dashboard — /portal/:token/dashboard
+  - Tabs: Sales | Dispatch | Billing
+  - Summary chips
+  - Note: list content still includes mock/demo data
+  - Portal activation / PIN managed from Customer master Actions
+
+Not Found — *
+  - Catch-all 404 page
+
+================================================================================
+6. NAVIGATION / PERMISSION KEYS
+================================================================================
+
+Main Menu (path → permission key):
+  Dashboard              /dashboard                        dashboard
+  Sale Orders            /sales/orders                     sale_orders
+  Inventory Stock        /inventory/stock                  inventory
+  Inventory RX           /inventory/rx                     inventory
+  Purchase Orders        /masters/purchase-orders          purchase_orders
+  Dispatch               /dispatch                         dispatch
+  Dispatch Window        /dispatch/window                  dispatch_window
+  Fitting                /fitting/operator                 fitting
+  Pre-QC                 /pre-qc/operator                  pre_qc
+  Post-QC                /quality/operator                 post_qc
+  Billing                /billing                          billing
+  Chart of Accounts      /accounts/ledgers                 chart_of_accounts
+  Bank Accounts          /accounts/bank-accounts           bank_accounts
+  Expenses               /accounts/expenses                expenses
+  Income                 /accounts/income                  income
+  Customer Payments      /accounts/customer-payments       customer_payments
+  Vendor Payments        /accounts/vendor-payments         vendor_payments
+  Bank Reconciliation    /accounts/bank-reconciliation     bank_reconciliation
+  Financial Reports      /accounts/reports                 financial_reports
+  Reports                /reports                          reports
+
+Masters (path → permission key):
+  Business Categories    /masters/business-categories      business_categories
+  Expense Categories     /masters/expense-categories       expense_categories
+  Income Categories      /masters/income-categories        income_categories
+  Customers              /sales/customers                  customers
+  Vendors                /masters/vendors                  vendors
+  Departments            /masters/departments              departments
+  Users                  /masters/users                    users
+  Roles                  /masters/roles                    users
+  Check Sheets           /masters/check-sheets             check_sheets
+  Lens Indexes           /masters/lens-index               lens_indexes
+  Lens Diameters         /masters/lens-dia                 lens_diameters
+  Lens Categories        /masters/lens-category            lens_categories
+  Lens Materials         /masters/lens-material            lens_materials
+  Lens Coatings          /masters/lens-coating             lens_coatings
+  Lens Tintings          /masters/lens-tinting             lens_tintings
+  Lens Fittings          /masters/lens-fitting             lens_fittings
+  Lens Brands            /masters/lens-brand               lens_brands
+  Lens Types             /masters/lens-type                lens_types
+  Lens Products          /masters/lens-product             lens_products
+  Lens Offers            /masters/lens-offers              lens_offers
+  Locations              /masters/location                 locations
+  Trays                  /masters/tray                     trays
+  Price Mapping          /masters/price-mapping            price_mapping
+
+CRUD actions where applicable: Screen, Create, Edit, View, Delete
+Admin bypass: roleName === admin OR roleId === 1
+
+================================================================================
+7. CROSS-CUTTING FEATURES
+================================================================================
+
+Feature                         | Where
+--------------------------------+-----------------------------------------------
+RBAC sidebar filtering          | All main screens
+WebSocket live list refresh     | Sale Orders, Purchase Orders
+QR / barcode wedge scan         | Fitting, Pre-QC, Post-QC
+Local Windows print agent       | SO labels, authenticity card, etc.
+Credit reserve / outstanding /  | SO ↔ Invoice ↔ Customer Payments
+  advance                       |
+Double-entry postings           | Invoice issue, payments, expenses, income
+Soft FIFO reservation           | Inventory SO Request Queue
+
+Print surfaces:
+  Sale Order Print Modal        Tax Invoice A4, Lens Spec A5, Barcode ZPL
+  Print Label (quick)           Barcode via print service
+  Tax Invoice (Billing)         Full GST invoice HTML
+  Dispatch Challan              A4 DC HTML
+  Authenticity card             Settings print preview (Evolis-style)
+
+================================================================================
+8. DEPENDENCY MAP (CATALOG → PRODUCT)
+================================================================================
+
+Business Category ──► Customer, Vendor
+Department ──► User
+Role ──► User login credentials
+
+Lens Index / Brand / Category / Material / Type / Coating
+        └──► Lens Product (price rows by coating)
+                └──► Lens Offers, Price Mapping, SO, Inventory
+
+Lens Tinting, Lens Fitting, Lens Dia ──► Sale Order / shop floor
+Location ──► Tray ──► Inventory
+Expense Category ──► Expenses ──► Ledgers
+Income Category ──► Income ──► Ledgers
+Customer/Vendor + Bank Ledgers ──► Payments / Notes / Reports
+
+================================================================================
+9. KNOWN GAPS
+================================================================================
+
+1. Customer Portal dashboard still mixed with dummy/demo data.
+2. Main Dashboard partly uses mock metrics.
+3. Reports hub — only Stock Value Report is fully live.
+4. Most routes are login-gated but not Screen-permission-gated at route level
+   (sidebar hides them; deep links often work if logged in).
+   Route-level Screen checks only on: dashboard, dispatch_window, users.
+5. SO/PO fullscreen form routes skip the normal AppLayout / ProtectedRoute
+   wrapper.
+6. GST Reports and System Logs have routes but no sidebar entries.
+7. Legacy/unwired: AdminDispatchView, DeliveryPersonView,
+   Expenses.jsx (dummy), PriceMappingMain.jsx (superseded by DiscountManagement).
+
+================================================================================
+10. TECH / REPO NOTES
+================================================================================
+
+Package name: vite_react_shadcn_js
+Repo: https://github.com/kavin7298/lensflow-optic-hub
+Entry: src/main.jsx → src/App.jsx (all routes in App.jsx)
+Sidebar: src/components/layout/AppSidebar.jsx
+Permissions: src/constants/role.constants.js
+Home redirect: src/constants/homeRoutes.js
+Auth: localStorage keys lens_management_token / refresh / user
+Portal: sessionStorage portal_session
+
+Planning docs (optional deeper reading):
+  planning/Project_doc.md
+  planning/Modules/Sales.md
+  planning/Modules/Inventory.md
+  planning/Modules/Accounting.md
+  planning/Modules/Admin.md
+  FINANCIAL_ACCOUNTING_GUIDE.md
+  PRINT_FEATURE_GUIDE.md
+
+================================================================================
+END OF REPORT
+================================================================================

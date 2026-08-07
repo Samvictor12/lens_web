@@ -48,6 +48,16 @@ export async function patchMissingDbColumns(client = prisma) {
     `);
   }
 
+  if (!(await columnExists('SaleOrder', 'mrdRefNo', client))) {
+    await client.$executeRawUnsafe(`ALTER TABLE "SaleOrder" ADD COLUMN "mrdRefNo" TEXT`);
+    console.log('   ✅ Added SaleOrder.mrdRefNo');
+  }
+
+  if (!(await columnExists('SaleOrder', 'alternateLensNote', client))) {
+    await client.$executeRawUnsafe(`ALTER TABLE "SaleOrder" ADD COLUMN "alternateLensNote" TEXT`);
+    console.log('   ✅ Added SaleOrder.alternateLensNote');
+  }
+
   return true;
 }
 

@@ -59,6 +59,24 @@ export const checkCustomerRef = async (ref, customerId = null, excludeId = null)
 };
 
 /**
+ * Recent active sale orders for a customer (add SO form).
+ * Excludes DELIVERED, INVOICED, COMPLETED, CANCELLED.
+ */
+export const getRecentOrdersByCustomer = async (customerId) => {
+    try {
+        const response = await apiClient(
+            "get",
+            `/sale-orders/customers/${customerId}/recent`
+        );
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch recent orders"
+        );
+    }
+};
+
+/**
  * Create new sale order
  */
 export const createSaleOrder = async (data) => {

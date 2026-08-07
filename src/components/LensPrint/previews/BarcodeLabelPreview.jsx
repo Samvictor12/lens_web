@@ -34,7 +34,7 @@ export default function BarcodeLabelPreview({ data, eye = "L" }) {
 
       <div style={{ fontSize: "6px", marginBottom: "1.5mm", color: "#333" }}>
         Ref: {data.customerRefNo}
-        <span style={{ marginLeft: "4mm" }}>Ref: {data.itemRefNo}</span>
+        <span style={{ marginLeft: "4mm" }}>Patient: {data.itemRefNo}</span>
       </div>
 
       <div

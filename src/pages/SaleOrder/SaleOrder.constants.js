@@ -7,6 +7,7 @@ export const defaultSaleOrder = {
   status: "DRAFT",
   remark: "",
   itemRefNo: "",
+  mrdRefNo: "",
   freeLens: false,
   freeFitting: false,
   onlyLens: false,

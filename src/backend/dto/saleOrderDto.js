@@ -139,6 +139,10 @@ export const validateCreateSaleOrder = (data) => {
     errors.push({ field: 'itemRefNo', message: 'Item reference number must not exceed 100 characters' });
   }
 
+  if (data.mrdRefNo && !isValidLength(data.mrdRefNo, 0, 100)) {
+    errors.push({ field: 'mrdRefNo', message: 'MRD reference number must not exceed 100 characters' });
+  }
+
   if (data.freeLens !== undefined && typeof data.freeLens !== 'boolean') {
     errors.push({ field: 'freeLens', message: 'Free lens must be a boolean value' });
   }
@@ -331,6 +335,7 @@ export const validateCreateSaleOrder = (data) => {
       deliverySchedule: data.deliverySchedule || null,
       remark: data.remark?.trim() || null,
       itemRefNo: data.itemRefNo?.trim() || null,
+      mrdRefNo: data.mrdRefNo?.trim() || null,
       freeLens: data.freeLens || false,
       urgentOrder: data.urgentOrder || false,
       freeFitting: data.freeFitting || false,
@@ -424,6 +429,14 @@ export const validateUpdateSaleOrder = (data) => {
     errors.push({ field: 'remark', message: 'Remark must not exceed 500 characters' });
   }
 
+  if (data.itemRefNo !== undefined && data.itemRefNo && !isValidLength(data.itemRefNo, 0, 100)) {
+    errors.push({ field: 'itemRefNo', message: 'Item reference number must not exceed 100 characters' });
+  }
+
+  if (data.mrdRefNo !== undefined && data.mrdRefNo && !isValidLength(data.mrdRefNo, 0, 100)) {
+    errors.push({ field: 'mrdRefNo', message: 'MRD reference number must not exceed 100 characters' });
+  }
+
   if (data.status !== undefined && data.status && !isValidStatus(data.status)) {
     errors.push({ field: 'status', message: 'Invalid status' });
   }
@@ -481,6 +494,7 @@ export const validateUpdateSaleOrder = (data) => {
   if (data.deliverySchedule !== undefined) updateData.deliverySchedule = data.deliverySchedule;
   if (data.remark !== undefined) updateData.remark = data.remark?.trim() || null;
   if (data.itemRefNo !== undefined) updateData.itemRefNo = data.itemRefNo?.trim() || null;
+  if (data.mrdRefNo !== undefined) updateData.mrdRefNo = data.mrdRefNo?.trim() || null;
   if (data.freeLens !== undefined) updateData.freeLens = data.freeLens;
   if (data.urgentOrder !== undefined) updateData.urgentOrder = data.urgentOrder;
   if (data.freeFitting !== undefined) updateData.freeFitting = data.freeFitting;
@@ -615,7 +629,7 @@ export const validateQueryParams = (query) => {
   // Allowed sort fields
   const allowedSortFields = [
     'id', 'orderNo', 'orderDate', 'status', 'type', 
-    'createdAt', 'updatedAt', 'customerRefNo', 'itemRefNo',
+    'createdAt', 'updatedAt', 'customerRefNo', 'itemRefNo', 'mrdRefNo',
     'dispatchStatus', 'lensPrice', 'fittingPrice', 'discount',
     'customer', 'customerName'
   ];

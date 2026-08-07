@@ -306,7 +306,7 @@ export default function FittingOrderDetail() {
               })}
             />
           )}
-          <InfoRow label="Item Ref No" value={order.itemRefNo} />
+          <InfoRow label="Patient Ref" value={order.itemRefNo} />
           <InfoRow label="Customer Ref No" value={order.customerRefNo} />
           {order.remark && <InfoRow label="Remark" value={order.remark} />}
         </SectionCard>

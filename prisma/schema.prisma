@@ -985,6 +985,7 @@ model SaleOrder {
   hasLinkedPoEver   Boolean             @default(false)
   // Basic order information
   customerRefNo     String? // Customer reference number
+  mrdRefNo          String? // MRD reference number (optional)
   orderDate         DateTime            @default(now())
   type              String? // "Normal Processing", "Rush Processing", "Premium Processing"
   deliverySchedule  DateTime?

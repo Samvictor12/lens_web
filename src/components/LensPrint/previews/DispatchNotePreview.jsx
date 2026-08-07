@@ -43,7 +43,7 @@ export default function DispatchNotePreview({ data }) {
           <div style={{ fontSize: "10px", color: "#666", textTransform: "uppercase", fontWeight: "bold", marginBottom: "4px" }}>
             Dispatch Details
           </div>
-          <div>Item Ref: {data.itemRefNo}</div>
+          <div>Patient Ref: {data.itemRefNo}</div>
           <div>Status: {data.status}</div>
         </div>
       </div>

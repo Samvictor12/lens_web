@@ -68,8 +68,12 @@ router.use((req, res, next) => {
  *           example: "Handle with care"
  *         itemRefNo:
  *           type: string
- *           description: Item reference number
+ *           description: Item reference number (Patient Ref)
  *           example: "ITEM-001"
+ *         mrdRefNo:
+ *           type: string
+ *           description: MRD reference number (optional)
+ *           example: "MRD-5562"
  *         freeLens:
  *           type: boolean
  *           description: Whether lens is free
@@ -241,7 +245,10 @@ router.use((req, res, next) => {
  *           example: "Handle with care"
  *         itemRefNo:
  *           type: string
- *           description: Item reference number
+ *           description: Item reference number (Patient Ref)
+ *         mrdRefNo:
+ *           type: string
+ *           description: MRD reference number (optional)
  *         freeLens:
  *           type: boolean
  *           description: Whether lens is free
@@ -689,6 +696,11 @@ router.get('/dropdown',
 router.get('/check-customer-ref',
   authenticateToken,
   controller.checkCustomerRef.bind(controller)
+);
+
+router.get('/customers/:customerId/recent',
+  authenticateToken,
+  controller.getRecentByCustomer.bind(controller)
 );
 
 /**

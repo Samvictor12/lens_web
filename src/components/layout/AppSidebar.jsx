@@ -32,15 +32,18 @@ import {
   RefreshCw,
   Scale,
   Circle,
+  LogOut,
 } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -52,8 +55,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useRolePermissionsContext } from "@/contexts/RolePermissionsContext";
+import { SettingsModal } from "@/pages/Settings/SettingsModal";
 
 const navItems = [
   {
@@ -311,11 +325,29 @@ const masterItems = [
 ];
 
 export const AppSidebar = () => {
-  const { state } = useSidebar();
+  const { state, toggleSidebar, isMobile } = useSidebar();
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const { company } = useCompany();
   const { has, loading } = useRolePermissionsContext();
   const [openSubmenus, setOpenSubmenus] = React.useState({});
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [settingsTab, setSettingsTab] = React.useState("profile");
+
+  const isCollapsed = state === "collapsed" && !isMobile;
+  const appInitial =
+    (company?.companyName || "Lens").trim().charAt(0).toUpperCase() || "L";
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  const openSettings = (tab = "profile") => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
 
   const isActive = (path) => location.pathname === path;
 
@@ -380,6 +412,44 @@ export const AppSidebar = () => {
         className={state === "collapsed" ? "w-14" : "w-64"}
         collapsible="icon"
       >
+        <SidebarHeader className="border-b border-sidebar-border">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className={`flex w-full items-center justify-center rounded-md outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
+                  isCollapsed ? "h-10 p-0" : "h-12 px-2"
+                }`}
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {company?.logo ? (
+                  <img
+                    src={company.logo}
+                    alt="Logo"
+                    className={`object-contain transition-all ${
+                      isCollapsed ? "h-4 w-4" : "h-8 w-8"
+                    }`}
+                  />
+                ) : (
+                  <div
+                    className={`flex items-center justify-center rounded bg-primary font-semibold text-primary-foreground transition-all ${
+                      isCollapsed ? "h-4 w-4 text-[10px]" : "h-8 w-8 text-sm"
+                    }`}
+                  >
+                    {appInitial}
+                  </div>
+                )}
+              </button>
+            </TooltipTrigger>
+            {!isMobile && (
+              <TooltipContent side="right" className="ml-2">
+                {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </SidebarHeader>
+
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupLabel
@@ -627,7 +697,61 @@ export const AppSidebar = () => {
             </SidebarGroup>
           )}
         </SidebarContent>
+
+        <SidebarFooter className="border-t border-sidebar-border mt-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className={`w-full hover:bg-sidebar-accent/50 ${
+                  isCollapsed
+                    ? "h-10 justify-center px-0"
+                    : "h-auto justify-start gap-2 px-2 py-2"
+                }`}
+              >
+                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold shrink-0 text-sm">
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                </div>
+                {!isCollapsed && (
+                  <div className="text-left min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground capitalize truncate">
+                      {user?.roleName || "User"}
+                    </p>
+                  </div>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side={isMobile ? "top" : "right"}
+              align="end"
+              className="w-56"
+            >
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => openSettings("profile")}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarFooter>
       </Sidebar>
+
+      <SettingsModal
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        defaultTab={settingsTab}
+      />
     </TooltipProvider>
   );
 };
