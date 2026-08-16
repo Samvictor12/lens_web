@@ -19,7 +19,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
           className="flex items-center gap-1.5 hover:underline cursor-pointer"
         >
           <div>
-            <div className="font-medium text-xs text-primary">{row.orderNo}</div>
+            <div className="font-medium text-[11px] text-primary">{row.orderNo}</div>
 
           </div>
         </a>
@@ -30,7 +30,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       header: "Customer",
       sortable: true,
       cell: (row) => (
-        <span className="text-xs">{row.customer?.name || "N/A"}</span>
+        <span className="text-[11px]">{row.customer?.name || "N/A"}</span>
       )
     },
     {
@@ -38,7 +38,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       header: "Customer Reference No",
       sortable: true,
       cell: (row) => (
-        <span className="text-xs">{row.customerRefNo || "N/A"}</span>
+        <span className="text-[11px]">{row.customerRefNo || "N/A"}</span>
       )
     },
     {
@@ -47,7 +47,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       sortable: false,
       width: 220,
       cell: (row) => (
-        <span className="text-xs font-medium block min-w-[200px]">
+        <span className="text-[11px] font-medium block min-w-[200px]">
           {row.lensProduct?.lens_name || "N/A"}
           {row.lensProduct?.product_code ? ` (${row.lensProduct.product_code})` : ""}
         </span>
@@ -58,7 +58,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       header: "Lens Category",
       sortable: false,
       cell: (row) => (
-        <span className="text-xs">
+        <span className="text-[11px]">
           {row.category?.name || "N/A"}
         </span>
       ),
@@ -68,7 +68,7 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       header: "Order Date",
       sortable: true,
       cell: (row) => (
-        <span className="text-xs">
+        <span className="text-[11px]">
           {row.orderDate ? new Date(row.orderDate).toLocaleDateString() : "N/A"}
         </span>
       ),

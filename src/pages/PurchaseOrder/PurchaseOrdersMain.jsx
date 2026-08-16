@@ -1,47 +1,52 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Search,
-  Upload,
   Download,
-  TrendingUp,
   Package,
-  Clock,
-  AlertTriangle,
+  IndianRupee,
+  ClipboardList,
+  Boxes,
+  Timer,
+  X,
 } from "lucide-react";
 import { Refresh } from "@/components/ui/Refresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table } from "@/components/ui/table";
-import { ViewToggle } from "@/components/ui/view-toggle";
-import { CardGrid } from "@/components/ui/card-grid";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { buildWebSocketUrl } from "@/lib/websocketUrl";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   getPurchaseOrders,
+  getPurchaseOrderDashboard,
   deletePurchaseOrder,
   getPOReceipts,
-  getPurchaseOrderDashboard,
   downloadPurchaseOrderExcel,
   downloadBatchPurchaseOrderExcel,
 } from "@/services/purchaseOrder";
-import { purchaseOrderFilters } from "./PurchaseOrder.constants";
+import { purchaseOrderFilters, getIstDateString } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
 import { openAppWindow } from "@/utils/openAppWindow";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
-import PurchaseOrderCard from "./PurchaseOrderCard";
-import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
+
+const EMPTY_STATS = {
+  jobsReceived: 0,
+  vendorInvoiceValue: 0,
+  pendingVendorPo: 0,
+  totalOutsourced: 0,
+  averageTat: 0,
+};
+
+function formatInr(n) {
+  return `₹${Number(n || 0).toLocaleString("en-IN", {
+    maximumFractionDigits: 0,
+  })}`;
+}
 
 export default function PurchaseOrders() {
   const navigate = useNavigate();
@@ -49,7 +54,6 @@ export default function PurchaseOrders() {
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState("table");
   const [isLoading, setIsLoading] = useState(false);
-  const [showFilterDialog, setShowFilterDialog] = useState(false);
 
   // Pagination states
   const [pageIndex, setPageIndex] = useState(0);
@@ -60,30 +64,21 @@ export default function PurchaseOrders() {
 
   // Filter states
   const [filters, setFilters] = useState(purchaseOrderFilters);
-  const [tempFilters, setTempFilters] = useState(purchaseOrderFilters);
 
   // Purchase Order data
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [stats, setStats] = useState(EMPTY_STATS);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [poToDelete, setPoToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Dashboard statistics
-  const [dashboardStats, setDashboardStats] = useState({
-    totalOrders: 0,
-    pendingOrders: 0,
-    completedOrders: 0,
-    totalValue: 0,
-    avgOrderValue: 0,
-    recentActivity: []
-  });
-
-  // Active tab state
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [dashboardLoading, setDashboardLoading] = useState(false);
+  // Active tab — default to Purchase Orders List
+  const [activeTab, setActiveTab] = useState("list");
+  const [activeCard, setActiveCard] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Lens Type filter — default to Single
@@ -236,8 +231,12 @@ export default function PurchaseOrders() {
     handleToggleSelect,
   );
 
+  const isTodayStatsMode = useMemo(() => {
+    return !filters.start_date && !filters.end_date;
+  }, [filters.start_date, filters.end_date]);
+
   // Fetch purchase orders from API
-  const fetchPurchaseOrders = async () => {
+  const fetchPurchaseOrders = useCallback(async () => {
     try {
       setIsLoading(true);
       const sortField = sorting[0]?.id || "createdAt";
@@ -268,13 +267,47 @@ export default function PurchaseOrders() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [pageIndex, pageSize, searchQuery, filters, sorting, orderType, toast]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      const today = getIstDateString();
+      const hasDateFilter = Boolean(filters.start_date) || Boolean(filters.end_date);
+      const receiveStart = hasDateFilter
+        ? filters.start_date || filters.end_date
+        : today;
+      const receiveEnd = hasDateFilter
+        ? filters.end_date || filters.start_date
+        : today;
+      const statsFilters = {
+        ...filters,
+        orderType,
+        receive_start_date: receiveStart,
+        receive_end_date: receiveEnd,
+      };
+      if (!hasDateFilter) {
+        statsFilters.start_date = "";
+        statsFilters.end_date = "";
+      }
+      const response = await getPurchaseOrderDashboard(searchQuery, statsFilters);
+      if (response.success) {
+        setStats({ ...EMPTY_STATS, ...(response.data || {}) });
+      }
+    } catch (error) {
+      console.error("Error fetching purchase order stats:", error);
+      setStats(EMPTY_STATS);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [searchQuery, filters, orderType]);
 
   // Fetch purchase orders on mount and when dependencies change
   useEffect(() => {
     if (activeTab !== "list") return;
     fetchPurchaseOrders();
-  }, [activeTab, pageIndex, pageSize, searchQuery, filters, sorting, refreshKey, orderType]);
+    fetchStats();
+  }, [activeTab, fetchPurchaseOrders, fetchStats, refreshKey]);
 
   // WebSocket Live Refresh
   useEffect(() => {
@@ -322,40 +355,90 @@ export default function PurchaseOrders() {
     };
   }, []);
 
-  useEffect(() => {
-    if (activeTab !== "dashboard") return;
-
-    const fetchDashboardStats = async () => {
-      try {
-        setDashboardLoading(true);
-        const response = await getPurchaseOrderDashboard();
-        if (response.success) {
-          setDashboardStats(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching purchase order dashboard:", error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to fetch purchase order dashboard",
-          variant: "destructive",
-        });
-      } finally {
-        setDashboardLoading(false);
-      }
-    };
-
-    fetchDashboardStats();
-  }, [activeTab, toast, refreshKey]);
-
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
     toast({
       title: "Refreshed",
-      description: activeTab === "dashboard"
-        ? "Purchase order dashboard has been refreshed."
-        : "Purchase order list has been refreshed.",
+      description:
+        activeTab === "vendor-bill"
+          ? "Vendor Bill view has been refreshed."
+          : "Purchase order list has been refreshed.",
     });
   };
+
+  // Card selection is visual only (does not filter the list)
+  const handleCardClick = (cardKey) => {
+    setActiveCard((prev) => (prev === cardKey ? null : cardKey));
+  };
+
+  const summaryCards = [
+    {
+      key: "jobsReceivedToday",
+      label: isTodayStatsMode ? "Jobs Received Today" : "Jobs Received",
+      value: statsLoading ? "…" : stats.jobsReceived,
+      icon: Package,
+      theme: {
+        card: "bg-gradient-to-br from-blue-50 to-blue-100/80 border-blue-200/80 hover:border-blue-300",
+        selected: "ring-2 ring-blue-500 border-blue-400 shadow-md shadow-blue-100",
+        iconWrap: "bg-blue-500 text-white shadow-sm shadow-blue-200",
+        label: "text-blue-700/80",
+        value: "text-blue-950",
+      },
+    },
+    {
+      key: "todayVendorInvoiceValue",
+      label: isTodayStatsMode ? "Today Vendor Invoice Value" : "Vendor Invoice Value",
+      value: statsLoading ? "…" : formatInr(stats.vendorInvoiceValue),
+      icon: IndianRupee,
+      theme: {
+        card: "bg-gradient-to-br from-emerald-50 to-teal-100/70 border-emerald-200/80 hover:border-emerald-300",
+        selected: "ring-2 ring-emerald-500 border-emerald-400 shadow-md shadow-emerald-100",
+        iconWrap: "bg-emerald-500 text-white shadow-sm shadow-emerald-200",
+        label: "text-emerald-700/80",
+        value: "text-emerald-950",
+      },
+    },
+    {
+      key: "pendingVendorPo",
+      label: "Pending Vendor PO",
+      value: statsLoading ? "…" : stats.pendingVendorPo,
+      icon: ClipboardList,
+      theme: {
+        card: "bg-gradient-to-br from-amber-50 to-orange-100/70 border-amber-200/80 hover:border-amber-300",
+        selected: "ring-2 ring-amber-500 border-amber-400 shadow-md shadow-amber-100",
+        iconWrap: "bg-amber-500 text-white shadow-sm shadow-amber-200",
+        label: "text-amber-800/80",
+        value: "text-amber-950",
+      },
+    },
+    {
+      key: "totalOutsourced",
+      label: "Total Out Sourced",
+      value: statsLoading ? "…" : stats.totalOutsourced,
+      icon: Boxes,
+      theme: {
+        card: "bg-gradient-to-br from-indigo-50 to-violet-100/60 border-indigo-200/80 hover:border-indigo-300",
+        selected: "ring-2 ring-indigo-500 border-indigo-400 shadow-md shadow-indigo-100",
+        iconWrap: "bg-indigo-500 text-white shadow-sm shadow-indigo-200",
+        label: "text-indigo-700/80",
+        value: "text-indigo-950",
+      },
+    },
+    {
+      key: "averageTat",
+      label: "Average TAT",
+      value: statsLoading ? "…" : `${stats.averageTat}d`,
+      icon: Timer,
+      theme: {
+        card: "bg-gradient-to-br from-cyan-50 to-sky-100/70 border-cyan-200/80 hover:border-cyan-300",
+        selected: "ring-2 ring-cyan-500 border-cyan-400 shadow-md shadow-cyan-100",
+        iconWrap: "bg-cyan-500 text-white shadow-sm shadow-cyan-200",
+        label: "text-cyan-800/80",
+        value: "text-cyan-950",
+      },
+    },
+  ];
+
   // Handle delete purchase order
   const handleDeleteConfirm = async () => {
     if (!poToDelete) return;
@@ -372,8 +455,9 @@ export default function PurchaseOrders() {
       setDeleteDialogOpen(false);
       setPoToDelete(null);
 
-      // Refresh purchase order list
+      // Refresh purchase order list and cards
       fetchPurchaseOrders();
+      fetchStats();
     } catch (error) {
       console.error("Error deleting purchase order:", error);
       toast({
@@ -386,38 +470,26 @@ export default function PurchaseOrders() {
     }
   };
 
-  // Check if any filters are active
   const hasActiveFilters = useMemo(() => {
     return (
-      filters.active_status !== "all" ||
       filters.status !== null ||
       filters.vendor_id !== null ||
-      filters.start_date !== "" ||
-      filters.end_date !== ""
+      Boolean(filters.start_date) ||
+      Boolean(filters.end_date) ||
+      orderType !== "Single"
     );
-  }, [filters]);
+  }, [filters, orderType]);
 
-  // Save view preference
-  const handleViewChange = (newView) => {
-    setView(newView);
-    localStorage.setItem("purchaseOrdersView", newView);
-  };
-
-  const handleApplyFilters = () => {
-    setFilters(tempFilters);
-    setShowFilterDialog(false);
+  const handleFilterChange = (next) => {
+    setFilters(next);
+    setPageIndex(0);
   };
 
   const handleClearFilters = () => {
-    const clearedFilters = purchaseOrderFilters;
-    setTempFilters(clearedFilters);
-    setFilters(clearedFilters);
-    setShowFilterDialog(false);
-  };
-
-  const handleCancelFilters = () => {
-    setTempFilters(filters);
-    setShowFilterDialog(false);
+    setFilters(purchaseOrderFilters);
+    setOrderType("Single");
+    setPageIndex(0);
+    setActiveCard(null);
   };
 
   // For client-side display, we use the purchase orders directly from API
@@ -438,94 +510,6 @@ export default function PurchaseOrders() {
     });
   };
 
-  // Dashboard component
-  const renderDashboard = () => (
-    <div className="flex h-full min-h-0 flex-col gap-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 flex-shrink-0">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats.totalOrders}</div>
-            <p className="text-xs text-muted-foreground">All purchase orders</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{dashboardStats.pendingOrders}</div>
-            <p className="text-xs text-muted-foreground">Awaiting completion</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed Orders</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{dashboardStats.completedOrders}</div>
-            <p className="text-xs text-muted-foreground">Successfully completed</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{dashboardStats.totalValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Avg: ₹{Math.round(dashboardStats.avgOrderValue).toLocaleString()}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity */}
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardHeader>
-          <CardTitle>Recent Purchase Orders</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 min-h-0">
-          {dashboardLoading ? (
-            <p className="text-muted-foreground text-center py-4">Loading dashboard...</p>
-          ) : dashboardStats.recentActivity.length > 0 ? (
-            <div className="h-full overflow-y-auto pr-1 space-y-3">
-              {dashboardStats.recentActivity.map((po) => (
-                <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                  onClick={() => window.open(`${window.location.origin}/masters/purchase-orders/view/${po.id}`, "_blank")}>
-                  <div className="flex-1">
-                    <div className="font-medium">{po.poNumber}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {po.vendor?.name || 'Unknown Vendor'} • ₹{parseFloat(po.totalValue || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(po.status)}`}>
-                      {getStatusLabel(po.status)}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {new Date(po.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-center py-4">No recent activity</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -538,6 +522,18 @@ export default function PurchaseOrders() {
           </p>
         </div>
         <div className="flex gap-1.5 items-center">
+          <Refresh onClick={handleRefresh} className="shrink-0" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 px-2 text-xs shrink-0"
+            onClick={handleClearFilters}
+            disabled={!(hasActiveFilters || Boolean(activeCard) || Boolean(searchQuery.trim()))}
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Clear
+          </Button>
           {/* Batch Download PO button — slides in when rows are selected */}
           <div
             className="overflow-hidden transition-all duration-300 ease-in-out"
@@ -561,24 +557,6 @@ export default function PurchaseOrders() {
               Download PO ({selectedPos.length})
             </Button>
           </div>
-          {/* <Button
-            variant="outline"
-            size="xs"
-            className="gap-1.5 h-8"
-            onClick={handleDownloadSample}
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Download Sample</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="xs"
-            className="gap-1.5 h-8"
-            onClick={handleUpload}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Upload</span>
-          </Button> */}
           <Button
             size="xs"
             className="gap-1.5 h-8"
@@ -595,66 +573,84 @@ export default function PurchaseOrders() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="list">Purchase Orders List</TabsTrigger>
+          <TabsTrigger value="vendor-bill">Vendor Bill</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="dashboard" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
-          {renderDashboard()}
-        </TabsContent>
 
         <TabsContent value="list" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
 
-          {/* Search and Filters */}
-          <Card className="p-1 sm:p-1 flex-shrink-0 mb-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          {/* Search + filters — same compact row as Sale Orders */}
+          <Card className="p-2 flex-shrink-0 mb-3">
+            <div className="flex w-full flex-wrap items-center gap-1.5">
+              <div className="relative min-w-[160px] max-w-[280px] flex-[1.4]">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                 <Input
                   placeholder="Search PO, vendor, customer ref..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-8 text-sm"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                {/* Lens Type Dropdown filter */}
-                <Select
-                  value={orderType}
-                  onValueChange={(val) => {
-                    setOrderType(val);
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
                     setPageIndex(0);
                   }}
-                >
-                  <SelectTrigger className="h-8 w-[110px] text-xs">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Single">Single</SelectItem>
-                    <SelectItem value="Bulk">Bulk</SelectItem>
-                    <SelectItem value="all">All Types</SelectItem>
-                  </SelectContent>
-                </Select>
-                {/* <ViewToggle view={view} onViewChange={handleViewChange} /> */}
-                <Refresh onClick={handleRefresh} />
-                <PurchaseOrderFilter
-                  filters={filters}
-                  tempFilters={tempFilters}
-                  setTempFilters={setTempFilters}
-                  showFilterDialog={showFilterDialog}
-                  setShowFilterDialog={setShowFilterDialog}
-                  hasActiveFilters={hasActiveFilters}
-                  onApplyFilters={handleApplyFilters}
-                  onClearFilters={handleClearFilters}
-                  onCancelFilters={handleCancelFilters}
+                  className="pl-8 h-8 w-full text-xs"
                 />
               </div>
+              <PurchaseOrderFilter
+                filters={filters}
+                onChange={handleFilterChange}
+                orderType={orderType}
+                onOrderTypeChange={(val) => {
+                  setOrderType(val);
+                  setPageIndex(0);
+                }}
+              />
             </div>
           </Card>
 
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 flex-shrink-0 mb-3">
+            {summaryCards.map((card) => {
+              const Icon = card.icon;
+              const selected = activeCard === card.key;
+              const t = card.theme;
+              return (
+                <button
+                  key={card.key}
+                  type="button"
+                  onClick={() => handleCardClick(card.key)}
+                  className={cn(
+                    "group relative overflow-hidden rounded-xl border text-left transition-all duration-200",
+                    "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                    t.card,
+                    selected ? t.selected : "shadow-sm"
+                  )}
+                >
+                  <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-white/30 blur-xl pointer-events-none" />
+                  <div className="relative p-3 flex flex-col gap-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={cn("text-[11px] font-semibold leading-tight", t.label)}>
+                        {card.label}
+                      </p>
+                      <span
+                        className={cn(
+                          "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105",
+                          t.iconWrap
+                        )}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                    <p className={cn("text-xl font-bold tracking-tight leading-none truncate", t.value)}>
+                      {card.value}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Table View */}
           {view === "table" && (
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 [&_table]:text-[13px] [&_th]:text-[11px]">
               <Table
                 data={displayPurchaseOrders}
                 columns={columns}
@@ -679,34 +675,18 @@ export default function PurchaseOrders() {
               />
             </div>
           )}
+        </TabsContent>
 
-          {/* Card View */}
-          {/* {view === "card" && (
-            <div className="flex-1 min-h-0">
-              <CardGrid
-                items={displayPurchaseOrders}
-                renderCard={(po) => (
-                  <PurchaseOrderCard
-                    purchaseOrder={po}
-                    onView={(id) => navigate(`/masters/purchase-orders/view/${id}`)}
-                    onDelete={handleDeleteClick}
-                    onReceive={(id) => navigate(`/masters/purchase-orders/receive/${id}`)}
-                  />
-                )}
-                isLoading={isLoading}
-                emptyMessage="No purchase orders found"
-                pagination={true}
-                pageIndex={pageIndex}
-                pageSize={pageSize}
-                totalCount={totalCount}
-                onPageChange={setPageIndex}
-                onPageSizeChange={(size) => {
-                  setPageSize(size);
-                  setPageIndex(0);
-                }}
-              />
+        <TabsContent value="vendor-bill" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <Card className="flex flex-1 items-center justify-center border-dashed">
+            <div className="py-16 px-6 text-center space-y-2">
+              <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/50" />
+              <h2 className="text-base font-semibold">Vendor Bill</h2>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Coming soon — this tab will be set up next.
+              </p>
             </div>
-          )} */}
+          </Card>
         </TabsContent>
       </Tabs>
 

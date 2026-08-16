@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLiveWebSocket } from "@/hooks/useLiveWebSocket";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Refresh } from "@/components/ui/Refresh";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +30,8 @@ export default function DispatchMain() {
             description: "Dispatch data has been refreshed.",
         });
     };
+
+    useLiveWebSocket(["SALE_ORDER_UPDATED", "DISPATCH_UPDATED"], refreshAll);
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">

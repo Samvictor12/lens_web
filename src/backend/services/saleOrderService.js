@@ -15,6 +15,15 @@ import {
   softAllocateOrder,
   filterMatchesByPool,
 } from './softAllocationHelper.js';
+import { resolveAutoInwardLocationAndBin } from '../utils/autoInwardBin.js';
+import {
+  resolveFreeLensApprovalOnWrite,
+  pendingFreeLensApprovalFields,
+  isAdminUser,
+  FREE_LENS_APPROVAL,
+  clearedFreeLensApprovalFields,
+} from '../utils/freeLensApproval.js';
+import { buildSaleOrderTextSearchOr } from '../utils/saleOrderSearch.js';
 const inventoryService = new InventoryService();
 
 /** Generic string/number normalize (no null→0). Kept for non-optical specs (Axis/Dia). */
@@ -446,6 +455,9 @@ export class SaleOrderService {
           freeLens: orderData.freeLens ?? false,
           urgentOrder: orderData.urgentOrder ?? false,
           freeFitting: orderData.freeFitting ?? false,
+          ...(orderData.freeLens
+            ? pendingFreeLensApprovalFields()
+            : clearedFreeLensApprovalFields()),
           
           // Lens details
           lens_id: orderData.lens_id,
@@ -621,6 +633,97 @@ export class SaleOrderService {
    * @param {number} userId - User requesting data (for audit logging)
    * @returns {Promise<Object>} Paginated sale orders
    */
+  /**
+   * Shared list/stats filter where-clause for sale orders.
+   */
+  buildSaleOrderListWhere(queryParams = {}) {
+    const {
+      status,
+      statuses,
+      customerId,
+      search,
+      startDate,
+      endDate,
+      dispatchStatus,
+      Type_id,
+      category_id,
+      coating_id,
+      procurementType,
+      urgentOrder,
+    } = queryParams;
+
+    const where = { deleteStatus: false };
+
+    if (statuses) {
+      where.status = { in: String(statuses).split(',').map((s) => s.trim()).filter(Boolean) };
+    } else if (status) {
+      where.status = status;
+    }
+
+    if (customerId) {
+      where.customerId = parseInt(customerId, 10);
+    }
+
+    if (dispatchStatus) {
+      where.dispatchStatus = dispatchStatus;
+    }
+
+    if (Type_id) {
+      where.Type_id = parseInt(Type_id, 10);
+    }
+
+    if (category_id) {
+      where.category_id = parseInt(category_id, 10);
+    }
+
+    if (coating_id) {
+      where.coating_id = parseInt(coating_id, 10);
+    }
+
+    if (procurementType) {
+      where.procurementType = String(procurementType).trim().toUpperCase();
+    }
+
+    if (urgentOrder === true || urgentOrder === false) {
+      where.urgentOrder = urgentOrder;
+    }
+
+    if (search) {
+      const searchOr = buildSaleOrderTextSearchOr(search);
+      if (searchOr) where.OR = searchOr;
+    }
+
+    if (startDate || endDate) {
+      where.orderDate = {};
+      // Date-only filters use IST calendar day (12:00 AM – 11:59:59.999 PM IST)
+      const istDayBound = (raw, endOfDay) => {
+        const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+          const suffix = endOfDay ? "T23:59:59.999+05:30" : "T00:00:00.000+05:30";
+          return new Date(`${m[1]}-${m[2]}-${m[3]}${suffix}`);
+        }
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return d;
+        return d;
+      };
+      if (startDate) {
+        where.orderDate.gte = istDayBound(startDate, false);
+      }
+      if (endDate) {
+        where.orderDate.lte = istDayBound(endDate, true);
+      }
+    }
+
+    return where;
+  }
+
+  /**
+   * Get all sale orders with pagination and filters
+   * @param {Object} queryParams - Query parameters
+   * @param {Object} req - Express request object (for audit logging)
+   * @param {number} userId - User requesting data (for audit logging)
+   * @returns {Promise<Object>} Paginated sale orders
+   */
   async getSaleOrders(queryParams, req = null, userId = null) {
     try {
       const {
@@ -628,51 +731,9 @@ export class SaleOrderService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        status,
-        statuses,
-        customerId,
-        search,
-        startDate,
-        endDate,
-        dispatchStatus
       } = queryParams;
 
-      const where = { deleteStatus: false };
-
-      // Filter by multiple statuses (comma-separated) or single status
-      if (statuses) {
-        where.status = { in: statuses.split(',').map(s => s.trim()) };
-      } else if (status) {
-        where.status = status;
-      }
-
-      // Filter by customer
-      if (customerId) {
-        where.customerId = parseInt(customerId);
-      }
-
-      // Filter by dispatch status
-      if (dispatchStatus) {
-        where.dispatchStatus = dispatchStatus;
-      }
-
-      // Search across order number, customer ref, item ref
-      if (search) {
-        where.OR = [
-          { orderNo: { contains: search, mode: 'insensitive' } },
-          { customerRefNo: { contains: search, mode: 'insensitive' } },
-          { itemRefNo: { contains: search, mode: 'insensitive' } },
-          { customer: { name: { contains: search, mode: 'insensitive' } } },
-          { customer: { code: { contains: search, mode: 'insensitive' } } }
-        ];
-      }
-
-      // Date range filter
-      if (startDate || endDate) {
-        where.orderDate = {};
-        if (startDate) where.orderDate.gte = new Date(startDate);
-        if (endDate) where.orderDate.lte = new Date(endDate);
-      }
+      const where = this.buildSaleOrderListWhere(queryParams);
 
       const offset = (page - 1) * limit;
       const total = await prisma.saleOrder.count({ where });
@@ -846,6 +907,15 @@ export class SaleOrderService {
               email: true
             }
           },
+          freeLensApprovedByUser: {
+            select: { id: true, name: true, email: true }
+          },
+          freeLensRejectedByUser: {
+            select: { id: true, name: true, email: true }
+          },
+          locationTray: {
+            select: { id: true, name: true, location_id: true }
+          },
           offer: {
             select: {
               id: true,
@@ -936,6 +1006,14 @@ export class SaleOrderService {
         throw error;
       }
 
+      if (existing.status !== 'DRAFT') {
+        throw new APIError(
+          'Only Draft sale orders can be edited',
+          400,
+          'ORDER_NOT_EDITABLE'
+        );
+      }
+
       // Validate customer if changed
       if (updateData.customerId) {
         const customer = await prisma.customer.findUnique({
@@ -998,6 +1076,16 @@ export class SaleOrderService {
         ...updateData,
         updatedBy: userId
       };
+
+      if (updateData.freeLens !== undefined) {
+        const approvalPatch = resolveFreeLensApprovalOnWrite({
+          freeLens: Boolean(updateData.freeLens),
+          wasFreeLens: Boolean(existing.freeLens),
+        });
+        if (approvalPatch) {
+          Object.assign(dataToUpdate, approvalPatch);
+        }
+      }
 
       if (updateData.Type_id) {
         const lensType = await prisma.lensTypeMaster.findUnique({
@@ -1167,20 +1255,10 @@ export class SaleOrderService {
                   throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
                 }
 
-                // 2. Find location/tray matching SO godown (RX vs STOCK)
+                // 2. Find location/bin (TrayMaster). Destination LocationTray is recorded on the SO only.
                 const preferredGodown =
                   existing.procurementType === 'STOCK' ? 'STOCK' : 'RX';
-                let location = await tx.locationMaster.findFirst({
-                  where: { deleteStatus: false, godownType: preferredGodown },
-                });
-                if (!location) {
-                  location = await tx.locationMaster.findFirst({
-                    where: { deleteStatus: false },
-                  });
-                }
-                if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
-                const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
-                if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
+                const { location, tray } = await resolveAutoInwardLocationAndBin(tx, preferredGodown);
 
                 // 3. Create inventory item
                 const itemData = {
@@ -1192,7 +1270,7 @@ export class SaleOrderService {
                   fitting_id: existing.fitting_id,
                   tinting_id: existing.tinting_id,
                   location_id: location.id,
-                  tray_id: tray.id,
+                  tray_id: tray?.id ?? null,
                   quantity: 1,
                   costPrice: receipt.unitPrice || 0,
                   batchNo: receipt.receiptNumber,
@@ -2147,52 +2225,65 @@ export class SaleOrderService {
    */
   async getStatistics(filters = {}) {
     try {
-      const where = { deleteStatus: false };
+      const where = this.buildSaleOrderListWhere(filters);
 
-      if (filters.startDate || filters.endDate) {
-        where.orderDate = {};
-        if (filters.startDate) where.orderDate.gte = new Date(filters.startDate);
-        if (filters.endDate) where.orderDate.lte = new Date(filters.endDate);
-      }
+      const sumAdditional = (additionalPrice) => {
+        if (!Array.isArray(additionalPrice)) return 0;
+        return additionalPrice.reduce(
+          (s, x) => s + (parseFloat(x?.value ?? x?.amount) || 0),
+          0
+        );
+      };
+
+      const orderTotal = (o) => {
+        const lensPrice = o.lensPrice || 0;
+        const extras =
+          (o.fittingPrice || 0) +
+          (o.tintingPrice || 0) +
+          (o.rightEyeExtra || 0) +
+          (o.leftEyeExtra || 0);
+        const disc = lensPrice * ((o.discount || 0) / 100);
+        return Math.round((lensPrice - disc + extras + sumAdditional(o.additionalPrice)) * 100) / 100;
+      };
 
       const [
-        total,
-        byStatus,
-        byDispatchStatus,
-        totalRevenue
+        totalOrders,
+        pendingOrders,
+        urgentOrders,
+        readyToDispatch,
+        poPending,
+        valueRows,
       ] = await Promise.all([
         prisma.saleOrder.count({ where }),
-        prisma.saleOrder.groupBy({
-          by: ['status'],
+        prisma.saleOrder.count({ where: { AND: [where, { status: 'DRAFT' }] } }),
+        prisma.saleOrder.count({ where: { AND: [where, { urgentOrder: true }] } }),
+        prisma.saleOrder.count({ where: { AND: [where, { status: 'READY_FOR_DISPATCH' }] } }),
+        prisma.saleOrder.count({ where: { AND: [where, { status: 'PO_RAISED' }] } }),
+        prisma.saleOrder.findMany({
           where,
-          _count: { id: true }
+          select: {
+            lensPrice: true,
+            fittingPrice: true,
+            tintingPrice: true,
+            rightEyeExtra: true,
+            leftEyeExtra: true,
+            discount: true,
+            additionalPrice: true,
+          },
         }),
-        prisma.saleOrder.groupBy({
-          by: ['dispatchStatus'],
-          where,
-          _count: { id: true }
-        }),
-        prisma.saleOrder.aggregate({
-          where,
-          _sum: { lensPrice: true }
-        })
       ]);
 
-      const statusCounts = byStatus.reduce((acc, item) => {
-        acc[item.status] = item._count.id;
-        return acc;
-      }, {});
-
-      const dispatchCounts = byDispatchStatus.reduce((acc, item) => {
-        acc[item.dispatchStatus || 'Pending'] = item._count.id;
-        return acc;
-      }, {});
+      const totalOrderValue = Math.round(
+        valueRows.reduce((sum, row) => sum + orderTotal(row), 0) * 100
+      ) / 100;
 
       return {
-        total,
-        byStatus: statusCounts,
-        byDispatchStatus: dispatchCounts,
-        totalRevenue: totalRevenue._sum.lensPrice || 0
+        totalOrders,
+        totalOrderValue,
+        pendingOrders,
+        urgentOrders,
+        readyToDispatch,
+        poPending,
       };
     } catch (error) {
       console.error('Error fetching statistics:', error);
@@ -2300,6 +2391,9 @@ export class SaleOrderService {
             freeLens: existing.freeLens,
             urgentOrder: existing.urgentOrder,
             freeFitting: existing.freeFitting,
+            ...(existing.freeLens
+              ? pendingFreeLensApprovalFields()
+              : clearedFreeLensApprovalFields()),
             offer_id: existing.offer_id,
             lens_id: existing.lens_id,
             category_id: existing.category_id,
@@ -2416,8 +2510,101 @@ export class SaleOrderService {
         orderNo: true,
         orderDate: true,
         status: true,
+        rightEye: true,
+        leftEye: true,
+        rightSpherical: true,
+        rightCylindrical: true,
+        rightAxis: true,
+        rightAdd: true,
+        rightDia: true,
+        leftSpherical: true,
+        leftCylindrical: true,
+        leftAxis: true,
+        leftAdd: true,
+        leftDia: true,
+        lensProduct: {
+          select: {
+            lens_name: true,
+            index: { select: { index_name: true } },
+          },
+        },
+        lensType: { select: { name: true } },
+        category: { select: { name: true } },
+        coating: { select: { name: true } },
       },
       orderBy: { orderDate: 'desc' },
+    });
+  }
+
+  /**
+   * Admin approves Free Lens on a sale order.
+   */
+  async approveFreeLens(id, userId, user, remark = null) {
+    if (!isAdminUser(user)) {
+      throw new APIError('Only Admin can approve Free Lens', 403, 'FORBIDDEN');
+    }
+    const existing = await prisma.saleOrder.findUnique({ where: { id } });
+    if (!existing || existing.deleteStatus) {
+      throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+    }
+    if (!existing.freeLens) {
+      throw new APIError('Sale order does not have Free Lens enabled', 400, 'FREE_LENS_NOT_SET');
+    }
+    if (existing.freeLensApprovalStatus === FREE_LENS_APPROVAL.APPROVED) {
+      throw new APIError('Free Lens is already approved', 400, 'FREE_LENS_ALREADY_APPROVED');
+    }
+
+    return prisma.saleOrder.update({
+      where: { id },
+      data: {
+        freeLensApprovalStatus: FREE_LENS_APPROVAL.APPROVED,
+        freeLensApprovedBy: userId,
+        freeLensApprovedAt: new Date(),
+        freeLensRejectedBy: null,
+        freeLensRejectedAt: null,
+        freeLensApprovalRemark: remark?.trim() || null,
+        updatedBy: userId,
+      },
+      include: {
+        freeLensApprovedByUser: { select: { id: true, name: true, email: true } },
+        freeLensRejectedByUser: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
+
+  /**
+   * Admin rejects Free Lens on a sale order.
+   */
+  async rejectFreeLens(id, userId, user, remark = null) {
+    if (!isAdminUser(user)) {
+      throw new APIError('Only Admin can reject Free Lens', 403, 'FORBIDDEN');
+    }
+    const existing = await prisma.saleOrder.findUnique({ where: { id } });
+    if (!existing || existing.deleteStatus) {
+      throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+    }
+    if (!existing.freeLens) {
+      throw new APIError('Sale order does not have Free Lens enabled', 400, 'FREE_LENS_NOT_SET');
+    }
+    if (existing.freeLensApprovalStatus === FREE_LENS_APPROVAL.REJECTED) {
+      throw new APIError('Free Lens is already rejected', 400, 'FREE_LENS_ALREADY_REJECTED');
+    }
+
+    return prisma.saleOrder.update({
+      where: { id },
+      data: {
+        freeLensApprovalStatus: FREE_LENS_APPROVAL.REJECTED,
+        freeLensRejectedBy: userId,
+        freeLensRejectedAt: new Date(),
+        freeLensApprovedBy: null,
+        freeLensApprovedAt: null,
+        freeLensApprovalRemark: remark?.trim() || null,
+        updatedBy: userId,
+      },
+      include: {
+        freeLensApprovedByUser: { select: { id: true, name: true, email: true } },
+        freeLensRejectedByUser: { select: { id: true, name: true, email: true } },
+      },
     });
   }
 }

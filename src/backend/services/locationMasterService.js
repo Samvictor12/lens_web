@@ -242,7 +242,7 @@ export class LocationMasterService {
 
       // Check if location has trays
       if (existingLocation._count.trays > 0) {
-        throw new APIError('Cannot delete location with existing trays', 400, 'LOCATION_HAS_TRAYS');
+        throw new APIError('Cannot delete location with existing bins', 400, 'LOCATION_HAS_TRAYS');
       }
 
       // Soft delete

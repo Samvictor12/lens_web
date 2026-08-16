@@ -20,6 +20,7 @@ export const ROLE_PERMISSION_KEYS = {
   FITTING: 'fitting',
   PRE_QC: 'pre_qc',
   POST_QC: 'post_qc',
+  LIVE_TRACKING: 'live_tracking',
   BILLING: 'billing',
   CHART_OF_ACCOUNTS: 'chart_of_accounts',
   EXPENSES: 'expenses',
@@ -51,6 +52,7 @@ export const ROLE_PERMISSION_KEYS = {
   LENS_OFFERS: 'lens_offers',
   LOCATIONS: 'locations',
   TRAYS: 'trays',
+  LOCATION_TRAYS: 'location_trays',
   PRICE_MAPPING: 'price_mapping',
 };
 
@@ -80,6 +82,7 @@ export const PERMISSION_CATALOG = [
   perm('fitting', 'Fitting', { ...SCREEN_ONLY }),
   perm('pre_qc', 'Pre-QC', { ...SCREEN_ONLY }),
   perm('post_qc', 'Post-QC', { ...SCREEN_ONLY }),
+  perm('live_tracking', 'Live Tracking', { ...SCREEN_ONLY }),
   perm('billing', 'Billing', { ...CRUD }),
   perm('chart_of_accounts', 'Chart of Accounts', { ...CRUD }),
   perm('expenses', 'Expenses', { ...CRUD }),
@@ -110,7 +113,8 @@ export const PERMISSION_CATALOG = [
   perm('lens_products', 'Lens Products', { ...CRUD }),
   perm('lens_offers', 'Lens Offers', { ...CRUD }),
   perm('locations', 'Locations', { ...CRUD }),
-  perm('trays', 'Trays', { ...CRUD }),
+  perm('trays', 'Bins', { ...CRUD }),
+  perm('location_trays', 'Trays', { ...CRUD }),
   perm('price_mapping', 'Price Mapping', { ...CRUD }),
 ];
 

@@ -89,7 +89,7 @@ export const useInventoryColumns = (onView, onEdit, onDelete) => {
     },
     {
       accessorKey: "location",
-      header: "Location / Tray",
+      header: "Location / Bin",
       sortable: false,
       cell: (item) => (
         <span className="text-xs">

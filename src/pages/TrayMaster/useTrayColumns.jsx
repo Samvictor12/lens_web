@@ -12,7 +12,7 @@ export const useTrayColumns = (navigate, onDelete) => {
   return [
     {
       accessorKey: "name",
-      header: "Tray Name",
+      header: "Bin Name",
       sortable: true,
       cell: (tray) => (
         <a

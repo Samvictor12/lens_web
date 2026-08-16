@@ -108,14 +108,16 @@ export default function PurchaseOrderReceive() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  const todayIso = new Date().toISOString().split("T")[0];
+
   // Form state
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [receivedDate, setReceivedDate] = useState(todayIso);
   const [notes, setNotes] = useState("");
   const [totalPrice, setTotalPrice] = useState("");
   const [taxPercentage, setTaxPercentage] = useState(DEFAULT_GST_PCT);
 
   // Supplier invoice + delivery state
-  const [actualDeliveryDate, setActualDeliveryDate] = useState("");
+  const [actualDeliveryDate, setActualDeliveryDate] = useState(todayIso);
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [purchaseType, setPurchaseType] = useState("");
   const [placeOfSupply, setPlaceOfSupply] = useState("");
@@ -561,12 +563,11 @@ export default function PurchaseOrderReceive() {
             </CardHeader>
             <CardContent className="p-3 pt-0 space-y-3">
               <FormInput
-                label="Received Date"
-                name="receivedDate"
+                label="Order Date"
+                name="orderDate"
                 type="date"
-                value={receivedDate}
-                onChange={(e) => setReceivedDate(e.target.value)}
-                required
+                value={po.orderDate ? po.orderDate.split("T")[0] : ""}
+                disabled
                 singleLine
               />
               <FormInput

@@ -262,8 +262,8 @@ export default function POInwardToInventory() {
       }
     } catch (error) {
       toast({
-        title: "Tray load failed",
-        description: error.message || "Failed to load trays for the selected location.",
+        title: "Bin load failed",
+        description: error.message || "Failed to load bins for the selected location.",
         variant: "destructive",
       });
     } finally {
@@ -288,8 +288,8 @@ export default function POInwardToInventory() {
           return updated;
         });
         toast({
-          title: "Tray selections cleared",
-          description: "All tray selections were cleared because the location changed.",
+          title: "Bin selections cleared",
+          description: "All bin selections were cleared because the location changed.",
           variant: "destructive",
         });
       }
@@ -375,8 +375,8 @@ export default function POInwardToInventory() {
         if (!sp.tray_id) {
           scrollToRow(row.key);
           toast({
-            title: "Tray required",
-            description: "Select a tray for each split.",
+            title: "Bin required",
+            description: "Select a bin for each split.",
             variant: "destructive",
           });
           return false;
@@ -391,8 +391,8 @@ export default function POInwardToInventory() {
           if (parseFloat(sp.qty) > available) {
             scrollToRow(row.key);
             toast({
-              title: "Tray capacity exceeded",
-              description: `Tray "${selectedTrayOccupancy.trayName}" only has space for ${available} items, but you entered ${sp.qty}.`,
+              title: "Bin capacity exceeded",
+              description: `Bin "${selectedTrayOccupancy.trayName}" only has space for ${available} items, but you entered ${sp.qty}.`,
               variant: "destructive",
             });
             return false;
@@ -401,8 +401,8 @@ export default function POInwardToInventory() {
           if (allocatedToThisTray > available) {
             scrollToRow(row.key);
             toast({
-              title: "Tray capacity exceeded",
-              description: `Tray "${selectedTrayOccupancy.trayName}" only has space for ${available} items, but this batch allocates ${allocatedToThisTray} items in total to it.`,
+              title: "Bin capacity exceeded",
+              description: `Bin "${selectedTrayOccupancy.trayName}" only has space for ${available} items, but this batch allocates ${allocatedToThisTray} items in total to it.`,
               variant: "destructive",
             });
             return false;
@@ -527,7 +527,7 @@ export default function POInwardToInventory() {
       {/* <Alert className="bg-primary/5 border-primary/20 flex-shrink-0">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Choose <span className="font-medium">Location</span>, then select the matching <span className="font-medium">Tray</span>, then enter <span className="font-medium">Qty</span>.
+            Choose <span className="font-medium">Location</span>, then select the matching <span className="font-medium">Bin</span>, then enter <span className="font-medium">Qty</span>.
             Each split creates a separate inventory item. Total per row cannot exceed pending qty.
           </AlertDescription>
         </Alert> */}
@@ -682,7 +682,7 @@ export default function POInwardToInventory() {
               />
             </div>
             {globalLocationId && loadingTrayLocations[parseInt(globalLocationId)] && (
-              <span className="text-xs text-muted-foreground">Loading trays...</span>
+              <span className="text-xs text-muted-foreground">Loading bins...</span>
             )}
             {globalLocationId && !loadingTrayLocations[parseInt(globalLocationId)] && (
               <span className="text-xs text-green-700 font-medium">
@@ -750,7 +750,7 @@ export default function POInwardToInventory() {
                             <tr className="border-y bg-muted/40">
                               <th className="px-3 py-1.5 text-left font-medium text-muted-foreground w-8">#</th>
                               <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">Location *</th>
-                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">Tray *</th>
+                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">Bin *</th>
                               <th className="px-3 py-1.5 text-center font-medium text-muted-foreground w-32">Qty (max {row.pending})</th>
                               <th className="px-2 py-1.5 w-16"></th>
                             </tr>
@@ -801,7 +801,7 @@ export default function POInwardToInventory() {
                                         value={split.tray_id || null}
                                         onChange={(value) => updateSplit(row.key, splitIdx, "tray_id", value ? String(value) : "")}
                                         options={trayOptions}
-                                        placeholder={globalLocationId ? (isTrayLoading ? "Loading trays..." : "Select tray") : "Select location first"}
+                                        placeholder={globalLocationId ? (isTrayLoading ? "Loading bins..." : "Select bin") : "Select location first"}
                                         isClearable={false}
                                         disabled={!globalLocationId || isTrayLoading}
                                       />
@@ -815,7 +815,7 @@ export default function POInwardToInventory() {
                                           </div>
                                           <div className={`text-[10px] px-1.5 py-0.5 rounded ${occupancyColor} text-center`}>
                                             {isTrayFull
-                                              ? `Tray Full — ${selectedTrayOccupancy.capacity}/${selectedTrayOccupancy.capacity}`
+                                              ? `Bin Full — ${selectedTrayOccupancy.capacity}/${selectedTrayOccupancy.capacity}`
                                               : `${effectiveCurrentQty}/${selectedTrayOccupancy.capacity} (${effectiveAvailable} available)`}
                                           </div>
                                         </div>

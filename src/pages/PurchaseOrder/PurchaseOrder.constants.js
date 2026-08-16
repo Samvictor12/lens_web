@@ -119,6 +119,18 @@ export const purchaseOrderFilters = {
   end_date: "",
 };
 
+/**
+ * Calendar date in Asia/Kolkata as YYYY-MM-DD (IST day from 12:00 AM).
+ */
+export function getIstDateString(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 /** PO quantity from linked SO eyes: 1 per eye, minimum 1 */
 export function poQuantityFromEyes(order) {
   if (!order) return 1;

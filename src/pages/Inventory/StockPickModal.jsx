@@ -3,8 +3,10 @@ import { Package, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { getMatchingInventoryFIFO, getAlternateMatchingInventory } from "@/services/saleOrder";
+import { getLocationTrayDropdown } from "@/services/locationTray";
 
 /**
  * Standalone "Inventory Stock Pick (FIFO Allocation)" modal.
@@ -14,7 +16,7 @@ import { getMatchingInventoryFIFO, getAlternateMatchingInventory } from "@/servi
  *  - requiredEyes: { rightEye: boolean, leftEye: boolean }
  *  - issueReadiness: optional { right: { needsIssue, alreadyHasLens, ... }, left: {...} }
  *  - isAlternate: boolean
- *  - onConfirm({ itemIds, rightItemId, leftItemId }): called with selected picks
+ *  - onConfirm({ itemIds, rightItemId, leftItemId, locationTrayId }): called with selected picks
  *  - onCancel(): dismissed without confirming
  */
 export default function StockPickModal({
@@ -31,6 +33,8 @@ export default function StockPickModal({
   const [saleOrder, setSaleOrder] = useState(null);
   const [fifoMatches, setFifoMatches] = useState({ rightEyeMatches: [], leftEyeMatches: [] });
   const [selectedFifoItems, setSelectedFifoItems] = useState({});
+  const [locationTrayId, setLocationTrayId] = useState(null);
+  const [locationTrays, setLocationTrays] = useState([]);
 
   const soWantsRight = Boolean(requiredEyes.rightEye);
   const soWantsLeft = Boolean(requiredEyes.leftEye);
@@ -60,7 +64,7 @@ export default function StockPickModal({
         if (response.success) {
           const matches = response.data || {};
           setSaleOrder(matches.saleOrder || null);
-          
+
           const rightMatches = matches.rightEyeMatches || [];
           const leftMatches = matches.leftEyeMatches || [];
           setFifoMatches({ rightEyeMatches: rightMatches, leftEyeMatches: leftMatches });
@@ -98,10 +102,42 @@ export default function StockPickModal({
       }
     };
     if (saleOrderId) load();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [saleOrderId, needsRight, needsLeft, isAlternate, toast]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadTrays = async () => {
+      try {
+        // Load all active trays; each selected row filters by its location.
+        const response = await getLocationTrayDropdown(null);
+        if (!isMounted) return;
+        if (response.success) {
+          setLocationTrays(response.data || []);
+        }
+      } catch (error) {
+        console.error("Error loading trays:", error);
+        if (isMounted) setLocationTrays([]);
+      }
+    };
+    loadTrays();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleConfirm = async () => {
+    if (!locationTrayId) {
+      toast({
+        title: "Tray required",
+        description: "Select a destination Tray before issuing to Pre-QC.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const rightItemId = needsRight ? selectedFifoItems.rightEyeItemId || null : null;
     const leftItemId = needsLeft ? selectedFifoItems.leftEyeItemId || null : null;
     const itemIds = [];
@@ -132,7 +168,7 @@ export default function StockPickModal({
 
     try {
       setIsConfirming(true);
-      await onConfirm?.({ itemIds, rightItemId, leftItemId });
+      await onConfirm?.({ itemIds, rightItemId, leftItemId, locationTrayId });
     } finally {
       setIsConfirming(false);
     }
@@ -151,8 +187,12 @@ export default function StockPickModal({
       </div>
       <p className="text-sm text-emerald-900">
         This eye stays reserved on the SO
-        {readiness?.serialNo ? ` (serial ${readiness.serialNo})` : readiness?.reservedItemId ? ` (item #${readiness.reservedItemId})` : ""}.
-        No pick required.
+        {readiness?.serialNo
+          ? ` (serial ${readiness.serialNo})`
+          : readiness?.reservedItemId
+            ? ` (item #${readiness.reservedItemId})`
+            : ""}
+        . No pick required.
       </p>
     </div>
   );
@@ -171,7 +211,10 @@ export default function StockPickModal({
           {matches.length === 0 ? (
             <Badge variant="destructive">No Stock Available</Badge>
           ) : (
-            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">
+            <Badge
+              variant="secondary"
+              className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50"
+            >
               {matches.length} matching item(s) found
             </Badge>
           )}
@@ -191,24 +234,27 @@ export default function StockPickModal({
                 {isAlternate && <th className="p-3">Product</th>}
                 <th className="p-3">Inward Date / Receipt Date</th>
                 <th className="p-3">Source</th>
-                <th className="p-3">Tray</th>
+                <th className="p-3">Bin</th>
                 <th className="p-3">Location</th>
                 <th className="p-3 text-right">Available Qty</th>
+                <th className="p-3 min-w-[180px]">Destination Tray</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {matches.map((item, idx) => (
                 <tr
                   key={item.id}
-                  onClick={() => onSelect(item.id)}
+                  onClick={() => {
+                    onSelect(item.id);
+                  }}
                   className={`hover:bg-slate-50/50 cursor-pointer transition-colors ${
-                    selectedId === item.id 
-                      ? item.isReceipt 
-                        ? "bg-purple-50/40 border-purple-200 font-medium" 
-                        : "bg-blue-50/30 border-blue-200 font-medium" 
-                      : item.isReceipt 
-                      ? "bg-purple-50/10 hover:bg-purple-50/20" 
-                      : ""
+                    selectedId === item.id
+                      ? item.isReceipt
+                        ? "bg-purple-50/40 border-purple-200 font-medium"
+                        : "bg-blue-50/30 border-blue-200 font-medium"
+                      : item.isReceipt
+                        ? "bg-purple-50/10 hover:bg-purple-50/20"
+                        : ""
                   }`}
                 >
                   <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -216,37 +262,53 @@ export default function StockPickModal({
                       type="radio"
                       name={`${eyeKey}Item`}
                       checked={selectedId === item.id}
-                      onChange={() => onSelect(item.id)}
+                      onChange={() => {
+                        onSelect(item.id);
+                      }}
                       className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500"
                     />
                   </td>
                   {isAlternate && (
                     <td className="p-3">
-                      <div className="text-slate-800 font-semibold">{item.lensProduct?.brand?.name || "—"}</div>
-                      <div className="text-slate-600 text-xs">{item.lensProduct?.lens_name || "—"}</div>
-                      <div className="text-slate-500 text-xs">{item.coating?.name || "No Coating"}</div>
+                      <div className="text-slate-800 font-semibold">
+                        {item.lensProduct?.brand?.name || "—"}
+                      </div>
+                      <div className="text-slate-600 text-xs">
+                        {item.lensProduct?.lens_name || "—"}
+                      </div>
+                      <div className="text-slate-500 text-xs">
+                        {item.coating?.name || "No Coating"}
+                      </div>
                     </td>
                   )}
                   <td className="p-3 text-slate-700 flex items-center gap-2">
                     {idx === 0 && !item.isReceipt && (
-                      <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">Oldest / FIFO</Badge>
+                      <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                        Oldest / FIFO
+                      </Badge>
                     )}
                     {item.isReceipt && (
-                      <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border border-purple-200 text-[10px] py-0 px-1.5 uppercase font-bold">Inward Queue</Badge>
+                      <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border border-purple-200 text-[10px] py-0 px-1.5 uppercase font-bold">
+                        Inward Queue
+                      </Badge>
                     )}
                     {item.isReused && (
                       <Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100 border border-violet-200 text-[10px] py-0 px-1.5 uppercase font-bold">
                         REUSED
                       </Badge>
                     )}
-                    {item.inwardDate ? new Date(item.inwardDate).toLocaleDateString("en-IN", {
-                      day: "2-digit", month: "short", year: "numeric",
-                    }) : "—"}
+                    {item.inwardDate
+                      ? new Date(item.inwardDate).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
                   </td>
                   <td className="p-3">
-                    {item.sourceType === 'RX' ? (
+                    {item.sourceType === "RX" ? (
                       <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border border-green-200 text-[10px] py-0 px-1.5 font-bold uppercase">
-                        RX {item.poNumber ? `(${item.poNumber})` : ''}
+                        RX {item.poNumber ? `(${item.poNumber})` : ""}
                       </Badge>
                     ) : (
                       <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200 text-[10px] py-0 px-1.5 font-bold uppercase">
@@ -275,6 +337,25 @@ export default function StockPickModal({
                     )}
                   </td>
                   <td className="p-3 text-right font-medium text-slate-700">{item.quantity}</td>
+                  <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                    {selectedId === item.id ? (
+                      <FormSelect
+                        name={`locationTrayId-${eyeKey}-${item.id}`}
+                        options={locationTrays}
+                        value={locationTrayId}
+                        onChange={(value) => setLocationTrayId(value)}
+                        placeholder="Select tray *"
+                        isSearchable={true}
+                        isClearable={false}
+                        menuPlacement="top"
+                        menuShouldScrollIntoView={false}
+                        menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                        containerClassName="min-w-[160px]"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -290,7 +371,9 @@ export default function StockPickModal({
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <Package className="h-5 w-5 text-blue-600" />
-            {isAlternate ? "Alternate Lens Pick (Power Match Only)" : "Inventory Stock Pick (FIFO Allocation)"}
+            {isAlternate
+              ? "Alternate Lens Pick (Power Match Only)"
+              : "Inventory Stock Pick (FIFO Allocation)"}
           </DialogTitle>
         </DialogHeader>
 
@@ -298,34 +381,82 @@ export default function StockPickModal({
           {saleOrder && (
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs shadow-sm">
               <div>
-                <h4 className="font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[10px]">Product & Coating</h4>
+                <h4 className="font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[10px]">
+                  Product & Coating
+                </h4>
                 <div className="space-y-1 text-slate-600">
-                  <div><span className="font-semibold text-slate-800">Name:</span> {saleOrder.lensProduct?.lens_name || "—"}</div>
-                  <div><span className="font-semibold text-slate-800">Category:</span> {saleOrder.category?.name || "—"}</div>
-                  <div><span className="font-semibold text-slate-800">Coating:</span> {saleOrder.coating?.name || "—"}</div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Name:</span>{" "}
+                    {saleOrder.lensProduct?.lens_name || "—"}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Category:</span>{" "}
+                    {saleOrder.category?.name || "—"}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Coating:</span>{" "}
+                    {saleOrder.coating?.name || "—"}
+                  </div>
                   {saleOrder.lensType?.name && (
-                    <div><span className="font-semibold text-slate-800">Type:</span> {saleOrder.lensType.name}</div>
+                    <div>
+                      <span className="font-semibold text-slate-800">Type:</span>{" "}
+                      {saleOrder.lensType.name}
+                    </div>
                   )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {soWantsRight && (
                   <div className="bg-blue-50/50 p-2.5 border border-blue-100 rounded-lg">
-                    <span className="font-bold text-blue-800 block mb-1 text-[11px]">Right Eye Specs</span>
+                    <span className="font-bold text-blue-800 block mb-1 text-[11px]">
+                      Right Eye Specs
+                    </span>
                     <div className="space-y-0.5 text-slate-600">
-                      <div>SPH: <span className="font-bold text-slate-800">{saleOrder.rightSpherical || "0.00"}</span></div>
-                      <div>CYL: <span className="font-bold text-slate-800">{saleOrder.rightCylindrical || "0.00"}</span></div>
-                      {saleOrder.rightAdd && <div>ADD: <span className="font-bold text-slate-800">{saleOrder.rightAdd}</span></div>}
+                      <div>
+                        SPH:{" "}
+                        <span className="font-bold text-slate-800">
+                          {saleOrder.rightSpherical || "0.00"}
+                        </span>
+                      </div>
+                      <div>
+                        CYL:{" "}
+                        <span className="font-bold text-slate-800">
+                          {saleOrder.rightCylindrical || "0.00"}
+                        </span>
+                      </div>
+                      {saleOrder.rightAdd && (
+                        <div>
+                          ADD:{" "}
+                          <span className="font-bold text-slate-800">{saleOrder.rightAdd}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
                 {soWantsLeft && (
                   <div className="bg-purple-50/50 p-2.5 border border-purple-100 rounded-lg">
-                    <span className="font-bold text-purple-800 block mb-1 text-[11px]">Left Eye Specs</span>
+                    <span className="font-bold text-purple-800 block mb-1 text-[11px]">
+                      Left Eye Specs
+                    </span>
                     <div className="space-y-0.5 text-slate-600">
-                      <div>SPH: <span className="font-bold text-slate-800">{saleOrder.leftSpherical || "0.00"}</span></div>
-                      <div>CYL: <span className="font-bold text-slate-800">{saleOrder.leftCylindrical || "0.00"}</span></div>
-                      {saleOrder.leftAdd && <div>ADD: <span className="font-bold text-slate-800">{saleOrder.leftAdd}</span></div>}
+                      <div>
+                        SPH:{" "}
+                        <span className="font-bold text-slate-800">
+                          {saleOrder.leftSpherical || "0.00"}
+                        </span>
+                      </div>
+                      <div>
+                        CYL:{" "}
+                        <span className="font-bold text-slate-800">
+                          {saleOrder.leftCylindrical || "0.00"}
+                        </span>
+                      </div>
+                      {saleOrder.leftAdd && (
+                        <div>
+                          ADD:{" "}
+                          <span className="font-bold text-slate-800">{saleOrder.leftAdd}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -346,28 +477,36 @@ export default function StockPickModal({
             </div>
           ) : (
             <>
-              {alreadyRight && renderAlreadyHas(
-                "Right",
-                "bg-blue-100 text-blue-800 border-blue-200",
-                issueReadiness?.right
-              )}
-              {needsRight && renderEyeSection(
-                "Right", "bg-blue-100 text-blue-800 border-blue-200",
-                fifoMatches.rightEyeMatches, "rightEye",
-                selectedFifoItems.rightEyeItemId,
-                (id) => setSelectedFifoItems((prev) => ({ ...prev, rightEyeItemId: id }))
-              )}
-              {alreadyLeft && renderAlreadyHas(
-                "Left",
-                "bg-purple-100 text-purple-800 border-purple-200",
-                issueReadiness?.left
-              )}
-              {needsLeft && renderEyeSection(
-                "Left", "bg-purple-100 text-purple-800 border-purple-200",
-                fifoMatches.leftEyeMatches, "leftEye",
-                selectedFifoItems.leftEyeItemId,
-                (id) => setSelectedFifoItems((prev) => ({ ...prev, leftEyeItemId: id }))
-              )}
+              {alreadyRight &&
+                renderAlreadyHas(
+                  "Right",
+                  "bg-blue-100 text-blue-800 border-blue-200",
+                  issueReadiness?.right
+                )}
+              {needsRight &&
+                renderEyeSection(
+                  "Right",
+                  "bg-blue-100 text-blue-800 border-blue-200",
+                  fifoMatches.rightEyeMatches,
+                  "rightEye",
+                  selectedFifoItems.rightEyeItemId,
+                  (id) => setSelectedFifoItems((prev) => ({ ...prev, rightEyeItemId: id }))
+                )}
+              {alreadyLeft &&
+                renderAlreadyHas(
+                  "Left",
+                  "bg-purple-100 text-purple-800 border-purple-200",
+                  issueReadiness?.left
+                )}
+              {needsLeft &&
+                renderEyeSection(
+                  "Left",
+                  "bg-purple-100 text-purple-800 border-purple-200",
+                  fifoMatches.leftEyeMatches,
+                  "leftEye",
+                  selectedFifoItems.leftEyeItemId,
+                  (id) => setSelectedFifoItems((prev) => ({ ...prev, leftEyeItemId: id }))
+                )}
             </>
           )}
         </div>
@@ -381,13 +520,18 @@ export default function StockPickModal({
             disabled={
               isLoading ||
               isConfirming ||
+              !locationTrayId ||
               (needsRight && !selectedFifoItems.rightEyeItemId) ||
               (needsLeft && !selectedFifoItems.leftEyeItemId) ||
               (!needsRight && !needsLeft)
             }
             onClick={handleConfirm}
           >
-            {isConfirming ? "Processing..." : isAlternate ? "Confirm Alternate & Issue to Pre-QC" : "Confirm & Issue to Pre-QC"}
+            {isConfirming
+              ? "Processing..."
+              : isAlternate
+                ? "Confirm Alternate & Issue to Pre-QC"
+                : "Confirm & Issue to Pre-QC"}
           </Button>
         </DialogFooter>
       </DialogContent>

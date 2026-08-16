@@ -798,6 +798,11 @@ router.get('/inventory-queue',
   controller.getInventoryQueue.bind(controller)
 );
 
+router.get('/live-tracking',
+  authenticateToken,
+  controller.getLiveTracking.bind(controller)
+);
+
 router.post('/preview-stock-availability',
   authenticateToken,
   controller.previewStockAvailability.bind(controller)
@@ -928,6 +933,16 @@ router.get('/:id/status-log',
 router.post('/:id/raise-po',
   authenticateToken,
   controller.raisePo.bind(controller)
+);
+
+router.post('/:id/approve-free-lens',
+  authenticateToken,
+  controller.approveFreeLens.bind(controller)
+);
+
+router.post('/:id/reject-free-lens',
+  authenticateToken,
+  controller.rejectFreeLens.bind(controller)
 );
 
 router.post('/:id/link-po',

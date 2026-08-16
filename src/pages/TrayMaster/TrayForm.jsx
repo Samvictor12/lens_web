@@ -60,7 +60,7 @@ export default function TrayForm() {
           } else {
             toast({
               title: "Error",
-              description: "Tray not found",
+              description: "Bin not found",
               variant: "destructive",
             });
             navigate("/masters/tray");
@@ -69,7 +69,7 @@ export default function TrayForm() {
           console.error("Error fetching tray:", error);
           toast({
             title: "Error",
-            description: error.message || "Failed to fetch tray details",
+            description: error.message || "Failed to fetch bin details",
             variant: "destructive",
           });
           navigate("/masters/tray");
@@ -86,7 +86,7 @@ export default function TrayForm() {
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = "Tray name is required";
+      newErrors.name = "Bin name is required";
     }
 
     if (formData.capacity < 0) {
@@ -130,7 +130,7 @@ export default function TrayForm() {
         if (response.success) {
           toast({
             title: "Success",
-            description: "Tray added successfully!",
+            description: "Bin added successfully!",
           });
           navigate("/masters/tray");
         }
@@ -140,7 +140,7 @@ export default function TrayForm() {
         if (response.success) {
           toast({
             title: "Success",
-            description: "Tray updated successfully!",
+            description: "Bin updated successfully!",
           });
 
           setOriginalData(formData);
@@ -152,7 +152,7 @@ export default function TrayForm() {
       console.error("Error saving tray:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save tray. Please try again.",
+        description: error.message || "Failed to save bin. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -191,17 +191,17 @@ export default function TrayForm() {
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
             {mode === "add"
-              ? "Add Tray"
+              ? "Add Bin"
               : mode === "edit" || isEditing
-              ? "Edit Tray"
-              : "View Tray"}
+              ? "Edit Bin"
+              : "View Bin"}
           </h1>
           <p className="text-xs text-muted-foreground">
             {mode === "add"
-              ? "Create a new storage tray"
+              ? "Create a new storage bin"
               : mode === "edit" || isEditing
-              ? "Update tray details"
-              : "View tray information"}
+              ? "Update bin details"
+              : "View bin information"}
           </p>
         </div>
 
@@ -280,12 +280,12 @@ export default function TrayForm() {
             <CardContent className="p-3 pt-0 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormInput
-                  label="Tray Name"
+                  label="Bin Name"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   error={errors.name}
-                  placeholder="Enter tray name"
+                  placeholder="Enter bin name"
                   required
                   disabled={mode === "view" && !isEditing}
                 />
@@ -325,7 +325,7 @@ export default function TrayForm() {
                 value={formData.description}
                 onChange={handleChange}
                 error={errors.description}
-                placeholder="Enter tray description (optional)"
+                placeholder="Enter bin description (optional)"
                 disabled={mode === "view" && !isEditing}
                 rows={3}
               />

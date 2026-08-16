@@ -59,7 +59,7 @@ export const usePurchaseOrderColumns = (
           className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
         >
           <div>
-            <div className="font-medium text-xs text-primary">{po.poNumber}</div>
+            <div className="font-medium text-[11px] text-primary">{po.poNumber}</div>
           </div>
         </a>
       ),
@@ -74,7 +74,7 @@ export const usePurchaseOrderColumns = (
           po.orderType !== "Bulk" && po.saleOrder?.customerRefNo
             ? po.saleOrder.customerRefNo
             : (po.reference_id || "-");
-        return <span className="text-xs">{displayRef}</span>;
+        return <span className="text-[11px]">{displayRef}</span>;
       },
     },
     {
@@ -84,7 +84,7 @@ export const usePurchaseOrderColumns = (
       cell: (po) => (
         <div className="flex items-center gap-1.5">
           <Building className="h-3 w-3 text-muted-foreground" />
-          <span className="text-xs">{po.vendor?.name || "-"}</span>
+          <span className="text-[11px]">{po.vendor?.name || "-"}</span>
         </div>
       ),
     },
@@ -93,7 +93,7 @@ export const usePurchaseOrderColumns = (
       header: "Type",
       sortable: false,
       cell: (po) => (
-        <Badge variant="outline" className="text-[10px] h-4 px-1">
+        <Badge variant="outline" className="text-3xs h-4 px-1">
           {po.orderType || "Single"}
         </Badge>
       ),
@@ -104,7 +104,7 @@ export const usePurchaseOrderColumns = (
       sortable: false,
       width: 200,
       cell: (po) => (
-        <span className="text-xs block min-w-[180px]">
+        <span className="text-[11px] block min-w-[180px]">
           {po.lensProduct?.lens_name || "-"}
         </span>
       ),
@@ -114,7 +114,7 @@ export const usePurchaseOrderColumns = (
       header: "Lens Category",
       sortable: false,
       cell: (po) => (
-        <span className="text-xs">
+        <span className="text-[11px]">
           {po.category?.name || "-"}
         </span>
       ),
@@ -124,7 +124,7 @@ export const usePurchaseOrderColumns = (
       header: "Order Date",
       sortable: true,
       cell: (po) => (
-        <span className="text-xs">
+        <span className="text-[11px]">
           {po.orderDate ? new Date(po.orderDate).toLocaleDateString() : "-"}
         </span>
       ),
@@ -141,7 +141,7 @@ export const usePurchaseOrderColumns = (
           if (fromEyes > 0) ordered = fromEyes;
         }
         return (
-          <div className="text-xs">
+          <div className="text-[11px]">
             <span>{ordered}</span>
             {po.receivedQty > 0 && (
               <span className="text-green-600 ml-1">/ {po.receivedQty}</span>
@@ -155,7 +155,7 @@ export const usePurchaseOrderColumns = (
       header: "Total Value",
       sortable: true,
       cell: (po) => (
-        <span className="text-xs font-medium">
+        <span className="text-[11px] font-medium">
           ₹{(po.totalValue || 0).toLocaleString("en-IN")}
         </span>
       ),
@@ -167,7 +167,7 @@ export const usePurchaseOrderColumns = (
       cell: (po) => {
         const statusColor = getStatusColor(po.status);
         return (
-          <Badge variant="outline" className={`${statusColor} text-xs`}>
+          <Badge variant="outline" className={`${statusColor} text-3xs`}>
             {getStatusLabel(po.status)}
           </Badge>
         );
@@ -178,7 +178,7 @@ export const usePurchaseOrderColumns = (
       header: "Expected Delivery",
       sortable: true,
       cell: (po) => (
-        <span className="text-xs">
+        <span className="text-[11px]">
           {po.expectedDeliveryDate
             ? new Date(po.expectedDeliveryDate).toLocaleDateString()
             : "-"}

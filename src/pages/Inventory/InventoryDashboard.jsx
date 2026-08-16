@@ -569,7 +569,7 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
             <div>
               <h3 className="font-semibold">Initialize Stock</h3>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Manually add initial inventory items to your trays
+                Manually add initial inventory items to your bins
               </p>
             </div>
             <Button onClick={() => setShowInitForm(true)} className="gap-2" size="sm">

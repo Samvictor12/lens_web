@@ -94,11 +94,15 @@ model User {
   saleOrderCreatedBy            SaleOrder[]            @relation("saleOrderCreatedBy")
   saleOrderUpdatedBy            SaleOrder[]            @relation("saleOrderUpdatedBy")
   saleOrderAssignedPerson       SaleOrder[]            @relation("saleOrderAssignedPerson")
+  saleOrderFreeLensApprovedBy   SaleOrder[]            @relation("saleOrderFreeLensApprovedBy")
+  saleOrderFreeLensRejectedBy   SaleOrder[]            @relation("saleOrderFreeLensRejectedBy")
   saleOrderStatusLogs           SaleOrderStatusLog[]   @relation("saleOrderStatusLogUser")
   locationUserCreate            LocationMaster[]       @relation("locationUserCreate")
   locationUserUpdate            LocationMaster[]       @relation("locationUserUpdate")
   trayUserCreate                TrayMaster[]           @relation("trayUserCreate")
   trayUserUpdate                TrayMaster[]           @relation("trayUserUpdate")
+  locationTrayUserCreate        LocationTrayMaster[]   @relation("locationTrayUserCreate")
+  locationTrayUserUpdate        LocationTrayMaster[]   @relation("locationTrayUserUpdate")
   auditLogs                     AuditLog[]             @relation("auditLogUser")
   errorLogs                     ErrorLog[]             @relation("errorLogUser")
   errorLogsResolved             ErrorLog[]             @relation("errorLogResolver")
@@ -615,6 +619,12 @@ enum ProcurementType {
   STOCK
 }
 
+enum FreeLensApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum GodownType {
   STOCK
   RX
@@ -992,6 +1002,15 @@ model SaleOrder {
   remark            String?
   itemRefNo         String?
   freeLens          Boolean             @default(false)
+  // Free Lens requires Admin approval before Raise PO / Issue
+  freeLensApprovalStatus FreeLensApprovalStatus?
+  freeLensApprovedBy     Int?
+  freeLensApprovedAt     DateTime?
+  freeLensRejectedBy     Int?
+  freeLensRejectedAt     DateTime?
+  freeLensApprovalRemark String?
+  freeLensApprovedByUser User?          @relation("saleOrderFreeLensApprovedBy", fields: [freeLensApprovedBy], references: [id])
+  freeLensRejectedByUser User?          @relation("saleOrderFreeLensRejectedBy", fields: [freeLensRejectedBy], references: [id])
   urgentOrder       Boolean             @default(false)
   freeFitting       Boolean             @default(false)
   // Offer information
@@ -1078,6 +1097,9 @@ model SaleOrder {
   // Alternate-lens substitution audit note (M2) — read-only display; never mutates
   // lens_id/coating_id/category_id/pricing. Set when alternate stock is issued.
   alternateLensNote     String?
+  // Destination tray selected on Issue & Pre-QC (LocationTrayMaster — not Bin/TrayMaster)
+  locationTrayId        Int?
+  locationTray          LocationTrayMaster?    @relation(fields: [locationTrayId], references: [id])
 }
 
 model SaleOrderStatusLog {
@@ -1115,6 +1137,7 @@ model LocationMaster {
   updatedByUser             User?                  @relation("locationUserUpdate", fields: [updatedBy], references: [id])
   // Relationship Tables
   trays                     TrayMaster[]
+  locationTrays             LocationTrayMaster[]
   inventoryItems            InventoryItem[]
   inventoryStock            InventoryStock[]
   inventoryAlerts           InventoryAlert[]
@@ -1143,6 +1166,26 @@ model TrayMaster {
   inventoryStock            InventoryStock[]
   inventoryFromTransactions InventoryTransaction[] @relation("inventoryFromTray")
   inventoryToTransactions   InventoryTransaction[] @relation("inventoryToTray")
+}
+
+/** Destination tray for Pre-QC / issue (UI: Tray). Location is optional. */
+model LocationTrayMaster {
+  id            Int             @id @default(autoincrement())
+  name          String
+  description   String?
+  location_id   Int?
+  activeStatus  Boolean         @default(true)
+  deleteStatus  Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  createdBy     Int
+  updatedBy     Int?
+  location      LocationMaster? @relation(fields: [location_id], references: [id])
+  createdByUser User            @relation("locationTrayUserCreate", fields: [createdBy], references: [id])
+  updatedByUser User?           @relation("locationTrayUserUpdate", fields: [updatedBy], references: [id])
+  saleOrders    SaleOrder[]
+
+  @@index([location_id])
 }
 
 // ============================================

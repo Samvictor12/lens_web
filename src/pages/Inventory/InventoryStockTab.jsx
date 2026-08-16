@@ -347,7 +347,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
         groupName = item.location?.name || "Unknown Location";
       } else if (groupBy === "location_tray") {
         groupKey = `${item.location_id || "unknown_location"}_${item.tray_id || "unknown_tray"}`;
-        groupName = `${item.location?.name || "Unknown Location"} - ${item.tray?.name || item.tray?.tray_name || "Unknown Tray"}`;
+        groupName = `${item.location?.name || "Unknown Location"} - ${item.tray?.name || item.tray?.tray_name || "Unknown Bin"}`;
       } else if (groupBy === "category") {
         groupKey = item.category_id || "unknown_category";
         groupName = item.category?.name || "Unknown Category";
@@ -413,7 +413,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
       ? [
           {
             accessorKey: "tray",
-            header: "Tray",
+            header: "Bin",
             cell: (item) => <span className="text-xs">{item.tray?.name || item.tray?.tray_name || "-"}</span>,
           },
         ]
@@ -563,7 +563,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search by product, code, location or tray..."
+                placeholder="Search by product, code, location or bin..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-8 h-8 text-xs"
@@ -587,7 +587,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
                     className="h-8 px-2 border rounded-md text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary min-w-[120px]"
                   >
                     <option value="location">Location</option>
-                    <option value="location_tray">Location + Tray</option>
+                    <option value="location_tray">Location + Bin</option>
                     <option value="category">Category</option>
                     <option value="lens">Lens Product</option>
                     <option value="none">No Grouping</option>

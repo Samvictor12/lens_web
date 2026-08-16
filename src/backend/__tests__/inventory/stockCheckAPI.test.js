@@ -524,6 +524,7 @@ describe('SO Request Queue FIFO soft allocation + shortage Raise PO', () => {
   let customer;
   let location;
   let tray;
+  let locationTray;
   let lens;
   let category;
   let type;
@@ -534,6 +535,18 @@ describe('SO Request Queue FIFO soft allocation + shortage Raise PO', () => {
     customer = await prisma.customer.findFirst({ where: { delete_status: false } });
     location = await prisma.locationMaster.findFirst({ where: { deleteStatus: false } });
     tray = await prisma.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
+    locationTray = await prisma.locationTrayMaster.findFirst({
+      where: { location_id: location.id, deleteStatus: false, activeStatus: true },
+    });
+    if (!locationTray) {
+      locationTray = await prisma.locationTrayMaster.create({
+        data: {
+          name: `TEST-LOC-TRAY-SOFT-${Date.now()}`,
+          location_id: location.id,
+          createdBy: user.id,
+        },
+      });
+    }
     lens = await prisma.lensProductMaster.findFirst({ where: { deleteStatus: false } });
     category = await prisma.lensCategoryMaster.findFirst({ where: { deleteStatus: false } });
     type = await prisma.lensTypeMaster.findFirst({ where: { deleteStatus: false } });
@@ -712,6 +725,7 @@ describe('SO Request Queue FIFO soft allocation + shortage Raise PO', () => {
 
       await saleOrderWorkflowService.issueToPreQc(so.id, user.id, {
         inventoryItemIds: [`inv_${item.id}`],
+        locationTrayId: locationTray.id,
       });
 
       const itemAfter = await prisma.inventoryItem.findUnique({ where: { id: item.id } });

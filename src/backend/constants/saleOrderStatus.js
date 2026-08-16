@@ -77,6 +77,14 @@ export const PRE_QC_QUEUE_STATUSES = ['PRE_QC'];
 /** Post-QC operator list */
 export const POST_QC_QUEUE_STATUSES = ['AWAITING_QUALITY'];
 
+/** Live Tracking Kanban columns (Pre-QC / Fitting / Post-QC / Ready for Dispatch) */
+export const LIVE_TRACKING_STATUSES = [
+  ...PRE_QC_QUEUE_STATUSES,
+  ...FITTING_QUEUE_STATUSES,
+  ...POST_QC_QUEUE_STATUSES,
+  'READY_FOR_DISPATCH',
+];
+
 /** Status bar pipeline steps (PO steps filtered client-side if no PO) */
 export const STATUS_BAR_STEPS = [
   'DRAFT',

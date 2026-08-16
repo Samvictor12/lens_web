@@ -9,6 +9,12 @@ export const defaultSaleOrder = {
   itemRefNo: "",
   mrdRefNo: "",
   freeLens: false,
+  freeLensApprovalStatus: null,
+  freeLensApprovedBy: null,
+  freeLensApprovedAt: null,
+  freeLensRejectedBy: null,
+  freeLensRejectedAt: null,
+  freeLensApprovalRemark: null,
   freeFitting: false,
   onlyLens: false,
   urgentOrder: false,
@@ -104,7 +110,46 @@ export const saleOrderFilters = {
   startDate: null,
   endDate: null,
   customerId: null,
+  Type_id: null,
+  category_id: null,
+  coating_id: null,
+  urgentOrder: null,
 };
+
+/** Status quick-filter cards (list only; they do not exit today stats). */
+export const SALE_ORDER_STATUS_CARD_KEYS = ["pending", "urgent", "ready", "poPending"];
+
+/**
+ * Calendar date in Asia/Kolkata as YYYY-MM-DD (IST day from 12:00 AM).
+ * @param {Date} [date=new Date()]
+ * @returns {string}
+ */
+export function getIstDateString(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+export const FREE_LENS_APPROVAL = {
+  PENDING: "PENDING",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+};
+
+export const freeLensApprovalBadgeStyles = {
+  PENDING: "bg-amber-100 text-amber-900 border-amber-200",
+  APPROVED: "bg-emerald-100 text-emerald-900 border-emerald-200",
+  REJECTED: "bg-red-100 text-red-900 border-red-200",
+};
+
+/** Raise PO / Issue allowed when Free Lens is off or Admin-approved. */
+export function isFreeLensFulfillmentAllowed(order) {
+  if (!order?.freeLens) return true;
+  return order.freeLensApprovalStatus === FREE_LENS_APPROVAL.APPROVED;
+}
 
 // Status badge colors
 export const statusColors = {

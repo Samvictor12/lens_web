@@ -93,7 +93,7 @@ class PurchaseOrderController {
    */
   async getPurchaseOrderDashboard(req, res, next) {
     try {
-      const result = await purchaseOrderService.getPurchaseOrderDashboard();
+      const result = await purchaseOrderService.getPurchaseOrderDashboard(req.query);
 
       res.status(200).json({
         success: true,

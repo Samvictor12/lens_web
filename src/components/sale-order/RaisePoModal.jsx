@@ -14,6 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { getVendorDropdown } from "@/services/vendor";
 import { STATUS_LABELS } from "@/constants/saleOrderStatus";
 import { procurementBadgeStyles } from "@/pages/Inventory/InventoryRequestQueue.constants";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 function hasSpecValue(value) {
   return value !== null && value !== undefined && value !== "";
@@ -68,6 +70,7 @@ export default function RaisePoModal({
   loading = false,
   mode = "raise", // "raise" | "create" | "inventory"
 }) {
+  const isMobile = useIsMobile();
   const confirmLabel =
     mode === "create"
       ? "Save SO & Raise PO"
@@ -117,140 +120,164 @@ export default function RaisePoModal({
   const procurementStyle =
     procurementBadgeStyles[procurementType] || procurementBadgeStyles.RX;
 
+  const lensDetails = (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Sale Order Summary
+      </p>
+      <SummaryRow label="Order #" value={summary?.orderNo || "New order"} />
+      <SummaryRow label="Customer" value={summary?.customerName} />
+      <SummaryRow label="Customer Ref" value={summary?.customerRefNo} />
+      <SummaryRow label="Lens Product" value={summary?.lensProductName} />
+      <SummaryRow label="Category" value={summary?.categoryName} />
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-muted-foreground">Lens Type</span>
+        <Badge variant="outline" className={`text-xs border ${procurementStyle}`}>
+          {procurementType}
+        </Badge>
+      </div>
+      <SummaryRow label="Coating" value={summary?.coatingName} />
+      <SummaryRow
+        label="Status"
+        value={summary?.status ? STATUS_LABELS[summary.status] || summary.status : "DRAFT"}
+      />
+      {(summary?.rightEye || summary?.leftEye) && (
+        <div className="pt-2 border-t space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Specifications
+          </p>
+          {summary.rightEye && (
+            <div className="rounded-md bg-background border px-2.5 py-2 text-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200 text-[10px]">
+                  R
+                </Badge>
+                <span className="text-xs font-medium text-muted-foreground">Right Eye</span>
+                {summary.shortageRight && (
+                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px]">
+                    Shortage
+                  </Badge>
+                )}
+              </div>
+              <p className="font-mono text-xs text-foreground break-words">
+                {formatEyeSpecLine("right", summary)}
+              </p>
+            </div>
+          )}
+          {summary.leftEye && (
+            <div className="rounded-md bg-background border px-2.5 py-2 text-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 text-[10px]">
+                  L
+                </Badge>
+                <span className="text-xs font-medium text-muted-foreground">Left Eye</span>
+                {summary.shortageLeft && (
+                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px]">
+                    Shortage
+                  </Badge>
+                )}
+              </div>
+              <p className="font-mono text-xs text-foreground break-words">
+                {formatEyeSpecLine("left", summary)}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const procureControls = (
+    <div className="space-y-4">
+      {showEyeSelection && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Eyes to procure</Label>
+          <p className="text-xs text-muted-foreground">
+            Defaults to shortage eyes only. You can include covered eyes before confirm.
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            {canRight && (
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={selectRight}
+                  onCheckedChange={(v) => setSelectRight(Boolean(v))}
+                />
+                Right
+              </label>
+            )}
+            {canLeft && (
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={selectLeft}
+                  onCheckedChange={(v) => setSelectLeft(Boolean(v))}
+                />
+                Left
+              </label>
+            )}
+            {canRight && canLeft && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setSelectRight(true);
+                  setSelectLeft(true);
+                }}
+              >
+                Both
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">PO quantity: {poQty}</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">
+          Vendor <span className="text-red-500">*</span>
+        </Label>
+        <FormSelect
+          name="vendorId"
+          options={vendors}
+          value={vendorId}
+          onChange={setVendorId}
+          placeholder="Select vendor"
+          isSearchable
+        />
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] !flex flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="!w-[96vw] !max-w-4xl max-h-[90vh] !flex flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="flex-shrink-0 space-y-0 border-b px-6 py-4 pr-12">
           <DialogTitle>
             {mode === "create" ? "Create SO & Raise PO" : "Raise Purchase Order"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Sale Order Summary
-            </p>
-            <SummaryRow label="Order #" value={summary?.orderNo || "New order"} />
-            <SummaryRow label="Customer" value={summary?.customerName} />
-            <SummaryRow label="Customer Ref" value={summary?.customerRefNo} />
-            <SummaryRow label="Lens Product" value={summary?.lensProductName} />
-            <SummaryRow label="Category" value={summary?.categoryName} />
-            <SummaryRow label="Type" value={summary?.typeName} />
-            <SummaryRow label="Coating" value={summary?.coatingName} />
-            <SummaryRow
-              label="Status"
-              value={summary?.status ? STATUS_LABELS[summary.status] || summary.status : "DRAFT"}
-            />
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Procurement</span>
-              <Badge variant="outline" className={`text-xs border ${procurementStyle}`}>
-                {procurementType}
-              </Badge>
-            </div>
-            {(summary?.rightEye || summary?.leftEye) && (
-              <div className="pt-2 border-t space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Specifications
-                </p>
-                {summary.rightEye && (
-                  <div className="rounded-md bg-background border px-2.5 py-2 text-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200 text-[10px]">
-                        R
-                      </Badge>
-                      <span className="text-xs font-medium text-muted-foreground">Right Eye</span>
-                      {summary.shortageRight && (
-                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px]">
-                          Shortage
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="font-mono text-xs text-foreground break-words">
-                      {formatEyeSpecLine("right", summary)}
-                    </p>
-                  </div>
-                )}
-                {summary.leftEye && (
-                  <div className="rounded-md bg-background border px-2.5 py-2 text-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-200 text-[10px]">
-                        L
-                      </Badge>
-                      <span className="text-xs font-medium text-muted-foreground">Left Eye</span>
-                      {summary.shortageLeft && (
-                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-[10px]">
-                          Shortage
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="font-mono text-xs text-foreground break-words">
-                      {formatEyeSpecLine("left", summary)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {showEyeSelection && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Eyes to procure</Label>
-              <p className="text-xs text-muted-foreground">
-                Defaults to shortage eyes only. You can include covered eyes before confirm.
-              </p>
-              <div className="flex flex-wrap items-center gap-4">
-                {canRight && (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={selectRight}
-                      onCheckedChange={(v) => setSelectRight(Boolean(v))}
-                    />
-                    Right
-                  </label>
-                )}
-                {canLeft && (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={selectLeft}
-                      onCheckedChange={(v) => setSelectLeft(Boolean(v))}
-                    />
-                    Left
-                  </label>
-                )}
-                {canRight && canLeft && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setSelectRight(true);
-                      setSelectLeft(true);
-                    }}
-                  >
-                    Both
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">PO quantity: {poQty}</p>
-            </div>
+        <div
+          className={cn(
+            "min-h-0 flex-1 px-6 py-4",
+            isMobile
+              ? "overflow-y-auto space-y-4"
+              : "overflow-hidden grid grid-cols-2 gap-6"
           )}
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">
-              Vendor <span className="text-red-500">*</span>
-            </Label>
-            <FormSelect
-              name="vendorId"
-              options={vendors}
-              value={vendorId}
-              onChange={setVendorId}
-              placeholder="Select vendor"
-              isSearchable
-            />
-            {error && <p className="text-xs text-destructive">{error}</p>}
-          </div>
+        >
+          {isMobile ? (
+            <>
+              {lensDetails}
+              {procureControls}
+            </>
+          ) : (
+            <>
+              <div className="min-h-0 overflow-y-auto">{lensDetails}</div>
+              <div className="min-h-0">{procureControls}</div>
+            </>
+          )}
         </div>
 
         <DialogFooter className="flex-shrink-0 border-t bg-background px-6 py-4 gap-2 sm:space-x-2">

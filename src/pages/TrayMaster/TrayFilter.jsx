@@ -76,9 +76,9 @@ export default function TrayFilter({
           </SheetTrigger>
           <SheetContent>
             <SheetHeader>
-              <SheetTitle>Filter Trays</SheetTitle>
+              <SheetTitle>Filter Bins</SheetTitle>
               <SheetDescription>
-                Apply filters to refine your tray list
+                Apply filters to refine your bin list
               </SheetDescription>
             </SheetHeader>
 
@@ -97,7 +97,7 @@ export default function TrayFilter({
                       activeStatus: value,
                     });
                   }}
-                  placeholder="All trays"
+                  placeholder="All bins"
                   isSearchable={false}
                   isClearable={false}
                 />

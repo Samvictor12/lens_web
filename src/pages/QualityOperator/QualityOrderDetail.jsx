@@ -101,8 +101,15 @@ function PrescriptionTable({ order }) {
   );
 }
 
-export default function QualityOrderDetail({ mode = "post", listPath = "/quality/operator" }) {
-  const { id } = useParams();
+export default function QualityOrderDetail({
+  mode = "post",
+  listPath = "/quality/operator",
+  orderId: orderIdProp,
+  onBack,
+  onCompleted,
+}) {
+  const params = useParams();
+  const id = orderIdProp != null ? String(orderIdProp) : params.id;
   const navigate = useNavigate();
   const { toast } = useToast();
   const [order, setOrder] = useState(null);
@@ -114,7 +121,18 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
   const [rejectRight, setRejectRight] = useState(false);
   const [rejectLeft, setRejectLeft] = useState(false);
 
+  const goBack = () => {
+    if (onBack) onBack();
+    else navigate(-1);
+  };
+
+  const goDone = () => {
+    if (onCompleted) onCompleted();
+    else navigate(listPath);
+  };
+
   const fetchOrder = async () => {
+    if (!id) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -144,7 +162,7 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
       const response = await updateSaleOrderStatus(id, nextStatus);
       if (response.success) {
         toast({ title: mode === "pre" ? "Pre-QC passed" : "Post-QC approved" });
-        navigate(listPath);
+        goDone();
       }
     } catch (err) {
       toast({
@@ -172,7 +190,7 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
       );
       if (response.success) {
         toast({ title: "Rejected — awaiting SO reset" });
-        navigate(listPath);
+        goDone();
       }
     } catch (err) {
       toast({
@@ -259,7 +277,7 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
           variant="ghost"
           size="icon"
           className="shrink-0"
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -305,6 +323,9 @@ export default function QualityOrderDetail({ mode = "post", listPath = "/quality
           )}
           <InfoRow label="Patient Ref" value={order.itemRefNo} />
           <InfoRow label="Customer Ref No" value={order.customerRefNo} />
+          {order.locationTray?.name && (
+            <InfoRow label="Tray" value={order.locationTray.name} />
+          )}
           {order.remark && <InfoRow label="Remark" value={order.remark} />}
         </SectionCard>
 

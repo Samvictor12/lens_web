@@ -45,7 +45,8 @@ function formatPermissions(dbPermissions) {
     { key: 'lens_products', label: 'Lens Products', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'lens_offers', label: 'Lens Offers', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'locations', label: 'Locations', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
-    { key: 'trays', label: 'Trays', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
+    { key: 'trays', label: 'Bins', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
+    { key: 'location_trays', label: 'Trays', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } },
     { key: 'price_mapping', label: 'Price Mapping', actions: { Screen: false, Create: false, Edit: false, View: false, Delete: false } }
   ];
 

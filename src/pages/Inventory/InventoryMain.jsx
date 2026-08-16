@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRightLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import InventoryDashboard from './InventoryDashboard';
 import InventoryInwardQueueTab from './InventoryInwardQueueTab';
@@ -18,6 +18,14 @@ import {
   inventoryTransactionAddPath,
   godownDisplayLabel,
 } from './inventoryGodown';
+
+const FEATURE_TAB_LABELS = {
+  dashboard: 'Dashboard',
+  inward: 'Inward Queue',
+  requestQueue: 'SO Request Query',
+  transactions: 'Transactions',
+  stock: 'Stock Summary',
+};
 
 const InventoryMain = () => {
   const { toast } = useToast();
@@ -63,16 +71,16 @@ const InventoryMain = () => {
 
   const godownLabel = godownDisplayLabel(godownType);
 
+  const switchGodown = (nextSlug) => {
+    if (nextSlug === slug) return;
+    navigate(inventoryTabPath(nextSlug, activeTab));
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Inventory Management</h1>
-            <Badge variant="outline" className="text-xs">
-              {godownLabel}
-            </Badge>
-          </div>
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Inventory Management</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage inward queue, SO Request Query, transactions, and stock levels for {godownLabel}
           </p>
@@ -95,13 +103,62 @@ const InventoryMain = () => {
         onValueChange={(value) => navigate(inventoryTabPath(slug, value))}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <TabsList className="grid w-full grid-cols-5 mb-4 flex-shrink-0">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="inward">Inward Queue</TabsTrigger>
-          <TabsTrigger value="requestQueue">SO Request Query</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
-          <TabsTrigger value="stock">Stock Summary</TabsTrigger>
-        </TabsList>
+        {/* Split tab bar: godown (left) | feature tabs (right) */}
+        <div className="mb-4 flex min-w-0 flex-shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          {/* Left — RX / STOCK godown */}
+          <div
+            className="inline-flex h-9 w-full shrink-0 items-center rounded-lg bg-gray-100 p-1 text-gray-500 sm:w-auto"
+            role="tablist"
+            aria-label="Godown"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={slug === 'rx'}
+              onClick={() => switchGodown('rx')}
+              className={cn(
+                'inline-flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all sm:flex-none sm:px-3',
+                slug === 'rx'
+                  ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              )}
+            >
+              RX Godown
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={slug === 'stock'}
+              onClick={() => switchGodown('stock')}
+              className={cn(
+                'inline-flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all sm:flex-none sm:px-3',
+                slug === 'stock'
+                  ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              )}
+            >
+              STOCK Godown
+            </button>
+          </div>
+
+          <div className="h-px w-full bg-border sm:hidden" aria-hidden />
+
+          {/* Right — feature tabs pinned to the right */}
+          <div className="flex min-w-0 items-center gap-3 sm:ml-auto">
+            <div className="hidden h-7 w-px shrink-0 bg-border sm:block" aria-hidden />
+            <TabsList className="!flex h-9 !w-full min-w-0 gap-0.5 overflow-x-auto !justify-end p-1 sm:!w-auto">
+              {Object.entries(FEATURE_TAB_LABELS).map(([value, label]) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="!flex-none shrink-0 px-2 py-1 text-[11px] sm:px-2.5 sm:text-xs"
+                >
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </div>
 
         <TabsContent value="dashboard" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryDashboard

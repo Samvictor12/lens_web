@@ -721,6 +721,49 @@ export const validateQueryParams = (query) => {
     params.endDate = query.endDate;
   }
 
+  if (query.Type_id) {
+    const typeId = parseInt(query.Type_id);
+    if (isNaN(typeId) || typeId < 1) {
+      errors.push({ field: 'Type_id', message: 'Type ID must be a positive number' });
+    } else {
+      params.Type_id = typeId;
+    }
+  }
+
+  if (query.category_id) {
+    const categoryId = parseInt(query.category_id);
+    if (isNaN(categoryId) || categoryId < 1) {
+      errors.push({ field: 'category_id', message: 'Category ID must be a positive number' });
+    } else {
+      params.category_id = categoryId;
+    }
+  }
+
+  if (query.coating_id) {
+    const coatingId = parseInt(query.coating_id);
+    if (isNaN(coatingId) || coatingId < 1) {
+      errors.push({ field: 'coating_id', message: 'Coating ID must be a positive number' });
+    } else {
+      params.coating_id = coatingId;
+    }
+  }
+
+  if (query.procurementType) {
+    const pt = String(query.procurementType).trim().toUpperCase();
+    if (!['STOCK', 'RX'].includes(pt)) {
+      errors.push({ field: 'procurementType', message: 'Procurement type must be STOCK or RX' });
+    } else {
+      params.procurementType = pt;
+    }
+  }
+
+  if (query.urgentOrder !== undefined && query.urgentOrder !== null && query.urgentOrder !== '') {
+    const raw = String(query.urgentOrder).toLowerCase();
+    if (raw === 'true' || raw === '1') params.urgentOrder = true;
+    else if (raw === 'false' || raw === '0') params.urgentOrder = false;
+    else errors.push({ field: 'urgentOrder', message: 'Urgent order must be true or false' });
+  }
+
   if (query.sortBy) {
     if (!allowedSortFields.includes(query.sortBy)) {
       errors.push({ 

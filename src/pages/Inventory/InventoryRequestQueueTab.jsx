@@ -14,7 +14,7 @@ import {
   raisePoFromSo,
   confirmSoReset,
 } from '@/services/saleOrder';
-import { statusColors } from '@/pages/SaleOrder/SaleOrder.constants';
+import { statusColors, isFreeLensFulfillmentAllowed, FREE_LENS_APPROVAL, freeLensApprovalBadgeStyles } from '@/pages/SaleOrder/SaleOrder.constants';
 import { queueBadge, RESET_ELIGIBLE } from '@/constants/saleOrderStatus';
 import {
   soRequestQueueFilters,
@@ -92,11 +92,14 @@ function QueueCard({ order, onIssue, onAlternate, onRaisePo, onConfirmReset, bus
   const badge = queueBadge(order.status);
   const statusClass = statusColors[order.status] || statusColors.DRAFT;
   const needsReset = RESET_ELIGIBLE.includes(order.status);
-  const canIssue = ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED'].includes(order.status);
+  const freeLensOk = isFreeLensFulfillmentAllowed(order);
+  const canIssue =
+    ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED'].includes(order.status) && freeLensOk;
   const canRaisePo =
     ['DRAFT', 'PO_CANCELLED'].includes(order.status) &&
     !hasActiveLinkedPo(order) &&
-    !order.isStockAvailable;
+    !order.isStockAvailable &&
+    freeLensOk;
   const canAlternate =
     canIssue && order.hasAlternateStock && !order.isStockAvailable;
 
@@ -118,6 +121,19 @@ function QueueCard({ order, onIssue, onAlternate, onRaisePo, onConfirmReset, bus
       {order.alternateLensNote && (
         <Badge className="text-xs w-fit bg-violet-100 text-violet-800 hover:bg-violet-100 border-violet-200">
           Alternate issued
+        </Badge>
+      )}
+
+      {order.freeLens && (
+        <Badge
+          variant="outline"
+          className={`text-xs w-fit border ${
+            freeLensApprovalBadgeStyles[order.freeLensApprovalStatus] ||
+            freeLensApprovalBadgeStyles.PENDING
+          }`}
+        >
+          Free Lens: {order.freeLensApprovalStatus || FREE_LENS_APPROVAL.PENDING}
+          {!freeLensOk ? ' — blocked' : ''}
         </Badge>
       )}
 
@@ -330,13 +346,23 @@ export default function InventoryRequestQueueTab({ refreshKey = 0, godownType = 
     const itemIds = Array.isArray(pick) ? pick : pick?.itemIds || [];
     const rightItemId = Array.isArray(pick) ? null : pick?.rightItemId ?? null;
     const leftItemId = Array.isArray(pick) ? null : pick?.leftItemId ?? null;
+    const locationTrayId = Array.isArray(pick) ? null : pick?.locationTrayId ?? null;
+    if (!locationTrayId) {
+      toast({
+        title: 'Tray required',
+        description: 'Select a destination Tray before issuing to Pre-QC.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setBusy(true);
     try {
       const res = await issueSoToPreQc(
         pickModalOrder.id,
         itemIds,
         isAlternatePick,
-        { rightItemId, leftItemId }
+        { rightItemId, leftItemId },
+        locationTrayId
       );
       if (res.success) {
         toast({ title: isAlternatePick ? 'Alternate lens issued to Pre-QC' : 'Issued to Pre-QC' });

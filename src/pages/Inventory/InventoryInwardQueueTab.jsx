@@ -164,8 +164,8 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
     if (!dispositionRow?.qcReturnId || !dispositionAction) return;
     if (dispositionAction === 'REUSE' && (!locationId || !trayId)) {
       toast({
-        title: 'Location and tray required',
-        description: 'Select a location and tray before confirming Reuse.',
+        title: 'Location and bin required',
+        description: 'Select a location and bin before confirming Reuse.',
         variant: 'destructive',
       });
       return;
@@ -186,7 +186,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
         title: dispositionAction === 'REUSE' ? 'Returned to stock' : 'Disposed',
         description:
           dispositionAction === 'REUSE'
-            ? 'Lens is AVAILABLE with a REUSED tag at the selected tray.'
+            ? 'Lens is AVAILABLE with a REUSED tag at the selected bin.'
             : 'Lens marked damaged and not usable.',
       });
       closeDisposition(true);
@@ -418,7 +418,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
             </div>
             <p className="text-muted-foreground text-xs">
               {dispositionAction === 'REUSE'
-                ? 'Select location and tray. Lens becomes AVAILABLE with a persistent REUSED tag.'
+                ? 'Select location and bin. Lens becomes AVAILABLE with a persistent REUSED tag.'
                 : 'Lens will be marked DAMAGED and not usable.'}
             </p>
             {dispositionAction === 'REUSE' && (
@@ -441,7 +441,7 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">
-                    Tray <span className="text-red-500">*</span>
+                    Bin <span className="text-red-500">*</span>
                   </Label>
                   <FormSelect
                     name="reuseTrayId"
@@ -452,8 +452,8 @@ export default function InventoryInwardQueueTab({ refreshKey = 0, godownType = '
                       !locationId
                         ? 'Select location first'
                         : loadingTrays
-                          ? 'Loading trays…'
-                          : 'Select tray'
+                          ? 'Loading bins…'
+                          : 'Select bin'
                     }
                     isSearchable
                     disabled={!locationId || loadingTrays}

@@ -1,7 +1,7 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import saleOrderStatusService from './saleOrderStatusService.js';
-import { INVENTORY_QUEUE_STATUSES } from '../constants/saleOrderStatus.js';
+import { INVENTORY_QUEUE_STATUSES, LIVE_TRACKING_STATUSES } from '../constants/saleOrderStatus.js';
 import InventoryService from './inventory.service.js';
 import SaleOrderService from './saleOrderService.js';
 import {
@@ -9,6 +9,9 @@ import {
   softAllocateOrder,
   resolvePoEyes,
 } from './softAllocationHelper.js';
+import { assertFreeLensApprovedForFulfillment } from '../utils/freeLensApproval.js';
+import { buildSaleOrderTextSearchOr } from '../utils/saleOrderSearch.js';
+import { resolveAutoInwardLocationAndBin } from '../utils/autoInwardBin.js';
 
 const inventoryService = new InventoryService();
 const saleOrderService = new SaleOrderService();
@@ -407,6 +410,8 @@ export class SaleOrderWorkflowService {
       });
       if (!so) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
 
+      assertFreeLensApprovedForFulfillment(so);
+
       const allowedFrom = ['DRAFT', 'PO_CANCELLED'];
       if (!allowedFrom.includes(so.status)) {
         throw new APIError(`Cannot raise PO from status ${so.status}`, 400, 'INVALID_STATUS');
@@ -580,6 +585,7 @@ export class SaleOrderWorkflowService {
       });
       const po = await tx.purchaseOrder.findUnique({ where: { id: poId, deleteStatus: false } });
       if (!so || !po) throw new APIError('Sale order or PO not found', 404, 'NOT_FOUND');
+      assertFreeLensApprovedForFulfillment(so);
       if (po.saleOrderId) throw new APIError('PO is already linked to a sale order', 400, 'PO_LINKED');
       if (po.orderType !== 'Single') throw new APIError('Only Single PO can be linked', 400, 'INVALID_PO_TYPE');
       if (po.status !== 'DRAFT') throw new APIError('Only DRAFT PO can be linked', 400, 'INVALID_PO_STATUS');
@@ -656,6 +662,7 @@ export class SaleOrderWorkflowService {
     rightItemId = null,
     leftItemId = null,
     isAlternate = false,
+    locationTrayId = null,
   } = {}) {
     return prisma.$transaction(async (tx) => {
       const so = await tx.saleOrder.findUnique({
@@ -667,6 +674,25 @@ export class SaleOrderWorkflowService {
         },
       });
       if (!so) throw new APIError('Sale order not found', 404, 'ORDER_NOT_FOUND');
+
+      assertFreeLensApprovedForFulfillment(so);
+
+      const parsedLocationTrayId = locationTrayId != null
+        ? parseInt(locationTrayId, 10)
+        : null;
+      if (!parsedLocationTrayId || Number.isNaN(parsedLocationTrayId)) {
+        throw new APIError('Tray is required', 400, 'LOCATION_TRAY_REQUIRED');
+      }
+      const locationTray = await tx.locationTrayMaster.findFirst({
+        where: {
+          id: parsedLocationTrayId,
+          deleteStatus: false,
+          activeStatus: true,
+        },
+      });
+      if (!locationTray) {
+        throw new APIError('Invalid or inactive tray', 400, 'INVALID_LOCATION_TRAY');
+      }
 
       const allowedFrom = ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED'];
       if (!allowedFrom.includes(so.status)) {
@@ -805,20 +831,10 @@ export class SaleOrderWorkflowService {
                 throw new APIError('Receipt has no pending inward quantity', 400, 'NO_PENDING_QTY');
               }
 
-              // 2. Find a location/tray matching SO godown (RX vs STOCK)
+              // 2. Find a location/bin (TrayMaster). Destination LocationTray is recorded on the SO only.
               const preferredGodown =
                 so.procurementType === 'STOCK' ? 'STOCK' : 'RX';
-              let location = await tx.locationMaster.findFirst({
-                where: { deleteStatus: false, godownType: preferredGodown },
-              });
-              if (!location) {
-                location = await tx.locationMaster.findFirst({
-                  where: { deleteStatus: false },
-                });
-              }
-              if (!location) throw new APIError('No location found for auto-inward', 400, 'NO_LOCATION_FOUND');
-              const tray = await tx.trayMaster.findFirst({ where: { location_id: location.id, deleteStatus: false } });
-              if (!tray) throw new APIError('No tray found for auto-inward', 400, 'NO_TRAY_FOUND');
+              const { location, tray } = await resolveAutoInwardLocationAndBin(tx, preferredGodown);
 
               // 3. Create the InventoryItem on the fly — stamp only the issued
               // eye's powers/flags so Stock Summary does not coalesce to the other eye.
@@ -868,7 +884,7 @@ export class SaleOrderWorkflowService {
                 fitting_id: so.fitting_id,
                 tinting_id: so.tinting_id,
                 location_id: location.id,
-                tray_id: tray.id,
+                tray_id: tray?.id ?? null,
                 quantity: 1, // we only issue 1 unit per eye
                 costPrice: receipt.unitPrice || 0,
                 batchNo: receipt.receiptNumber,
@@ -960,7 +976,11 @@ export class SaleOrderWorkflowService {
         remark: alternateLensNote || 'Stock issued to Pre-QC station',
         source: 'INVENTORY',
         // M2: only ever sets alternateLensNote — never lens_id/coating_id/category_id/pricing.
-        extraOrderData: alternateLensNote ? { alternateLensNote } : {},
+        // Persist destination Tray on SO; do not move inventory Bin (tray_id).
+        extraOrderData: {
+          locationTrayId: parsedLocationTrayId,
+          ...(alternateLensNote ? { alternateLensNote } : {}),
+        },
       });
     });
   }
@@ -1000,6 +1020,92 @@ export class SaleOrderWorkflowService {
 
   requiredPoQty(order) {
     return requiredPoQty(order);
+  }
+
+  /**
+   * Live Tracking Kanban — Pre-QC, Fitting, Post-QC, Ready for Dispatch.
+   * GET /api/sale-orders/live-tracking
+   */
+  async getLiveTracking({ search } = {}) {
+    const where = {
+      deleteStatus: false,
+      status: { in: LIVE_TRACKING_STATUSES },
+    };
+
+    if (search?.trim()) {
+      const searchOr = buildSaleOrderTextSearchOr(search);
+      if (searchOr) where.OR = searchOr;
+    }
+
+    const orders = await prisma.saleOrder.findMany({
+      where,
+      orderBy: [{ urgentOrder: 'desc' }, { updatedAt: 'asc' }],
+      include: {
+        customer: { select: { id: true, code: true, name: true, shopname: true } },
+        lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+        lensType: { select: { id: true, name: true } },
+        coating: { select: { id: true, name: true, short_name: true } },
+        category: { select: { id: true, name: true } },
+        statusLogs: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 8,
+          include: {
+            createdByUser: { select: { id: true, name: true, username: true } },
+          },
+        },
+      },
+    });
+
+    const now = Date.now();
+    const data = orders.map((order) => {
+      const stageEntry =
+        (order.statusLogs || []).find((log) => log.toStatus === order.status) || null;
+      const stageEnteredAt = stageEntry?.createdAt || order.updatedAt;
+      const timeInStageMs = Math.max(0, now - new Date(stageEnteredAt).getTime());
+
+      return {
+        id: order.id,
+        orderNo: order.orderNo,
+        status: order.status,
+        urgentOrder: Boolean(order.urgentOrder),
+        orderDate: order.orderDate,
+        updatedAt: order.updatedAt,
+        customerRefNo: order.customerRefNo,
+        itemRefNo: order.itemRefNo,
+        mrdRefNo: order.mrdRefNo,
+        customer: order.customer,
+        lensProduct: order.lensProduct,
+        lensType: order.lensType,
+        coating: order.coating,
+        category: order.category,
+        rightEye: Boolean(order.rightEye),
+        leftEye: Boolean(order.leftEye),
+        type: order.type,
+        procurementType: order.procurementType,
+        stageEnteredAt,
+        timeInStageMs,
+        recentStatusLogs: (order.statusLogs || []).slice(0, 5).map((log) => ({
+          id: log.id,
+          fromStatus: log.fromStatus,
+          toStatus: log.toStatus,
+          remark: log.remark,
+          createdAt: log.createdAt,
+          createdByUser: log.createdByUser,
+        })),
+      };
+    });
+
+    const counts = {
+      preQc: data.filter((o) => o.status === 'PRE_QC').length,
+      fitting: data.filter((o) =>
+        ['FITTING_READY', 'IN_FITTING', 'ON_HOLD'].includes(o.status)
+      ).length,
+      postQc: data.filter((o) => o.status === 'AWAITING_QUALITY').length,
+      readyForDispatch: data.filter((o) => o.status === 'READY_FOR_DISPATCH').length,
+      total: data.length,
+    };
+
+    return { data, counts };
   }
 }
 

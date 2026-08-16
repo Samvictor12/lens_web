@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, ChevronDown, GitBranch, Receipt, Tag as LabelIcon, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, GitBranch, Tag as LabelIcon, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
+// ChevronDown, Receipt — were used by header action dropdowns (commented out)
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getApplicableOffers } from "@/services/lensOffers";
 import { apiClient } from "@/services/apiClient";
@@ -33,6 +34,8 @@ import {
     previewStockAvailability,
     closeAndCreateSaleOrder,
     raisePoFromSo,
+    approveFreeLens,
+    rejectFreeLens,
     confirmSoReset,
     cancelSaleOrder,
     getCustomersDropdown,
@@ -64,12 +67,45 @@ import {
     buildDefaultDeliverySchedule,
     cylRequiresAxis,
     hasAxisEntry,
+    FREE_LENS_APPROVAL,
+    freeLensApprovalBadgeStyles,
+    isFreeLensFulfillmentAllowed,
 } from "./SaleOrder.constants";
-import { STATUS_LABELS } from "@/constants/saleOrderStatus";
+import { STATUS_LABELS, procurementBadgeStyles } from "@/constants/saleOrderStatus";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { check } from "express-validator";
 import { checkCreditLimit } from "../../services/saleOrder";
+import { getCurrentUser } from "@/services/auth";
 import { set } from "zod";
+
+function formatEyeSpecLine(prefix, order) {
+    const parts = [];
+    const sph = order?.[`${prefix}Spherical`];
+    const cyl = order?.[`${prefix}Cylindrical`];
+    const axis = order?.[`${prefix}Axis`];
+    const add = order?.[`${prefix}Add`];
+    const dia = order?.[`${prefix}Dia`];
+    if (sph !== null && sph !== undefined && sph !== "") parts.push(`SPH ${sph}`);
+    if (cyl !== null && cyl !== undefined && cyl !== "") parts.push(`CYL ${cyl}`);
+    if (axis !== null && axis !== undefined && axis !== "") parts.push(`AX ${axis}`);
+    if (add !== null && add !== undefined && add !== "") parts.push(`ADD ${add}`);
+    if (dia !== null && dia !== undefined && dia !== "") parts.push(`DIA ${dia}`);
+    return parts.length ? parts.join(" ") : "";
+}
+
+function formatRecentOrderLensSpec(order) {
+    if (!order) return "—";
+    const lines = [];
+    if (order.rightEye) {
+        const right = formatEyeSpecLine("right", order);
+        lines.push(right ? `R: ${right}` : "R: —");
+    }
+    if (order.leftEye) {
+        const left = formatEyeSpecLine("left", order);
+        lines.push(left ? `L: ${left}` : "L: —");
+    }
+    return lines.length ? lines.join(" | ") : "—";
+}
 
 export default function SaleOrderForm() {
     const navigate = useNavigate();
@@ -92,13 +128,24 @@ export default function SaleOrderForm() {
     }, [customerCreditLimit]);
 
     // Collapse any in-progress add/edit state to read-only once the customer hits their limit.
+    // Non-DRAFT orders are always read-only (Edit only allowed for Draft).
     useEffect(() => {
         if (isCreditBlocked) {
             setIsEditing(false);
-        } else if (mode === "add" || mode === "edit") {
+            return;
+        }
+        if (mode === "add") {
+            setIsEditing(true);
+            return;
+        }
+        if (formData.status && formData.status !== "DRAFT") {
+            setIsEditing(false);
+            return;
+        }
+        if (mode === "edit" && formData.status === "DRAFT") {
             setIsEditing(true);
         }
-    }, [isCreditBlocked]);
+    }, [isCreditBlocked, mode, formData.status]);
     const [priceBreakdown, setPriceBreakdown] = useState(null);
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
@@ -121,13 +168,13 @@ export default function SaleOrderForm() {
     // Available stock preview (after Calculate Price)
     const [stockAvailability, setStockAvailability] = useState(null);
 
-    // Dropdown open states for split buttons
-    const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
-    const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
+    // Dropdown open states for split buttons — removed; kept for easy restore
+    // const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+    // const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
     const [isRaisePoModalOpen, setIsRaisePoModalOpen] = useState(false);
     const [raisePoModalMode, setRaisePoModalMode] = useState("raise");
-    const addDropdownRef = useRef(null);
-    const viewDropdownRef = useRef(null);
+    // const addDropdownRef = useRef(null);
+    // const viewDropdownRef = useRef(null);
 
     // Master data states
     const [customers, setCustomers] = useState([]);
@@ -565,6 +612,20 @@ export default function SaleOrderForm() {
                     document.title = `${order.orderNo} - View Sale Order`
                     console.log("Field Order", order);
                     checkCustomerCreditLimit(order.customerId);
+
+                    // Edit only allowed for Draft — force view for any other status
+                    if (order.status !== "DRAFT") {
+                        setIsEditing(false);
+                        if (mode === "edit") {
+                            navigate(`/sales/orders/view/${id}`, { replace: true });
+                            return;
+                        }
+                    } else if (mode === "edit") {
+                        setIsEditing(true);
+                        document.title = `${order.orderNo} - Edit Sale Order`;
+                    } else {
+                        setIsEditing(false);
+                    }
 
                     // Ensure the applied offer (if any) is visible even if it has expired/been deleted
                     if (order.offer_id && order.offer) {
@@ -1060,6 +1121,46 @@ export default function SaleOrderForm() {
     };
 
     const handleSelectChange = (name, value) => {
+        // Free Lens toggle: immediately reflect pending approval in UI (saved as PENDING on create/update)
+        if (name === "freeLens") {
+            const checked = Boolean(value);
+            setFormData((prev) => {
+                if (!checked) {
+                    return {
+                        ...prev,
+                        freeLens: false,
+                        freeLensApprovalStatus: null,
+                        freeLensApprovedBy: null,
+                        freeLensApprovedAt: null,
+                        freeLensRejectedBy: null,
+                        freeLensRejectedAt: null,
+                        freeLensApprovalRemark: null,
+                        freeLensApprovedByUser: null,
+                        freeLensRejectedByUser: null,
+                    };
+                }
+                const keepApproved =
+                    prev.freeLens &&
+                    prev.freeLensApprovalStatus === FREE_LENS_APPROVAL.APPROVED;
+                if (keepApproved) {
+                    return { ...prev, freeLens: true };
+                }
+                return {
+                    ...prev,
+                    freeLens: true,
+                    freeLensApprovalStatus: FREE_LENS_APPROVAL.PENDING,
+                    freeLensApprovedBy: null,
+                    freeLensApprovedAt: null,
+                    freeLensRejectedBy: null,
+                    freeLensRejectedAt: null,
+                    freeLensApprovalRemark: null,
+                    freeLensApprovedByUser: null,
+                    freeLensRejectedByUser: null,
+                };
+            });
+            return;
+        }
+
         // When Type or Category changes, clear lens_id, coating_id and related price fields
         if (name === "Type_id" || name === "category_id") {
             setPriceBreakdown(null);
@@ -1547,6 +1648,15 @@ export default function SaleOrderForm() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        if (mode !== "add" && formData.status !== "DRAFT") {
+            toast({
+                title: "Cannot edit",
+                description: "Only Draft sale orders can be edited.",
+                variant: "destructive",
+            });
+            return;
+        }
+
         // Require price to be calculated before submitting
         if (!priceBreakdown) {
             toast({
@@ -1646,14 +1756,25 @@ export default function SaleOrderForm() {
 
     const toggleEdit = () => {
         if (isEditing) {
-
             setFormData(originalData);
             setErrors({});
+            setIsEditing(false);
+            document.title = `${formData.orderNo} - View Sale Order`;
+            return;
         }
 
-        setIsEditing(!isEditing);
+        // Only Draft orders can enter edit mode
+        if (formData.status !== "DRAFT") {
+            toast({
+                title: "Cannot edit",
+                description: "Only Draft sale orders can be edited.",
+                variant: "destructive",
+            });
+            return;
+        }
 
-        document.title = isEditing ? `${formData.orderNo} - View Sale Order` : `${formData.orderNo} - Edit Sale Order`;
+        setIsEditing(true);
+        document.title = `${formData.orderNo} - Edit Sale Order`;
     };
 
     const getStatusActionButton = () => {
@@ -1844,12 +1965,33 @@ export default function SaleOrderForm() {
                 ["DRAFT", "PO_PARTIAL_RECEIVED"].includes(p.status)
         );
 
-    const canRaisePo =
+    const canRaisePoBase =
         mode === "view" &&
         !isEditing &&
         formData.id &&
         ["DRAFT", "PO_CANCELLED"].includes(formData.status) &&
         !hasActiveLinkedPo(formData);
+
+    const canRaisePo = canRaisePoBase && isFreeLensFulfillmentAllowed(formData);
+
+    const currentUser = getCurrentUser();
+    const isAdminUser =
+        String(currentUser?.roleName || currentUser?.role?.name || "").toLowerCase() === "admin" ||
+        String(currentUser?.role_id || currentUser?.roleId || "") === "1";
+
+    const canApproveFreeLens =
+        mode === "view" &&
+        !isEditing &&
+        formData.freeLens &&
+        isAdminUser &&
+        formData.freeLensApprovalStatus !== FREE_LENS_APPROVAL.APPROVED;
+
+    const canRejectFreeLens =
+        mode === "view" &&
+        !isEditing &&
+        formData.freeLens &&
+        isAdminUser &&
+        formData.freeLensApprovalStatus !== FREE_LENS_APPROVAL.REJECTED;
 
     const canCancelSo =
         mode === "view" &&
@@ -1940,9 +2082,66 @@ export default function SaleOrderForm() {
     };
 
     const openRaisePoModal = (modalMode) => {
+        if (formData.freeLens && !isFreeLensFulfillmentAllowed(formData) && modalMode !== "create") {
+            toast({
+                title: "Free Lens approval required",
+                description: "Admin must approve Free Lens before Raise PO.",
+                variant: "destructive",
+            });
+            return;
+        }
         if (!validateBeforeRaisePo()) return;
         setRaisePoModalMode(modalMode);
         setIsRaisePoModalOpen(true);
+    };
+
+    const refreshSaleOrder = async (orderId = formData.id) => {
+        if (!orderId) return;
+        const refreshResponse = await getSaleOrderById(orderId);
+        if (refreshResponse.success) {
+            setFormData(refreshResponse.data);
+            setOriginalData(refreshResponse.data);
+        }
+    };
+
+    const handleApproveFreeLens = async () => {
+        const remark = window.prompt("Approval remark (optional):") ?? "";
+        try {
+            setIsSaving(true);
+            const res = await approveFreeLens(formData.id, remark.trim() || null);
+            if (res.success) {
+                toast({ title: "Free Lens approved" });
+                await refreshSaleOrder(formData.id);
+            }
+        } catch (e) {
+            toast({
+                title: "Approve failed",
+                description: e.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleRejectFreeLens = async () => {
+        const remark = window.prompt("Rejection remark (optional):") ?? "";
+        try {
+            setIsSaving(true);
+            const res = await rejectFreeLens(formData.id, remark.trim() || null);
+            if (res.success) {
+                toast({ title: "Free Lens rejected" });
+                await refreshSaleOrder(formData.id);
+            }
+        } catch (e) {
+            toast({
+                title: "Reject failed",
+                description: e.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleRaisePoConfirm = async (vendorId, eyes = {}) => {
@@ -1956,6 +2155,16 @@ export default function SaleOrderForm() {
                     throw new Error(response.message || "Failed to create sale order");
                 }
                 soId = response.data.id;
+                // Free Lens creates as PENDING — cannot raise PO until Admin approves
+                if (formData.freeLens) {
+                    setIsRaisePoModalOpen(false);
+                    toast({
+                        title: "Sale order created",
+                        description: "Free Lens is pending Admin approval. Raise PO after approval.",
+                    });
+                    window.location.assign(`/sales/orders/view/${soId}`);
+                    return;
+                }
             } else if (isEditing) {
                 const response = await updateSaleOrder(parseInt(id, 10), buildSubmitData());
                 if (!response.success) {
@@ -2012,9 +2221,33 @@ export default function SaleOrderForm() {
     };
 
     // Create and Raise PO Handler
-    const handleCreateAndRaisePO = (e) => {
+    const handleCreateAndRaisePO = async (e) => {
         e?.preventDefault();
-        setIsAddDropdownOpen(false);
+        // Free Lens: create only — Raise PO blocked until Admin approval
+        if (formData.freeLens) {
+            if (!validateBeforeRaisePo()) return;
+            try {
+                setIsSaving(true);
+                const response = await createSaleOrder(buildSubmitData());
+                if (!response.success) {
+                    throw new Error(response.message || "Failed to create sale order");
+                }
+                toast({
+                    title: "Sale order created",
+                    description: "Free Lens is pending Admin approval. Raise PO after approval.",
+                });
+                navigate(`/sales/orders/view/${response.data.id}`);
+            } catch (error) {
+                toast({
+                    title: "Create failed",
+                    description: error.message,
+                    variant: "destructive",
+                });
+            } finally {
+                setIsSaving(false);
+            }
+            return;
+        }
         openRaisePoModal("create");
     };
 
@@ -2156,7 +2389,7 @@ export default function SaleOrderForm() {
     // Print Barcode Label via local print service
     const [isPrintingLabel, setIsPrintingLabel] = useState(false);
     const handlePrintLabel = async () => {
-        setIsViewDropdownOpen(false);
+        // setIsViewDropdownOpen(false);
         setIsPrintingLabel(true);
         try {
             const health = await checkPrintServiceHealth();
@@ -2232,23 +2465,23 @@ export default function SaleOrderForm() {
 
     const statusActionButton = mode === "view" ? getStatusActionButton() : null;
 
-    // Close dropdowns when clicking outside
-    useEffect(() => {
-        const handleOutsideClick = (e) => {
-            if (addDropdownRef.current && !addDropdownRef.current.contains(e.target)) {
-                setIsAddDropdownOpen(false);
-            }
-            if (viewDropdownRef.current && !viewDropdownRef.current.contains(e.target)) {
-                setIsViewDropdownOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleOutsideClick);
-        return () => document.removeEventListener("mousedown", handleOutsideClick);
-    }, []);
+    // Close dropdowns when clicking outside — dropdowns removed; kept for easy restore
+    // useEffect(() => {
+    //     const handleOutsideClick = (e) => {
+    //         if (addDropdownRef.current && !addDropdownRef.current.contains(e.target)) {
+    //             setIsAddDropdownOpen(false);
+    //         }
+    //         if (viewDropdownRef.current && !viewDropdownRef.current.contains(e.target)) {
+    //             setIsViewDropdownOpen(false);
+    //         }
+    //     };
+    //     document.addEventListener("mousedown", handleOutsideClick);
+    //     return () => document.removeEventListener("mousedown", handleOutsideClick);
+    // }, []);
 
     // Close & Create SO Handler
     const handleCloseAndCreateSO = async () => {
-        setIsViewDropdownOpen(false);
+        // setIsViewDropdownOpen(false);
         if (!formData.id) return;
 
         if (!window.confirm(`This will close Sale Order "${formData.orderNo}" and create a new duplicate order. Continue?`)) return;
@@ -2378,7 +2611,7 @@ export default function SaleOrderForm() {
                     </p>
                 </div>
 
-                <div className="flex max-sm:flex-col items-center gap-2">
+                <div className="flex max-sm:flex-col flex-wrap items-center justify-end gap-2">
                     <Button
                         type="button"
                         variant="outline"
@@ -2391,15 +2624,45 @@ export default function SaleOrderForm() {
                         Close
                     </Button>
 
-                    {canRaisePo && (
+                    {canRaisePoBase && (
                         <Button
                             size="xs"
                             className="h-8 gap-1.5"
                             onClick={() => openRaisePoModal("raise")}
-                            disabled={isSaving}
+                            disabled={isSaving || !canRaisePo}
+                            title={
+                                !canRaisePo
+                                    ? "Free Lens requires Admin approval before Raise PO"
+                                    : undefined
+                            }
                         >
                             <Package className="h-3.5 w-3.5" />
                             Raise PO
+                        </Button>
+                    )}
+
+                    {canApproveFreeLens && (
+                        <Button
+                            size="xs"
+                            className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                            onClick={handleApproveFreeLens}
+                            disabled={isSaving}
+                        >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Approve Free Lens
+                        </Button>
+                    )}
+
+                    {canRejectFreeLens && (
+                        <Button
+                            size="xs"
+                            variant="destructive"
+                            className="h-8 gap-1.5"
+                            onClick={handleRejectFreeLens}
+                            disabled={isSaving}
+                        >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Reject Free Lens
                         </Button>
                     )}
 
@@ -2427,7 +2690,63 @@ export default function SaleOrderForm() {
                             {statusActionButton.label}
                         </Button>
                     )}
-                    {(mode !== "view" || isEditing) && !isCreditBlocked && (
+
+                    {/* Add mode: Create Order + Create & Raise PO + Create & Print (no dropdown) */}
+                    {mode === "add" && !isCreditBlocked && (
+                        <>
+                            <Button
+                                type="submit"
+                                size="xs"
+                                className="h-8 gap-1.5"
+                                onClick={handleSubmit}
+                                disabled={isSaving}
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="h-3.5 w-3.5" />
+                                        Create Order
+                                    </>
+                                )}
+                            </Button>
+                            <Button
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                className="h-8 gap-1.5"
+                                onClick={handleCreateAndRaisePO}
+                                disabled={isSaving || formData.freeLens}
+                                title={
+                                    formData.freeLens
+                                        ? "Free Lens requires Admin approval before Raise PO. Use Create Order, then approve."
+                                        : undefined
+                                }
+                            >
+                                <Package className="h-3.5 w-3.5 text-green-600" />
+                                Create &amp; Raise PO
+                            </Button>
+                            <Button
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                className="h-8 gap-1.5"
+                                onClick={handleCreateAndPrint}
+                                disabled={isSaving}
+                            >
+                                <Printer className="h-3.5 w-3.5 text-blue-600" />
+                                Create &amp; Print
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Edit route or in-place edit: Update Order only (Draft only) */}
+                    {(mode === "edit" || (mode === "view" && isEditing)) &&
+                        formData.status === "DRAFT" &&
+                        !isCreditBlocked && (
                         <Button
                             type="submit"
                             size="xs"
@@ -2443,23 +2762,39 @@ export default function SaleOrderForm() {
                             ) : (
                                 <>
                                     <Save className="h-3.5 w-3.5" />
-                                    {mode === "add" ? "Create Order" : "Update Order"}
+                                    Update Order
                                 </>
                             )}
                         </Button>
                     )}
+
+                    {/* View mode: Edit only for Draft status */}
+                    {mode === "view" && formData.status === "DRAFT" && (
+                        <Button
+                            size="xs"
+                            className="h-8 gap-1.5"
+                            variant={isEditing ? "outline" : "default"}
+                            onClick={toggleEdit}
+                            disabled={isCreditBlocked || isSaving}
+                            title={isCreditBlocked ? "Read-only: customer has reached their credit limit" : undefined}
+                        >
+                            {isEditing ? (
+                                <>
+                                    <X className="h-3.5 w-3.5" />
+                                    Cancel Edit
+                                </>
+                            ) : (
+                                <>
+                                    <Edit className="h-3.5 w-3.5" />
+                                    Edit
+                                </>
+                            )}
+                        </Button>
+                    )}
+
+                    {/* View dropdown removed — actions below commented for easy restore
                     {mode === "view" && (
                         <div className="relative" ref={viewDropdownRef}>
-                            {/* <Button
-                                size="xs"
-                                className="h-8 gap-1.5"
-                                variant="secondary"
-                                onClick={handlePrintOrder}
-                                disabled={isSaving}
-                            >
-                                <Printer className="h-3.5 w-3.5" />
-                                Print
-                            </Button> */}
                             <Button
                                 size="xs"
                                 variant="secondary"
@@ -2471,112 +2806,28 @@ export default function SaleOrderForm() {
                             </Button>
                             {isViewDropdownOpen && (
                                 <div className="absolute right-0 top-full mt-1 z-50 min-w-[190px] rounded-md border bg-popover shadow-md">
-                                    <button
-                                        type="button"
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                                        onClick={() => { setIsViewDropdownOpen(false); handlePrintOrder(); }}
-                                        disabled={isSaving}
-                                    >
-                                        <Printer className="h-3.5 w-3.5" />
-                                        Print Invoice
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                                        onClick={handlePrintLabel}
-                                        disabled={isSaving || isPrintingLabel}
-                                    >
-                                        <Tag className="h-3.5 w-3.5" />
-                                        {isPrintingLabel ? "Printing…" : "Print Label"}
-                                    </button>
+                                    <button type="button" ...>Print Invoice</button>
+                                    <button type="button" ...>Print Label</button>
                                     {!isEditing && formData.status !== "CLOSED" && (
-                                        <button
-                                            type="button"
-                                            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-amber-700 disabled:opacity-50"
-                                            onClick={handleCloseAndCreateSO}
-                                            disabled={isSaving}
-                                        >
-                                            <GitBranch className="h-3.5 w-3.5" />
-                                            Close &amp; Create SO
-                                        </button>
+                                        <button type="button" ...>Close & Create SO</button>
                                     )}
                                     {!isEditing && (formData.status === "DELIVERED" || formData.status === "BILLED") && (
-                                        <button
-                                            type="button"
-                                            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-indigo-700 disabled:opacity-50"
-                                            onClick={() => { setIsViewDropdownOpen(false); navigate("/billing"); }}
-                                            disabled={isSaving}
-                                        >
-                                            <Receipt className="h-3.5 w-3.5" />
-                                            Go to Billing
-                                        </button>
-                                    )}
-                                    {mode === "view" && (
-                                        <Button
-                                            size="xs"
-                                            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-indigo-700 disabled:opacity-50"
-                                            variant={isEditing ? "outline" : "default"}
-                                            onClick={toggleEdit}
-                                            disabled={isCreditBlocked}
-                                            title={isCreditBlocked ? "Read-only: customer has reached their credit limit" : undefined}
-                                        >
-                                            {isEditing ? (
-                                                <>
-                                                    <X className="h-3.5 w-3.5" />
-                                                    Cancel Edit
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                    Edit
-                                                </>
-                                            )}
-                                        </Button>
+                                        <button type="button" ...>Go to Billing</button>
                                     )}
                                 </div>
                             )}
                         </div>
                     )}
+                    */}
 
-
-
-
+                    {/* Add dropdown removed — Create & Raise PO / Create & Print are visible buttons above
                     {(mode === "add") && (
                         <div className="relative" ref={addDropdownRef}>
-                            <Button
-                                type="button"
-                                size="xs"
-                                variant="outline"
-                                className="h-8 px-2"
-                                onClick={() => setIsAddDropdownOpen((o) => !o)}
-                                disabled={isSaving}
-                            >
-                                <ChevronDown className="h-3.5 w-3.5" />
-                            </Button>
-                            {isAddDropdownOpen && (
-                                <div className="absolute right-0 top-full mt-1 z-50 min-w-[170px] rounded-md border bg-popover shadow-md">
-                                    <button
-                                        type="button"
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                                        onClick={() => { setIsAddDropdownOpen(false); handleCreateAndRaisePO(); }}
-                                        disabled={isSaving}
-                                    >
-                                        <Package className="h-3.5 w-3.5 text-green-600" />
-                                        Create &amp; Raise PO
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                                        onClick={() => { setIsAddDropdownOpen(false); handleCreateAndPrint(); }}
-                                        disabled={isSaving}
-                                    >
-                                        <Printer className="h-3.5 w-3.5 text-blue-600" />
-                                        Create &amp; Print
-                                    </button>
-                                </div>
-                            )}
+                            <Button ...><ChevronDown /></Button>
+                            {isAddDropdownOpen && (...)}
                         </div>
                     )}
+                    */}
                 </div>
             </div>
 
@@ -2586,6 +2837,31 @@ export default function SaleOrderForm() {
                         <Tag className="h-4 w-4 text-violet-600" />
                         <AlertDescription className="text-violet-900 font-medium">
                             {formData.alternateLensNote}
+                        </AlertDescription>
+                    </Alert>
+                </div>
+            )}
+
+            {formData.freeLens && !isFreeLensFulfillmentAllowed(formData) && (
+                <div className="mb-4">
+                    <Alert
+                        className={
+                            formData.freeLensApprovalStatus === FREE_LENS_APPROVAL.REJECTED
+                                ? "border-red-300 bg-red-50 text-red-900"
+                                : "border-amber-300 bg-amber-50 text-amber-950"
+                        }
+                    >
+                        <AlertTriangle
+                            className={`h-4 w-4 ${
+                                formData.freeLensApprovalStatus === FREE_LENS_APPROVAL.REJECTED
+                                    ? "text-red-600"
+                                    : "text-amber-600"
+                            }`}
+                        />
+                        <AlertDescription className="font-medium">
+                            {formData.freeLensApprovalStatus === FREE_LENS_APPROVAL.REJECTED
+                                ? "Free Lens was rejected. Uncheck Free Lens (edit Draft) or get Admin approval before Raise PO / Issue."
+                                : "Free Lens requires Admin approval. Raise PO and Inventory Issue stay disabled until approved."}
                         </AlertDescription>
                     </Alert>
                 </div>
@@ -2687,9 +2963,9 @@ export default function SaleOrderForm() {
 
                         <FormInput
                             singleLine={true} label="Delivery Schedule"
-                            type="datetime-local"
+                            type="date"
                             name="deliverySchedule"
-                            value={formData.deliverySchedule ? new Date(formData.deliverySchedule).toISOString().slice(0, 16) : ""}
+                            value={formData.deliverySchedule ? new Date(formData.deliverySchedule).toISOString().split("T")[0] : ""}
                             onChange={handleChange}
                             disabled={!isEditing}
                         />
@@ -2788,6 +3064,38 @@ export default function SaleOrderForm() {
                                 </label>
                             ))}
                         </div>
+                        {formData.freeLens && (formData.freeLensApprovalStatus || mode === "add") && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Free Lens approval</span>
+                                <Badge
+                                    variant="outline"
+                                    className={`text-[10px] border ${
+                                        freeLensApprovalBadgeStyles[
+                                            formData.freeLensApprovalStatus || FREE_LENS_APPROVAL.PENDING
+                                        ] || ""
+                                    }`}
+                                >
+                                    {formData.freeLensApprovalStatus || FREE_LENS_APPROVAL.PENDING}
+                                </Badge>
+                                {formData.freeLensApprovalStatus === FREE_LENS_APPROVAL.APPROVED &&
+                                    formData.freeLensApprovedByUser?.name && (
+                                        <span className="text-muted-foreground">
+                                            by {formData.freeLensApprovedByUser.name}
+                                        </span>
+                                    )}
+                                {formData.freeLensApprovalStatus === FREE_LENS_APPROVAL.REJECTED &&
+                                    formData.freeLensRejectedByUser?.name && (
+                                        <span className="text-muted-foreground">
+                                            by {formData.freeLensRejectedByUser.name}
+                                        </span>
+                                    )}
+                                {formData.freeLensApprovalRemark && (
+                                    <span className="text-muted-foreground italic">
+                                        — {formData.freeLensApprovalRemark}
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
                         {/* Available Offers / Selected Offer */}
                         {(() => {
@@ -3124,7 +3432,7 @@ export default function SaleOrderForm() {
                     </Card>
 
                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between gap-3">
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
                             <div className="flex gap-2 items-center">
                                 <CardTitle className="text-base">Eye Specifications</CardTitle>
                                 <div
@@ -3317,7 +3625,7 @@ export default function SaleOrderForm() {
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardHeader className="items-center justify-between"    >
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
                             <CardTitle className="text-base">Pricing Information</CardTitle>
                             {isEditing && formData.status === "DRAFT" && <Button
                                 type="button"
@@ -3604,35 +3912,85 @@ export default function SaleOrderForm() {
 
                     {mode === "add" && formData.customerId && (
                         <Card>
-                            <CardHeader className="py-3">
-                                <CardTitle className="text-base">Recent Orders</CardTitle>
+                            <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    Recent Orders
+                                    {!isLoadingRecentOrders && (
+                                        <Badge variant="secondary" className="text-xs font-normal">
+                                            {recentOrders.length === 0
+                                                ? "No active orders"
+                                                : recentOrders.length === 1
+                                                    ? "1 active order"
+                                                    : `${recentOrders.length} active orders`}
+                                        </Badge>
+                                    )}
+                                </CardTitle>
                             </CardHeader>
-                            <CardContent className="pt-0">
+                            <CardContent>
                                 {isLoadingRecentOrders ? (
-                                    <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                                    <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-muted-foreground">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading recent orders…
                                     </div>
                                 ) : recentOrders.length === 0 ? (
-                                    <p className="py-6 text-center text-sm text-muted-foreground">
+                                    <p className="py-6 text-center text-[12px] text-muted-foreground">
                                         No active orders for this customer.
                                     </p>
                                 ) : (
-                                    <div className="max-h-56 overflow-y-auto border rounded-md">
-                                        <table className="w-full text-sm">
-                                            <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
-                                                <tr className="text-left text-xs text-muted-foreground">
-                                                    <th className="px-3 py-2 font-medium">Order No</th>
-                                                    <th className="px-3 py-2 font-medium">Date</th>
-                                                    <th className="px-3 py-2 font-medium">Status</th>
+                                    <div className="border rounded-md overflow-x-auto">
+                                        <table className="w-full text-[12px] min-w-[900px]">
+                                            <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm z-10">
+                                                <tr className="text-left text-[10px] text-muted-foreground">
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Order No</th>
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Lens Name</th>
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Type</th>
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Category</th>
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Coating</th>
+                                                    {/* <th className="px-3 py-2 font-medium whitespace-nowrap">Lens Spec</th> */}
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Date</th>
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {recentOrders.map((order) => (
-                                                    <tr key={order.id} className="border-t">
+                                                    <tr key={order.id} className="border-t align-top">
                                                         <td className="px-3 py-1.5 font-medium whitespace-nowrap">
                                                             {order.orderNo}
                                                         </td>
+                                                        <td className="px-3 py-1.5 whitespace-nowrap">
+                                                            {order.lensProduct?.lens_name
+                                                                ? `${order.lensProduct.lens_name}${
+                                                                    order.lensProduct.index?.index_name
+                                                                        ? ` [${order.lensProduct.index.index_name}]`
+                                                                        : ""
+                                                                }`
+                                                                : "—"}
+                                                        </td>
+                                                        <td className="px-3 py-1.5 whitespace-nowrap">
+                                                            {order.lensType?.name ? (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`text-3xs border ${
+                                                                        procurementBadgeStyles[
+                                                                            String(order.lensType.name).trim().toUpperCase()
+                                                                        ] || "bg-slate-100 text-slate-800 border-slate-200"
+                                                                    }`}
+                                                                >
+                                                                    {order.lensType.name}
+                                                                </Badge>
+                                                            ) : (
+                                                                "—"
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
+                                                            {order.category?.name || "—"}
+                                                        </td>
+                                                        <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
+                                                            {order.coating?.name || "—"}
+                                                        </td>
+                                                        {/* <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap font-mono">
+                                                            {formatRecentOrderLensSpec(order)}
+                                                        </td> */}
                                                         <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
                                                             {order.orderDate
                                                                 ? new Date(order.orderDate).toLocaleDateString("en-IN")
@@ -3720,7 +4078,7 @@ export default function SaleOrderForm() {
                                                     <th className="p-3 w-12 text-center">Select</th>
                                                     <th className="p-3">Inward Date (FIFO)</th>
                                                     <th className="p-3">Source</th>
-                                                    <th className="p-3">Tray</th>
+                                                    <th className="p-3">Bin</th>
                                                     <th className="p-3">Location</th>
                                                     <th className="p-3 text-right">Available Qty</th>
                                                     <th className="p-3 text-right">Cost Price</th>
@@ -3833,7 +4191,7 @@ export default function SaleOrderForm() {
                                                     <th className="p-3 w-12 text-center">Select</th>
                                                     <th className="p-3">Inward Date (FIFO)</th>
                                                      <th className="p-3">Source</th>
-                                                    <th className="p-3">Tray</th>
+                                                    <th className="p-3">Bin</th>
                                                     <th className="p-3">Location</th>
                                                     <th className="p-3 text-right">Available Qty</th>
                                                     <th className="p-3 text-right">Cost Price</th>

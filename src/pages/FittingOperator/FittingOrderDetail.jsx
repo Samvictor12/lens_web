@@ -156,8 +156,14 @@ function ActionBar({ order, onStatusChange, isUpdating }) {
   );
 }
 
-export default function FittingOrderDetail() {
-  const { id } = useParams();
+export default function FittingOrderDetail({
+  orderId: orderIdProp,
+  onBack,
+  onCompleted,
+  listPath = "/fitting/operator",
+}) {
+  const params = useParams();
+  const id = orderIdProp != null ? String(orderIdProp) : params.id;
   const navigate = useNavigate();
   const { toast } = useToast();
   const [order, setOrder] = useState(null);
@@ -165,7 +171,18 @@ export default function FittingOrderDetail() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState(null);
 
+  const goBack = () => {
+    if (onBack) onBack();
+    else navigate(-1);
+  };
+
+  const goDone = () => {
+    if (onCompleted) onCompleted();
+    else navigate(listPath);
+  };
+
   const fetchOrder = async () => {
+    if (!id) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -187,11 +204,6 @@ export default function FittingOrderDetail() {
   }, [id]);
 
   const handleStatusChange = async (newStatus) => {
-    const labels = {
-      IN_FITTING: "Start Fitting",
-      ON_HOLD: "Hold",
-      READY_FOR_DISPATCH: "Complete",
-    };
     const confirmed = window.confirm(
       `Are you sure you want to mark this order as "${STATUS_LABELS[newStatus]}"?`
     );
@@ -203,9 +215,9 @@ export default function FittingOrderDetail() {
       if (response.success) {
         toast({ title: `Order marked as ${STATUS_LABELS[newStatus]}` });
         setOrder(response.data);
-        // If completed, go back to fitting list
+        // If completed, go back to fitting list / host
         if (newStatus === "AWAITING_QUALITY") {
-          navigate("/fitting/operator");
+          goDone();
         }
       }
     } catch (err) {
@@ -262,7 +274,7 @@ export default function FittingOrderDetail() {
           variant="ghost"
           size="icon"
           className="shrink-0"
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           aria-label="Back"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -308,6 +320,9 @@ export default function FittingOrderDetail() {
           )}
           <InfoRow label="Patient Ref" value={order.itemRefNo} />
           <InfoRow label="Customer Ref No" value={order.customerRefNo} />
+          {order.locationTray?.name && (
+            <InfoRow label="Tray" value={order.locationTray.name} />
+          )}
           {order.remark && <InfoRow label="Remark" value={order.remark} />}
         </SectionCard>
 

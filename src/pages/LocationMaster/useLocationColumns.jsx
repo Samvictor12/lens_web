@@ -49,7 +49,7 @@ export const useLocationColumns = (navigate, onDelete) => {
     },
     {
       accessorKey: "trayCount",
-      header: "Trays",
+      header: "Bins",
       sortable: false,
       cell: (location) => (
         <div className="flex items-center gap-1.5">

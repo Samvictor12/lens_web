@@ -65,7 +65,7 @@ export default function InventoryCard({ item, onView, onEdit, onDelete, detailed
             <div className="space-y-1.5 text-sm">
               {[
                 ["Location", item.location?.name],
-                ["Tray", item.tray?.name],
+                ["Bin", item.tray?.name],
                 ["Vendor", item.vendor?.name],
                 ["Batch No", item.batchNo],
                 ["Serial No", item.serialNo],

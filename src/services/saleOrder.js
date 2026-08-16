@@ -12,13 +12,18 @@ export const getSaleOrders = async (
     sortDirection = "desc"
 ) => {
     try {
+        const cleaned = Object.fromEntries(
+            Object.entries(filters || {}).filter(
+                ([, v]) => v !== null && v !== undefined && v !== ""
+            )
+        );
         const params = {
             page,
             limit,
             search,
-            sortBy: sortField,        // Map sortField to sortBy for backend
-            sortOrder: sortDirection,  // Map sortDirection to sortOrder for backend
-            ...filters,
+            sortBy: sortField,
+            sortOrder: sortDirection,
+            ...cleaned,
         };
 
         const response = await apiClient("get", "/sale-orders", { params });
@@ -26,6 +31,42 @@ export const getSaleOrders = async (
     } catch (error) {
         throw new Error(
             error.response?.data?.message || "Failed to fetch sale orders"
+        );
+    }
+};
+
+/**
+ * Sale order list summary cards (filters + search, no pagination)
+ */
+export const getSaleOrderStats = async (search = "", filters = {}) => {
+    try {
+        const cleaned = Object.fromEntries(
+            Object.entries(filters || {}).filter(
+                ([, v]) => v !== null && v !== undefined && v !== ""
+            )
+        );
+        const response = await apiClient("get", "/sale-orders/stats", {
+            params: { search, ...cleaned },
+        });
+        return response;
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch sale order stats"
+        );
+    }
+};
+
+/**
+ * Live Tracking Kanban — Pre-QC / Fitting / Post-QC board
+ */
+export const getLiveTrackingOrders = async ({ search = "" } = {}) => {
+    try {
+        const params = {};
+        if (search) params.search = search;
+        return await apiClient("get", "/sale-orders/live-tracking", { params });
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.message || "Failed to fetch live tracking orders"
         );
     }
 };
@@ -158,6 +199,26 @@ export const raisePoFromSo = async (id, { vendorId, source = "USER", rightEye, l
     }
 };
 
+export const approveFreeLens = async (id, remark = null) => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/approve-free-lens`, {
+            data: { remark },
+        });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to approve Free Lens");
+    }
+};
+
+export const rejectFreeLens = async (id, remark = null) => {
+    try {
+        return await apiClient("post", `/sale-orders/${id}/reject-free-lens`, {
+            data: { remark },
+        });
+    } catch (error) {
+        throw new Error(error.response?.data?.message || "Failed to reject Free Lens");
+    }
+};
+
 export const cancelSaleOrder = async (id, remark) => {
     try {
         return await apiClient("post", `/sale-orders/${id}/cancel`, { data: { remark } });
@@ -190,7 +251,13 @@ export const getInventorySoQueue = async (params = {}) => {
     }
 };
 
-export const issueSoToPreQc = async (id, inventoryItemIds = [], isAlternate = false, eyeItems = {}) => {
+export const issueSoToPreQc = async (
+  id,
+  inventoryItemIds = [],
+  isAlternate = false,
+  eyeItems = {},
+  locationTrayId = null
+) => {
     try {
         return await apiClient("post", `/sale-orders/${id}/issue-to-pre-qc`, {
             data: {
@@ -198,6 +265,7 @@ export const issueSoToPreQc = async (id, inventoryItemIds = [], isAlternate = fa
                 ...(eyeItems.rightItemId != null ? { rightItemId: eyeItems.rightItemId } : {}),
                 ...(eyeItems.leftItemId != null ? { leftItemId: eyeItems.leftItemId } : {}),
                 ...(isAlternate ? { isAlternate: true } : {}),
+                ...(locationTrayId != null ? { locationTrayId } : {}),
             },
         });
     } catch (error) {

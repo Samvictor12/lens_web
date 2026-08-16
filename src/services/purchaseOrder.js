@@ -61,10 +61,42 @@ export const getPurchaseOrders = async (
 };
 
 /**
- * Get purchase order dashboard stats
+ * Get purchase order dashboard stats (list summary cards)
  */
-export const getPurchaseOrderDashboard = async () => {
-  const response = await apiClient("get", `${PURCHASE_ORDER_BASE_URL}/dashboard`);
+export const getPurchaseOrderDashboard = async (search = "", filters = {}) => {
+  const params = {};
+  if (search && search.trim()) {
+    params.search = search.trim();
+  }
+  if (filters) {
+    if (filters.active_status !== "all" && filters.active_status !== undefined) {
+      params.active_status = filters.active_status;
+    }
+    if (filters.status !== null && filters.status !== undefined && filters.status !== "") {
+      params.status = filters.status;
+    }
+    if (filters.vendor_id !== null && filters.vendor_id !== undefined) {
+      params.vendor_id = filters.vendor_id;
+    }
+    if (filters.start_date) {
+      params.start_date = filters.start_date;
+    }
+    if (filters.end_date) {
+      params.end_date = filters.end_date;
+    }
+    if (filters.receive_start_date) {
+      params.receive_start_date = filters.receive_start_date;
+    }
+    if (filters.receive_end_date) {
+      params.receive_end_date = filters.receive_end_date;
+    }
+    if (filters.orderType && filters.orderType !== "all") {
+      params.orderType = filters.orderType;
+    }
+  }
+  const response = await apiClient("get", `${PURCHASE_ORDER_BASE_URL}/dashboard`, {
+    params,
+  });
   return response;
 };
 

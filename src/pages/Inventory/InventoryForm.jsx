@@ -302,12 +302,12 @@ const InventoryForm = ({
               isClearable
             />
             <FormSelect
-              label="Tray"
+              label="Bin"
               name="tray_id"
               options={trayOptions}
               value={formData.tray_id}
               onChange={(value) => handleChange('tray_id', value ? parseInt(value) : null)}
-              placeholder="Select tray"
+              placeholder="Select bin"
               isClearable
             />
             <FormInput

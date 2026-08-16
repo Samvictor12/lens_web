@@ -402,7 +402,16 @@ export class SaleOrderController {
    */
   async getStats(req, res, next) {
     try {
-      const stats = await this.saleOrderService.getStatistics(req.query);
+      const validation = validateQueryParams(req.query);
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validation.errors,
+        });
+      }
+
+      const stats = await this.saleOrderService.getStatistics(validation.data || {});
 
       res.status(200).json({
         success: true,
@@ -569,6 +578,23 @@ export class SaleOrderController {
     }
   }
 
+  /**
+   * Live Tracking Kanban board
+   * GET /api/sale-orders/live-tracking
+   */
+  async getLiveTracking(req, res, next) {
+    try {
+      const result = await saleOrderWorkflowService.getLiveTracking(req.query);
+      res.status(200).json({
+        success: true,
+        message: 'Live tracking orders retrieved successfully',
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async issueToPreQc(req, res, next) {
     try {
       const validation = validateIdParam(req.params.id);
@@ -581,6 +607,7 @@ export class SaleOrderController {
         rightItemId: req.body?.rightItemId ?? null,
         leftItemId: req.body?.leftItemId ?? null,
         isAlternate: Boolean(req.body?.isAlternate),
+        locationTrayId: req.body?.locationTrayId ?? null,
       });
       res.status(200).json({ success: true, message: 'Issued to Pre-QC', data: order });
     } catch (error) {
@@ -604,6 +631,50 @@ export class SaleOrderController {
         req.body?.remark
       );
       res.status(200).json({ success: true, message: 'Sale order cancelled', data: order });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async approveFreeLens(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+      const order = await this.saleOrderService.approveFreeLens(
+        validation.data,
+        userId,
+        req.user,
+        req.body?.remark
+      );
+      res.status(200).json({ success: true, message: 'Free Lens approved', data: order });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async rejectFreeLens(req, res, next) {
+    try {
+      const validation = validateIdParam(req.params.id);
+      if (!validation.isValid) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: validation.errors });
+      }
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+      const order = await this.saleOrderService.rejectFreeLens(
+        validation.data,
+        userId,
+        req.user,
+        req.body?.remark
+      );
+      res.status(200).json({ success: true, message: 'Free Lens rejected', data: order });
     } catch (error) {
       next(error);
     }

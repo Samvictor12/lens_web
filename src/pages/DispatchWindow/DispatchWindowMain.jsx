@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLiveWebSocket } from "@/hooks/useLiveWebSocket";
 import {
   CheckCircle,
   ChevronDown,
@@ -577,6 +578,10 @@ export default function DispatchWindowMain() {
     setRefreshKey((k) => k + 1);
     toast({ title: "Refreshed", description: "Dispatch window data updated." });
   };
+
+  useLiveWebSocket(["DISPATCH_UPDATED", "SALE_ORDER_UPDATED"], () => {
+    setRefreshKey((k) => k + 1);
+  });
 
   // Clear selection when switching tabs
   useEffect(() => {

@@ -203,7 +203,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   const validateStep2 = () => {
     const allocatedRows = gridRows.filter((row) => row.location_id && row.tray_id && parseFloat(row.qty) > 0);
     if (allocatedRows.length === 0) {
-      toast({ title: "Error", description: "Select a location, tray, and enter quantity for at least one spec row", variant: "destructive" });
+      toast({ title: "Error", description: "Select a location, bin, and enter quantity for at least one spec row", variant: "destructive" });
       return false;
     }
 
@@ -228,16 +228,16 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
       const occ = trayOccupancyData[tId];
       if (!occ?.capacity) {
         toast({
-          title: "Tray capacity not set",
-          description: `Set capacity for tray "${occ?.trayName || tId}" in Tray Master before inwarding.`,
+          title: "Bin capacity not set",
+          description: `Set capacity for bin "${occ?.trayName || tId}" in Bin Master before inwarding.`,
           variant: "destructive",
         });
         return false;
       }
       if (allocated > occ.availableQty + 0.001) {
         toast({
-          title: "Tray capacity exceeded",
-          description: `Tray "${occ.trayName}" only has ${occ.availableQty} available, but this batch allocates ${allocated}.`,
+          title: "Bin capacity exceeded",
+          description: `Bin "${occ.trayName}" only has ${occ.availableQty} available, but this batch allocates ${allocated}.`,
           variant: "destructive",
         });
         return false;
@@ -346,7 +346,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
               {godownType ? ` · ${godownType === "RX" ? "Rx" : "Stock"} Godown` : ""}
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Step {step} of 2 · {godownType || "All"} lens products only → Spec grid & Location / Tray allocation
+              Step {step} of 2 · {godownType || "All"} lens products only → Spec grid & Location / Bin allocation
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" disabled={isSaving}>
@@ -508,7 +508,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                           <tr>
                             <th className="px-4 py-3 min-w-[150px]">Product Spec</th>
                             <th className="px-4 py-3 min-w-[160px]">Location</th>
-                            <th className="px-4 py-3 min-w-[160px]">Tray</th>
+                            <th className="px-4 py-3 min-w-[160px]">Bin</th>
                             <th className="px-4 py-3 w-28">Qty</th>
                             <th className="px-4 py-3 w-28">Price</th>
                           </tr>
@@ -540,7 +540,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                                     value={row.tray_id || null}
                                     onChange={(v) => handleRowChange(idx, "tray_id", v ? String(v) : "")}
                                     options={getTrayOptionsForLocation(row.location_id)}
-                                    placeholder="Select tray..."
+                                    placeholder="Select bin..."
                                     disabled={!hasLocationSelected}
                                     isClearable
                                   />

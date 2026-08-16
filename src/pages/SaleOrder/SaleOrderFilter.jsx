@@ -1,156 +1,144 @@
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { Filter, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { FormSelect } from "@/components/ui/form-select";
-import { FormInput } from "@/components/ui/form-input";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { orderStatusOptions } from "./SaleOrder.constants";
 
-export default function SaleOrderFilter({
-  filters,
-  tempFilters,
-  setTempFilters,
-  showFilterDialog,
-  setShowFilterDialog,
-  hasActiveFilters,
-  onApplyFilters,
-  onClearFilters,
-  onCancelFilters,
-  customers = [],
+const ALL = "__all__";
+
+function CompactSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+  className = "min-w-[88px] flex-1",
 }) {
   return (
-    <Sheet open={showFilterDialog} onOpenChange={setShowFilterDialog}>
-      <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 h-8 relative"
-        >
-          <Filter className="h-3.5 w-3.5" />
-          <span className="text-sm">Filters</span>
-          {hasActiveFilters && (
-            <Badge
-              variant="default"
-              className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]"
+    <div className={`min-w-0 ${className}`}>
+      <Select
+        value={value == null || value === "" ? ALL : String(value)}
+        onValueChange={(v) => onChange(v === ALL ? null : v)}
+      >
+        <SelectTrigger className="!h-8 !w-full text-xs px-2">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL} className="text-xs">
+            {placeholder}
+          </SelectItem>
+          {options.map((opt) => (
+            <SelectItem
+              key={String(opt.value)}
+              value={String(opt.value)}
+              className="text-xs"
             >
-              !
-            </Badge>
-          )}
-        </Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Filter Sale Orders</SheetTitle>
-          <SheetDescription>
-            Apply filters to narrow down the sale orders list
-          </SheetDescription>
-        </SheetHeader>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
-        <div className="space-y-4 py-4">
-          {/* Status Filter */}
-          <div className="space-y-2">
-            <Label htmlFor="status-filter" className="text-sm font-medium">
-              Status
-            </Label>
-            <FormSelect
-              name="status"
-              options={[
-                { id: null, name: "All Statuses" },
-                ...orderStatusOptions.map((opt) => ({
-                  id: opt.value,
-                  name: opt.label,
-                })),
-              ]}
-              value={tempFilters.status}
-              onChange={(value) =>
-                setTempFilters({ ...tempFilters, status: value })
-              }
-              placeholder="Select status"
-              isSearchable={false}
-            />
-          </div>
+/**
+ * Compact filters that share row width (grow/shrink, no inner scroll).
+ */
+export default function SaleOrderFilter({
+  filters,
+  onChange,
+  customers = [],
+  lensTypes = [],
+  categories = [],
+  coatings = [],
+}) {
+  const set = (key, value) => onChange({ ...filters, [key]: value });
 
-          {/* Customer Filter */}
-          <div className="space-y-2">
-            <Label htmlFor="customer-filter" className="text-sm font-medium">
-              Customer
-            </Label>
-            <FormSelect
-              name="customerId"
-              options={[
-                { id: null, name: "All Customers" },
-                ...customers.map((customer) => ({
-                  id: customer.id,
-                  name: customer.name,
-                })),
-              ]}
-              value={tempFilters.customerId}
-              onChange={(value) =>
-                setTempFilters({ ...tempFilters, customerId: value })
-              }
-              placeholder="Select customer"
-              isSearchable={true}
-            />
-          </div>
-
-          {/* Date Range Filter */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Date Range</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <FormInput
-                label="Start Date"
-                type="date"
-                name="startDate"
-                value={tempFilters.startDate || ""}
-                onChange={(e) =>
-                  setTempFilters({ ...tempFilters, startDate: e.target.value })
-                }
-              />
-              <FormInput
-                label="End Date"
-                type="date"
-                name="endDate"
-                value={tempFilters.endDate || ""}
-                onChange={(e) =>
-                  setTempFilters({ ...tempFilters, endDate: e.target.value })
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <SheetFooter className="flex flex-row gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClearFilters}
-            className="flex-1"
-          >
-            <X className="h-3.5 w-3.5 mr-1.5" />
-            Clear All
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCancelFilters}
-            className="flex-1"
-          >
-            Cancel
-          </Button>
-          <Button size="sm" onClick={onApplyFilters} className="flex-1">
-            Apply Filters
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+  return (
+    <>
+      <Input
+        type="date"
+        value={filters.startDate || ""}
+        onChange={(e) => set("startDate", e.target.value || null)}
+        className="!h-8 min-w-[110px] max-w-[140px] flex-[0.9] text-xs px-1.5"
+        title="Start date"
+      />
+      <Input
+        type="date"
+        value={filters.endDate || ""}
+        onChange={(e) => set("endDate", e.target.value || null)}
+        className="!h-8 min-w-[110px] max-w-[140px] flex-[0.9] text-xs px-1.5"
+        title="End date"
+      />
+      <CompactSelect
+        placeholder="Status"
+        value={filters.status}
+        onChange={(v) => set("status", v)}
+        options={orderStatusOptions.map((opt) => ({
+          value: opt.value,
+          label: opt.label,
+        }))}
+      />
+      <CompactSelect
+        placeholder="Lens Type"
+        value={filters.Type_id}
+        onChange={(v) => set("Type_id", v ? Number(v) : null)}
+        className="min-w-[72px] max-w-[100px] flex-[0.65]"
+        options={lensTypes.map((t) => ({
+          value: t.id,
+          label: t.name || t.label,
+        }))}
+      />
+      <CompactSelect
+        placeholder="Category"
+        value={filters.category_id}
+        onChange={(v) => set("category_id", v ? Number(v) : null)}
+        options={categories.map((c) => ({
+          value: c.id,
+          label: c.name || c.label,
+        }))}
+      />
+      <CompactSelect
+        placeholder="Coating"
+        value={filters.coating_id}
+        onChange={(v) => set("coating_id", v ? Number(v) : null)}
+        options={coatings.map((c) => ({
+          value: c.id,
+          label: c.name || c.label,
+        }))}
+      />
+      <CompactSelect
+        placeholder="Customer"
+        value={filters.customerId}
+        onChange={(v) => set("customerId", v ? Number(v) : null)}
+        className="min-w-[100px] flex-[1.2]"
+        options={customers.map((c) => ({
+          value: c.id,
+          label: c.name,
+        }))}
+      />
+      <CompactSelect
+        placeholder="Urgent"
+        value={
+          filters.urgentOrder === true
+            ? "true"
+            : filters.urgentOrder === false
+              ? "false"
+              : null
+        }
+        onChange={(v) =>
+          set("urgentOrder", v === "true" ? true : v === "false" ? false : null)
+        }
+        className="min-w-[72px] flex-[0.7]"
+        options={[
+          { value: "true", label: "Yes" },
+          { value: "false", label: "No" },
+        ]}
+      />
+    </>
   );
 }

@@ -24,6 +24,7 @@ import {
   MapPin,
   Box,
   ClipboardCheck,
+  Activity,
   BookOpen,
   CreditCard,
   TrendingDown,
@@ -83,29 +84,42 @@ const navItems = [
     key: "sale_orders",
   },
   {
-    title: "Inventory",
-    icon: Package,
-    key: "inventory",
-    subItems: [
-      {
-        title: "Stock Godown",
-        url: "/inventory/stock",
-        icon: Package,
-        key: "inventory",
-      },
-      {
-        title: "Rx Godown",
-        url: "/inventory/rx",
-        icon: Package,
-        key: "inventory",
-      },
-    ],
-  },
-  {
     title: "Purchase Orders",
     url: "/masters/purchase-orders",
     icon: Receipt,
     key: "purchase_orders",
+  },
+  {
+    title: "Inventory",
+    url: "/inventory/stock/dashboard",
+    icon: Package,
+    key: "inventory",
+    activePrefix: "/inventory",
+  },
+  {
+    title: "Live Tracking",
+    url: "/live-tracking",
+    icon: Activity,
+    key: "live_tracking",
+  },
+  {
+    title: "Pre-QC",
+    url: "/pre-qc/operator",
+    icon: ClipboardCheck,
+    key: "pre_qc",
+  },
+  {
+    title: "Fitting",
+    url: "/fitting/operator",
+    icon: Wrench,
+    key: "fitting",
+  },
+  
+  {
+    title: "Post-QC",
+    url: "/quality/operator",
+    icon: ClipboardCheck,
+    key: "post_qc",
   },
   {
     title: "Dispatch",
@@ -118,25 +132,7 @@ const navItems = [
     url: "/dispatch/window",
     icon: Package,
     key: "dispatch_window",
-  },
-  {
-    title: "Fitting",
-    url: "/fitting/operator",
-    icon: Wrench,
-    key: "fitting",
-  },
-  {
-    title: "Pre-QC",
-    url: "/pre-qc/operator",
-    icon: ClipboardCheck,
-    key: "pre_qc",
-  },
-  {
-    title: "Post-QC",
-    url: "/quality/operator",
-    icon: ClipboardCheck,
-    key: "post_qc",
-  },
+  },  
   {
     title: "Billing",
     url: "/billing",
@@ -309,10 +305,16 @@ const masterItems = [
         key: "locations",
       },
       {
-        title: "Trays",
+        title: "Bins",
         url: "/masters/tray",
         icon: Box,
         key: "trays",
+      },
+      {
+        title: "Tray",
+        url: "/masters/location-tray",
+        icon: Box,
+        key: "location_trays",
       },
     ],
   },
@@ -349,8 +351,6 @@ export const AppSidebar = () => {
     setSettingsOpen(true);
   };
 
-  const isActive = (path) => location.pathname === path;
-
   const toggleSubmenu = (title) => {
     setOpenSubmenus((prev) => ({
       ...prev,
@@ -360,6 +360,16 @@ export const AppSidebar = () => {
 
   const isSubmenuActive = (subItems) => {
     return subItems?.some((item) => location.pathname.startsWith(item.url));
+  };
+
+  const isNavItemActive = (item) => {
+    if (item.activePrefix) {
+      return location.pathname.startsWith(item.activePrefix);
+    }
+    if (item.subItems) {
+      return isSubmenuActive(item.subItems);
+    }
+    return item.url ? location.pathname.startsWith(item.url) : false;
   };
 
   const filterItems = React.useCallback((items) => {
@@ -399,12 +409,7 @@ export const AppSidebar = () => {
     return location.pathname.startsWith(item.url);
   });
 
-  const isNavActive = filteredNavItems.some(item => {
-    if (item.subItems) {
-      return item.subItems.some(sub => location.pathname.startsWith(sub.url));
-    }
-    return location.pathname.startsWith(item.url);
-  });
+  const isNavActive = filteredNavItems.some((item) => isNavItemActive(item));
 
   return (
     <TooltipProvider>
@@ -418,8 +423,8 @@ export const AppSidebar = () => {
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className={`flex w-full items-center justify-center rounded-md outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
-                  isCollapsed ? "h-10 p-0" : "h-12 px-2"
+                className={`flex w-full items-center justify-center rounded-md outline-none transition-all hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
+                  isCollapsed ? "h-10 p-0" : "min-h-[4.5rem] px-3 py-3"
                 }`}
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
@@ -428,13 +433,17 @@ export const AppSidebar = () => {
                     src={company.logo}
                     alt="Logo"
                     className={`object-contain transition-all ${
-                      isCollapsed ? "h-4 w-4" : "h-8 w-8"
+                      isCollapsed
+                        ? "h-4 w-4"
+                        : "h-14 w-full max-w-full"
                     }`}
                   />
                 ) : (
                   <div
                     className={`flex items-center justify-center rounded bg-primary font-semibold text-primary-foreground transition-all ${
-                      isCollapsed ? "h-4 w-4 text-[10px]" : "h-8 w-8 text-sm"
+                      isCollapsed
+                        ? "h-4 w-4 text-[10px]"
+                        : "h-14 w-full text-2xl"
                     }`}
                   >
                     {appInitial}
@@ -535,7 +544,7 @@ export const AppSidebar = () => {
                       <SidebarMenuItem
                         key={item.title}
                         className={
-                          isActive(item.url)
+                          isNavItemActive(item)
                             ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                             : ""
                         }
@@ -545,8 +554,8 @@ export const AppSidebar = () => {
                             <SidebarMenuButton asChild>
                               <NavLink
                                 to={item.url}
-                                className={({ isActive }) =>
-                                  isActive
+                                className={() =>
+                                  isNavItemActive(item)
                                     ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                                     : "hover:bg-sidebar-accent/50"
                                 }
@@ -660,17 +669,19 @@ export const AppSidebar = () => {
                       ) : (
                         <SidebarMenuItem
                           key={item.title}
-                          className={location.pathname.startsWith(item.url)
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                            : ""}
+                          className={
+                            isNavItemActive(item)
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                              : ""
+                          }
                         >
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <SidebarMenuButton asChild>
                                 <NavLink
                                   to={item.url}
-                                  className={({ isActive }) =>
-                                    isActive || location.pathname.startsWith(item.url)
+                                  className={() =>
+                                    isNavItemActive(item)
                                       ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                                       : "hover:bg-sidebar-accent/50"
                                   }

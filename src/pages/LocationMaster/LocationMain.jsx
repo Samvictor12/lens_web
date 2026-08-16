@@ -104,7 +104,7 @@ export default function Locations() {
         title: "Error",
         description:
           error.message ||
-          "Failed to delete location. The location may have existing trays.",
+          "Failed to delete location. The location may have existing bins.",
         variant: "destructive",
       });
     } finally {
@@ -211,7 +211,7 @@ export default function Locations() {
         title="Delete Location?"
         description={
           locationToDelete
-            ? `Are you sure you want to delete "${locationToDelete.name}"? This action cannot be undone and will fail if the location has existing trays.`
+            ? `Are you sure you want to delete "${locationToDelete.name}"? This action cannot be undone and will fail if the location has existing bins.`
             : "Are you sure you want to delete this location?"
         }
         isDeleting={isDeleting}

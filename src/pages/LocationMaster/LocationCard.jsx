@@ -40,7 +40,7 @@ export default function LocationCard({ location, onView, onEdit, onDelete }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3" />
-              <span>Trays:</span>
+              <span>Bins:</span>
             </div>
             <span className="font-semibold text-xs">
               {location.trayCount || 0}

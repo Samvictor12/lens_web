@@ -165,7 +165,7 @@ export default function InventoryTransactionForm({
         if (!formData.fromTrayId && !formData.toTrayId) {
           newErrors.toLocationId = 'Destination location must be different from source location';
         } else if (formData.fromTrayId === formData.toTrayId) {
-          newErrors.toTrayId = 'Destination tray must be different from source tray';
+          newErrors.toTrayId = 'Destination bin must be different from source bin';
         }
       }
     }
@@ -337,23 +337,23 @@ export default function InventoryTransactionForm({
 
               {isTransferTransaction && (
                 <FormSelect
-                  label="From Tray"
+                  label="From Bin"
                   name="fromTrayId"
                   options={trayOptions}
                   value={formData.fromTrayId}
                   onChange={(value) => handleChange('fromTrayId', value ? parseInt(value) : null)}
-                  placeholder="Select source tray"
+                  placeholder="Select source bin"
                   isClearable
                 />
               )}
 
               <FormSelect
-                label={isTransferTransaction ? 'To Tray' : 'Tray'}
+                label={isTransferTransaction ? 'To Bin' : 'Bin'}
                 name="toTrayId"
                 options={trayOptions}
                 value={formData.toTrayId}
                 onChange={(value) => handleChange('toTrayId', value ? parseInt(value) : null)}
-                placeholder={isTransferTransaction ? 'Select destination tray' : 'Select tray'}
+                placeholder={isTransferTransaction ? 'Select destination bin' : 'Select bin'}
                 isClearable
               />
             </div>

@@ -154,3 +154,67 @@ export const validateUpdateTray = (data) => {
     data: errors.length === 0 ? data : null
   };
 };
+
+/**
+ * Validate LocationTrayMaster create (UI: Tray)
+ */
+export const validateCreateLocationTray = (data) => {
+  const errors = [];
+
+  if (!data.name || data.name.trim() === '') {
+    errors.push({ field: 'name', message: 'Tray name is required' });
+  } else if (!isValidLength(data.name, 1, 200)) {
+    errors.push({ field: 'name', message: 'Tray name must be between 1 and 200 characters' });
+  }
+
+  if (data.description && !isValidLength(data.description, 0, 500)) {
+    errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (data.location_id != null && !isValidNumber(data.location_id)) {
+    errors.push({ field: 'location_id', message: 'Location ID must be a valid number' });
+  }
+
+  if (!data.createdBy || !isValidNumber(data.createdBy)) {
+    errors.push({ field: 'createdBy', message: 'Created by user ID is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: errors.length === 0 ? data : null,
+  };
+};
+
+/**
+ * Validate LocationTrayMaster update
+ */
+export const validateUpdateLocationTray = (data) => {
+  const errors = [];
+
+  if (data.name !== undefined) {
+    if (!data.name || data.name.trim() === '') {
+      errors.push({ field: 'name', message: 'Tray name is required' });
+    } else if (!isValidLength(data.name, 1, 200)) {
+      errors.push({ field: 'name', message: 'Tray name must be between 1 and 200 characters' });
+    }
+  }
+
+  if (data.description && !isValidLength(data.description, 0, 500)) {
+    errors.push({ field: 'description', message: 'Description must not exceed 500 characters' });
+  }
+
+  if (data.location_id !== undefined && data.location_id !== null && !isValidNumber(data.location_id)) {
+    errors.push({ field: 'location_id', message: 'Location ID must be a valid number' });
+  }
+
+  if (!data.updatedBy || !isValidNumber(data.updatedBy)) {
+    errors.push({ field: 'updatedBy', message: 'Updated by user ID is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: errors.length === 0 ? data : null,
+  };
+};

@@ -161,7 +161,7 @@ const SaleOrderForm = ({ onSubmit, onCancel, initialData = null }) => {
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium text-gray-700 w-[120px]">Delivery Schedule</Label>
                   <Input
-                    type="datetime-local"
+                    type="date"
                     value={orderData.deliverySchedule}
                     onChange={(e) => setOrderData({ ...orderData, deliverySchedule: e.target.value })}
                     className="flex-1"

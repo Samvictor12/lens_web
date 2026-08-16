@@ -1,8 +1,24 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import * as dispatchController from '../controllers/dispatchController.js';
+import { broadcast } from '../utils/websocket.js';
 
 const router = Router();
+
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const originalJson = res.json;
+    res.json = function (body) {
+      if (res.statusCode >= 200 && res.statusCode < 300 && body && body.success !== false) {
+        setTimeout(() => {
+          broadcast('DISPATCH_UPDATED', { method: req.method, url: req.originalUrl });
+        }, 100);
+      }
+      return originalJson.apply(this, arguments);
+    };
+  }
+  next();
+});
 
 // ── New endpoints ──────────────────────────────────────────────────────────────
 router.get('/dashboard', authenticateToken, dispatchController.getDashboard);

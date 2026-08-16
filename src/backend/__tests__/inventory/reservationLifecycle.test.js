@@ -11,6 +11,7 @@ describe('Inventory Reservation Lifecycle integration tests', () => {
   let customer;
   let location;
   let tray;
+  let locationTray;
   let lens;
   let category;
   let type;
@@ -34,6 +35,19 @@ describe('Inventory Reservation Lifecycle integration tests', () => {
       });
     }
 
+    locationTray = await prisma.locationTrayMaster.findFirst({
+      where: { location_id: location.id, deleteStatus: false, activeStatus: true },
+    });
+    if (!locationTray) {
+      locationTray = await prisma.locationTrayMaster.create({
+        data: {
+          name: 'TEST-LOCATION-TRAY-LIFECYCLE',
+          location_id: location.id,
+          createdBy: user.id,
+        },
+      });
+    }
+
     lens = await prisma.lensProductMaster.findFirst({ where: { deleteStatus: false } });
     category = await prisma.lensCategoryMaster.findFirst({ where: { deleteStatus: false } });
     type = await prisma.lensTypeMaster.findFirst({ where: { deleteStatus: false } });
@@ -46,6 +60,7 @@ describe('Inventory Reservation Lifecycle integration tests', () => {
   afterEach(async () => {
     // Cleanup test tray if created
     await prisma.trayMaster.deleteMany({ where: { name: 'TEST-TRAY-LIFECYCLE' } });
+    await prisma.locationTrayMaster.deleteMany({ where: { name: 'TEST-LOCATION-TRAY-LIFECYCLE' } });
   });
 
   it('correctly manages reservation, unreservation on reset, and consumption on dispatch', async () => {
@@ -104,7 +119,10 @@ describe('Inventory Reservation Lifecycle integration tests', () => {
     await saleOrderStatusService.logCreation(prisma, so.id, user.id);
 
     // 3. Issue stock (reserving the item)
-    await saleOrderWorkflowService.issueToPreQc(so.id, user.id, { inventoryItemIds: [item.id] });
+    await saleOrderWorkflowService.issueToPreQc(so.id, user.id, {
+      inventoryItemIds: [item.id],
+      locationTrayId: locationTray.id,
+    });
 
     // Verify item is now RESERVED with quantity 0
     let updatedItem = await prisma.inventoryItem.findUnique({ where: { id: item.id } });
@@ -161,7 +179,10 @@ describe('Inventory Reservation Lifecycle integration tests', () => {
 
     // 5. Test Consumption on fulfillment
     // Re-issue stock
-    await saleOrderWorkflowService.issueToPreQc(so.id, user.id, { inventoryItemIds: [item.id] });
+    await saleOrderWorkflowService.issueToPreQc(so.id, user.id, {
+      inventoryItemIds: [item.id],
+      locationTrayId: locationTray.id,
+    });
 
     // Transition to DISPATCHED
     await saleOrderStatusService.transition({

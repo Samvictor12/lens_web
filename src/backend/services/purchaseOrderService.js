@@ -15,6 +15,37 @@ function requiredReceiveQty(po) {
   return parseFloat(po.quantity) || 1;
 }
 
+function istDayStart(dateStr) {
+  return new Date(`${dateStr}T00:00:00+05:30`);
+}
+
+function istDayEnd(dateStr) {
+  return new Date(`${dateStr}T23:59:59.999+05:30`);
+}
+
+function receiptReceiveDateWhere(startDate, endDate) {
+  if (!startDate && !endDate) return {};
+  const range = {};
+  if (startDate) range.gte = istDayStart(startDate);
+  if (endDate) range.lte = istDayEnd(endDate);
+  return {
+    OR: [
+      { actualDeliveryDate: range },
+      { AND: [{ actualDeliveryDate: null }, { receivedDate: range }] },
+    ],
+  };
+}
+
+function receiptValue(receipt) {
+  const total = parseFloat(receipt.totalValue);
+  if (!Number.isNaN(total) && total > 0) return total;
+  return (parseFloat(receipt.subtotal) || 0) + (parseFloat(receipt.taxAmount) || 0);
+}
+
+function receiptReceiveInstant(receipt) {
+  return receipt.actualDeliveryDate || receipt.receivedDate;
+}
+
 class PurchaseOrderService {
   /**
    * Generate next PO number
@@ -203,95 +234,94 @@ class PurchaseOrderService {
   }
 
   /**
+   * Shared list filters for PO list + dashboard cards.
+   * @param {Object} queryParams
+   * @param {{ applyOrderDate?: boolean, excludeCancelled?: boolean }} [opts]
+   */
+  buildPurchaseOrderListWhere(queryParams = {}, opts = {}) {
+    const {
+      search = "",
+      vendorId,
+      vendor_id,
+      status,
+      activeStatus,
+      active_status,
+      startDate,
+      start_date,
+      endDate,
+      end_date,
+      orderType,
+    } = queryParams;
+
+    const resolvedVendorId = vendorId ?? vendor_id;
+    const resolvedActiveStatus = activeStatus ?? active_status;
+    const resolvedStartDate = startDate ?? start_date;
+    const resolvedEndDate = endDate ?? end_date;
+    const applyOrderDate = opts.applyOrderDate !== false;
+    const excludeCancelled = opts.excludeCancelled !== false;
+
+    const where = { deleteStatus: false };
+
+    if (search) {
+      where.OR = [
+        { poNumber: { contains: search, mode: "insensitive" } },
+        { reference_id: { contains: search, mode: "insensitive" } },
+        { supplierInvoiceNo: { contains: search, mode: "insensitive" } },
+        { vendor: { name: { contains: search, mode: "insensitive" } } },
+        { saleOrder: { customerRefNo: { contains: search, mode: "insensitive" } } },
+        { saleOrder: { orderNo: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    if (resolvedVendorId) {
+      where.vendorId = parseInt(resolvedVendorId, 10);
+    }
+
+    if (excludeCancelled && status && String(status).toUpperCase() === "CANCELLED") {
+      where.id = { in: [] };
+    } else if (status && status !== "all") {
+      where.status = status.toUpperCase();
+    } else if (excludeCancelled) {
+      where.status = { not: "CANCELLED" };
+    }
+
+    if (resolvedActiveStatus !== undefined && resolvedActiveStatus !== "all") {
+      where.activeStatus =
+        resolvedActiveStatus === "true" || resolvedActiveStatus === true;
+    }
+
+    if (applyOrderDate && (resolvedStartDate || resolvedEndDate)) {
+      where.orderDate = {};
+      if (resolvedStartDate) {
+        where.orderDate.gte = new Date(resolvedStartDate);
+      }
+      if (resolvedEndDate) {
+        where.orderDate.lte = new Date(resolvedEndDate);
+      }
+    }
+
+    if (orderType && orderType !== "all") {
+      where.orderType = orderType;
+    }
+
+    return where;
+  }
+
+  /**
    * Get paginated list of purchase orders with filtering
    * @param {Object} queryParams - Query parameters for filtering and pagination
    * @returns {Promise<Object>} Paginated purchase orders list
    */
   async getPurchaseOrders(queryParams) {
     try {
-      const {
-        page = 1,
-        limit = 10,
-        search = "",
-        vendorId,
-        vendor_id,
-        status,
-        activeStatus,
-        active_status,
-        startDate,
-        start_date,
-        endDate,
-        end_date,
-        orderType,
-      } = queryParams;
+      const { page = 1, limit = 10 } = queryParams;
 
-      const resolvedVendorId = vendorId ?? vendor_id;
-      const resolvedActiveStatus = activeStatus ?? active_status;
-      const resolvedStartDate = startDate ?? start_date;
-      const resolvedEndDate = endDate ?? end_date;
-
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      const take = parseInt(limit);
-
-      // Build where clause
-      const where = {
-        deleteStatus: false,
-      };
-
-      // Search filter
-      if (search) {
-        where.OR = [
-          { poNumber: { contains: search, mode: "insensitive" } },
-          { reference_id: { contains: search, mode: "insensitive" } },
-          { supplierInvoiceNo: { contains: search, mode: "insensitive" } },
-          {
-            vendor: {
-              name: { contains: search, mode: "insensitive" },
-            },
-          },
-          {
-            saleOrder: {
-              customerRefNo: { contains: search, mode: "insensitive" },
-            },
-          },
-          {
-            saleOrder: {
-              orderNo: { contains: search, mode: "insensitive" },
-            },
-          },
-        ];
-      }
-
-      // Vendor filter
-      if (resolvedVendorId) {
-        where.vendorId = parseInt(resolvedVendorId);
-      }
-
-      // Status filter
-      if (status && status !== "all") {
-        where.status = status.toUpperCase();
-      }
-
-      // Active status filter
-      if (resolvedActiveStatus !== undefined && resolvedActiveStatus !== "all") {
-        where.activeStatus = resolvedActiveStatus === "true" || resolvedActiveStatus === true;
-      }
-
-      // Date range filter
-      if (resolvedStartDate || resolvedEndDate) {
-        where.orderDate = {};
-        if (resolvedStartDate) {
-          where.orderDate.gte = new Date(resolvedStartDate);
-        }
-        if (resolvedEndDate) {
-          where.orderDate.lte = new Date(resolvedEndDate);
-        }
-      }
-
-      // Order type filter (Single / Bulk)
-      if (orderType && orderType !== "all") {
-        where.orderType = orderType;
-      }
+      const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+      const take = parseInt(limit, 10);
+      const where = this.buildPurchaseOrderListWhere(queryParams, {
+        excludeCancelled: false,
+        applyOrderDate: true,
+      });
 
       // Execute query with pagination
       const [purchaseOrders, total] = await Promise.all([
@@ -374,63 +404,97 @@ class PurchaseOrderService {
   }
 
   /**
-   * Get purchase order dashboard statistics
-   * @returns {Promise<Object>} Dashboard data
+   * List-card statistics. Receipt window uses receive_start_date / receive_end_date
+   * (today injected by the client). PO orderDate uses start_date / end_date only when set.
    */
-  async getPurchaseOrderDashboard() {
+  async getPurchaseOrderDashboard(queryParams = {}) {
     try {
-      const [statsSource, recentOrders] = await Promise.all([
-        prisma.purchaseOrder.findMany({
-          where: {
-            deleteStatus: false,
-          },
-          select: {
-            id: true,
-            status: true,
-            quantity: true,
-            receivedQty: true,
-            totalValue: true,
-          },
-        }),
-        prisma.purchaseOrder.findMany({
-          where: {
-            deleteStatus: false,
-          },
-          take: 5,
-          orderBy: {
-            createdAt: "desc",
-          },
-          include: {
-            vendor: {
-              select: {
-                id: true,
-                name: true,
+      const receiveStart =
+        queryParams.receive_start_date || queryParams.receiveStartDate || null;
+      const receiveEnd =
+        queryParams.receive_end_date || queryParams.receiveEndDate || null;
+
+      const poWhere = this.buildPurchaseOrderListWhere(queryParams, {
+        excludeCancelled: true,
+        applyOrderDate: true,
+      });
+
+      const poWhereForReceipts = this.buildPurchaseOrderListWhere(queryParams, {
+        excludeCancelled: true,
+        applyOrderDate: false,
+      });
+
+      const receiptWhere = {
+        deleteStatus: false,
+        purchaseOrder: poWhereForReceipts,
+        ...receiptReceiveDateWhere(receiveStart, receiveEnd),
+      };
+
+      const [jobsReceived, receiptRows, pendingVendorPo, totalOutsourced, tatPos] =
+        await Promise.all([
+          prisma.purchaseOrderReceipt.count({ where: receiptWhere }),
+          prisma.purchaseOrderReceipt.findMany({
+            where: receiptWhere,
+            select: { totalValue: true, subtotal: true, taxAmount: true },
+          }),
+          prisma.purchaseOrder.count({
+            where: {
+              AND: [
+                poWhere,
+                { status: { in: ["DRAFT", "PO_PARTIAL_RECEIVED"] } },
+              ],
+            },
+          }),
+          prisma.purchaseOrder.count({ where: poWhere }),
+          prisma.purchaseOrder.findMany({
+            where: {
+              AND: [
+                poWhere,
+                { receipts: { some: { deleteStatus: false } } },
+              ],
+            },
+            select: {
+              orderDate: true,
+              receipts: {
+                where: { deleteStatus: false },
+                select: { actualDeliveryDate: true, receivedDate: true },
+                orderBy: { receivedDate: "desc" },
               },
             },
-          },
-        }),
-      ]);
+          }),
+        ]);
 
-      const totalOrders = statsSource.length;
-      const pendingOrders = statsSource.filter(
-        (po) =>
-          po.status === "DRAFT" ||
-          (po.status === "RECEIVED" && (parseFloat(po.quantity) || 0) > (parseFloat(po.receivedQty) || 0))
-      ).length;
-      const completedOrders = statsSource.filter((po) => po.status === "CLOSED").length;
-      const totalValue = statsSource.reduce(
-        (sum, po) => sum + (parseFloat(po.totalValue) || 0),
+      const vendorInvoiceValue = receiptRows.reduce(
+        (sum, row) => sum + receiptValue(row),
         0
       );
-      const avgOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
+
+      const tatDays = tatPos
+        .map((po) => {
+          const latest = po.receipts.reduce((best, r) => {
+            const t = receiptReceiveInstant(r);
+            if (!t) return best;
+            if (!best || t > best) return t;
+            return best;
+          }, null);
+          if (!latest || !po.orderDate) return null;
+          const ms = new Date(latest) - new Date(po.orderDate);
+          if (ms < 0) return null;
+          return ms / (1000 * 60 * 60 * 24);
+        })
+        .filter((d) => d != null);
+
+      const averageTat =
+        tatDays.length > 0
+          ? Math.round((tatDays.reduce((s, d) => s + d, 0) / tatDays.length) * 10) / 10
+          : 0;
 
       return {
-        totalOrders,
-        pendingOrders,
-        completedOrders,
-        totalValue,
-        avgOrderValue,
-        recentActivity: recentOrders.map((po) => this.formatPurchaseOrderResponse(po)),
+        jobsReceived,
+        vendorInvoiceValue: Math.round(vendorInvoiceValue * 100) / 100,
+        pendingVendorPo,
+        totalOutsourced,
+        averageTat,
       };
     } catch (error) {
       console.error("Error fetching purchase order dashboard:", error);

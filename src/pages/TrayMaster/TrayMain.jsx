@@ -64,7 +64,7 @@ export default function Trays() {
       console.error("Error fetching trays:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch trays",
+        description: error.message || "Failed to fetch bins",
         variant: "destructive",
       });
       setTrays([]);
@@ -76,7 +76,7 @@ export default function Trays() {
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
-    toast({ title: "Refreshed", description: "Tray list has been refreshed." });
+    toast({ title: "Refreshed", description: "Bin list has been refreshed." });
   };
 
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function Trays() {
 
       toast({
         title: "Success",
-        description: `Tray "${trayToDelete.name}" has been deleted successfully.`,
+        description: `Bin "${trayToDelete.name}" has been deleted successfully.`,
       });
 
       setDeleteDialogOpen(false);
@@ -104,7 +104,7 @@ export default function Trays() {
         title: "Error",
         description:
           error.message ||
-          "Failed to delete tray.",
+          "Failed to delete bin.",
         variant: "destructive",
       });
     } finally {
@@ -138,10 +138,10 @@ export default function Trays() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">
-            Trays
+            Bins
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage storage tray master data
+            Manage storage bin master data
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -151,7 +151,7 @@ export default function Trays() {
             onClick={() => navigate("/masters/tray/add")}
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Add Tray</span>
+            <span className="hidden sm:inline">Add Bin</span>
           </Button>
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function Trays() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search trays..."
+              placeholder="Search bins..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-8 text-sm"
@@ -200,7 +200,7 @@ export default function Trays() {
           setSorting={setSorting}
           sorting={sorting}
           pagination={true}
-          emptyMessage="No trays found"
+          emptyMessage="No bins found"
         />
       </div>
 
@@ -208,11 +208,11 @@ export default function Trays() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDeleteConfirm}
-        title="Delete Tray?"
+        title="Delete Bin?"
         description={
           trayToDelete
             ? `Are you sure you want to delete "${trayToDelete.name}"? This action cannot be undone.`
-            : "Are you sure you want to delete this tray?"
+            : "Are you sure you want to delete this bin?"
         }
         isDeleting={isDeleting}
       />

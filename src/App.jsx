@@ -61,11 +61,14 @@ import LocationMain from "./pages/LocationMaster/LocationMain";
 import LocationForm from "./pages/LocationMaster/LocationForm";
 import TrayMain from "./pages/TrayMaster/TrayMain";
 import TrayForm from "./pages/TrayMaster/TrayForm";
+import LocationTrayMain from "./pages/LocationTrayMaster/LocationTrayMain";
+import LocationTrayForm from "./pages/LocationTrayMaster/LocationTrayForm";
 import LogsViewer from "./pages/LogsViewer";
 import DiscountManagement from "./pages/DiscountManagement/DiscountManagement";
 import { FittingOperatorList, FittingOrderDetail } from "./pages/FittingOperator";
 import { QualityOperatorList, QualityOrderDetail } from "./pages/QualityOperator";
 import { PreQcOperatorList, PreQcOrderDetail } from "./pages/PreQcOperator";
+import LiveTrackingMain from "./pages/LiveTracking/LiveTrackingMain";
 import NotFound from "./pages/NotFound";
 import NoAccess from "./pages/NoAccess";
 import HomeRedirect from "./components/layout/HomeRedirect";
@@ -223,6 +226,7 @@ const AppRoutes = () => (
       <Route path="/pre-qc/operator/:id" element={<ProtectedRoute><PreQcOrderDetail /></ProtectedRoute>} />
       <Route path="/quality/operator" element={<ProtectedRoute><QualityOperatorList title="Post-QC" /></ProtectedRoute>} />
       <Route path="/quality/operator/:id" element={<ProtectedRoute><QualityOrderDetail /></ProtectedRoute>} />
+      <Route path="/live-tracking" element={<ProtectedRoute allowedPermission="live_tracking"><LiveTrackingMain /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
 
       <Route path="/accounts/expenses" element={<ProtectedRoute><ExpensesMain /></ProtectedRoute>} />
@@ -296,6 +300,9 @@ const AppRoutes = () => (
       <Route path="/masters/tray" element={<ProtectedRoute><TrayMain /></ProtectedRoute>} />
       <Route path="/masters/tray/:mode" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
       <Route path="/masters/tray/:mode/:id" element={<ProtectedRoute><TrayForm /></ProtectedRoute>} />
+      <Route path="/masters/location-tray" element={<ProtectedRoute><LocationTrayMain /></ProtectedRoute>} />
+      <Route path="/masters/location-tray/:mode" element={<ProtectedRoute><LocationTrayForm /></ProtectedRoute>} />
+      <Route path="/masters/location-tray/:mode/:id" element={<ProtectedRoute><LocationTrayForm /></ProtectedRoute>} />
       <Route path="/system/logs" element={<ProtectedRoute><LogsViewer /></ProtectedRoute>} />
       <Route path="/masters/price-mapping" element={<ProtectedRoute><DiscountManagement /></ProtectedRoute>} />
       {/* Public Customer Portal */}
