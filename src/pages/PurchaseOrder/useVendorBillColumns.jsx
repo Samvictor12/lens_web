@@ -80,6 +80,12 @@ export function useVendorBillColumns() {
       cell: (inv) => <span className="text-[11px] font-mono">{formatInr(inv.taxAmount)}</span>,
     },
     {
+      accessorKey: "courierCharges",
+      header: "Courier",
+      sortable: false,
+      cell: (inv) => <span className="text-[11px] font-mono">{formatInr(inv.courierCharges)}</span>,
+    },
+    {
       accessorKey: "totalAmount",
       header: "Total",
       sortable: false,

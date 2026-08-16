@@ -65,6 +65,7 @@ import {
     statusColors,
     getDefaultDeliveryLeadDays,
     buildDefaultDeliverySchedule,
+    toDateInputValue,
     cylRequiresAxis,
     hasAxisEntry,
     FREE_LENS_APPROVAL,
@@ -3051,7 +3052,7 @@ export default function SaleOrderForm() {
                             singleLine={true} label="Delivery Schedule"
                             type="date"
                             name="deliverySchedule"
-                            value={formData.deliverySchedule ? new Date(formData.deliverySchedule).toISOString().split("T")[0] : ""}
+                            value={toDateInputValue(formData.deliverySchedule)}
                             onChange={handleChange}
                             disabled={!isEditing}
                         />

@@ -203,12 +203,17 @@ export class VendorInvoiceService {
    * and creates an OUTSTANDING VendorInvoice for later payment allocation.
    */
   async create(payload, userId, invoiceFile) {
-    const { vendorId, supplierInvoiceNo, invoiceDate, notes, items } = payload;
+    const { vendorId, supplierInvoiceNo, invoiceDate, notes, items, courierCharges: courierRaw } = payload;
 
     if (!vendorId) throw new APIError('vendorId is required', 400, 'VALIDATION_ERROR');
     if (!supplierInvoiceNo?.trim()) throw new APIError('Vendor invoice number is required', 400, 'VALIDATION_ERROR');
     if (!invoiceFile) throw new APIError('Vendor invoice copy (PDF or image) is required', 400, 'INVOICE_COPY_REQUIRED');
     if (!items?.length) throw new APIError('At least one PO line is required', 400, 'VALIDATION_ERROR');
+
+    const courierCharges = round2(courierRaw || 0);
+    if (courierCharges < 0) {
+      throw new APIError('Courier charges cannot be negative', 400, 'VALIDATION_ERROR');
+    }
 
     const poIdsResolved = items.map((i) => parseInt(i.purchaseOrderId, 10));
     const pos = await prisma.purchaseOrder.findMany({
@@ -266,6 +271,8 @@ export class VendorInvoiceService {
       totalAmount = round2(totalAmount + lineTotal);
     }
 
+    totalAmount = round2(totalAmount + courierCharges);
+
     if (totalAmount <= 0) throw new APIError('Total invoice amount must be greater than zero', 400, 'VALIDATION_ERROR');
 
     const invoiceNumber = await generateInvoiceNumber();
@@ -297,6 +304,7 @@ export class VendorInvoiceService {
           subtotalAmount,
           taxAmount,
           totalAmount,
+          courierCharges,
           invoiceCopyPath,
           notes: notes || null,
           createdBy: userId,

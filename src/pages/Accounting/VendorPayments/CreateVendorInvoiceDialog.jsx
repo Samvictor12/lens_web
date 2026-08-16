@@ -79,6 +79,7 @@ export default function CreateVendorInvoiceDialog({
   const [selectedPoIds, setSelectedPoIds] = useState([]);
   const [poLines, setPoLines] = useState({});
   const [invoiceFile, setInvoiceFile] = useState(null);
+  const [courierCharges, setCourierCharges] = useState("");
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const vendorLocked = Boolean(initialVendorId);
@@ -93,6 +94,7 @@ export default function CreateVendorInvoiceDialog({
     setSelectedPoIds([]);
     setPoLines({});
     setInvoiceFile(null);
+    setCourierCharges("");
   }, [open, initialVendorId]);
 
   useEffect(() => {
@@ -170,8 +172,16 @@ export default function CreateVendorInvoiceDialog({
       subtotal += parseFloat(line.subtotalAmount) || 0;
       tax += parseFloat(line.taxAmount) || 0;
     }
-    return { subtotal: round2(subtotal), tax: round2(tax), total: round2(subtotal + tax) };
-  }, [selectedPOs, poLines]);
+    const courier = round2(parseFloat(courierCharges) || 0);
+    const linesTotal = round2(subtotal + tax);
+    return {
+      subtotal: round2(subtotal),
+      tax: round2(tax),
+      courier,
+      linesTotal,
+      total: round2(linesTotal + courier),
+    };
+  }, [selectedPOs, poLines, courierCharges]);
 
   const handleInvoiceFile = (e) => {
     const file = e.target.files?.[0];
@@ -229,6 +239,11 @@ export default function CreateVendorInvoiceDialog({
       }
     }
 
+    if (totals.courier < 0) {
+      toast({ variant: "destructive", title: "Courier charges cannot be negative" });
+      return;
+    }
+
     const items = selectedPOs.map((po) => {
       const line = poLines[po.id] || {};
       return {
@@ -246,6 +261,7 @@ export default function CreateVendorInvoiceDialog({
           supplierInvoiceNo: form.supplierInvoiceNo.trim(),
           invoiceDate: form.invoiceDate,
           notes: form.notes || undefined,
+          courierCharges: totals.courier,
           items,
         },
         invoiceFile
@@ -437,16 +453,49 @@ export default function CreateVendorInvoiceDialog({
                         );
                       })}
                       <div className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
-                        <span>Invoice Totals</span>
+                        <span>PO Lines</span>
                         <span className="text-right font-mono">{fmt(totals.subtotal)}</span>
                         <span />
                         <span className="text-right font-mono">{fmt(totals.tax)}</span>
-                        <span className="text-right font-mono">{fmt(totals.total)}</span>
+                        <span className="text-right font-mono">{fmt(totals.linesTotal)}</span>
                       </div>
                     </div>
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {selectedPOs.length > 0 && (
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                <div className="space-y-1">
+                  <Label>Courier Charges (optional)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={courierCharges}
+                    onChange={(e) => setCourierCharges(e.target.value)}
+                    placeholder="0.00"
+                  />
+                  <p className="text-[11px] text-muted-foreground">Added to invoice total; not taxed separately.</p>
+                </div>
+                <div className="text-sm space-y-1 sm:text-right">
+                  <div className="flex justify-between sm:justify-end gap-4">
+                    <span className="text-muted-foreground">PO lines</span>
+                    <span className="font-mono">{fmt(totals.linesTotal)}</span>
+                  </div>
+                  <div className="flex justify-between sm:justify-end gap-4">
+                    <span className="text-muted-foreground">Courier</span>
+                    <span className="font-mono">{fmt(totals.courier)}</span>
+                  </div>
+                  <div className="flex justify-between sm:justify-end gap-4 font-semibold border-t pt-1">
+                    <span>Invoice Total</span>
+                    <span className="font-mono">{fmt(totals.total)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

@@ -473,6 +473,7 @@ export class SaleOrderWorkflowService {
           itemDescription: so.orderNo,
           notes: so.remark,
           vendorId: parsedVendorId,
+          expectedDeliveryDate: so.deliverySchedule ? new Date(so.deliverySchedule) : null,
           createdBy: userId,
         },
       });

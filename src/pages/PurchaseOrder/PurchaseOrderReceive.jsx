@@ -779,6 +779,7 @@ export default function PurchaseOrderReceive() {
                               <th className="px-3 py-2 text-left font-medium text-muted-foreground">SPH</th>
                               <th className="px-3 py-2 text-left font-medium text-muted-foreground">CYL</th>
                               <th className="px-3 py-2 text-left font-medium text-muted-foreground">Axis</th>
+                              <th className="px-3 py-2 text-left font-medium text-muted-foreground">ADD</th>
                             </>
                           )}
                           <th className="px-3 py-2 text-right font-medium text-muted-foreground">PO Qty</th>
@@ -813,6 +814,11 @@ export default function PurchaseOrderReceive() {
                                 <td className="px-3 py-2">{row.spherical}</td>
                                 <td className="px-3 py-2">{row.cylindrical}</td>
                                 <td className="px-3 py-2">{row.axis ?? "-"}</td>
+                                <td className="px-3 py-2">
+                                  {row.add !== null && row.add !== undefined && row.add !== ""
+                                    ? row.add
+                                    : "—"}
+                                </td>
                               </>
                             )}
                             <td className="px-3 py-2 text-right">{row.orderedQty}</td>
