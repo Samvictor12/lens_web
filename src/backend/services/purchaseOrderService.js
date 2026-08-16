@@ -3,6 +3,7 @@ import { APIError } from "../middleware/errorHandler.js";
 import InventoryService from "./inventory.service.js";
 import ExcelJS from "exceljs";
 import { postPurchaseReceipt } from "./accountingService.js";
+import { PO_UNBILLED_LIST_STATUSES } from "../utils/poPayable.js";
 
 /** Required receive qty: 1 per eye for SO-linked POs, else PO quantity */
 function requiredReceiveQty(po) {
@@ -277,10 +278,15 @@ class PurchaseOrderService {
       where.vendorId = parseInt(resolvedVendorId, 10);
     }
 
-    if (excludeCancelled && status && String(status).toUpperCase() === "CANCELLED") {
+    const normalizedStatus = status ? String(status).toUpperCase() : "";
+    if (normalizedStatus === "UNBILLED") {
+      where.status = { in: PO_UNBILLED_LIST_STATUSES };
+    } else if (excludeCancelled && normalizedStatus === "CANCELLED") {
       where.id = { in: [] };
-    } else if (status && status !== "all") {
-      where.status = status.toUpperCase();
+    } else if (normalizedStatus === "ALL") {
+      where.status = { not: "CANCELLED" };
+    } else if (normalizedStatus) {
+      where.status = normalizedStatus;
     } else if (excludeCancelled) {
       where.status = { not: "CANCELLED" };
     }
@@ -318,10 +324,13 @@ class PurchaseOrderService {
 
       const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
       const take = parseInt(limit, 10);
-      const where = this.buildPurchaseOrderListWhere(queryParams, {
-        excludeCancelled: false,
-        applyOrderDate: true,
-      });
+      const where = this.buildPurchaseOrderListWhere(
+        { ...queryParams, status: queryParams.status || "unbilled" },
+        {
+          excludeCancelled: false,
+          applyOrderDate: true,
+        }
+      );
 
       // Execute query with pagination
       const [purchaseOrders, total] = await Promise.all([

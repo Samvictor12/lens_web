@@ -4,7 +4,7 @@ export const PO_STAGE_LABELS = {
   DRAFT: 'Pending',
   PO_PARTIAL_RECEIVED: 'Partial Received',
   RECEIVED: 'Full Received',
-  INVOICE_RECEIVED: 'Full Received',
+  INVOICE_RECEIVED: 'Invoice Received',
   PAID: 'Paid',
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',

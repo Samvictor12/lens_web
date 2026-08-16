@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getVendorDropdown } from "@/services/vendor";
-import { statusOptions } from "./PurchaseOrder.constants";
+import { statusFilterOptions } from "./PurchaseOrder.constants";
 
 const ALL = "__all__";
 
@@ -18,6 +18,7 @@ function CompactSelect({
   placeholder,
   options,
   className = "min-w-[88px] flex-1",
+  includePlaceholder = true,
 }) {
   return (
     <div className={`min-w-0 ${className}`}>
@@ -29,9 +30,11 @@ function CompactSelect({
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL} className="text-xs">
-            {placeholder}
-          </SelectItem>
+          {includePlaceholder && (
+            <SelectItem value={ALL} className="text-xs">
+              {placeholder}
+            </SelectItem>
+          )}
           {options.map((opt) => (
             <SelectItem
               key={String(opt.value)}
@@ -92,12 +95,11 @@ export default function PurchaseOrderFilter({
       />
       <CompactSelect
         placeholder="Status"
-        value={filters.status}
-        onChange={(v) => set("status", v)}
-        options={statusOptions.map((opt) => ({
-          value: opt.value,
-          label: opt.label,
-        }))}
+        value={filters.status || "unbilled"}
+        onChange={(v) => set("status", v || "unbilled")}
+        includePlaceholder={false}
+        className="min-w-[110px] flex-1"
+        options={statusFilterOptions}
       />
       <CompactSelect
         placeholder="Vendor"

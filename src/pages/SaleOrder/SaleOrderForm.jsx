@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, GitBranch, Tag as LabelIcon, CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, Calculator, Play, Package, Check, Plus, Delete, DeleteIcon, Trash2, Tag, Printer, GitBranch, Tag as LabelIcon, CheckCircle2, XCircle, AlertTriangle, Loader2, Landmark, Wallet, Clock, CircleDollarSign } from "lucide-react";
 // ChevronDown, Receipt — were used by header action dropdowns (commented out)
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getApplicableOffers } from "@/services/lensOffers";
@@ -77,6 +77,13 @@ import { check } from "express-validator";
 import { checkCreditLimit } from "../../services/saleOrder";
 import { getCurrentUser } from "@/services/auth";
 import { set } from "zod";
+import { cn } from "@/lib/utils";
+
+const EMPTY_CREDIT = { outstanding_credit: 0, credit_limit: 0, reserved_amount: 0 };
+
+function formatCreditInr(n) {
+    return `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
 
 function formatEyeSpecLine(prefix, order) {
     const parts = [];
@@ -118,7 +125,7 @@ export default function SaleOrderForm() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isCalculating, setIsCalculating] = useState(false);
-    const [customerCreditLimit, setCustomerCreditLimit] = useState({ outstanding_credit: 0, credit_limit: null, reserved_amount: 0 });
+    const [customerCreditLimit, setCustomerCreditLimit] = useState(EMPTY_CREDIT);
     // Customer has reached/exceeded their credit limit -> lock the whole form read-only,
     // mirroring mode === "view", regardless of the route's actual add/edit mode.
     const isCreditBlocked = useMemo(() => {
@@ -907,10 +914,91 @@ export default function SaleOrderForm() {
     };
 
     const checkCustomerCreditLimit = (customerId) => {
-        checkCreditLimit(customerId).then(({ outstanding_credit, credit_limit, reserved_amount }) => {
-            setCustomerCreditLimit({ outstanding_credit, credit_limit, reserved_amount });
-        });
+        if (!customerId) {
+            setCustomerCreditLimit(EMPTY_CREDIT);
+            return;
+        }
+        checkCreditLimit(customerId)
+            .then((data) => {
+                if (!data) {
+                    setCustomerCreditLimit(EMPTY_CREDIT);
+                    return;
+                }
+                setCustomerCreditLimit({
+                    outstanding_credit: data.outstanding_credit || 0,
+                    credit_limit: data.credit_limit || 0,
+                    reserved_amount: data.reserved_amount || 0,
+                });
+            })
+            .catch(() => setCustomerCreditLimit(EMPTY_CREDIT));
     };
+
+    const creditCards = useMemo(() => {
+        const limit = Number(customerCreditLimit.credit_limit) || 0;
+        const reserved = Number(customerCreditLimit.reserved_amount) || 0;
+        const outstanding = Number(customerCreditLimit.outstanding_credit) || 0;
+        const remaining = limit - reserved - outstanding;
+        const available = Math.max(0, remaining);
+        const overBy = remaining < 0 ? Math.abs(remaining) : 0;
+        return [
+            {
+                key: "limit",
+                label: "Credit Limit",
+                value: formatCreditInr(limit),
+                icon: Landmark,
+                theme: {
+                    card: "bg-gradient-to-br from-blue-50 to-blue-100/80 border-blue-200/80",
+                    iconWrap: "bg-blue-500 text-white",
+                    label: "text-blue-700/80",
+                    value: "text-blue-950",
+                },
+            },
+            {
+                key: "outstanding",
+                label: "Outstanding",
+                value: formatCreditInr(outstanding),
+                icon: Wallet,
+                theme: {
+                    card: "bg-gradient-to-br from-amber-50 to-orange-100/70 border-amber-200/80",
+                    iconWrap: "bg-amber-500 text-white",
+                    label: "text-amber-700/80",
+                    value: "text-amber-950",
+                },
+            },
+            {
+                key: "reserved",
+                label: "Reserved",
+                value: formatCreditInr(reserved),
+                icon: Clock,
+                theme: {
+                    card: "bg-gradient-to-br from-violet-50 to-purple-100/70 border-violet-200/80",
+                    iconWrap: "bg-violet-500 text-white",
+                    label: "text-violet-700/80",
+                    value: "text-violet-950",
+                },
+            },
+            {
+                key: "available",
+                label: "Available Balance",
+                value: formatCreditInr(available),
+                hint: overBy > 0 ? `Over by ${formatCreditInr(overBy)}` : null,
+                icon: CircleDollarSign,
+                theme: overBy > 0
+                    ? {
+                        card: "bg-gradient-to-br from-red-50 to-rose-100/70 border-red-200/80",
+                        iconWrap: "bg-red-500 text-white",
+                        label: "text-red-700/80",
+                        value: "text-red-950",
+                    }
+                    : {
+                        card: "bg-gradient-to-br from-emerald-50 to-teal-100/70 border-emerald-200/80",
+                        iconWrap: "bg-emerald-500 text-white",
+                        label: "text-emerald-700/80",
+                        value: "text-emerald-950",
+                    },
+            },
+        ];
+    }, [customerCreditLimit]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -2945,8 +3033,6 @@ export default function SaleOrderForm() {
                             disabled={mode !== "add"}
                             required
                             error={errors.customerId}
-                            helperText={customerCreditLimit.credit_limit !== null ? `Credit Limit: \u20b9${customerCreditLimit.credit_limit} ---> (Reserved: \u20b9${customerCreditLimit.reserved_amount || 0}, Invoiced: \u20b9${customerCreditLimit.outstanding_credit || 0}) ` : ""}
-
                         />
 
                         <FormInput
@@ -3279,7 +3365,34 @@ export default function SaleOrderForm() {
 
                 {/* Block 2, 3, 4: Tabbed View */}
                 <div className="flex flex-col gap-3 md:w-[65%] md:h-full md:overflow-auto pb-3">
-
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-shrink-0">
+                        {creditCards.map((card) => {
+                            const Icon = card.icon;
+                            const t = card.theme;
+                            return (
+                                <div key={card.key} className={cn("rounded-xl border shadow-sm", t.card)}>
+                                    <div className="p-2.5 flex flex-col gap-1.5">
+                                        <div className="flex items-start justify-between gap-1.5">
+                                            <p className={cn("text-[10px] font-semibold leading-tight", t.label)}>
+                                                {card.label}
+                                            </p>
+                                            <span className={cn("inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md", t.iconWrap)}>
+                                                <Icon className="h-3 w-3" />
+                                            </span>
+                                        </div>
+                                        <p className={cn("text-sm font-bold tracking-tight leading-none truncate", t.value)}>
+                                            {card.value}
+                                        </p>
+                                        {card.hint && (
+                                            <p className="text-[10px] font-medium text-red-600 leading-tight">
+                                                {card.hint}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
 
                     <Card>
                         <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 space-y-0">

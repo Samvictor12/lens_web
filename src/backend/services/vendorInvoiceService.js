@@ -61,6 +61,34 @@ export class VendorInvoiceService {
     };
   }
 
+  async summary({ vendorId, from, to } = {}) {
+    const where = {
+      deleteStatus: false,
+      status: { not: 'CANCELLED' },
+      ...(vendorId && { vendorId: parseInt(vendorId, 10) }),
+      ...((from || to) && {
+        invoiceDate: {
+          ...(from && { gte: new Date(from) }),
+          ...(to && { lte: new Date(new Date(to).setHours(23, 59, 59, 999)) }),
+        },
+      }),
+    };
+    const agg = await prisma.vendorInvoice.aggregate({
+      where,
+      _count: { id: true },
+      _sum: { totalAmount: true, paidAmount: true, taxAmount: true, subtotalAmount: true },
+    });
+    const totalBilled = round2(parseFloat(agg._sum.totalAmount) || 0);
+    const paidAmount = round2(parseFloat(agg._sum.paidAmount) || 0);
+    return {
+      billCount: agg._count.id || 0,
+      totalBilled,
+      taxAmount: round2(parseFloat(agg._sum.taxAmount) || 0),
+      subtotalAmount: round2(parseFloat(agg._sum.subtotalAmount) || 0),
+      outstanding: round2(totalBilled - paidAmount),
+    };
+  }
+
   async getById(id) {
     const inv = await prisma.vendorInvoice.findFirst({
       where: { id: parseInt(id, 10), deleteStatus: false },

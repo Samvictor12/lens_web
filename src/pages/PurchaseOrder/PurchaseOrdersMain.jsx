@@ -10,6 +10,7 @@ import {
   Boxes,
   Timer,
   X,
+  FileText,
 } from "lucide-react";
 import { Refresh } from "@/components/ui/Refresh";
 import { Button } from "@/components/ui/button";
@@ -29,10 +30,13 @@ import {
   downloadPurchaseOrderExcel,
   downloadBatchPurchaseOrderExcel,
 } from "@/services/purchaseOrder";
-import { purchaseOrderFilters, getIstDateString } from "./PurchaseOrder.constants";
+import { purchaseOrderFilters, getIstDateString, VENDOR_BILL_ELIGIBLE_STATUSES } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
+import VendorBillTab from "./VendorBillTab";
 import { openAppWindow } from "@/utils/openAppWindow";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
+import CreateVendorInvoiceDialog from "@/pages/Accounting/VendorPayments/CreateVendorInvoiceDialog";
+import { getVendorDropdown } from "@/services/vendor";
 
 const EMPTY_STATS = {
   jobsReceived: 0,
@@ -88,9 +92,21 @@ export default function PurchaseOrders() {
   const [selectedPos, setSelectedPos] = useState([]); // array of full PO objects
   const selectedIds = useMemo(() => new Set(selectedPos.map((p) => p.id)), [selectedPos]);
   const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+  const [vendors, setVendors] = useState([]);
+  const [raiseBillOpen, setRaiseBillOpen] = useState(false);
+  const [raiseBillVendorId, setRaiseBillVendorId] = useState(null);
+  const [raiseBillPoIds, setRaiseBillPoIds] = useState([]);
 
   useEffect(() => {
     localStorage.setItem("purchaseOrdersView", "table");
+  }, []);
+
+  useEffect(() => {
+    getVendorDropdown()
+      .then((res) => {
+        if (res.success) setVendors(res.data || []);
+      })
+      .catch(() => {});
   }, []);
 
   // Handle delete purchase order click
@@ -216,6 +232,44 @@ export default function PurchaseOrders() {
     } finally {
       setIsBatchDownloading(false);
     }
+  };
+
+  const handleRaiseVendorBill = () => {
+    if (selectedPos.length === 0) return;
+
+    const vendorIds = [...new Set(selectedPos.map((p) => p.vendor?.id ?? p.vendorId).filter(Boolean))];
+    if (vendorIds.length !== 1) {
+      toast({
+        title: "Mixed vendors selected",
+        description: "All selected POs must be from the same vendor to raise a bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const ineligible = selectedPos.filter(
+      (p) => !VENDOR_BILL_ELIGIBLE_STATUSES.includes(p.status)
+    );
+    if (ineligible.length) {
+      toast({
+        title: "POs not eligible for billing",
+        description: "Select received POs that do not already have a vendor bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRaiseBillVendorId(vendorIds[0]);
+    setRaiseBillPoIds(selectedPos.map((p) => p.id));
+    setRaiseBillOpen(true);
+  };
+
+  const handleVendorBillCreated = () => {
+    setSelectedPos([]);
+    setRaiseBillPoIds([]);
+    setRaiseBillVendorId(null);
+    setRefreshKey((prev) => prev + 1);
+    setActiveTab("vendor-bill");
   };
 
   // Get table columns with delete handler
@@ -472,7 +526,7 @@ export default function PurchaseOrders() {
 
   const hasActiveFilters = useMemo(() => {
     return (
-      filters.status !== null ||
+      (filters.status != null && filters.status !== "unbilled") ||
       filters.vendor_id !== null ||
       Boolean(filters.start_date) ||
       Boolean(filters.end_date) ||
@@ -534,28 +588,40 @@ export default function PurchaseOrders() {
             <X className="h-3.5 w-3.5 mr-1" />
             Clear
           </Button>
-          {/* Batch Download PO button — slides in when rows are selected */}
+          {/* Batch actions — slide in when rows are selected */}
           <div
             className="overflow-hidden transition-all duration-300 ease-in-out"
             style={{
-              maxWidth: selectedPos.length > 0 ? "220px" : "0px",
+              maxWidth: selectedPos.length > 0 ? "460px" : "0px",
               opacity: selectedPos.length > 0 ? 1 : 0,
+              pointerEvents: selectedPos.length > 0 ? "auto" : "none",
             }}
           >
-            <Button
-              size="xs"
-              variant="outline"
-              className="gap-1.5 h-8 border-blue-400 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
-              onClick={handleBatchDownload}
-              disabled={isBatchDownloading}
-            >
-              {isBatchDownloading ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-              Download PO ({selectedPos.length})
-            </Button>
+            <div className="flex gap-1.5">
+              <Button
+                size="xs"
+                variant="outline"
+                className="gap-1.5 h-8 border-blue-400 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+                onClick={handleBatchDownload}
+                disabled={isBatchDownloading}
+              >
+                {isBatchDownloading ? (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                Download PO ({selectedPos.length})
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                className="gap-1.5 h-8 border-emerald-400 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
+                onClick={handleRaiseVendorBill}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Raise Vendor Bill ({selectedPos.length})
+              </Button>
+            </div>
           </div>
           <Button
             size="xs"
@@ -678,15 +744,7 @@ export default function PurchaseOrders() {
         </TabsContent>
 
         <TabsContent value="vendor-bill" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <Card className="flex flex-1 items-center justify-center border-dashed">
-            <div className="py-16 px-6 text-center space-y-2">
-              <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/50" />
-              <h2 className="text-base font-semibold">Vendor Bill</h2>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Coming soon — this tab will be set up next.
-              </p>
-            </div>
-          </Card>
+          <VendorBillTab refreshKey={refreshKey} />
         </TabsContent>
       </Tabs>
 
@@ -702,6 +760,14 @@ export default function PurchaseOrders() {
             : "Are you sure you want to delete this purchase order?"
         }
         isDeleting={isDeleting}
+      />
+      <CreateVendorInvoiceDialog
+        open={raiseBillOpen}
+        onOpenChange={setRaiseBillOpen}
+        vendors={vendors}
+        initialVendorId={raiseBillVendorId}
+        initialPoIds={raiseBillPoIds}
+        onCreated={handleVendorBillCreated}
       />
     </div>
   );

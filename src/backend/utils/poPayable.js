@@ -31,6 +31,9 @@ export const PO_PAYMENT_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED', 
 /** POs eligible for new Vendor Invoice registration (excludes INVOICE_RECEIVED / PAID). */
 export const PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
+/** Default Purchase list: operational POs that have not had a vendor bill raised. */
+export const PO_UNBILLED_LIST_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
+
 /** True when PO already has a legacy/Excel supplier invoice mark. */
 export function hasSupplierInvoiceNo(po) {
   return !!(po?.supplierInvoiceNo && String(po.supplierInvoiceNo).trim());

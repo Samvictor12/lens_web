@@ -8,6 +8,7 @@ const BASE = "/accounting/vendor-invoices";
  * against PO(s) before any payment is made; payments then allocate against these.
  */
 export const getVendorInvoices = (params = {}) => apiClient("get", BASE, { params });
+export const getVendorInvoiceSummary = (params = {}) => apiClient("get", `${BASE}/summary`, { params });
 export const getVendorInvoiceById = (id) => apiClient("get", `${BASE}/${id}`);
 export const getOutstandingVendorInvoicesFor = (vendorId) =>
   vendorId

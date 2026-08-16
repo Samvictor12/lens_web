@@ -4,6 +4,9 @@ export class VendorInvoiceController {
   async list(req, res, next) {
     try { res.json({ success: true, ...(await vendorInvoiceService.list(req.query)) }); } catch (e) { next(e); }
   }
+  async summary(req, res, next) {
+    try { res.json({ success: true, data: await vendorInvoiceService.summary(req.query) }); } catch (e) { next(e); }
+  }
   async getById(req, res, next) {
     try { res.json({ success: true, data: await vendorInvoiceService.getById(req.params.id) }); } catch (e) { next(e); }
   }

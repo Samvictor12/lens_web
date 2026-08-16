@@ -39,7 +39,7 @@ export const getPurchaseOrders = async (
     if (filters.active_status !== "all" && filters.active_status !== undefined) {
       params.active_status = filters.active_status;
     }
-    if (filters.status !== null && filters.status !== undefined) {
+    if (filters.status !== null && filters.status !== undefined && filters.status !== "") {
       params.status = filters.status;
     }
     if (filters.vendor_id !== null && filters.vendor_id !== undefined) {
@@ -72,7 +72,12 @@ export const getPurchaseOrderDashboard = async (search = "", filters = {}) => {
     if (filters.active_status !== "all" && filters.active_status !== undefined) {
       params.active_status = filters.active_status;
     }
-    if (filters.status !== null && filters.status !== undefined && filters.status !== "") {
+    if (
+      filters.status !== null &&
+      filters.status !== undefined &&
+      filters.status !== "" &&
+      filters.status !== "unbilled"
+    ) {
       params.status = filters.status;
     }
     if (filters.vendor_id !== null && filters.vendor_id !== undefined) {

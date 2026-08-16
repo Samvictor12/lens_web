@@ -59,7 +59,14 @@ function poLineFromPo(po) {
  * This captures the actual supplier invoice amounts up-front; payment against the
  * resulting outstanding VendorInvoice happens as a separate later step.
  */
-export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors = [], onCreated }) {
+export default function CreateVendorInvoiceDialog({
+  open,
+  onOpenChange,
+  vendors = [],
+  onCreated,
+  initialVendorId,
+  initialPoIds = [],
+}) {
   const { toast } = useToast();
   const { company } = useCompany();
   const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
@@ -74,18 +81,23 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
   const [invoiceFile, setInvoiceFile] = useState(null);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const vendorLocked = Boolean(initialVendorId);
+  const initialPoKey = (initialPoIds || []).join(",");
 
   useEffect(() => {
     if (!open) return;
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      vendorId: initialVendorId ? String(initialVendorId) : "",
+    });
     setSelectedPoIds([]);
     setPoLines({});
     setInvoiceFile(null);
-  }, [open]);
+  }, [open, initialVendorId]);
 
   useEffect(() => {
-    if (!form.vendorId) {
-      setOutstandingPOs([]);
+    if (!open || !form.vendorId) {
+      if (!form.vendorId) setOutstandingPOs([]);
       return;
     }
     setLoadingPOs(true);
@@ -102,12 +114,21 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
           needsPricing: !(parseFloat(po.subtotal) > 0),
         }));
         setOutstandingPOs(pos);
+        if (initialPoKey) {
+          const eligible = new Set(pos.map((p) => p.id));
+          setSelectedPoIds(
+            initialPoKey
+              .split(",")
+              .map((id) => parseInt(id, 10))
+              .filter((id) => eligible.has(id))
+          );
+        }
       })
       .catch(() => {
         toast({ variant: "destructive", title: "Failed to load purchase orders" });
       })
       .finally(() => setLoadingPOs(false));
-  }, [form.vendorId]);
+  }, [open, form.vendorId, initialPoKey, toast]);
 
   const selectedPOs = useMemo(
     () => outstandingPOs.filter((po) => selectedPoIds.includes(po.id)),
@@ -243,11 +264,11 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!w-[75vw] !max-w-[75vw] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Register Vendor Invoice</DialogTitle>
+      <DialogContent className="!flex !flex-col !w-[75vw] !max-w-[75vw] max-h-[90vh] overflow-hidden gap-0 p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12">
+          <DialogTitle>{vendorLocked ? "Raise Vendor Bill" : "Register Vendor Invoice"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-2">
           <FormSelect
             label="Vendor"
             name="vendorId"
@@ -259,7 +280,8 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
             }}
             placeholder="Select vendor"
             isSearchable={true}
-            isClearable={true}
+            isClearable={!vendorLocked}
+            disabled={vendorLocked}
             required
           />
 
@@ -433,7 +455,7 @@ export default function CreateVendorInvoiceDialog({ open, onOpenChange, vendors 
             <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Optional notes" />
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0 px-6 py-4 border-t bg-background">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>

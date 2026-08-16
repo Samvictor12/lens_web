@@ -58,7 +58,7 @@ export const statusOptions = [
   { value: "DRAFT", label: "Pending" },
   { value: "PO_PARTIAL_RECEIVED", label: "Partial Received" },
   { value: "RECEIVED", label: "Full Received" },
-  { value: "INVOICE_RECEIVED", label: "Full Received" },
+  { value: "INVOICE_RECEIVED", label: "Invoice Received" },
   { value: "PAID", label: "Paid" },
   { value: "CLOSED", label: "Closed" },
   { value: "CANCELLED", label: "Cancelled" },
@@ -96,8 +96,9 @@ export const getStatusColor = (status) => {
     case "PARTIALLY_RECEIVED":
       return "bg-blue-50 text-blue-700 border-blue-200";
     case "RECEIVED":
-    case "INVOICE_RECEIVED":
       return "bg-green-50 text-green-700 border-green-200";
+    case "INVOICE_RECEIVED":
+      return "bg-indigo-50 text-indigo-700 border-indigo-200";
     case "PAID":
       return "bg-emerald-50 text-emerald-800 border-emerald-200";
     case "CLOSED":
@@ -109,11 +110,22 @@ export const getStatusColor = (status) => {
   }
 };
 
+/** Default list: pending / received POs that have not had a vendor bill raised. */
+export const UNBILLED_STATUS = "unbilled";
+export const ALL_STATUS = "all";
+export const VENDOR_BILL_ELIGIBLE_STATUSES = ["PO_PARTIAL_RECEIVED", "RECEIVED"];
+
+export const statusFilterOptions = [
+  { value: UNBILLED_STATUS, label: "Unbilled" },
+  { value: ALL_STATUS, label: "All" },
+  ...statusOptions,
+];
+
 // Purchase order filters
 export const purchaseOrderFilters = {
   search: "",
   vendor_id: null,
-  status: null,
+  status: UNBILLED_STATUS,
   active_status: "all",
   start_date: "",
   end_date: "",
@@ -129,6 +141,17 @@ export function getIstDateString(date = new Date()) {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+/** First and last calendar day of the current IST month as YYYY-MM-DD. */
+export function getIstMonthRange(date = new Date()) {
+  const today = getIstDateString(date);
+  const [year, month] = today.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    start: `${year}-${String(month).padStart(2, "0")}-01`,
+    end: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+  };
 }
 
 /** PO quantity from linked SO eyes: 1 per eye, minimum 1 */
