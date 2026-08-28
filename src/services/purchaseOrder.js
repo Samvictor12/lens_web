@@ -51,6 +51,12 @@ export const getPurchaseOrders = async (
     if (filters.end_date) {
       params.end_date = filters.end_date;
     }
+    if (filters.date_type) {
+      params.date_type = filters.date_type;
+    }
+    if (filters.has_receipts === true || filters.has_receipts === "true") {
+      params.has_receipts = true;
+    }
     if (filters.orderType && filters.orderType !== "all") {
       params.orderType = filters.orderType;
     }
@@ -76,7 +82,8 @@ export const getPurchaseOrderDashboard = async (search = "", filters = {}) => {
       filters.status !== null &&
       filters.status !== undefined &&
       filters.status !== "" &&
-      filters.status !== "unbilled"
+      filters.status !== "unbilled" &&
+      filters.status !== "all"
     ) {
       params.status = filters.status;
     }
@@ -89,11 +96,14 @@ export const getPurchaseOrderDashboard = async (search = "", filters = {}) => {
     if (filters.end_date) {
       params.end_date = filters.end_date;
     }
-    if (filters.receive_start_date) {
-      params.receive_start_date = filters.receive_start_date;
+    if (filters.date_type) {
+      params.date_type = filters.date_type;
     }
-    if (filters.receive_end_date) {
-      params.receive_end_date = filters.receive_end_date;
+    if (filters.card_receive_start_date) {
+      params.card_receive_start_date = filters.card_receive_start_date;
+    }
+    if (filters.card_receive_end_date) {
+      params.card_receive_end_date = filters.card_receive_end_date;
     }
     if (filters.orderType && filters.orderType !== "all") {
       params.orderType = filters.orderType;
@@ -206,6 +216,14 @@ export const inwardReceiptToInventory = async (poId, receiptId, inwardRows) => {
   });
   return response;
 };
+
+/**
+ * Single POs for a vendor (Excel download picker).
+ */
+export const getDownloadEligiblePOs = async (vendorId) =>
+  apiClient("get", `${PURCHASE_ORDER_BASE_URL}/download-eligible`, {
+    params: { vendorId },
+  });
 
 /**
  * Download a Purchase Order as an Excel file.

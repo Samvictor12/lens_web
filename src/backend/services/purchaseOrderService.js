@@ -24,11 +24,17 @@ function istDayEnd(dateStr) {
   return new Date(`${dateStr}T23:59:59.999+05:30`);
 }
 
-function receiptReceiveDateWhere(startDate, endDate) {
-  if (!startDate && !endDate) return {};
+function istDateRange(startDate, endDate) {
+  if (!startDate && !endDate) return null;
   const range = {};
   if (startDate) range.gte = istDayStart(startDate);
   if (endDate) range.lte = istDayEnd(endDate);
+  return range;
+}
+
+function receiptReceiveDateWhere(startDate, endDate) {
+  const range = istDateRange(startDate, endDate);
+  if (!range) return {};
   return {
     OR: [
       { actualDeliveryDate: range },
@@ -236,8 +242,10 @@ class PurchaseOrderService {
 
   /**
    * Shared list filters for PO list + dashboard cards.
+   * Single From–To (`start_date`/`end_date`) + `date_type`:
+   * order | received | expected | all (OR across the three).
    * @param {Object} queryParams
-   * @param {{ applyOrderDate?: boolean, excludeCancelled?: boolean }} [opts]
+   * @param {{ applyDateFilter?: boolean, excludeCancelled?: boolean }} [opts]
    */
   buildPurchaseOrderListWhere(queryParams = {}, opts = {}) {
     const {
@@ -251,27 +259,35 @@ class PurchaseOrderService {
       start_date,
       endDate,
       end_date,
+      date_type,
+      dateType,
       orderType,
+      has_receipts,
+      hasReceipts,
     } = queryParams;
 
     const resolvedVendorId = vendorId ?? vendor_id;
     const resolvedActiveStatus = activeStatus ?? active_status;
     const resolvedStartDate = startDate ?? start_date;
     const resolvedEndDate = endDate ?? end_date;
-    const applyOrderDate = opts.applyOrderDate !== false;
+    const resolvedDateType = String(dateType ?? date_type ?? "all").toLowerCase();
+    const applyDateFilter = opts.applyDateFilter !== false;
     const excludeCancelled = opts.excludeCancelled !== false;
 
     const where = { deleteStatus: false };
+    const andClauses = [];
 
     if (search) {
-      where.OR = [
-        { poNumber: { contains: search, mode: "insensitive" } },
-        { reference_id: { contains: search, mode: "insensitive" } },
-        { supplierInvoiceNo: { contains: search, mode: "insensitive" } },
-        { vendor: { name: { contains: search, mode: "insensitive" } } },
-        { saleOrder: { customerRefNo: { contains: search, mode: "insensitive" } } },
-        { saleOrder: { orderNo: { contains: search, mode: "insensitive" } } },
-      ];
+      andClauses.push({
+        OR: [
+          { poNumber: { contains: search, mode: "insensitive" } },
+          { reference_id: { contains: search, mode: "insensitive" } },
+          { supplierInvoiceNo: { contains: search, mode: "insensitive" } },
+          { vendor: { name: { contains: search, mode: "insensitive" } } },
+          { saleOrder: { customerRefNo: { contains: search, mode: "insensitive" } } },
+          { saleOrder: { orderNo: { contains: search, mode: "insensitive" } } },
+        ],
+      });
     }
 
     if (resolvedVendorId) {
@@ -281,6 +297,8 @@ class PurchaseOrderService {
     const normalizedStatus = status ? String(status).toUpperCase() : "";
     if (normalizedStatus === "UNBILLED") {
       where.status = { in: PO_UNBILLED_LIST_STATUSES };
+    } else if (normalizedStatus === "PENDING") {
+      where.status = { in: ["DRAFT", "PO_PARTIAL_RECEIVED"] };
     } else if (excludeCancelled && normalizedStatus === "CANCELLED") {
       where.id = { in: [] };
     } else if (normalizedStatus === "ALL") {
@@ -296,18 +314,59 @@ class PurchaseOrderService {
         resolvedActiveStatus === "true" || resolvedActiveStatus === true;
     }
 
-    if (applyOrderDate && (resolvedStartDate || resolvedEndDate)) {
-      where.orderDate = {};
-      if (resolvedStartDate) {
-        where.orderDate.gte = new Date(resolvedStartDate);
-      }
-      if (resolvedEndDate) {
-        where.orderDate.lte = new Date(resolvedEndDate);
+    if (applyDateFilter && (resolvedStartDate || resolvedEndDate)) {
+      const range = istDateRange(resolvedStartDate, resolvedEndDate);
+      const receivedClause = {
+        receipts: {
+          some: {
+            deleteStatus: false,
+            ...receiptReceiveDateWhere(resolvedStartDate, resolvedEndDate),
+          },
+        },
+      };
+
+      if (resolvedDateType === "order") {
+        where.orderDate = range;
+      } else if (resolvedDateType === "received") {
+        Object.assign(where, receivedClause);
+      } else if (resolvedDateType === "expected") {
+        where.expectedDeliveryDate = range;
+      } else {
+        // all — match if any of the three dates falls in range
+        andClauses.push({
+          OR: [
+            { orderDate: range },
+            { expectedDeliveryDate: range },
+            receivedClause,
+          ],
+        });
       }
     }
 
     if (orderType && orderType !== "all") {
       where.orderType = orderType;
+    }
+
+    const wantsReceipts =
+      hasReceipts === true ||
+      hasReceipts === "true" ||
+      has_receipts === true ||
+      has_receipts === "true";
+    if (wantsReceipts) {
+      andClauses.push({
+        receipts: { some: { deleteStatus: false } },
+      });
+    }
+
+    if (andClauses.length === 1 && !where.AND) {
+      const only = andClauses[0];
+      if (only.OR) {
+        where.OR = only.OR;
+      } else {
+        where.AND = andClauses;
+      }
+    } else if (andClauses.length > 0) {
+      where.AND = andClauses;
     }
 
     return where;
@@ -325,10 +384,10 @@ class PurchaseOrderService {
       const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
       const take = parseInt(limit, 10);
       const where = this.buildPurchaseOrderListWhere(
-        { ...queryParams, status: queryParams.status || "unbilled" },
+        { ...queryParams, status: queryParams.status || "all" },
         {
           excludeCancelled: false,
-          applyOrderDate: true,
+          applyDateFilter: true,
         }
       );
 
@@ -354,6 +413,12 @@ class PurchaseOrderService {
                 id: true,
                 orderNo: true,
                 customerRefNo: true,
+                customer: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
             lensProduct: {
@@ -361,6 +426,12 @@ class PurchaseOrderService {
                 id: true,
                 lens_name: true,
                 product_code: true,
+                index: {
+                  select: {
+                    id: true,
+                    index_name: true,
+                  },
+                },
               },
             },
             category: {
@@ -374,6 +445,14 @@ class PurchaseOrderService {
                 id: true,
                 name: true,
               },
+            },
+            receipts: {
+              where: { deleteStatus: false },
+              select: {
+                actualDeliveryDate: true,
+                receivedDate: true,
+              },
+              orderBy: { receivedDate: "desc" },
             },
             createdByUser: {
               select: {
@@ -390,8 +469,28 @@ class PurchaseOrderService {
         prisma.purchaseOrder.count({ where }),
       ]);
 
-      // Format the purchase orders to handle bulk data
-      const formattedPOs = purchaseOrders.map(po => this.formatPurchaseOrderResponse(po));
+      // Format the purchase orders to handle bulk data + list display fields
+      const formattedPOs = purchaseOrders.map((po) => {
+        const formatted = this.formatPurchaseOrderResponse(po);
+        const latestReceive = (po.receipts || []).reduce((best, r) => {
+          const t = receiptReceiveInstant(r);
+          if (!t) return best;
+          if (!best || t > best) return t;
+          return best;
+        }, null);
+
+        formatted.receivedDate = latestReceive;
+        if (latestReceive && po.orderDate) {
+          const ms = new Date(latestReceive) - new Date(po.orderDate);
+          formatted.tatDays =
+            ms < 0 ? null : Math.round((ms / (1000 * 60 * 60 * 24)) * 10) / 10;
+        } else {
+          formatted.tatDays = null;
+        }
+        // Don't ship full receipts array to the list client
+        delete formatted.receipts;
+        return formatted;
+      });
 
       return {
         data: formattedPOs,
@@ -413,24 +512,29 @@ class PurchaseOrderService {
   }
 
   /**
-   * List-card statistics. Receipt window uses receive_start_date / receive_end_date
-   * (today injected by the client). PO orderDate uses start_date / end_date only when set.
+   * List-card statistics. Receipt window uses card_receive_* (today or From–To
+   * when date_type is received/all). Pending Vendor PO ignores date filters.
+   * Total outsourced / TAT use the same list date filter as the table.
    */
   async getPurchaseOrderDashboard(queryParams = {}) {
     try {
       const receiveStart =
-        queryParams.receive_start_date || queryParams.receiveStartDate || null;
+        queryParams.card_receive_start_date ||
+        queryParams.cardReceiveStartDate ||
+        null;
       const receiveEnd =
-        queryParams.receive_end_date || queryParams.receiveEndDate || null;
+        queryParams.card_receive_end_date ||
+        queryParams.cardReceiveEndDate ||
+        null;
 
       const poWhere = this.buildPurchaseOrderListWhere(queryParams, {
         excludeCancelled: true,
-        applyOrderDate: true,
+        applyDateFilter: true,
       });
 
       const poWhereForReceipts = this.buildPurchaseOrderListWhere(queryParams, {
         excludeCancelled: true,
-        applyOrderDate: false,
+        applyDateFilter: false,
       });
 
       const receiptWhere = {
@@ -449,7 +553,7 @@ class PurchaseOrderService {
           prisma.purchaseOrder.count({
             where: {
               AND: [
-                poWhere,
+                poWhereForReceipts,
                 { status: { in: ["DRAFT", "PO_PARTIAL_RECEIVED"] } },
               ],
             },
@@ -513,6 +617,58 @@ class PurchaseOrderService {
         "FETCH_PO_DASHBOARD_ERROR"
       );
     }
+  }
+
+  /**
+   * Single-type DRAFT POs for a vendor (Excel download picker).
+   */
+  async listDownloadEligiblePOs(vendorId) {
+    if (!vendorId) {
+      throw new APIError("vendorId is required", 400, "VALIDATION_ERROR");
+    }
+    const vid = parseInt(vendorId, 10);
+
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: vid },
+      select: { id: true, name: true, code: true },
+    });
+    if (!vendor) {
+      throw new APIError("Vendor not found", 404, "VENDOR_NOT_FOUND");
+    }
+
+    const pos = await prisma.purchaseOrder.findMany({
+      where: {
+        vendorId: vid,
+        deleteStatus: false,
+        orderType: "Single",
+        status: "DRAFT",
+      },
+      select: {
+        id: true,
+        poNumber: true,
+        orderDate: true,
+        totalValue: true,
+        status: true,
+        saleOrder: { select: { customerRefNo: true } },
+        lensProduct: { select: { lens_name: true } },
+      },
+      orderBy: [{ orderDate: "desc" }, { poNumber: "asc" }],
+    });
+
+    return {
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      vendorCode: vendor.code,
+      purchaseOrders: pos.map((po) => ({
+        purchaseOrderId: po.id,
+        poNumber: po.poNumber,
+        orderDate: po.orderDate,
+        totalValue: po.totalValue,
+        status: po.status,
+        customerRef: po.saleOrder?.customerRefNo || null,
+        lensName: po.lensProduct?.lens_name || null,
+      })),
+    };
   }
 
   /**

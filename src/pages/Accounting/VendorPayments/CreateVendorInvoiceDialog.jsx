@@ -15,7 +15,13 @@ import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { getGstRatesFromSettings, gstRatesToSelectOptions } from "@/utils/gstRates";
-import { createVendorInvoice, getEligiblePOsForVendorInvoice } from "@/services/vendorInvoice";
+import {
+  createVendorInvoice,
+  getEligiblePOsForVendorInvoice,
+  getVendorInvoiceById,
+  updateVendorInvoice,
+} from "@/services/vendorInvoice";
+import { vendorInvoiceCopyUrl } from "@/services/vendorPayment";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -39,6 +45,50 @@ function gstPercentFromPo(subtotal, taxAmount) {
   const tax = parseFloat(taxAmount);
   if (sub <= 0 || !Number.isFinite(tax) || tax < 0) return "";
   return String(Math.round((tax / sub) * 10000) / 100);
+}
+
+function poLineFromInvoiceItem(item) {
+  const subtotal = parseFloat(item.subtotalAmount) || 0;
+  const taxAmount = parseFloat(item.taxAmount) || 0;
+  return {
+    subtotalAmount: String(subtotal),
+    gstPercent: gstPercentFromPo(subtotal, taxAmount),
+    taxAmount: String(taxAmount),
+    locked: false,
+  };
+}
+
+function mapEligiblePo(po) {
+  return {
+    id: po.purchaseOrderId,
+    poNumber: po.poNumber,
+    orderDate: po.orderDate,
+    receivedDate: po.receivedDate,
+    expectedDeliveryDate: po.expectedDeliveryDate,
+    subtotal: po.subtotal,
+    taxAmount: po.taxAmount,
+    totalValue: po.totalValue,
+    needsPricing: !(parseFloat(po.subtotal) > 0),
+    onInvoice: false,
+  };
+}
+
+function mapInvoicePo(item) {
+  const po = item.purchaseOrder || {};
+  const subtotal = parseFloat(item.subtotalAmount) || parseFloat(po.subtotal) || 0;
+  const taxAmount = parseFloat(item.taxAmount) || parseFloat(po.taxAmount) || 0;
+  return {
+    id: po.id,
+    poNumber: po.poNumber,
+    orderDate: po.orderDate,
+    receivedDate: po.receivedDate,
+    expectedDeliveryDate: po.expectedDeliveryDate,
+    subtotal,
+    taxAmount,
+    totalValue: round2(subtotal + taxAmount),
+    needsPricing: false,
+    onInvoice: true,
+  };
 }
 
 function poLineFromPo(po) {
@@ -66,7 +116,9 @@ export default function CreateVendorInvoiceDialog({
   onCreated,
   initialVendorId,
   initialPoIds = [],
+  invoiceId = null,
 }) {
+  const isEditMode = Boolean(invoiceId);
   const { toast } = useToast();
   const { company } = useCompany();
   const gstRateOptions = gstRatesToSelectOptions(getGstRatesFromSettings(company));
@@ -76,17 +128,29 @@ export default function CreateVendorInvoiceDialog({
   const [saving, setSaving] = useState(false);
   const [outstandingPOs, setOutstandingPOs] = useState([]);
   const [loadingPOs, setLoadingPOs] = useState(false);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
+  const [editable, setEditable] = useState(true);
   const [selectedPoIds, setSelectedPoIds] = useState([]);
   const [poLines, setPoLines] = useState({});
   const [invoiceFile, setInvoiceFile] = useState(null);
+  const [existingCopyPath, setExistingCopyPath] = useState(null);
   const [courierCharges, setCourierCharges] = useState("");
+  const [receiveStartDate, setReceiveStartDate] = useState("");
+  const [receiveEndDate, setReceiveEndDate] = useState("");
+  const [showEligiblePicker, setShowEligiblePicker] = useState(false);
+  const initialPoAppliedRef = useRef(false);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
-  const vendorLocked = Boolean(initialVendorId);
+  const vendorLocked = Boolean(initialVendorId) || isEditMode;
+  const readOnly = isEditMode && !editable;
   const initialPoKey = (initialPoIds || []).join(",");
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initialPoAppliedRef.current = false;
+      return;
+    }
+    if (isEditMode) return;
     setForm({
       ...emptyForm,
       vendorId: initialVendorId ? String(initialVendorId) : "",
@@ -94,43 +158,109 @@ export default function CreateVendorInvoiceDialog({
     setSelectedPoIds([]);
     setPoLines({});
     setInvoiceFile(null);
+    setExistingCopyPath(null);
     setCourierCharges("");
-  }, [open, initialVendorId]);
+    setReceiveStartDate("");
+    setReceiveEndDate("");
+    setShowEligiblePicker(false);
+    setEditable(true);
+  }, [open, initialVendorId, isEditMode]);
 
   useEffect(() => {
-    if (!open || !form.vendorId) {
-      if (!form.vendorId) setOutstandingPOs([]);
+    if (!open || !isEditMode || !invoiceId) return;
+    setLoadingInvoice(true);
+    getVendorInvoiceById(invoiceId)
+      .then((res) => {
+        const inv = res.data;
+        if (!inv) return;
+        setEditable(inv.editable !== false);
+        setForm({
+          vendorId: String(inv.vendorId),
+          supplierInvoiceNo: inv.supplierInvoiceNo || "",
+          invoiceDate: inv.invoiceDate
+            ? new Date(inv.invoiceDate).toISOString().split("T")[0]
+            : emptyForm.invoiceDate,
+          notes: inv.notes || "",
+        });
+        setCourierCharges(
+          inv.courierCharges != null && inv.courierCharges !== "" ? String(inv.courierCharges) : ""
+        );
+        setExistingCopyPath(inv.invoiceCopyPath || null);
+        setInvoiceFile(null);
+        const rows = (inv.items || []).map(mapInvoicePo);
+        setOutstandingPOs(rows);
+        setSelectedPoIds(rows.map((r) => r.id));
+        const lines = {};
+        for (const item of inv.items || []) {
+          lines[item.purchaseOrderId] = poLineFromInvoiceItem(item);
+        }
+        setPoLines(lines);
+        setShowEligiblePicker(false);
+        setReceiveStartDate("");
+        setReceiveEndDate("");
+      })
+      .catch(() => {
+        toast({ variant: "destructive", title: "Failed to load vendor bill" });
+        onOpenChange(false);
+      })
+      .finally(() => setLoadingInvoice(false));
+  }, [open, isEditMode, invoiceId, toast, onOpenChange]);
+
+  useEffect(() => {
+    if (!open || isEditMode || !form.vendorId) {
+      if (!form.vendorId && !isEditMode) setOutstandingPOs([]);
       return;
     }
     setLoadingPOs(true);
-    getEligiblePOsForVendorInvoice(form.vendorId)
+    getEligiblePOsForVendorInvoice(form.vendorId, {
+      receive_start_date: receiveStartDate,
+      receive_end_date: receiveEndDate,
+    })
       .then((res) => {
-        const pos = (res.data?.purchaseOrders || []).map((po) => ({
-          id: po.purchaseOrderId,
-          poNumber: po.poNumber,
-          orderDate: po.orderDate,
-          expectedDeliveryDate: po.expectedDeliveryDate,
-          subtotal: po.subtotal,
-          taxAmount: po.taxAmount,
-          totalValue: po.totalValue,
-          needsPricing: !(parseFloat(po.subtotal) > 0),
-        }));
+        const pos = (res.data?.purchaseOrders || []).map(mapEligiblePo);
         setOutstandingPOs(pos);
-        if (initialPoKey) {
-          const eligible = new Set(pos.map((p) => p.id));
+        const eligible = new Set(pos.map((p) => p.id));
+        if (!initialPoAppliedRef.current && initialPoKey) {
+          initialPoAppliedRef.current = true;
           setSelectedPoIds(
             initialPoKey
               .split(",")
               .map((id) => parseInt(id, 10))
               .filter((id) => eligible.has(id))
           );
+        } else {
+          setSelectedPoIds((prev) => prev.filter((id) => eligible.has(id)));
         }
       })
       .catch(() => {
         toast({ variant: "destructive", title: "Failed to load purchase orders" });
       })
       .finally(() => setLoadingPOs(false));
-  }, [open, form.vendorId, initialPoKey, toast]);
+  }, [open, isEditMode, form.vendorId, receiveStartDate, receiveEndDate, initialPoKey, toast]);
+
+  useEffect(() => {
+    if (!open || !isEditMode || !showEligiblePicker || !form.vendorId) return;
+    setLoadingPOs(true);
+    getEligiblePOsForVendorInvoice(form.vendorId, {
+      receive_start_date: receiveStartDate,
+      receive_end_date: receiveEndDate,
+    })
+      .then((res) => {
+        const eligible = (res.data?.purchaseOrders || []).map(mapEligiblePo);
+        setOutstandingPOs((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const merged = [...prev];
+          for (const po of eligible) {
+            if (!existingIds.has(po.id)) merged.push(po);
+          }
+          return merged;
+        });
+      })
+      .catch(() => {
+        toast({ variant: "destructive", title: "Failed to load purchase orders" });
+      })
+      .finally(() => setLoadingPOs(false));
+  }, [open, isEditMode, showEligiblePicker, form.vendorId, receiveStartDate, receiveEndDate, toast]);
 
   const selectedPOs = useMemo(
     () => outstandingPOs.filter((po) => selectedPoIds.includes(po.id)),
@@ -199,6 +329,7 @@ export default function CreateVendorInvoiceDialog({
   };
 
   const handleSave = async () => {
+    if (readOnly) return;
     if (!form.vendorId) {
       toast({ variant: "destructive", title: "Please select a vendor" });
       return;
@@ -207,7 +338,7 @@ export default function CreateVendorInvoiceDialog({
       toast({ variant: "destructive", title: "Supplier invoice number is required" });
       return;
     }
-    if (!invoiceFile) {
+    if (!invoiceFile && !existingCopyPath) {
       toast({ variant: "destructive", title: "Please upload the vendor invoice copy" });
       return;
     }
@@ -255,53 +386,76 @@ export default function CreateVendorInvoiceDialog({
 
     setSaving(true);
     try {
-      const res = await createVendorInvoice(
-        {
-          vendorId: parseInt(form.vendorId, 10),
-          supplierInvoiceNo: form.supplierInvoiceNo.trim(),
-          invoiceDate: form.invoiceDate,
-          notes: form.notes || undefined,
-          courierCharges: totals.courier,
-          items,
-        },
-        invoiceFile
-      );
+      const payload = {
+        vendorId: parseInt(form.vendorId, 10),
+        supplierInvoiceNo: form.supplierInvoiceNo.trim(),
+        invoiceDate: form.invoiceDate,
+        notes: form.notes || undefined,
+        courierCharges: totals.courier,
+        items,
+      };
+      const res = isEditMode
+        ? await updateVendorInvoice(invoiceId, payload, invoiceFile)
+        : await createVendorInvoice(payload, invoiceFile);
       if (res.success) {
-        toast({ title: "Vendor invoice registered", description: res.data?.invoiceNumber });
+        toast({
+          title: isEditMode ? "Vendor bill updated" : "Vendor invoice registered",
+          description: res.data?.invoiceNumber,
+        });
         onOpenChange(false);
         onCreated?.();
       }
     } catch (e) {
-      toast({ variant: "destructive", title: e?.message || e?.error?.message || "Failed to register invoice" });
+      toast({
+        variant: "destructive",
+        title: e?.message || e?.error?.message || (isEditMode ? "Failed to update bill" : "Failed to register invoice"),
+      });
     } finally {
       setSaving(false);
     }
   };
 
+  const dialogTitle = isEditMode
+    ? readOnly
+      ? "View Vendor Bill"
+      : "Edit Vendor Bill"
+    : vendorLocked
+      ? "Raise Vendor Bill"
+      : "Register Vendor Invoice";
+
+  const existingCopyUrl = vendorInvoiceCopyUrl(existingCopyPath);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!flex !flex-col !w-[75vw] !max-w-[75vw] max-h-[90vh] overflow-hidden gap-0 p-0">
+      <DialogContent className="!flex !flex-col !w-[75vw] !max-w-[75vw] !h-[88vh] !max-h-[88vh] overflow-hidden gap-0 p-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12">
-          <DialogTitle>{vendorLocked ? "Raise Vendor Bill" : "Register Vendor Invoice"}</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-2">
-          <FormSelect
-            label="Vendor"
-            name="vendorId"
-            options={vendors}
-            value={form.vendorId}
-            onChange={(value) => {
-              set("vendorId", value != null && value !== "" ? String(value) : "");
-              setSelectedPoIds([]);
-            }}
-            placeholder="Select vendor"
-            isSearchable={true}
-            isClearable={!vendorLocked}
-            disabled={vendorLocked}
-            required
-          />
 
-          <div className="grid grid-cols-2 gap-3">
+        {loadingInvoice ? (
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Loading bill...</div>
+        ) : (
+        <>
+        <div className="min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,17.5rem)_minmax(0,1fr)] grid-rows-1 gap-0 overflow-hidden border-t">
+          {/* Left — invoice details */}
+          <div className="min-h-0 h-full overflow-y-auto space-y-4 px-4 py-4 border-b lg:border-b-0 lg:border-r">
+            <FormSelect
+              label="Vendor"
+              name="vendorId"
+              options={vendors}
+              value={form.vendorId}
+              onChange={(value) => {
+                set("vendorId", value != null && value !== "" ? String(value) : "");
+                setSelectedPoIds([]);
+                initialPoAppliedRef.current = true;
+              }}
+              placeholder="Select vendor"
+              isSearchable={true}
+              isClearable={!vendorLocked}
+              disabled={vendorLocked || readOnly}
+              required
+            />
+
             <div className="space-y-1">
               <Label>
                 Supplier Invoice No. <span className="text-red-500">*</span>
@@ -310,67 +464,163 @@ export default function CreateVendorInvoiceDialog({
                 value={form.supplierInvoiceNo}
                 onChange={(e) => set("supplierInvoiceNo", e.target.value)}
                 placeholder="Invoice number from vendor"
+                disabled={readOnly}
               />
             </div>
+
             <div className="space-y-1">
               <Label>
                 Invoice Date <span className="text-red-500">*</span>
               </Label>
-              <Input type="date" value={form.invoiceDate} onChange={(e) => set("invoiceDate", e.target.value)} />
+              <Input
+                type="date"
+                value={form.invoiceDate}
+                onChange={(e) => set("invoiceDate", e.target.value)}
+                disabled={readOnly}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>
+                Vendor Invoice Copy {!existingCopyPath && <span className="text-red-500">*</span>} (PDF or image)
+              </Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleInvoiceFile}
+                disabled={readOnly}
+              />
+              {invoiceFile ? (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1">{invoiceFile.name}</span>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => {
+                        setInvoiceFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ) : existingCopyUrl ? (
+                <div className="flex flex-col gap-2">
+                  <Button type="button" variant="outline" className="w-full gap-2" asChild>
+                    <a href={existingCopyUrl} target="_blank" rel="noopener noreferrer">
+                      <FileText className="h-4 w-4" /> View current copy
+                    </a>
+                  </Button>
+                  {!readOnly && (
+                    <Button type="button" variant="outline" className="w-full gap-2" onClick={() => fileInputRef.current?.click()}>
+                      <Upload className="h-4 w-4" /> Replace invoice copy
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={readOnly}
+                >
+                  <Upload className="h-4 w-4" /> Upload invoice copy
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label>Courier Charges (optional)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={courierCharges}
+                onChange={(e) => setCourierCharges(e.target.value)}
+                placeholder="0.00"
+                disabled={readOnly}
+              />
+              <p className="text-[11px] text-muted-foreground">Added to invoice total; not taxed separately.</p>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => set("notes", e.target.value)}
+                rows={3}
+                placeholder="Optional notes"
+                disabled={readOnly}
+              />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <Label>
-              Vendor Invoice Copy <span className="text-red-500">*</span> (PDF or image)
-            </Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleInvoiceFile}
-            />
-            {invoiceFile ? (
-              <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="truncate flex-1">{invoiceFile.name}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => {
-                    setInvoiceFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4" /> Upload invoice copy
-              </Button>
-            )}
-          </div>
-
-          {form.vendorId && (
-            <div className="space-y-2">
+          {/* Right — PO selection (scrollable) */}
+          <div className="min-h-0 h-full flex flex-col overflow-hidden px-6 py-4">
+            <div className="shrink-0 space-y-2 mb-3">
               <Label>
                 Purchase Orders <span className="text-red-500">*</span>
               </Label>
               <p className="text-xs text-muted-foreground">
-                Select the PO(s) this invoice covers. Amount and GST load from the PO when already set; otherwise enter them below for each selected PO.
+                {isEditMode
+                  ? "POs on this bill are shown below. Uncheck to remove; amounts can be edited."
+                  : "Partial / full received POs only. Amount and GST load from the PO when already set; otherwise enter them below for each selected PO."}
               </p>
-              {loadingPOs ? (
+              {isEditMode && editable && (
+                <button
+                  type="button"
+                  className="text-xs text-primary underline-offset-2 hover:underline"
+                  onClick={() => setShowEligiblePicker((v) => !v)}
+                >
+                  {showEligiblePicker
+                    ? "Hide received / partial received POs"
+                    : "Show received / partial received POs"}
+                </button>
+              )}
+              {(showEligiblePicker || !isEditMode) && (
+              <div className="flex flex-wrap items-end gap-2">
+                <span className="text-[10px] font-medium text-muted-foreground shrink-0 pb-2">
+                  Received Date
+                </span>
+                <Input
+                  type="date"
+                  value={receiveStartDate}
+                  onChange={(e) => setReceiveStartDate(e.target.value || "")}
+                  className="!h-8 min-w-[110px] max-w-[140px] text-xs px-1.5"
+                  title="Received from"
+                  disabled={!form.vendorId || readOnly}
+                />
+                <Input
+                  type="date"
+                  value={receiveEndDate}
+                  onChange={(e) => setReceiveEndDate(e.target.value || "")}
+                  className="!h-8 min-w-[110px] max-w-[140px] text-xs px-1.5"
+                  title="Received to"
+                  disabled={!form.vendorId || readOnly}
+                />
+              </div>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
+              {!form.vendorId ? (
+                <p className="text-xs text-muted-foreground py-2">Select a vendor to load purchase orders.</p>
+              ) : loadingPOs && !outstandingPOs.length ? (
                 <p className="text-xs text-muted-foreground py-2">Loading purchase orders...</p>
               ) : outstandingPOs.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">No eligible purchase orders for this vendor.</p>
+                <p className="text-xs text-muted-foreground py-2">No purchase orders on this bill.</p>
               ) : (
                 <>
                   <div className="border rounded-md divide-y text-xs">
-                    <div className="grid grid-cols-[2rem_1fr_6.5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                    <div className="sticky top-0 z-[1] grid grid-cols-[2rem_1fr_6.5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
                       <span />
                       <span>PO Number</span>
                       <span className="text-right">PO Total</span>
@@ -382,12 +632,22 @@ export default function CreateVendorInvoiceDialog({
                           key={po.id}
                           className={`grid grid-cols-[2rem_1fr_6.5rem] gap-2 items-center px-3 py-2 ${selected ? "bg-primary/5" : ""}`}
                         >
-                          <input type="checkbox" checked={selected} onChange={() => togglePo(po.id)} className="h-4 w-4" />
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => togglePo(po.id)}
+                            className="h-4 w-4"
+                            disabled={readOnly}
+                          />
                           <div>
                             <p className="font-medium">{po.poNumber}</p>
                             <p className="text-muted-foreground">
-                              {po.orderDate ? new Date(po.orderDate).toLocaleDateString("en-IN") : "—"}
-                              {po.needsPricing ? " · Awaiting invoice values" : ""}
+                              Received{" "}
+                              {po.receivedDate
+                                ? new Date(po.receivedDate).toLocaleDateString("en-IN")
+                                : "—"}
+                              {po.onInvoice ? " · On this bill" : ""}
+                              {!po.onInvoice && po.needsPricing ? " · Awaiting invoice values" : ""}
                             </p>
                           </div>
                           <span className="text-right font-mono pr-1">
@@ -400,7 +660,7 @@ export default function CreateVendorInvoiceDialog({
 
                   {selectedPOs.length > 0 && (
                     <div className="border rounded-md divide-y text-xs overflow-x-auto">
-                      <div className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[36rem]">
+                      <div className="sticky top-0 z-[1] grid grid-cols-[1fr_repeat(4,minmax(4.5rem,6.5rem))] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[32rem]">
                         <span>Selected PO — Invoice Amounts</span>
                         <span className="text-right">Subtotal</span>
                         <span className="text-right">GST %</span>
@@ -412,16 +672,16 @@ export default function CreateVendorInvoiceDialog({
                         const lineTotal = round2(
                           (parseFloat(line.subtotalAmount) || 0) + (parseFloat(line.taxAmount) || 0)
                         );
-                        const readOnly = line.locked;
+                        const readOnlyLine = readOnly || (line.locked && !isEditMode);
                         return (
                           <div
                             key={po.id}
-                            className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 items-center px-3 py-2 min-w-[36rem]"
+                            className="grid grid-cols-[1fr_repeat(4,minmax(4.5rem,6.5rem))] gap-2 items-center px-3 py-2 min-w-[32rem]"
                           >
                             <div>
                               <p className="font-medium">{po.poNumber}</p>
                               <p className="text-muted-foreground">
-                                {readOnly ? "Loaded from PO" : "Enter from vendor invoice"}
+                                {readOnlyLine && !isEditMode ? "Loaded from PO" : "Enter from vendor invoice"}
                               </p>
                             </div>
                             <Input
@@ -431,7 +691,7 @@ export default function CreateVendorInvoiceDialog({
                               className="h-7 text-xs text-right"
                               value={line.subtotalAmount}
                               onChange={(e) => updatePoLine(po.id, "subtotalAmount", e.target.value)}
-                              disabled={readOnly}
+                              disabled={readOnlyLine}
                               placeholder="0.00"
                             />
                             <FormSelect
@@ -441,7 +701,7 @@ export default function CreateVendorInvoiceDialog({
                               placeholder="%"
                               isSearchable={false}
                               isClearable
-                              disabled={readOnly}
+                              disabled={readOnlyLine}
                               containerClassName="space-y-0"
                               className="h-7 text-xs"
                             />
@@ -452,7 +712,7 @@ export default function CreateVendorInvoiceDialog({
                           </div>
                         );
                       })}
-                      <div className="grid grid-cols-[1fr_repeat(4,6.5rem)] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
+                      <div className="grid grid-cols-[1fr_repeat(4,minmax(4.5rem,6.5rem))] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[32rem]">
                         <span>PO Lines</span>
                         <span className="text-right font-mono">{fmt(totals.subtotal)}</span>
                         <span />
@@ -464,54 +724,51 @@ export default function CreateVendorInvoiceDialog({
                 </>
               )}
             </div>
-          )}
-
-          {selectedPOs.length > 0 && (
-            <div className="space-y-2 rounded-md border p-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                <div className="space-y-1">
-                  <Label>Courier Charges (optional)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={courierCharges}
-                    onChange={(e) => setCourierCharges(e.target.value)}
-                    placeholder="0.00"
-                  />
-                  <p className="text-[11px] text-muted-foreground">Added to invoice total; not taxed separately.</p>
-                </div>
-                <div className="text-sm space-y-1 sm:text-right">
-                  <div className="flex justify-between sm:justify-end gap-4">
-                    <span className="text-muted-foreground">PO lines</span>
-                    <span className="font-mono">{fmt(totals.linesTotal)}</span>
-                  </div>
-                  <div className="flex justify-between sm:justify-end gap-4">
-                    <span className="text-muted-foreground">Courier</span>
-                    <span className="font-mono">{fmt(totals.courier)}</span>
-                  </div>
-                  <div className="flex justify-between sm:justify-end gap-4 font-semibold border-t pt-1">
-                    <span>Invoice Total</span>
-                    <span className="font-mono">{fmt(totals.total)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <Label>Notes</Label>
-            <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Optional notes" />
           </div>
         </div>
-        <DialogFooter className="shrink-0 px-6 py-4 border-t bg-background">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !selectedPOs.length || !invoiceFile || totals.total <= 0}>
-            {saving ? "Registering..." : `Register Invoice ${totals.total > 0 ? fmt(totals.total) : ""}`}
-          </Button>
+
+        <DialogFooter className="shrink-0 px-6 py-4 border-t bg-background !flex-row !items-center !justify-between gap-3 flex-wrap">
+          <div className="text-xs sm:text-sm space-y-0.5 min-w-[10rem]">
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>PO lines</span>
+              <span className="font-mono text-foreground">{fmt(totals.linesTotal)}</span>
+            </div>
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>Courier</span>
+              <span className="font-mono text-foreground">{fmt(totals.courier)}</span>
+            </div>
+            <div className="flex justify-between gap-6 font-semibold border-t pt-0.5">
+              <span>Invoice Total</span>
+              <span className="font-mono">{fmt(totals.total)}</span>
+            </div>
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              {readOnly ? "Close" : "Cancel"}
+            </Button>
+            {!readOnly && (
+              <Button
+                onClick={handleSave}
+                disabled={
+                  saving ||
+                  !selectedPOs.length ||
+                  (!invoiceFile && !existingCopyPath) ||
+                  totals.total <= 0
+                }
+              >
+                {saving
+                  ? isEditMode
+                    ? "Saving..."
+                    : "Registering..."
+                  : isEditMode
+                    ? `Save Changes ${totals.total > 0 ? fmt(totals.total) : ""}`
+                    : `Register Invoice ${totals.total > 0 ? fmt(totals.total) : ""}`}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -95,6 +95,16 @@ router.get(
 );
 
 /**
+ * @route   GET /api/purchase-orders/download-eligible
+ * @desc    Single POs for a vendor (Excel download picker)
+ * @access  Private
+ */
+router.get(
+  "/download-eligible",
+  purchaseOrderController.getDownloadEligiblePOs.bind(purchaseOrderController)
+);
+
+/**
  * @route   GET /api/purchase-orders/:id
  * @desc    Get purchase order by ID
  * @access  Private

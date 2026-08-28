@@ -17,6 +17,7 @@ import { getVendorDropdown } from "@/services/vendor";
 import { getVendorInvoices, getVendorInvoiceSummary } from "@/services/vendorInvoice";
 import { getIstMonthRange } from "./PurchaseOrder.constants";
 import { useVendorBillColumns } from "./useVendorBillColumns";
+import CreateVendorInvoiceDialog from "@/pages/Accounting/VendorPayments/CreateVendorInvoiceDialog";
 
 const ALL_VENDOR = "__all__";
 const EMPTY_SUMMARY = { billCount: 0, totalBilled: 0, outstanding: 0 };
@@ -49,8 +50,15 @@ export default function VendorBillTab({ refreshKey = 0 }) {
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editInvoiceId, setEditInvoiceId] = useState(null);
 
-  const columns = useVendorBillColumns();
+  const columns = useVendorBillColumns({
+    onEdit: (inv) => {
+      setEditInvoiceId(inv.id);
+      setEditDialogOpen(true);
+    },
+  });
 
   const isThisMonth = from === monthRange.start && to === monthRange.end;
   const isAllRange = !from && !to;
@@ -362,6 +370,20 @@ export default function VendorBillTab({ refreshKey = 0 }) {
           emptyMessage="No vendor bills found"
         />
       </div>
+
+      <CreateVendorInvoiceDialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) setEditInvoiceId(null);
+        }}
+        vendors={vendors}
+        invoiceId={editInvoiceId}
+        onCreated={() => {
+          fetchBills();
+          fetchSummary();
+        }}
+      />
     </div>
   );
 }

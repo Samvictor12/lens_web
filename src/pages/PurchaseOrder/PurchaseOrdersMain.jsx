@@ -28,14 +28,14 @@ import {
   deletePurchaseOrder,
   getPOReceipts,
   downloadPurchaseOrderExcel,
-  downloadBatchPurchaseOrderExcel,
 } from "@/services/purchaseOrder";
-import { purchaseOrderFilters, getIstDateString, VENDOR_BILL_ELIGIBLE_STATUSES } from "./PurchaseOrder.constants";
+import { purchaseOrderFilters, getIstDateString, VENDOR_BILL_ELIGIBLE_STATUSES, ALL_STATUS, DATE_TYPE_ALL, DATE_TYPE_RECEIVED, PENDING_STATUS } from "./PurchaseOrder.constants";
 import PurchaseOrderFilter from "./PurchaseOrderFilter";
 import VendorBillTab from "./VendorBillTab";
 import { openAppWindow } from "@/utils/openAppWindow";
 import { usePurchaseOrderColumns } from "./usePurchaseOrderColumns";
 import CreateVendorInvoiceDialog from "@/pages/Accounting/VendorPayments/CreateVendorInvoiceDialog";
+import DownloadPODialog from "./DownloadPODialog";
 import { getVendorDropdown } from "@/services/vendor";
 
 const EMPTY_STATS = {
@@ -50,6 +50,60 @@ function formatInr(n) {
   return `₹${Number(n || 0).toLocaleString("en-IN", {
     maximumFractionDigits: 0,
   })}`;
+}
+
+/** Receive window for cards 1–2: today IST, or bar From–To when date type is received/all. */
+function getCardReceiveWindow(filters) {
+  const today = getIstDateString();
+  const hasRange = Boolean(filters.start_date) || Boolean(filters.end_date);
+  const dateType = filters.date_type || DATE_TYPE_ALL;
+  const useFilterForCards =
+    hasRange && (dateType === DATE_TYPE_RECEIVED || dateType === DATE_TYPE_ALL);
+  return {
+    start: useFilterForCards ? filters.start_date || filters.end_date : today,
+    end: useFilterForCards ? filters.end_date || filters.start_date : today,
+  };
+}
+
+/** Merge bar filters with clickable card quick-filter (card overrides conflicting fields). */
+function buildListFilters(filters, activeCard) {
+  if (!activeCard) return filters;
+
+  const next = { ...filters };
+  const receiveWindow = getCardReceiveWindow(filters);
+
+  switch (activeCard) {
+    case "jobsReceivedToday":
+    case "todayVendorInvoiceValue":
+      return {
+        ...next,
+        status: ALL_STATUS,
+        date_type: DATE_TYPE_RECEIVED,
+        start_date: receiveWindow.start,
+        end_date: receiveWindow.end,
+      };
+    case "pendingVendorPo":
+      return {
+        ...next,
+        status: PENDING_STATUS,
+        start_date: "",
+        end_date: "",
+        date_type: DATE_TYPE_ALL,
+      };
+    case "totalOutsourced":
+      return {
+        ...next,
+        status: ALL_STATUS,
+      };
+    case "averageTat":
+      return {
+        ...next,
+        status: ALL_STATUS,
+        has_receipts: true,
+      };
+    default:
+      return filters;
+  }
 }
 
 export default function PurchaseOrders() {
@@ -91,11 +145,13 @@ export default function PurchaseOrders() {
   // Selection state for batch download
   const [selectedPos, setSelectedPos] = useState([]); // array of full PO objects
   const selectedIds = useMemo(() => new Set(selectedPos.map((p) => p.id)), [selectedPos]);
-  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
   const [vendors, setVendors] = useState([]);
   const [raiseBillOpen, setRaiseBillOpen] = useState(false);
   const [raiseBillVendorId, setRaiseBillVendorId] = useState(null);
   const [raiseBillPoIds, setRaiseBillPoIds] = useState([]);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const [downloadVendorId, setDownloadVendorId] = useState(null);
+  const [downloadPoIds, setDownloadPoIds] = useState([]);
 
   useEffect(() => {
     localStorage.setItem("purchaseOrdersView", "table");
@@ -194,48 +250,71 @@ export default function PurchaseOrders() {
     });
   };
 
+  const handleSelectAllPage = (checked) => {
+    if (orderType === "Bulk") return;
+    setSelectedPos(checked ? purchaseOrders : []);
+  };
+
+  const allPageSelected =
+    purchaseOrders.length > 0 &&
+    purchaseOrders.every((po) => selectedIds.has(po.id));
+  const somePageSelected =
+    !allPageSelected && purchaseOrders.some((po) => selectedIds.has(po.id));
+
   // Clear selection when type filter or page changes
   useEffect(() => { setSelectedPos([]); }, [orderType, pageIndex]);
 
-  // Batch download handler
-  const handleBatchDownload = async () => {
-    if (selectedPos.length === 0 || isBatchDownloading) return;
-
-    if (orderType === "Bulk") {
-      // Bulk: use existing single-PO export
-      const po = selectedPos[0];
-      await handleDownload(po);
+  const handleOpenDownloadPO = () => {
+    if (selectedPos.length === 0) {
+      setDownloadVendorId(null);
+      setDownloadPoIds([]);
+      setDownloadOpen(true);
       return;
     }
 
-    // Single: validate same vendor
-    const vendorIds = new Set(selectedPos.map((p) => p.vendor?.id ?? p.vendorId));
-    if (vendorIds.size > 1) {
+    const singles = selectedPos.filter(
+      (p) => (p.orderType || "Single") === "Single" && p.status === "DRAFT"
+    );
+    if (singles.length === 0) {
+      const hasSingle = selectedPos.some((p) => (p.orderType || "Single") === "Single");
+      toast({
+        title: hasSingle ? "PO not eligible for download" : "Bulk PO selected",
+        description: hasSingle
+          ? "Excel download is available for pending (Draft) Single POs only."
+          : "Excel download is available for pending Single POs only. Use the download dialog to pick POs.",
+        variant: "destructive",
+      });
+      setDownloadVendorId(null);
+      setDownloadPoIds([]);
+      setDownloadOpen(true);
+      return;
+    }
+
+    const vendorIds = [...new Set(singles.map((p) => p.vendor?.id ?? p.vendorId).filter(Boolean))];
+    if (vendorIds.length !== 1) {
       toast({
         title: "Mixed vendors selected",
-        description: "All selected POs must be from the same vendor. Please deselect and retry.",
+        description: "All selected POs must be from the same vendor. Open download and pick a vendor.",
         variant: "destructive",
       });
+      setDownloadVendorId(null);
+      setDownloadPoIds([]);
+      setDownloadOpen(true);
       return;
     }
 
-    setIsBatchDownloading(true);
-    try {
-      await downloadBatchPurchaseOrderExcel(selectedPos.map((p) => p.id));
-      toast({ title: `Downloaded ${selectedPos.length} PO(s) successfully` });
-    } catch {
-      toast({
-        title: "Batch download failed",
-        description: "Could not export the selected POs.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBatchDownloading(false);
-    }
+    setDownloadVendorId(vendorIds[0]);
+    setDownloadPoIds(singles.map((p) => p.id));
+    setDownloadOpen(true);
   };
 
   const handleRaiseVendorBill = () => {
-    if (selectedPos.length === 0) return;
+    if (selectedPos.length === 0) {
+      setRaiseBillVendorId(null);
+      setRaiseBillPoIds([]);
+      setRaiseBillOpen(true);
+      return;
+    }
 
     const vendorIds = [...new Set(selectedPos.map((p) => p.vendor?.id ?? p.vendorId).filter(Boolean))];
     if (vendorIds.length !== 1) {
@@ -283,11 +362,23 @@ export default function PurchaseOrders() {
     downloadingId,
     selectedIds,
     handleToggleSelect,
+    handleSelectAllPage,
+    allPageSelected,
+    somePageSelected,
+    orderType === "Bulk" || purchaseOrders.length === 0,
   );
 
   const isTodayStatsMode = useMemo(() => {
-    return !filters.start_date && !filters.end_date;
-  }, [filters.start_date, filters.end_date]);
+    const hasRange = Boolean(filters.start_date) || Boolean(filters.end_date);
+    const dateType = filters.date_type || DATE_TYPE_ALL;
+    // Cards 1–2 use From–To only when filtering by received (or All which includes received)
+    return !(hasRange && (dateType === DATE_TYPE_RECEIVED || dateType === DATE_TYPE_ALL));
+  }, [filters.start_date, filters.end_date, filters.date_type]);
+
+  const listFilters = useMemo(
+    () => buildListFilters(filters, activeCard),
+    [filters, activeCard]
+  );
 
   // Fetch purchase orders from API
   const fetchPurchaseOrders = useCallback(async () => {
@@ -300,7 +391,7 @@ export default function PurchaseOrders() {
         pageIndex + 1,
         pageSize,
         searchQuery,
-        { ...filters, orderType },
+        { ...listFilters, orderType },
         sortField,
         sortDirection
       );
@@ -321,29 +412,18 @@ export default function PurchaseOrders() {
     } finally {
       setIsLoading(false);
     }
-  }, [pageIndex, pageSize, searchQuery, filters, sorting, orderType, toast]);
+  }, [pageIndex, pageSize, searchQuery, listFilters, sorting, orderType, toast]);
 
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const today = getIstDateString();
-      const hasDateFilter = Boolean(filters.start_date) || Boolean(filters.end_date);
-      const receiveStart = hasDateFilter
-        ? filters.start_date || filters.end_date
-        : today;
-      const receiveEnd = hasDateFilter
-        ? filters.end_date || filters.start_date
-        : today;
+      const receiveWindow = getCardReceiveWindow(filters);
       const statsFilters = {
         ...filters,
         orderType,
-        receive_start_date: receiveStart,
-        receive_end_date: receiveEnd,
+        card_receive_start_date: receiveWindow.start,
+        card_receive_end_date: receiveWindow.end,
       };
-      if (!hasDateFilter) {
-        statsFilters.start_date = "";
-        statsFilters.end_date = "";
-      }
       const response = await getPurchaseOrderDashboard(searchQuery, statsFilters);
       if (response.success) {
         setStats({ ...EMPTY_STATS, ...(response.data || {}) });
@@ -420,9 +500,24 @@ export default function PurchaseOrders() {
     });
   };
 
-  // Card selection is visual only (does not filter the list)
+  // Card click applies quick-filter to the list (merged via buildListFilters)
   const handleCardClick = (cardKey) => {
-    setActiveCard((prev) => (prev === cardKey ? null : cardKey));
+    setPageIndex(0);
+    if (activeCard === cardKey) {
+      setActiveCard(null);
+      return;
+    }
+    setActiveCard(cardKey);
+    // Card owns status/date slice — clear bar conflicts (same pattern as Sale Orders)
+    if (
+      cardKey === "pendingVendorPo" ||
+      cardKey === "jobsReceivedToday" ||
+      cardKey === "todayVendorInvoiceValue" ||
+      cardKey === "totalOutsourced" ||
+      cardKey === "averageTat"
+    ) {
+      setFilters((prev) => ({ ...prev, status: null }));
+    }
   };
 
   const summaryCards = [
@@ -526,16 +621,25 @@ export default function PurchaseOrders() {
 
   const hasActiveFilters = useMemo(() => {
     return (
-      (filters.status != null && filters.status !== "unbilled") ||
+      (filters.status != null && filters.status !== "all") ||
       filters.vendor_id !== null ||
       Boolean(filters.start_date) ||
       Boolean(filters.end_date) ||
+      (filters.date_type != null && filters.date_type !== "all") ||
       orderType !== "Single"
     );
   }, [filters, orderType]);
 
   const handleFilterChange = (next) => {
     setFilters(next);
+    if (
+      next.status !== filters.status ||
+      next.start_date !== filters.start_date ||
+      next.end_date !== filters.end_date ||
+      next.date_type !== filters.date_type
+    ) {
+      setActiveCard(null);
+    }
     setPageIndex(0);
   };
 
@@ -588,41 +692,26 @@ export default function PurchaseOrders() {
             <X className="h-3.5 w-3.5 mr-1" />
             Clear
           </Button>
-          {/* Batch actions — slide in when rows are selected */}
-          <div
-            className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{
-              maxWidth: selectedPos.length > 0 ? "460px" : "0px",
-              opacity: selectedPos.length > 0 ? 1 : 0,
-              pointerEvents: selectedPos.length > 0 ? "auto" : "none",
-            }}
+          <Button
+            size="xs"
+            variant="outline"
+            className="gap-1.5 h-8 border-blue-400 text-blue-700 hover:bg-blue-50 whitespace-nowrap shrink-0"
+            onClick={handleOpenDownloadPO}
           >
-            <div className="flex gap-1.5">
-              <Button
-                size="xs"
-                variant="outline"
-                className="gap-1.5 h-8 border-blue-400 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
-                onClick={handleBatchDownload}
-                disabled={isBatchDownloading}
-              >
-                {isBatchDownloading ? (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-                Download PO ({selectedPos.length})
-              </Button>
-              <Button
-                size="xs"
-                variant="outline"
-                className="gap-1.5 h-8 border-emerald-400 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
-                onClick={handleRaiseVendorBill}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Raise Vendor Bill ({selectedPos.length})
-              </Button>
-            </div>
-          </div>
+            <Download className="h-3.5 w-3.5" />
+            Download PO
+            {selectedPos.length > 0 ? ` (${selectedPos.length})` : ""}
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            className="gap-1.5 h-8 border-emerald-400 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap shrink-0"
+            onClick={handleRaiseVendorBill}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Raise Vendor Bill
+            {selectedPos.length > 0 ? ` (${selectedPos.length})` : ""}
+          </Button>
           <Button
             size="xs"
             className="gap-1.5 h-8"
@@ -763,11 +852,30 @@ export default function PurchaseOrders() {
       />
       <CreateVendorInvoiceDialog
         open={raiseBillOpen}
-        onOpenChange={setRaiseBillOpen}
+        onOpenChange={(open) => {
+          setRaiseBillOpen(open);
+          if (!open) {
+            setRaiseBillVendorId(null);
+            setRaiseBillPoIds([]);
+          }
+        }}
         vendors={vendors}
         initialVendorId={raiseBillVendorId}
         initialPoIds={raiseBillPoIds}
         onCreated={handleVendorBillCreated}
+      />
+      <DownloadPODialog
+        open={downloadOpen}
+        onOpenChange={(open) => {
+          setDownloadOpen(open);
+          if (!open) {
+            setDownloadVendorId(null);
+            setDownloadPoIds([]);
+          }
+        }}
+        vendors={vendors}
+        initialVendorId={downloadVendorId}
+        initialPoIds={downloadPoIds}
       />
     </div>
   );

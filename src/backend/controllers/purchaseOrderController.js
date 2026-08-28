@@ -106,6 +106,22 @@ class PurchaseOrderController {
   }
 
   /**
+   * GET /api/purchase-orders/download-eligible?vendorId=
+   * Single POs for Excel download picker.
+   */
+  async getDownloadEligiblePOs(req, res, next) {
+    try {
+      const result = await purchaseOrderService.listDownloadEligiblePOs(req.query.vendorId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get purchase order by ID
    */
   async getPurchaseOrderById(req, res, next) {
