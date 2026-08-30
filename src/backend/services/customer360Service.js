@@ -54,6 +54,72 @@ function agingBucket(dueDate, now = new Date()) {
   return '61_90_plus';
 }
 
+function formatSpecPart(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  return s || null;
+}
+
+function buildTopLensLabel(lensName, sph, cyl, add) {
+  const parts = [lensName];
+  const sphStr = formatSpecPart(sph);
+  const cylStr = formatSpecPart(cyl);
+  const addStr = formatSpecPart(add);
+  if (sphStr) parts.push(`SPH ${sphStr}`);
+  if (cylStr) parts.push(`CYL ${cylStr}`);
+  if (addStr) parts.push(`ADD ${addStr}`);
+  return parts.join(' ');
+}
+
+function topLensBucketKey(lensId, sph, cyl, add) {
+  return `${lensId}|${formatSpecPart(sph) || ''}|${formatSpecPart(cyl) || ''}|${formatSpecPart(add) || ''}`;
+}
+
+function aggregateTopLens(orders) {
+  const buckets = new Map();
+  for (const so of orders) {
+    if (!so.lens_id) continue;
+    const lensName = so.lensProduct?.lens_name || `Lens #${so.lens_id}`;
+    const productCode = so.lensProduct?.product_code || null;
+    const eyes = [];
+    if (so.rightEye) {
+      eyes.push({
+        sph: so.rightSpherical,
+        cyl: so.rightCylindrical,
+        add: so.rightAdd,
+      });
+    }
+    if (so.leftEye) {
+      eyes.push({
+        sph: so.leftSpherical,
+        cyl: so.leftCylindrical,
+        add: so.leftAdd,
+      });
+    }
+    for (const eye of eyes) {
+      const key = topLensBucketKey(so.lens_id, eye.sph, eye.cyl, eye.add);
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.orderCount += 1;
+      } else {
+        buckets.set(key, {
+          lensId: so.lens_id,
+          name: lensName,
+          productCode,
+          sph: formatSpecPart(eye.sph),
+          cyl: formatSpecPart(eye.cyl),
+          add: formatSpecPart(eye.add),
+          label: buildTopLensLabel(lensName, eye.sph, eye.cyl, eye.add),
+          orderCount: 1,
+        });
+      }
+    }
+  }
+  return [...buckets.values()]
+    .sort((a, b) => b.orderCount - a.orderCount)
+    .slice(0, 5);
+}
+
 function cardWhere(cardKey, customerId, { start, end }) {
   const soBase = { customerId, deleteStatus: false };
   switch (cardKey) {
@@ -133,13 +199,14 @@ export class Customer360Service {
         ledgerId: true,
         category: { select: { id: true, name: true } },
         salePerson: { select: { id: true, name: true } },
+        deliveryPerson: { select: { id: true, name: true } },
       },
     });
     if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
     const [
-      priceMappingAgg,
       creditNoteAgg,
+      discountOrders,
       lastPayment,
       ordersMonth,
       inProduction,
@@ -147,18 +214,21 @@ export class Customer360Service {
       delivered,
       targetInvoices,
       collectionActualAgg,
-      topLensRaw,
+      topLensOrders,
       outstandingInvoices,
     ] = await Promise.all([
-      prisma.priceMapping.aggregate({
-        where: { customer_id: id },
-        _count: { id: true },
-        _avg: { discountRate: true },
-      }),
       prisma.creditNote.aggregate({
-        where: { customerId: id, status: { not: 'CANCELLED' } },
+        where: { customerId: id, status: 'ISSUED' },
         _sum: { amount: true },
         _count: { id: true },
+      }),
+      prisma.saleOrder.findMany({
+        where: {
+          customerId: id,
+          deleteStatus: false,
+          status: { not: 'CANCELLED' },
+        },
+        select: { lensPrice: true, discount: true },
       }),
       prisma.customerPaymentVoucher.findFirst({
         where: { customerId: id, delete_status: false, cancelledStatus: false },
@@ -220,17 +290,25 @@ export class Customer360Service {
         _sum: { totalAmount: true },
         _count: { id: true },
       }),
-      prisma.saleOrder.groupBy({
-        by: ['lens_id'],
+      prisma.saleOrder.findMany({
         where: {
           customerId: id,
           deleteStatus: false,
           status: { not: 'CANCELLED' },
           lens_id: { not: null },
         },
-        _count: { id: true },
-        orderBy: { _count: { id: 'desc' } },
-        take: 10,
+        select: {
+          lens_id: true,
+          rightEye: true,
+          leftEye: true,
+          rightSpherical: true,
+          rightCylindrical: true,
+          rightAdd: true,
+          leftSpherical: true,
+          leftCylindrical: true,
+          leftAdd: true,
+          lensProduct: { select: { lens_name: true, product_code: true } },
+        },
       }),
       prisma.invoice.findMany({
         where: {
@@ -242,24 +320,13 @@ export class Customer360Service {
       }),
     ]);
 
-    const lensIds = topLensRaw.map((r) => r.lens_id).filter(Boolean);
-    const products = lensIds.length
-      ? await prisma.lensProductMaster.findMany({
-          where: { id: { in: lensIds } },
-          select: { id: true, lens_name: true, product_code: true },
-        })
-      : [];
-    const productMap = new Map(products.map((p) => [p.id, p]));
+    const topLens = aggregateTopLens(topLensOrders);
 
-    const topLens = topLensRaw.map((r) => {
-      const p = productMap.get(r.lens_id);
-      return {
-        lensId: r.lens_id,
-        name: p?.lens_name || `Lens #${r.lens_id}`,
-        productCode: p?.product_code || null,
-        orderCount: r._count.id,
-      };
-    });
+    const discountTotal = discountOrders.reduce((sum, so) => {
+      const price = parseFloat(so.lensPrice || 0);
+      const pct = parseFloat(so.discount || 0);
+      return sum + price * (pct / 100);
+    }, 0);
 
     const aging = {
       '0_30': { count: 0, amount: 0 },
@@ -277,17 +344,6 @@ export class Customer360Service {
       aging[k].amount = Math.round(aging[k].amount * 100) / 100;
     }
 
-    const mappingCount = priceMappingAgg._count?.id || 0;
-    const avgRate = priceMappingAgg._avg?.discountRate;
-    const discounts =
-      mappingCount > 0
-        ? {
-            mappingCount,
-            avgDiscountRate: Math.round((avgRate || 0) * 100) / 100,
-            label: `${mappingCount} price mapping(s), avg ${Math.round((avgRate || 0) * 100) / 100}%`,
-          }
-        : null;
-
     const collectionTargetAmount = targetInvoices.reduce(
       (s, inv) => s + outstandingBalance(inv),
       0
@@ -300,9 +356,9 @@ export class Customer360Service {
         billingCycle: customer.credit_days ?? null,
         creditLimit: customer.credit_limit ?? null,
         outstandingCredit: customer.outstanding_credit ?? 0,
-        discounts,
-        totalCreditNotes: parseFloat(creditNoteAgg._sum.amount || 0),
-        creditNoteCount: creditNoteAgg._count?.id || 0,
+        discountTotal: Math.round(discountTotal * 100) / 100,
+        openCreditNotes: parseFloat(creditNoteAgg._sum.amount || 0),
+        openCreditNoteCount: creditNoteAgg._count?.id || 0,
         lastPayment: lastPayment
           ? {
               id: lastPayment.id,

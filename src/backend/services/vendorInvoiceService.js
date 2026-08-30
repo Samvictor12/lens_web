@@ -53,6 +53,24 @@ async function generateInvoiceNumber() {
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
+function resolveVendorInvoiceDueDate(invoiceDate, vendorCreditDays, overrideDueDate) {
+  if (overrideDueDate) return new Date(overrideDueDate);
+  const base = invoiceDate ? new Date(invoiceDate) : new Date();
+  const days = parseInt(vendorCreditDays, 10);
+  if (Number.isFinite(days) && days > 0) {
+    const due = new Date(base);
+    due.setDate(due.getDate() + days);
+    return due;
+  }
+  return base;
+}
+
+function productInvoiceFilter(productId) {
+  const pid = productId ? parseInt(productId, 10) : null;
+  if (!pid) return {};
+  return { items: { some: { purchaseOrder: { lens_id: pid } } } };
+}
+
 /**
  * Invoice-first vendor payment workflow (M5): a VendorInvoice is registered against
  * one or more PurchaseOrder rows for a vendor BEFORE any payment is made. Payments
@@ -162,43 +180,177 @@ export class VendorInvoiceService {
     };
   }
 
-  /** Outstanding invoices (OUTSTANDING or PARTIALLY_PAID) — optionally scoped to one vendor. */
-  async listOutstanding(vendorId) {
+  /** Outstanding invoices — flat list or grouped-by-vendor; collectible cap per KB-004. */
+  async listOutstanding({
+    vendorId,
+    groupBy = 'vendor',
+    collectible = false,
+    productId,
+    startDate,
+    endDate,
+  } = {}) {
+    const dueDate = {};
+    if (collectible) {
+      const cap = new Date();
+      cap.setHours(23, 59, 59, 999);
+      if (endDate) {
+        const filterEnd = new Date(endDate);
+        filterEnd.setHours(23, 59, 59, 999);
+        if (filterEnd < cap) cap.setTime(filterEnd.getTime());
+      }
+      dueDate.lte = cap;
+    } else {
+      if (startDate) {
+        const from = new Date(startDate);
+        from.setHours(0, 0, 0, 0);
+        dueDate.gte = from;
+      }
+      if (endDate) {
+        const to = new Date(endDate);
+        to.setHours(23, 59, 59, 999);
+        dueDate.lte = to;
+      }
+    }
+
     const where = {
       deleteStatus: false,
       status: { in: ['OUTSTANDING', 'PARTIALLY_PAID'] },
       ...(vendorId && { vendorId: parseInt(vendorId, 10) }),
+      ...productInvoiceFilter(productId),
+      ...(Object.keys(dueDate).length ? { dueDate } : {}),
     };
+
     const invoices = await prisma.vendorInvoice.findMany({
       where,
       include: {
-        vendor: { select: { id: true, code: true, name: true, shopname: true } },
-        items: { include: { purchaseOrder: { select: { id: true, poNumber: true } } } },
+        vendor: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            shopname: true,
+            city: true,
+            phone: true,
+            address: true,
+            state: true,
+            advance_credit: true,
+            credit_days: true,
+            ledgerId: true,
+          },
+        },
+        items: { include: { purchaseOrder: { select: { id: true, poNumber: true, lens_id: true } } } },
       },
-      orderBy: { invoiceDate: 'asc' },
+      orderBy: [{ dueDate: 'asc' }, { invoiceDate: 'asc' }, { invoiceNumber: 'asc' }],
     });
 
-    const rows = invoices.map((inv) => ({
-      ...inv,
-      outstanding: round2(parseFloat(inv.totalAmount) - parseFloat(inv.paidAmount)),
-    }));
+    const rows = invoices
+      .map((inv) => ({
+        ...inv,
+        outstanding: round2(parseFloat(inv.totalAmount) - parseFloat(inv.paidAmount)),
+      }))
+      .filter((r) => r.outstanding > 0.01);
 
-    if (vendorId) return { invoices: rows };
+    if (groupBy === 'flat') return { invoices: rows };
 
     const groupMap = new Map();
     for (const inv of rows) {
       const vid = inv.vendorId;
       if (!groupMap.has(vid)) {
+        const v = inv.vendor || {};
         groupMap.set(vid, {
           vendorId: vid,
-          vendorName: inv.vendor?.shopname || inv.vendor?.name || '',
-          vendorCode: inv.vendor?.code || '',
+          vendorName: v.shopname || v.name || '',
+          vendorCode: v.code || '',
+          shopname: v.shopname || '',
+          city: v.city || '',
+          phone: v.phone || '',
+          address: [v.address, v.city, v.state].filter(Boolean).join(', '),
+          advanceCredit: round2(v.advance_credit || 0),
+          creditDays: v.credit_days ?? 0,
+          ledgerId: v.ledgerId || null,
           invoices: [],
         });
       }
       groupMap.get(vid).invoices.push(inv);
     }
     return { groups: Array.from(groupMap.values()) };
+  }
+
+  /** POs received but not yet registered as vendor invoices. */
+  async listAwaitingBills({ vendorId, productId, startDate, endDate } = {}) {
+    const vid = vendorId ? parseInt(vendorId, 10) : null;
+    const pid = productId ? parseInt(productId, 10) : null;
+
+    const invoicedLinks = await prisma.vendorInvoiceItem.findMany({
+      where: {
+        vendorInvoice: {
+          deleteStatus: false,
+          status: { not: 'CANCELLED' },
+          ...(vid && { vendorId: vid }),
+        },
+      },
+      select: { purchaseOrderId: true },
+    });
+    const invoicedPoIds = [...new Set(invoicedLinks.map((l) => l.purchaseOrderId))];
+
+    const orderDate = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      orderDate.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      orderDate.lte = to;
+    }
+
+    const where = {
+      deleteStatus: false,
+      status: { in: ELIGIBLE_PO_STATUSES },
+      vendorId: { not: null },
+      AND: [{ OR: [{ supplierInvoiceNo: null }, { supplierInvoiceNo: '' }] }],
+      ...(invoicedPoIds.length ? { id: { notIn: invoicedPoIds } } : {}),
+      ...(vid && { vendorId: vid }),
+      ...(pid && { lens_id: pid }),
+      ...(Object.keys(orderDate).length ? { orderDate } : {}),
+    };
+
+    const pos = await prisma.purchaseOrder.findMany({
+      where,
+      select: {
+        ...PO_PAYABLE_SELECT,
+        vendor: {
+          select: { id: true, code: true, name: true, shopname: true, city: true },
+        },
+      },
+      orderBy: [{ expectedDeliveryDate: 'asc' }, { orderDate: 'asc' }, { poNumber: 'asc' }],
+    });
+
+    const groupMap = new Map();
+    for (const po of pos) {
+      const v = po.vendor;
+      const poVendorId = po.vendorId;
+      if (!groupMap.has(poVendorId)) {
+        groupMap.set(poVendorId, {
+          vendorId: poVendorId,
+          vendorName: v?.shopname || v?.name || '',
+          vendorCode: v?.code || '',
+          purchaseOrders: [],
+        });
+      }
+      groupMap.get(poVendorId).purchaseOrders.push({
+        purchaseOrderId: po.id,
+        poNumber: po.poNumber,
+        status: po.status,
+        orderDate: po.orderDate,
+        expectedDeliveryDate: po.expectedDeliveryDate,
+        totalValue: computePayableAmount(po),
+        receivedQty: parseFloat(po.receivedQty) || 0,
+      });
+    }
+
+    return { groups: Array.from(groupMap.values()), count: pos.length };
   }
 
   /**
@@ -359,9 +511,16 @@ export class VendorInvoiceService {
 
     if (totalAmount <= 0) throw new APIError('Total invoice amount must be greater than zero', 400, 'VALIDATION_ERROR');
 
+    const vendor = await prisma.vendor.findFirst({
+      where: { id: parseInt(vendorId, 10) },
+      select: { id: true, credit_days: true },
+    });
+
     const invoiceNumber = await generateInvoiceNumber();
     const invoiceCopyPath = `${UPLOADS_PUBLIC_PREFIX}/${invoiceFile.filename}`;
     const now = new Date();
+    const invDate = invoiceDate ? new Date(invoiceDate) : now;
+    const dueDate = resolveVendorInvoiceDueDate(invDate, vendor?.credit_days, payload.dueDate);
 
     return prisma.$transaction(async (tx) => {
       for (const item of normalizedItems) {
@@ -384,7 +543,8 @@ export class VendorInvoiceService {
           invoiceNumber,
           vendorId: parseInt(vendorId, 10),
           supplierInvoiceNo: supplierInvoiceNo.trim(),
-          invoiceDate: invoiceDate ? new Date(invoiceDate) : now,
+          invoiceDate: invDate,
+          dueDate,
           subtotalAmount,
           taxAmount,
           totalAmount,

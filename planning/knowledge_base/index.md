@@ -6,4 +6,9 @@
 | KB-002 | Income and loans workspace | PRD-4.2, SD-2.2, req-002 |
 | KB-003 | Customer 360 view | PRD-4.3, DD-2.1, FD-2.3 |
 | KB-004 | Target Collection cumulative balance | PRD-4.1, DD-2.1, req-003 |
+| KB-005 | Vendor & payments hub (Option A) | PRD-4.4, PRD-4.5, DD-2.1, req-004 |
+| KB-006 | Vendor Payments tab-context header & popup flows | PRD-4.4, DD-2.1, req-006 |
+| KB-007 | Billing & invoicing tab-context header actions | PRD-4.1, DD-2.1, req-007 |
+| KB-008 | Customer 360 UI corrections | PRD-4.3, DD-2.1, FD-2.3, req-005 |
+| KB-009 | Billing awaiting list & DRAFT invoices | PRD-4.1, DD-2.1, req-009 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

@@ -59,7 +59,7 @@ export default function Customer360Main() {
   }, [loadOverview]);
 
   return (
-    <div className="flex flex-col gap-3 p-3 md:p-4 min-h-0 h-full overflow-y-auto">
+    <div className="flex flex-col gap-4 p-3 md:p-4 min-h-0 h-full overflow-y-auto">
       <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <Users className="h-5 w-5" />
@@ -91,6 +91,7 @@ export default function Customer360Main() {
         </Card>
       ) : (
         <>
+        <div className="space-y-4">
           <Customer360Metrics overview={overview} loading={loading} />
           <Customer360Cards
             customerId={customerId}
@@ -107,6 +108,7 @@ export default function Customer360Main() {
             ledgerId={overview?.customer?.ledgerId}
             refreshKey={refreshKey}
           />
+        </div>
         </>
       )}
     </div>

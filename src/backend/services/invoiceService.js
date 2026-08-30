@@ -503,19 +503,8 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Get ALL delivered, un-billed orders — for the billing screen
   // ──────────────────────────────────────────────────────────
-  async getAllDispatchedOrders({ page = 1, limit = 20, search, customerId, productId, startDate, endDate } = {}) {
+  async getAllDispatchedOrders({ page = 1, limit = 20, search, customerId, productId } = {}) {
     const skip = (page - 1) * limit;
-    const createdAt = {};
-    if (startDate) {
-      const from = new Date(startDate);
-      from.setHours(0, 0, 0, 0);
-      createdAt.gte = from;
-    }
-    if (endDate) {
-      const to = new Date(endDate);
-      to.setHours(23, 59, 59, 999);
-      createdAt.lte = to;
-    }
 
     const where = {
       status: 'DELIVERED',
@@ -530,7 +519,6 @@ export class InvoiceService {
       ],
       ...(customerId && { customerId: parseInt(customerId) }),
       ...(productId && { lens_id: parseInt(productId) }),
-      ...(Object.keys(createdAt).length ? { createdAt } : {}),
     };
 
     if (search) {

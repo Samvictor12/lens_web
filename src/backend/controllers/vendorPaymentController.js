@@ -47,7 +47,16 @@ export class VendorPaymentController {
   // M5: invoice-first payment workflow
   async getOutstandingInvoices(req, res, next) {
     try {
-      res.json({ success: true, data: await service.listOutstandingInvoices(req.query.vendorId) });
+      res.json({ success: true, data: await service.listOutstandingInvoices(req.query) });
+    } catch (e) { next(e); }
+  }
+  async getStats(req, res, next) {
+    try {
+      const { startDate, endDate, vendorId, productId } = req.query;
+      res.json({
+        success: true,
+        data: await service.getStats({ startDate, endDate, vendorId, productId }),
+      });
     } catch (e) { next(e); }
   }
   async createFromInvoices(req, res, next) {

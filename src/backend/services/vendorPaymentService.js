@@ -129,6 +129,7 @@ export class VendorPaymentService {
         return {
           purchaseOrderId: po.id,
           poNumber: po.poNumber,
+          lens_id: po.lens_id,
           status: po.status,
           orderDate: po.orderDate,
           expectedDeliveryDate: po.expectedDeliveryDate,
@@ -235,31 +236,277 @@ export class VendorPaymentService {
   // vendor may be paid in a single voucher. Ledger posting (bank debit / vendor AP
   // credit) reuses the existing postVendorPayment — unchanged, confirmed pattern.
 
-  /** Outstanding vendor invoices — single vendor list, or grouped-by-vendor when omitted. */
-  async listOutstandingInvoices(vendorId) {
-    return vendorInvoiceService.listOutstanding(vendorId);
+  /** Outstanding vendor invoices — supports groupBy, collectible, product filter. */
+  async listOutstandingInvoices(query = {}) {
+    const { vendorId, groupBy, collectible, productId, startDate, endDate } = query;
+    if (vendorId && !groupBy && !collectible && !productId) {
+      return vendorInvoiceService.listOutstanding({ vendorId, groupBy: 'flat' });
+    }
+    return vendorInvoiceService.listOutstanding({
+      vendorId,
+      groupBy: groupBy || (vendorId ? 'flat' : 'vendor'),
+      collectible: collectible === true || collectible === 'true',
+      productId,
+      startDate,
+      endDate,
+    });
+  }
+
+  async getStats({ startDate, endDate, vendorId, productId } = {}) {
+    const vid = vendorId ? parseInt(vendorId, 10) : null;
+    const pid = productId ? parseInt(productId, 10) : null;
+
+    const invoiceDate = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      invoiceDate.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      invoiceDate.lte = to;
+    }
+
+    const productInvFilter = pid
+      ? { items: { some: { purchaseOrder: { lens_id: pid } } } }
+      : {};
+    const productPoFilter = pid ? { lens_id: pid } : {};
+
+    const invoiceBase = {
+      deleteStatus: false,
+      ...(vid && { vendorId: vid }),
+      ...productInvFilter,
+    };
+
+    const billedWhere = {
+      ...invoiceBase,
+      status: { not: 'CANCELLED' },
+      ...(Object.keys(invoiceDate).length ? { invoiceDate } : {}),
+    };
+
+    const outstandingWhere = {
+      ...invoiceBase,
+      status: { in: ['OUTSTANDING', 'PARTIALLY_PAID'] },
+    };
+
+    const targetDueCap = new Date();
+    targetDueCap.setHours(23, 59, 59, 999);
+    if (endDate) {
+      const filterEnd = new Date(endDate);
+      filterEnd.setHours(23, 59, 59, 999);
+      if (filterEnd < targetDueCap) targetDueCap.setTime(filterEnd.getTime());
+    }
+
+    const targetInvoiceWhere = {
+      ...outstandingWhere,
+      dueDate: { lte: targetDueCap },
+    };
+
+    const indirectBase = {
+      delete_status: false,
+      vendorId: { not: null },
+      vendorExpenseStatus: { not: null },
+      ...(vid && { vendorId: vid }),
+    };
+
+    const indirectPeriodWhere = {
+      ...indirectBase,
+      ...(Object.keys(invoiceDate).length ? { expenseDate: invoiceDate } : {}),
+    };
+
+    const indirectTargetWhere = {
+      ...indirectBase,
+      vendorExpenseStatus: { in: ['MARKED', 'PARTIALLY_PAID'] },
+      dueDate: { lte: targetDueCap },
+    };
+
+    const paymentDateFilter = Object.keys(invoiceDate).length ? { paymentDate: invoiceDate } : {};
+    const paymentBase = {
+      delete_status: false,
+      cancelledStatus: false,
+      ...(vid && { vendorId: vid }),
+      ...paymentDateFilter,
+      ...(pid
+        ? {
+            items: {
+              some: {
+                OR: [
+                  { vendorInvoice: { items: { some: { purchaseOrder: { lens_id: pid } } } } },
+                  { expenseId: { not: null } },
+                ],
+              },
+            },
+          }
+        : {}),
+    };
+
+    const invoicedLinks = await prisma.vendorInvoiceItem.findMany({
+      where: {
+        vendorInvoice: { deleteStatus: false, status: { not: 'CANCELLED' }, ...(vid && { vendorId: vid }) },
+      },
+      select: { purchaseOrderId: true },
+    });
+    const invoicedPoIds = [...new Set(invoicedLinks.map((l) => l.purchaseOrderId))];
+
+    const awaitingWhere = {
+      deleteStatus: false,
+      status: { in: ELIGIBLE_PO_STATUSES },
+      vendorId: { not: null },
+      ...(vid && { vendorId: vid }),
+      ...productPoFilter,
+      AND: [{ OR: [{ supplierInvoiceNo: null }, { supplierInvoiceNo: '' }] }],
+      ...(invoicedPoIds.length ? { id: { notIn: invoicedPoIds } } : {}),
+      ...(Object.keys(invoiceDate).length ? { orderDate: invoiceDate } : {}),
+    };
+
+    const [
+      outstandingRows,
+      targetInvoiceRows,
+      indirectTargetRows,
+      awaitingBills,
+      purchasesAgg,
+      indirectAgg,
+      paymentAgg,
+      indirectOutstandingRows,
+    ] = await Promise.all([
+      prisma.vendorInvoice.findMany({
+        where: outstandingWhere,
+        select: { totalAmount: true, paidAmount: true },
+      }),
+      prisma.vendorInvoice.findMany({
+        where: targetInvoiceWhere,
+        select: { totalAmount: true, paidAmount: true },
+      }),
+      prisma.expense.findMany({
+        where: indirectTargetWhere,
+        select: { amount: true, paidAmount: true },
+      }),
+      prisma.purchaseOrder.count({ where: awaitingWhere }),
+      prisma.vendorInvoice.aggregate({
+        where: billedWhere,
+        _sum: { totalAmount: true },
+      }),
+      prisma.expense.aggregate({
+        where: indirectPeriodWhere,
+        _sum: { amount: true },
+      }),
+      prisma.vendorPaymentVoucher.aggregate({
+        where: paymentBase,
+        _sum: { totalAmount: true },
+      }),
+      prisma.expense.findMany({
+        where: {
+          ...indirectBase,
+          vendorExpenseStatus: { in: ['MARKED', 'PARTIALLY_PAID'] },
+        },
+        select: { amount: true, paidAmount: true },
+      }),
+    ]);
+
+    const sumOutstanding = (rows) =>
+      rows.reduce((s, r) => s + Math.max(0, parseFloat(r.totalAmount || r.amount || 0) - parseFloat(r.paidAmount || 0)), 0);
+
+    const invoiceOutstanding = sumOutstanding(outstandingRows);
+    const indirectOutstanding = sumOutstanding(indirectOutstandingRows);
+
+    return {
+      totalPurchases: round2(parseFloat(purchasesAgg._sum.totalAmount) || 0),
+      outstanding: round2(invoiceOutstanding + indirectOutstanding),
+      awaitingBills,
+      totalIndirectExpenses: round2(parseFloat(indirectAgg._sum.amount) || 0),
+      targetPayment: round2(sumOutstanding(targetInvoiceRows) + sumOutstanding(indirectTargetRows)),
+      totalPayment: round2(parseFloat(paymentAgg._sum.totalAmount) || 0),
+    };
   }
 
   async createFromInvoices(payload, userId) {
-    const { vendorId, paymentDate, bankLedgerId, referenceNo, notes, items } = payload;
+    const {
+      vendorId,
+      paymentDate,
+      bankLedgerId,
+      referenceNo,
+      notes,
+      items = [],
+      indirectExpenseIds,
+      indirectItems,
+      advanceAmount: advanceRaw = 0,
+      acceptAdvance,
+      applyAdvanceAmount: applyPriorRaw = 0,
+    } = payload;
     const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
 
-    if (!vendorId || !paymentMethod || !bankLedgerId) {
-      throw new APIError('vendorId, paymentMethod, bankLedgerId required', 400, 'VALIDATION_ERROR');
+    if (!vendorId || !paymentMethod) {
+      throw new APIError('vendorId, paymentMethod required', 400, 'VALIDATION_ERROR');
     }
-    if (!items?.length) {
-      throw new APIError('At least one vendor invoice must be selected', 400, 'VALIDATION_ERROR');
+
+    const indirectList = indirectItems?.length
+      ? indirectItems
+      : (indirectExpenseIds || []).map((id) => ({ expenseId: id }));
+
+    if (!items?.length && !indirectList?.length) {
+      throw new APIError('At least one vendor invoice or indirect expense must be selected', 400, 'VALIDATION_ERROR');
     }
 
     const vid = parseInt(vendorId, 10);
-    const invoiceIds = items.map((i) => parseInt(i.vendorInvoiceId, 10));
+    const cashAmount = round2(payload.totalAmount ?? payload.paymentAmount ?? 0);
+    const applyPrior = round2(applyPriorRaw || 0);
+    const advance = round2(advanceRaw || 0);
 
-    const invoices = await prisma.vendorInvoice.findMany({
-      where: { id: { in: invoiceIds }, deleteStatus: false },
-    });
-    if (invoices.length !== invoiceIds.length) {
+    if (cashAmount < 0) throw new APIError('Payment amount cannot be negative', 400, 'VALIDATION_ERROR');
+    if (applyPrior < 0) throw new APIError('Apply advance amount cannot be negative', 400, 'VALIDATION_ERROR');
+    if (cashAmount <= 0 && applyPrior <= 0) {
+      throw new APIError('Payment amount or prior advance apply must be greater than zero', 400, 'VALIDATION_ERROR');
+    }
+    if (cashAmount > 0 && !bankLedgerId) {
+      throw new APIError('bankLedgerId required when paying cash/bank', 400, 'VALIDATION_ERROR');
+    }
+    if (advance < 0) throw new APIError('Advance amount cannot be negative', 400, 'VALIDATION_ERROR');
+    if (advance > 0 && !acceptAdvance) {
+      throw new APIError('Excess payment requires acceptAdvance: true', 400, 'ADVANCE_NOT_ACCEPTED');
+    }
+
+    const invoiceIds = items.map((i) => parseInt(i.vendorInvoiceId, 10));
+    const expenseIds = indirectList.map((i) => parseInt(i.expenseId, 10));
+
+    const [invoices, expenses, vendor] = await Promise.all([
+      invoiceIds.length
+        ? prisma.vendorInvoice.findMany({ where: { id: { in: invoiceIds }, deleteStatus: false } })
+        : [],
+      expenseIds.length
+        ? prisma.expense.findMany({
+            where: {
+              id: { in: expenseIds },
+              delete_status: false,
+              vendorId: vid,
+              vendorExpenseStatus: { in: ['MARKED', 'PARTIALLY_PAID'] },
+            },
+          })
+        : [],
+      prisma.vendor.findUnique({
+        where: { id: vid },
+        select: { id: true, code: true, ledgerId: true, advance_credit: true },
+      }),
+    ]);
+
+    if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
+
+    const availableAdvance = round2(vendor.advance_credit || 0);
+    if (applyPrior > availableAdvance + 0.01) {
+      throw new APIError(
+        `Apply advance exceeds available vendor advance credit (₹${availableAdvance.toFixed(2)})`,
+        400,
+        'INSUFFICIENT_ADVANCE'
+      );
+    }
+
+    if (invoiceIds.length && invoices.length !== invoiceIds.length) {
       throw new APIError('One or more vendor invoices not found', 404, 'INVOICE_NOT_FOUND');
     }
+    if (expenseIds.length && expenses.length !== expenseIds.length) {
+      throw new APIError('One or more indirect expenses not found', 404, 'EXPENSE_NOT_FOUND');
+    }
+
     for (const inv of invoices) {
       if (inv.vendorId !== vid) {
         throw new APIError(`Invoice ${inv.invoiceNumber} does not belong to this vendor`, 400, 'INVOICE_VENDOR_MISMATCH');
@@ -269,35 +516,74 @@ export class VendorPaymentService {
       }
     }
 
-    const normalizedItems = [];
-    let total = 0;
+    const normalizedInvoiceItems = [];
     for (const item of items) {
       const invId = parseInt(item.vendorInvoiceId, 10);
       const invoice = invoices.find((i) => i.id === invId);
       const outstanding = round2(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount));
       const allocated = round2(item.allocatedAmount);
-
       if (allocated <= 0) {
         throw new APIError(`Payment amount required for invoice ${invoice.invoiceNumber}`, 400, 'VALIDATION_ERROR');
       }
       if (allocated > outstanding + 0.01) {
         throw new APIError(`Allocation for ${invoice.invoiceNumber} exceeds outstanding (${outstanding})`, 400, 'OVER_ALLOCATION');
       }
-
-      total = round2(total + allocated);
-      normalizedItems.push({ vendorInvoiceId: invId, allocatedAmount: allocated });
+      normalizedInvoiceItems.push({ vendorInvoiceId: invId, allocatedAmount: allocated });
     }
 
-    if (total <= 0) throw new APIError('Total payment amount must be greater than zero', 400, 'VALIDATION_ERROR');
+    const normalizedExpenseItems = [];
+    for (const item of indirectList) {
+      const expId = parseInt(item.expenseId, 10);
+      const expense = expenses.find((e) => e.id === expId);
+      const outstanding = round2(parseFloat(expense.amount) - parseFloat(expense.paidAmount));
+      const allocated = round2(item.allocatedAmount ?? outstanding);
+      if (allocated <= 0) {
+        throw new APIError(`Payment amount required for expense ${expense.expenseNumber}`, 400, 'VALIDATION_ERROR');
+      }
+      if (allocated > outstanding + 0.01) {
+        throw new APIError(`Allocation for ${expense.expenseNumber} exceeds outstanding (${outstanding})`, 400, 'OVER_ALLOCATION');
+      }
+      normalizedExpenseItems.push({ expenseId: expId, allocatedAmount: allocated });
+    }
 
-    const vendor = await prisma.vendor.findUnique({
-      where: { id: vid },
-      select: { id: true, code: true, ledgerId: true },
-    });
-    if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
+    const allocationTotal = round2(
+      normalizedInvoiceItems.reduce((s, i) => s + i.allocatedAmount, 0) +
+        normalizedExpenseItems.reduce((s, i) => s + i.allocatedAmount, 0)
+    );
+    const pool = round2(cashAmount + applyPrior);
+
+    if (allocationTotal <= 0) {
+      throw new APIError('Total allocation must be greater than zero', 400, 'VALIDATION_ERROR');
+    }
+    if (Math.abs(allocationTotal + advance - pool) > 0.01) {
+      throw new APIError(
+        `Allocations (${allocationTotal}) + advance (${advance}) must equal cash+prior advance (${pool})`,
+        400,
+        'ALLOCATION_MISMATCH'
+      );
+    }
+    if (pool - allocationTotal > 0.01 && advance <= 0) {
+      throw new APIError('Payment exceeds selected outstanding. Accept advance or reduce amount.', 400, 'EXCESS_PAYMENT');
+    }
 
     const voucherNumber = await generateVoucherNumber();
     const now = new Date();
+    let resolvedBankLedgerId = bankLedgerId ? parseInt(bankLedgerId, 10) : null;
+    if (cashAmount > 0 && !resolvedBankLedgerId) {
+      throw new APIError('bankLedgerId required when paying cash/bank', 400, 'VALIDATION_ERROR');
+    }
+    if (!resolvedBankLedgerId) {
+      const fallback = await prisma.ledger.findFirst({
+        where: {
+          delete_status: false,
+          active_status: true,
+          accountGroup: { groupCode: { in: ['GRP-CASH', 'GRP-BANK'] } },
+        },
+        select: { id: true },
+      });
+      if (!fallback) throw new APIError('No cash/bank ledger available', 400, 'LEDGER_NOT_FOUND');
+      resolvedBankLedgerId = fallback.id;
+    }
 
     return prisma.$transaction(async (tx) => {
       const voucher = await tx.vendorPaymentVoucher.create({
@@ -305,25 +591,37 @@ export class VendorPaymentService {
           voucherNumber,
           vendorId: vid,
           paymentDate: paymentDate ? new Date(paymentDate) : now,
-          totalAmount: total,
+          totalAmount: cashAmount,
+          advanceAmount: advance,
           paymentMethod,
-          bankLedgerId: parseInt(bankLedgerId, 10),
+          bankLedgerId: resolvedBankLedgerId,
           referenceNo: referenceNo || null,
-          notes: notes || null,
+          notes: [
+            notes || null,
+            applyPrior > 0 ? `Applied prior advance: ₹${applyPrior.toFixed(2)}` : null,
+          ]
+            .filter(Boolean)
+            .join(' | ') || null,
           closedStatus: true,
           closedAt: now,
           createdBy: userId,
           items: {
-            create: normalizedItems.map((item) => ({
-              vendorInvoiceId: item.vendorInvoiceId,
-              allocatedAmount: item.allocatedAmount,
-            })),
+            create: [
+              ...normalizedInvoiceItems.map((item) => ({
+                vendorInvoiceId: item.vendorInvoiceId,
+                allocatedAmount: item.allocatedAmount,
+              })),
+              ...normalizedExpenseItems.map((item) => ({
+                expenseId: item.expenseId,
+                allocatedAmount: item.allocatedAmount,
+              })),
+            ],
           },
         },
         include: { items: true },
       });
 
-      for (const item of normalizedItems) {
+      for (const item of normalizedInvoiceItems) {
         const invoice = invoices.find((i) => i.id === item.vendorInvoiceId);
         const newPaid = round2(parseFloat(invoice.paidAmount) + item.allocatedAmount);
         const newStatus = newPaid >= round2(parseFloat(invoice.totalAmount)) - 0.01 ? 'PAID' : 'PARTIALLY_PAID';
@@ -333,22 +631,45 @@ export class VendorPaymentService {
         });
       }
 
-      await postVendorPayment(tx, {
-        voucherId: voucher.id,
-        voucherNumber,
-        totalAmount: total,
-        bankLedgerId: parseInt(bankLedgerId, 10),
-        vendor,
-      }, userId);
+      for (const item of normalizedExpenseItems) {
+        const expense = expenses.find((e) => e.id === item.expenseId);
+        const newPaid = round2(parseFloat(expense.paidAmount) + item.allocatedAmount);
+        const total = round2(expense.amount);
+        let newStatus = 'PARTIALLY_PAID';
+        if (newPaid >= total - 0.01) newStatus = 'PAID';
+        await tx.expense.update({
+          where: { id: expense.id },
+          data: { paidAmount: newPaid, vendorExpenseStatus: newStatus, updatedBy: userId },
+        });
+      }
 
-      // PO status sync for invoice-first flow: a PO is PAID once its owning VendorInvoice
-      // is fully paid (voucher items reference vendorInvoiceId, not purchaseOrderId, so the
-      // legacy syncPoPaidStatus PO-allocation lookup doesn't apply here).
-      const fullyPaidInvoiceIds = normalizedItems
+      if (cashAmount > 0 && resolvedBankLedgerId) {
+        await postVendorPayment(
+          tx,
+          {
+            voucherId: voucher.id,
+            voucherNumber,
+            totalAmount: cashAmount,
+            bankLedgerId: resolvedBankLedgerId,
+            vendor,
+          },
+          userId
+        );
+      }
+
+      const advanceDelta = round2(advance - applyPrior);
+      if (Math.abs(advanceDelta) > 0.001) {
+        await tx.vendor.update({
+          where: { id: vid },
+          data: { advance_credit: round2((vendor.advance_credit || 0) + advanceDelta) },
+        });
+      }
+
+      const fullyPaidInvoiceIds = normalizedInvoiceItems
         .map((i) => i.vendorInvoiceId)
         .filter((id) => {
           const invoice = invoices.find((i) => i.id === id);
-          const newPaid = round2(parseFloat(invoice.paidAmount) + normalizedItems.find((n) => n.vendorInvoiceId === id).allocatedAmount);
+          const newPaid = round2(parseFloat(invoice.paidAmount) + normalizedInvoiceItems.find((n) => n.vendorInvoiceId === id).allocatedAmount);
           return newPaid >= round2(parseFloat(invoice.totalAmount)) - 0.01;
         });
       if (fullyPaidInvoiceIds.length > 0) {

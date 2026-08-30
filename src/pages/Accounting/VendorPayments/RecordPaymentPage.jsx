@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { BILLING_AND_INVOICING_PATH } from "@/constants/accountingPaths";
+import { VENDOR_PAYMENTS_PATH } from "@/constants/accountingPaths";
 
 /** Legacy route shim — redirects to hub with payment dialog query params preserved. */
 export default function RecordPaymentPage() {
@@ -9,9 +9,9 @@ export default function RecordPaymentPage() {
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
-    next.set("tab", "invoices");
+    next.set("tab", "bills");
     next.set("openPayment", "1");
-    navigate(`${BILLING_AND_INVOICING_PATH}?${next.toString()}`, { replace: true });
+    navigate(`${VENDOR_PAYMENTS_PATH}?${next.toString()}`, { replace: true });
   }, [navigate, searchParams]);
 
   return (

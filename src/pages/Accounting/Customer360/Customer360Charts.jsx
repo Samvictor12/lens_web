@@ -24,11 +24,14 @@ const AGING_ROWS = [
  * Section 3 — Top Lens horizontal bar + credit aging buckets.
  */
 export default function Customer360Charts({ topLens = [], aging, loading }) {
-  const chartData = (topLens || []).map((t) => ({
-    name: t.name?.length > 28 ? `${t.name.slice(0, 26)}…` : t.name,
-    fullName: t.name,
-    count: t.orderCount,
-  }));
+  const chartData = (topLens || []).slice(0, 5).map((t) => {
+    const fullLabel = t.label || t.name || `Lens #${t.lensId}`;
+    return {
+      name: fullLabel.length > 36 ? `${fullLabel.slice(0, 34)}…` : fullLabel,
+      fullName: fullLabel,
+      count: t.orderCount,
+    };
+  });
 
   return (
     <div className="space-y-2">
@@ -36,7 +39,7 @@ export default function Customer360Charts({ topLens = [], aging, loading }) {
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         <Card className="shadow-none">
           <CardHeader className="pb-1 pt-3 px-4">
-            <CardTitle className="text-sm font-medium">Top lens orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Top 5 lens orders</CardTitle>
           </CardHeader>
           <CardContent className="px-2 pb-3">
             {loading ? (
@@ -59,8 +62,8 @@ export default function Customer360Charts({ topLens = [], aging, loading }) {
                   <YAxis
                     type="category"
                     dataKey="name"
-                    width={120}
-                    tick={{ fontSize: 10 }}
+                    width={200}
+                    tick={{ fontSize: 9 }}
                   />
                   <Tooltip
                     formatter={(v) => [v, "Orders"]}

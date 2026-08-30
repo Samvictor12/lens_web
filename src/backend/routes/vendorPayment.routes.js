@@ -7,6 +7,7 @@ const router = Router();
 const ctrl = new VendorPaymentController();
 const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
+router.get('/stats', ...guard, ctrl.getStats.bind(ctrl));
 router.get('/outstanding', ...guard, ctrl.getOutstanding.bind(ctrl));
 router.get('/outstanding-invoices', ...guard, ctrl.getOutstandingInvoices.bind(ctrl));
 router.get('/', ...guard, ctrl.list.bind(ctrl));

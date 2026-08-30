@@ -303,8 +303,11 @@ model Vendor {
   category              businessCategory?      @relation("vendorCategory", fields: [businessCategory_id], references: [id])
   ledgerId              Int?                   @unique
   ledger                Ledger?                @relation("vendorLedger", fields: [ledgerId], references: [id])
+  credit_days           Int? // Payment terms; VendorInvoice dueDate = invoiceDate + credit_days when not overridden
+  advance_credit        Float                    @default(0) // Prepaid balance from advance vendor payments
   // Relationship Tables
   purchaseOrders        PurchaseOrder[]
+  vendorIndirectExpenses Expense[]             @relation("vendorIndirectExpenses")
   inventoryItems        InventoryItem[]
   inventoryTransactions InventoryTransaction[] @relation("inventoryVendorTransactions")
   vendorPaymentVouchers VendorPaymentVoucher[] @relation("vendorPaymentVouchers")
@@ -1820,6 +1823,7 @@ model VendorPaymentVoucher {
   vendorId        Int
   paymentDate     DateTime                   @default(now())
   totalAmount     Decimal                    @db.Decimal(15, 2)
+  advanceAmount   Decimal                    @default(0) @db.Decimal(15, 2)
   subtotalAmount  Decimal?                   @db.Decimal(15, 2)
   taxAmount       Decimal?                   @db.Decimal(15, 2)
   vendorInvoiceNo String?
@@ -1856,6 +1860,7 @@ model VendorPaymentVoucherItem {
   // workflow) allocate against vendorInvoiceId instead.
   purchaseOrderId Int?
   vendorInvoiceId Int?
+  expenseId       Int?
   subtotalAmount  Decimal?             @db.Decimal(15, 2)
   taxAmount       Decimal?             @db.Decimal(15, 2)
   allocatedAmount Decimal              @db.Decimal(15, 2)
@@ -1863,9 +1868,11 @@ model VendorPaymentVoucherItem {
   voucher         VendorPaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   purchaseOrder   PurchaseOrder?       @relation("poPaymentItems", fields: [purchaseOrderId], references: [id])
   vendorInvoice   VendorInvoice?       @relation("vendorInvoicePaymentItems", fields: [vendorInvoiceId], references: [id])
+  expense         Expense?             @relation("vendorPaymentExpenseItems", fields: [expenseId], references: [id])
 
   @@index([voucherId])
   @@index([vendorInvoiceId])
+  @@index([expenseId])
 }
 
 model CustomerPaymentVoucher {
@@ -1994,6 +2001,7 @@ model VendorInvoice {
   vendor            Vendor                     @relation(fields: [vendorId], references: [id])
   supplierInvoiceNo String // Vendor's own invoice number
   invoiceDate       DateTime                   @default(now())
+  dueDate           DateTime?
   subtotalAmount    Decimal                    @db.Decimal(15, 2)
   taxAmount         Decimal                    @db.Decimal(15, 2)
   totalAmount       Decimal                    @db.Decimal(15, 2)
@@ -2105,33 +2113,45 @@ model ExpenseCategory {
   expenses      Expense[]
 }
 
+enum VendorExpenseStatus {
+  MARKED
+  PARTIALLY_PAID
+  PAID
+}
+
 model Expense {
-  id            Int             @id @default(autoincrement())
-  expenseNumber String          @unique
+  id            Int                  @id @default(autoincrement())
+  expenseNumber String               @unique
   categoryId    Int
-  amount        Decimal         @db.Decimal(15, 2)
-  paymentMethod PaymentMethod
-  bankLedgerId  Int
-  expenseDate   DateTime        @default(now())
+  amount        Decimal              @db.Decimal(15, 2)
+  paidAmount    Decimal              @default(0) @db.Decimal(15, 2)
+  paymentMethod PaymentMethod?
+  bankLedgerId  Int?
+  vendorId      Int?
+  vendorExpenseStatus VendorExpenseStatus?
+  expenseDate   DateTime             @default(now())
   dueDate       DateTime?
   description   String
   referenceNo   String?
   paidTo        String?
   notes         String?
-  active_status Boolean         @default(true)
-  delete_status Boolean         @default(false)
-  createdAt     DateTime        @default(now())
+  active_status Boolean              @default(true)
+  delete_status Boolean              @default(false)
+  createdAt     DateTime             @default(now())
   createdBy     Int
-  updatedAt     DateTime        @updatedAt
+  updatedAt     DateTime             @updatedAt
   updatedBy     Int?
-  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
-  bankLedger    Ledger          @relation("expenseBankLedger", fields: [bankLedgerId], references: [id])
-  createdByUser User            @relation("expenseCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User?           @relation("expenseUpdatedBy", fields: [updatedBy], references: [id])
+  category      ExpenseCategory      @relation(fields: [categoryId], references: [id])
+  bankLedger    Ledger?              @relation("expenseBankLedger", fields: [bankLedgerId], references: [id])
+  vendor        Vendor?              @relation("vendorIndirectExpenses", fields: [vendorId], references: [id])
+  createdByUser User                 @relation("expenseCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?                @relation("expenseUpdatedBy", fields: [updatedBy], references: [id])
   logs          ExpenseLog[]
+  paymentItems  VendorPaymentVoucherItem[] @relation("vendorPaymentExpenseItems")
 
   @@index([expenseDate])
   @@index([categoryId])
+  @@index([vendorId])
 }
 
 model ExpenseLog {

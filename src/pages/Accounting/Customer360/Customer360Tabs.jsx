@@ -95,28 +95,35 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
     }
   }, [customerId, toast]);
 
-  const loadLedger = useCallback(async () => {
-    if (!ledgerId) {
-      setLedger(null);
-      toast({ variant: "destructive", title: "Customer has no linked ledger" });
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await getLedgerStatement({
-        ledgerId,
-        from: ledgerFrom || undefined,
-        to: ledgerTo || undefined,
-      });
-      setLedger(res.data);
-      setExpandedRows({});
-    } catch {
-      toast({ variant: "destructive", title: "Failed to load ledger statement" });
-      setLedger(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [ledgerId, ledgerFrom, ledgerTo, toast]);
+  const loadLedgerForRange = useCallback(
+    async (from, to) => {
+      if (!ledgerId) {
+        setLedger(null);
+        toast({ variant: "destructive", title: "Customer has no linked ledger" });
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await getLedgerStatement({
+          ledgerId,
+          from: from || undefined,
+          to: to || undefined,
+        });
+        setLedger(res.data);
+        setExpandedRows({});
+      } catch {
+        toast({ variant: "destructive", title: "Failed to load ledger statement" });
+        setLedger(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ledgerId, toast]
+  );
+
+  const loadLedger = useCallback(() => {
+    loadLedgerForRange(ledgerFrom, ledgerTo);
+  }, [ledgerFrom, ledgerTo, loadLedgerForRange]);
 
   useEffect(() => {
     if (!customerId) return;
@@ -126,17 +133,28 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
   }, [customerId, tab, refreshKey, loadInvoices, loadPayments, loadNotes]);
 
   useEffect(() => {
+    if (!customerId || tab !== "ledger") return;
+    const range = currentMonthRange();
+    setLedgerFrom(range.startDate);
+    setLedgerTo(range.endDate);
+    loadLedgerForRange(range.startDate, range.endDate);
+  }, [customerId, tab, refreshKey, loadLedgerForRange]);
+
+  useEffect(() => {
+    const range = currentMonthRange();
     setInvoices([]);
     setPayments([]);
     setNotes([]);
     setLedger(null);
+    setLedgerFrom(range.startDate);
+    setLedgerTo(range.endDate);
     setTab("invoices");
   }, [customerId]);
 
   return (
-    <div className="space-y-2 flex flex-col min-h-0 flex-1">
+    <div className="space-y-2 pb-4 min-h-[360px]">
       <h2 className="text-sm font-semibold text-muted-foreground">Documents & ledger</h2>
-      <Tabs value={tab} onValueChange={setTab} className="flex flex-col min-h-0 flex-1">
+      <Tabs value={tab} onValueChange={setTab} className="w-full min-h-[320px]">
         <TabsList className="w-full justify-start flex-wrap h-auto">
           <TabsTrigger value="invoices" className="text-xs">Outstanding invoices</TabsTrigger>
           <TabsTrigger value="payments" className="text-xs">Payments</TabsTrigger>
@@ -144,7 +162,7 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           <TabsTrigger value="ledger" className="text-xs">Customer ledger</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="invoices" className="mt-2 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="invoices" className="mt-2 min-h-[280px]">
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
           ) : invoices.length === 0 ? (
@@ -179,7 +197,7 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           )}
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-2 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="payments" className="mt-2 min-h-[280px]">
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
           ) : payments.length === 0 ? (
@@ -210,7 +228,7 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           )}
         </TabsContent>
 
-        <TabsContent value="notes" className="mt-2 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="notes" className="mt-2 min-h-[280px]">
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
           ) : notes.length === 0 ? (
@@ -241,8 +259,8 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           )}
         </TabsContent>
 
-        <TabsContent value="ledger" className="mt-2 min-h-0 flex-1 overflow-hidden flex flex-col gap-2">
-          <Card className="p-2 flex-shrink-0">
+        <TabsContent value="ledger" className="mt-2 min-h-[280px] space-y-2">
+          <Card className="p-2">
             <div className="flex flex-wrap gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">From</Label>
@@ -267,12 +285,14 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
               </Button>
             </div>
           </Card>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            {!ledger ? (
+          <div>
+            {!ledger && !loading ? (
               <Card className="p-6 text-center text-sm text-muted-foreground">
-                Set dates and generate the ledger statement.
+                No ledger data for the selected period.
               </Card>
-            ) : (
+            ) : loading && !ledger ? (
+              <Card className="p-6 text-center text-sm text-muted-foreground">Loading…</Card>
+            ) : ledger ? (
               <div className="space-y-2">
                 <div className="flex gap-4 text-sm px-1">
                   <span>
@@ -363,7 +383,7 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
                   </table>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </TabsContent>
       </Tabs>

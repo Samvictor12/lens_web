@@ -10,8 +10,26 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-IN");
 }
 
+function DetailRow({ label, value }) {
+  return (
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+      <span className="text-[11px] text-muted-foreground sm:w-28 shrink-0">{label}</span>
+      <span className="text-sm font-medium">{value || "—"}</span>
+    </div>
+  );
+}
+
+function MetricTile({ label, value, valueClass }) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-2">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className={`text-sm font-semibold mt-0.5 truncate ${valueClass || ""}`}>{value}</div>
+    </div>
+  );
+}
+
 /**
- * Section 1 — customer details + key metrics.
+ * Section 1 — customer identity (left) + financial metrics (right).
  */
 export default function Customer360Metrics({ overview, loading }) {
   const c = overview?.customer;
@@ -27,7 +45,9 @@ export default function Customer360Metrics({ overview, loading }) {
 
   if (!c) return null;
 
-  const items = [
+  const fullAddress = [c.address, c.city, c.state, c.pincode].filter(Boolean).join(", ");
+
+  const financialItems = [
     {
       label: "Billing cycle",
       value: m?.billingCycle != null ? `${m.billingCycle} days` : "—",
@@ -42,13 +62,9 @@ export default function Customer360Metrics({ overview, loading }) {
       valueClass: "text-orange-600",
     },
     {
-      label: "Discounts",
-      value: m?.discounts?.label || "—",
-    },
-    {
-      label: "Total credit notes",
-      value: m?.creditNoteCount
-        ? `${fmtMoney(m.totalCreditNotes)} (${m.creditNoteCount})`
+      label: "Open credit notes",
+      value: m?.openCreditNoteCount
+        ? `${fmtMoney(m.openCreditNotes)} (${m.openCreditNoteCount})`
         : "—",
     },
     {
@@ -57,41 +73,55 @@ export default function Customer360Metrics({ overview, loading }) {
         ? `${fmtMoney(m.lastPayment.amount)} · ${fmtDate(m.lastPayment.paymentDate)}`
         : "—",
     },
+    {
+      label: "Discount total",
+      value: fmtMoney(m?.discountTotal),
+    },
   ];
 
   return (
     <div className="space-y-2">
       <h2 className="text-sm font-semibold text-muted-foreground">Customer details</h2>
-      <Card className="shadow-none">
-        <CardHeader className="pb-2 pt-3 px-4">
-          <CardTitle className="text-base font-semibold">
-            {c.name}
-            {c.code ? (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">({c.code})</span>
-            ) : null}
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {[c.shopname, c.city, c.phone, c.gstin].filter(Boolean).join(" · ") || "—"}
-          </p>
-          {(c.address || c.state || c.pincode) && (
-            <p className="text-xs text-muted-foreground">
-              {[c.address, c.state, c.pincode].filter(Boolean).join(", ")}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent className="px-4 pb-4 pt-0">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {items.map((it) => (
-              <div key={it.label} className="rounded-md border bg-muted/30 p-2">
-                <div className="text-[11px] text-muted-foreground">{it.label}</div>
-                <div className={`text-sm font-semibold mt-0.5 truncate ${it.valueClass || ""}`}>
-                  {it.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <Card className="shadow-none">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-base font-semibold">
+              {c.name}
+              {c.code ? (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">({c.code})</span>
+              ) : null}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 pt-0 space-y-2">
+            <DetailRow label="Shop name" value={c.shopname} />
+            <DetailRow label="Email" value={c.email} />
+            <DetailRow label="Phone" value={c.phone} />
+            <DetailRow label="Sales person" value={c.salePerson?.name} />
+            <DetailRow label="Delivery person" value={c.deliveryPerson?.name} />
+            <DetailRow label="Address" value={fullAddress} />
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-none">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Financial metrics
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 pt-0">
+            <div className="grid grid-cols-2 gap-2">
+              {financialItems.map((it) => (
+                <MetricTile
+                  key={it.label}
+                  label={it.label}
+                  value={it.value}
+                  valueClass={it.valueClass}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

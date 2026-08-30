@@ -36,22 +36,20 @@ requirements:
     fd: [FD-2.3]
   - id: PRD-4.4
     title: Vendor and payments restructure
-    status: draft
+    status: shipped
     module: accounting
-    tsd: []
-    dd: []
-    sd: []
-    fd: []
-    note: HOLD — user briefs later
+    tsd: [TSD-1.1]
+    dd: [DD-1.1, DD-2.1]
+    sd: [SD-1.1]
+    fd: [FD-2.1]
   - id: PRD-4.5
-    title: Expenses and payables accrual
-    status: draft
+    title: Vendor indirect expenses accrual
+    status: shipped
     module: accounting
-    tsd: []
-    dd: []
-    sd: []
-    fd: []
-    note: HOLD — user briefs later
+    tsd: [TSD-1.1]
+    dd: [DD-1.1, DD-2.1]
+    sd: [SD-1.1]
+    fd: [FD-2.1]
   - id: PRD-4.6
     title: Finance dashboard
     status: draft
@@ -107,7 +105,7 @@ Merged top-level Billing and Accounting Customer Payments into **Billing and inv
 - CN remains document-only
 
 ### Note
-Invoices tab lists all outstanding (customer/product filtered); month filter emphasizes KPIs / Payments / Collection / Awaiting more than hiding overdue outside the month.
+Invoices tab lists all outstanding (customer/product filtered); month filter emphasizes KPIs / Payments / Collection more than hiding overdue outside the month. **Awaiting tab (req-009):** lists all delivered un-billed SOs — customer/product filter only, not date. **DRAFT invoices** appear on Invoices tab; issue before Record Payment.
 
 ## PRD-4.2 Income and loans workspace
 
@@ -125,17 +123,42 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 
 - Route: `/accounts/customer-360` (Accounting sidebar).
 - Customer dropdown.
-- Section 1: Customer details + Billing cycle, Credit Limit, outstanding, Discounts, Total Credit Notes, Last Payment Amount.
-- Section 2: Clickable cards (5 rows + mini pagination): Total Orders this Month (SO), in Production, in Dispatch, Delivered, Collection target (invoices due this month), actual Collection (payment history this month).
-- Section 3: Top Lens order horizontal bar chart; Credit Analysis (30/60/90 days due count + amount).
+- Section 1: Two columns — left: customer identity (name, shop, email, phone, sales person, delivery person, address); right: billing cycle, credit limit, outstanding, open credit notes (ISSUED), last payment, discount total (₹ sum).
+- Section 2: Clickable KPI cards with inline list below (5 rows + pagination, no side drawer): Orders this month, in Production, in Dispatch, Delivered, Collection target, Collection actual.
+- Section 3: Top lens orders by product + SPH/CYL/ADD spec; Credit Analysis (30/60/90 days due count + amount).
 - Section 4 tabs: Invoices (outstanding), Payments, Credit Notes, Customer Ledger.
 
-## PRD-4.4–4.7 Held
+## PRD-4.4 Vendor and payments restructure
+
+**Status:** shipped (`req-004`, 2026-08-30). Option A hub — all vendor-linked payables.
+
+### Shipped
+- Canonical UI: `/accounts/vendor-payments` (sidebar **Vendor & payments**); Record Payment: `/accounts/vendor-payments/record-payment`
+- Shared filters (default current month, vendor, product) → KPIs + tabs
+- KPIs: Total Purchases, Outstanding, Awaiting Bills, Total Indirect Expenses, Target Payment (KB-004 cumulative cap), Total Payment
+- Tabs: Awaiting Vendor Bills | Vendor Bills (vendor-grouped + multi-select) | Indirect Expenses | Payments | Debit Notes | Target Payment | Vendor Ledger
+- Direct track: M5 PO → VendorInvoice → VendorPaymentVoucher (GL unchanged)
+- `GET /api/vendor-payments/stats`, extended `outstanding-invoices` (groupBy, collectible, productId)
+
+### Follow-up
+- Record Payment UI: indirect allocation toggle + advance apply (backend ready)
+
+## PRD-4.5 Vendor indirect expenses accrual
+
+**Status:** shipped (`req-004`, 2026-08-30). Lives inside Vendor & payments hub (Option A).
+
+### Shipped
+- Mark-first: `POST /api/vendor-indirect-expenses` — Dr expense category / Cr vendor AP (`postVendorExpenseAccrual`)
+- `Expense.vendorId` + `vendorExpenseStatus` (MARKED / PARTIALLY_PAID / PAID)
+- Pay via `VendorPaymentVoucherItem.expenseId`; `Vendor.advance_credit` on schema
+- Indirect Expenses tab in vendor hub; legacy `/accounts/expenses` for non-vendor overhead only
+
+## PRD-4.6–4.7 Held
 
 | ID | Title | Reason |
 |----|-------|--------|
-| PRD-4.4 | Vendor and payments | User will brief later |
-| PRD-4.5 | Expenses and payables accrual | User will brief later |
+| PRD-4.4 | Vendor and payments | — |
+| PRD-4.5 | Vendor indirect expenses | — |
 | PRD-4.6 | Finance dashboard | User will brief later + diagrams |
 | PRD-4.7 | Business intelligence | User will brief later + diagrams |
 

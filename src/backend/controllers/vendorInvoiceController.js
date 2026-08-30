@@ -11,7 +11,12 @@ export class VendorInvoiceController {
     try { res.json({ success: true, data: await vendorInvoiceService.getById(req.params.id) }); } catch (e) { next(e); }
   }
   async getOutstanding(req, res, next) {
-    try { res.json({ success: true, data: await vendorInvoiceService.listOutstanding(req.query.vendorId) }); } catch (e) { next(e); }
+    try { res.json({ success: true, data: await vendorInvoiceService.listOutstanding(req.query) }); } catch (e) { next(e); }
+  }
+  async getAwaitingBills(req, res, next) {
+    try {
+      res.json({ success: true, data: await vendorInvoiceService.listAwaitingBills(req.query) });
+    } catch (e) { next(e); }
   }
   async getEligiblePOs(req, res, next) {
     try {

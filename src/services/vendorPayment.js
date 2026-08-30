@@ -4,6 +4,7 @@ import { apiClient } from "./apiClient";
 const BASE = "/vendor-payments";
 
 export const getVendorPayments = (params = {}) => apiClient("get", BASE, { params });
+export const getVendorPaymentStats = (params = {}) => apiClient("get", `${BASE}/stats`, { params });
 export const getVendorPaymentById = (id) => apiClient("get", `${BASE}/${id}`);
 export const getOutstandingPOs = (vendorId) =>
   vendorId
@@ -26,10 +27,12 @@ export const closeVendorPayment = (id) => apiClient("patch", `${BASE}/${id}/clos
 export const cancelVendorPayment = (id) => apiClient("patch", `${BASE}/${id}/cancel`);
 
 /** M5: invoice-first payment workflow — pay against outstanding VendorInvoice rows. */
-export const getOutstandingVendorInvoices = (vendorId) =>
-  vendorId
-    ? apiClient("get", `${BASE}/outstanding-invoices`, { params: { vendorId } })
-    : apiClient("get", `${BASE}/outstanding-invoices`);
+export const getOutstandingVendorInvoices = (params = {}) => {
+  if (typeof params === "string" || typeof params === "number") {
+    return apiClient("get", `${BASE}/outstanding-invoices`, { params: { vendorId: params } });
+  }
+  return apiClient("get", `${BASE}/outstanding-invoices`, { params });
+};
 
 export const createVendorPaymentFromInvoices = (payload) =>
   apiClient("post", `${BASE}/from-invoices`, { data: payload });

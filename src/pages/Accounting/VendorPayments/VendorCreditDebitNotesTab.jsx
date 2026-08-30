@@ -26,16 +26,25 @@ function fmt(n) {
  * Vendor Credit Note / Debit Note tab (M5).
  * type: 'credit' | 'debit'
  */
-export default function VendorCreditDebitNotesTab({ type = "credit", vendors = [] }) {
+export default function VendorCreditDebitNotesTab({
+  type = "credit",
+  vendors = [],
+  createOpen: controlledCreateOpen,
+  onCreateOpenChange,
+}) {
   const { toast } = useToast();
   const { company } = useCompany();
   const isCredit = type === "credit";
   const label = isCredit ? "Credit Note" : "Debit Note";
+  const isControlled = controlledCreateOpen !== undefined;
 
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const createOpen = isControlled ? controlledCreateOpen : internalCreateOpen;
+  const setCreateOpen = isControlled ? onCreateOpenChange : setInternalCreateOpen;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,10 +88,12 @@ export default function VendorCreditDebitNotesTab({ type = "credit", vendors = [
         </p>
         <div className="flex items-center gap-1.5">
           <Refresh onClick={() => setRefreshKey((k) => k + 1)} />
-          <Button size="xs" className="gap-1.5 h-8" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            New {label}
-          </Button>
+          {!isControlled && (
+            <Button size="xs" className="gap-1.5 h-8" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              New {label}
+            </Button>
+          )}
         </div>
       </div>
 

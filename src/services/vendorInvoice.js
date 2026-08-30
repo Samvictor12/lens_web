@@ -26,6 +26,9 @@ export const getEligiblePOsForVendorInvoice = (vendorId, filters = {}) => {
   return apiClient("get", `${BASE}/eligible-pos`, { params });
 };
 
+export const getAwaitingVendorBills = (params = {}) =>
+  apiClient("get", `${BASE}/awaiting-bills`, { params });
+
 export const cancelVendorInvoice = (id) => apiClient("patch", `${BASE}/${id}/cancel`);
 
 export async function createVendorInvoice(payload, invoiceFile) {

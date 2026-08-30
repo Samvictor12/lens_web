@@ -28,6 +28,7 @@ import {
 } from "./BillingGroupBy";
 
 function OrdersTable({ orders, onBillCustomer }) {
+  const showBillAction = typeof onBillCustomer === "function";
   return (
     <RawTable>
       <TableHeader>
@@ -38,7 +39,7 @@ function OrdersTable({ orders, onBillCustomer }) {
           <TableHead>Product</TableHead>
           <TableHead>Order Date</TableHead>
           <TableHead className="text-right">Amount</TableHead>
-          <TableHead className="text-right">Action</TableHead>
+          {showBillAction && <TableHead className="text-right">Action</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -62,15 +63,17 @@ function OrdersTable({ orders, onBillCustomer }) {
             <TableCell className="text-right font-semibold">
               {fmt(orderTotal(o))}
             </TableCell>
-            <TableCell className="text-right">
-              <Button
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => onBillCustomer(String(o.customer?.id))}
-              >
-                Bill
-              </Button>
-            </TableCell>
+            {showBillAction && (
+              <TableCell className="text-right">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => onBillCustomer(String(o.customer?.id))}
+                >
+                  Bill
+                </Button>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>
@@ -86,8 +89,6 @@ export default function DispatchedOrdersTab({ onBillCustomer, sharedFilters = {}
   const filterParams = {
     ...(sharedFilters.customerId && { customerId: sharedFilters.customerId }),
     ...(sharedFilters.productId && { productId: sharedFilters.productId }),
-    ...(sharedFilters.startDate && { startDate: sharedFilters.startDate }),
-    ...(sharedFilters.endDate && { endDate: sharedFilters.endDate }),
   };
 
   const { data: res, isLoading, isError, error, refetch } = useQuery({

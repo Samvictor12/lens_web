@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { canRecordPayment } from "@/pages/Billing/Billing.constants";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -31,10 +32,12 @@ function InvoicesTable({ invoices, selectedIds, selectedCustomerId, onToggleInvo
       </TableHeader>
       <TableBody>
         {invoices.map((inv) => {
+          const notPayable = !canRecordPayment(inv.status);
           const disabled =
-            selectedCustomerId != null &&
-            inv.customerId !== selectedCustomerId &&
-            !selectedIds.includes(inv.id);
+            notPayable ||
+            (selectedCustomerId != null &&
+              inv.customerId !== selectedCustomerId &&
+              !selectedIds.includes(inv.id));
           const selected = selectedIds.includes(inv.id);
           return (
             <TableRow
@@ -57,7 +60,14 @@ function InvoicesTable({ invoices, selectedIds, selectedCustomerId, onToggleInvo
                   disabled={disabled}
                 />
               </TableCell>
-              <TableCell className="font-medium">{inv.invoiceNo}</TableCell>
+              <TableCell className="font-medium">
+                {inv.invoiceNo}
+                {notPayable && inv.status === "DRAFT" && (
+                  <Badge variant="outline" className="ml-2 text-[10px] h-5">
+                    Draft
+                  </Badge>
+                )}
+              </TableCell>
               <TableCell className="text-muted-foreground">
                 {new Date(inv.dueDate).toLocaleDateString("en-IN")}
               </TableCell>
@@ -172,6 +182,7 @@ export default function OutstandingInvoicesQueue({
   }, [selectedIds, groups, flatInvoices, grouped]);
 
   const toggleInvoice = (inv) => {
+    if (!canRecordPayment(inv.status)) return;
     const isSelected = selectedIds.includes(inv.id);
     if (isSelected) {
       onSelectionChange(selectedIds.filter((id) => id !== inv.id));
@@ -185,7 +196,8 @@ export default function OutstandingInvoicesQueue({
   };
 
   const toggleCustomerGroup = (group) => {
-    const ids = group.invoices.map((i) => i.id);
+    const ids = group.invoices.filter((i) => canRecordPayment(i.status)).map((i) => i.id);
+    if (!ids.length) return;
     const allSelected = ids.every((id) => selectedIds.includes(id));
     if (allSelected) {
       onSelectionChange(selectedIds.filter((id) => !ids.includes(id)));

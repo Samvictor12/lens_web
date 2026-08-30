@@ -1,5 +1,80 @@
 ﻿{
   "v": 1,
-  "focus": null,
-  "requests": []
+  "focus": "req-004",
+  "requests": [
+    {
+      "id": "req-004",
+      "phase": "REVIEW",
+      "human_approved": true,
+      "tag": "READY",
+      "last_agent": "implementer",
+      "at": "2026-08-30T14:15:00Z",
+      "type": "feature",
+      "module": "accounting",
+      "depends_on": null,
+      "requirement": {
+        "summary": "Restructure Vendor & Payments as the accounting hub for all vendor-linked payables (Option A). Mirror Billing & Invoicing (PRD-4.1): shared filters, KPI dashboard, tabs (Awaiting Bills, Vendor Bills, Indirect Expenses, Payments, Debit Notes, Target Payment, Vendor Ledger), and a full Record Payment page. Direct track extends existing M5 PO→VendorInvoice→payment. Indirect track adds mark-first accrual (Dr expense category / Cr vendor AP) then pay via vendor voucher with FIFO allocation. Supersedes standalone expenses-and-payables for vendor-linked items.",
+        "acceptance": [
+          "Sidebar: Vendor & payments is the hub; vendor-linked indirect expenses recorded and paid here (not standalone Expenses module)",
+          "KPIs: Total Purchases, Outstanding, Awaiting Bills, Total Indirect Expenses, Target Payment (cumulative due ≤ LEAST(today, filter.endDate)), Total Payment — all filter-scoped (month default, vendor, product)",
+          "Tabs: Awaiting Vendor Bills, Vendor Bills (vendor-grouped, multi-select), Indirect Expenses (Mark/Partially paid/Paid), Payments, Debit Notes (document-only, not PO), Target Payment (vendor-wise), Vendor Ledger",
+          "Record Payment page at /accounts/vendor-payments/record-payment with 5 sections; allocation toggle Vendor Bills vs Indirect Expenses; advance support; FIFO by due date",
+          "Direct flow unchanged at GL level: VendorInvoice + VendorPaymentVoucher invoice-first",
+          "Indirect: new accrual entity or extended Expense with vendorId; mark posts liability to vendor AP; payment allocates via VendorPaymentVoucher",
+          "Debit notes document-only (no AP posting), not tied to PO",
+          "Legacy /accounts/expenses retained only for non-vendor overhead if needed; redirect or slim per contract"
+        ],
+        "prd_refs": ["PRD-4.4", "PRD-4.5", "PRD-4.1"]
+      },
+      "contract": {
+        "version": 1,
+        "dd_refs": ["DD-1.1", "DD-2.1"],
+        "sd_refs": ["SD-1.1"],
+        "tsd_refs": ["TSD-1.1"],
+        "fd_refs": ["FD-2.1"],
+        "api": [
+          "GET /api/vendor-payments/stats — KPIs (startDate, endDate, vendorId, productId)",
+          "GET /api/accounting/vendor-invoices/eligible-pos — Awaiting Vendor Bills",
+          "GET /api/vendor-payments/outstanding-invoices — extend: groupBy, collectible, productId filter",
+          "GET /api/vendor-payments — payment history (period + vendor filter)",
+          "POST /api/vendor-payments/from-invoices — Phase 1 bills; Phase 2 + indirectExpenseIds",
+          "POST /api/vendor-indirect-expenses — Phase 2: mark accrual (vendorId, categoryId, amount, dueDate)",
+          "GET /api/vendor-indirect-expenses — Phase 2: list MARKED/PARTIALLY_PAID/PAID",
+          "GET /api/financial-reports/ledger-statement — Vendor Ledger tab (vendor.ledgerId)"
+        ],
+        "ui": [
+          "src/pages/Accounting/VendorPayments/VendorPaymentsMain.jsx — hub: shared filters, tabs, Record Payment nav",
+          "src/pages/Accounting/VendorPayments/VendorPaymentsKpis.jsx — 6 KPI cards",
+          "src/pages/Accounting/VendorPayments/TargetPaymentTab.jsx — mirror CollectionTab",
+          "src/pages/Accounting/VendorPayments/VendorLedgerTab.jsx — mirror CustomerLedgerTab",
+          "src/pages/Accounting/VendorPayments/RecordPaymentPage.jsx — /accounts/vendor-payments/record-payment",
+          "src/pages/Accounting/VendorPayments/IndirectExpensesTab.jsx — Phase 2",
+          "src/pages/Accounting/VendorPayments/OutstandingPOsQueue.jsx — Awaiting Vendor Bills",
+          "src/pages/Accounting/VendorPayments/OutstandingVendorInvoicesQueue.jsx — Vendor Bills",
+          "src/pages/Accounting/VendorPayments/VendorCreditDebitNotesTab.jsx — Debit Notes",
+          "src/App.jsx — record-payment route",
+          "src/components/layout/AppSidebar.jsx — label Vendor & payments"
+        ],
+        "rules": [
+          "Phase 1 (ship first): Direct-track UI parity with PRD-4.1/FD-2.1 — shared top filters (month default, vendor, product); KPIs filter-scoped; tabs Awaiting Vendor Bills, Vendor Bills (vendor-grouped multi-select), Payments, Debit Notes, Target Payment, Vendor Ledger; full Record Payment page for Vendor Bills FIFO only; reuse existing VendorInvoice + VendorPaymentVoucher GL (invoice-first)",
+          "Phase 2: Indirect track — extend Expense (vendorId, status, paidAmount) or VendorIndirectExpense; VendorPaymentVoucherItem.expenseId; Vendor.advance_credit; mark posts Dr expense category / Cr vendor AP; pay via voucher FIFO on open indirect; Indirect Expenses tab + Record Payment allocation toggle",
+          "Target Payment KPI/tab: unpaid VendorInvoice + marked indirect where dueDate <= LEAST(today, filter.endDate); no startDate lower bound (KB-004); Outstanding = all open AP",
+          "VendorInvoice: add dueDate if absent (invoiceDate + vendor terms); FIFO allocation by dueDate asc",
+          "Debit Notes: document-only (VendorDebitNote); not PO-linked; no AP posting",
+          "Advance: Vendor.advance_credit + voucher advanceAmount (mirror customer advance_credit)",
+          "Legacy /accounts/expenses: non-vendor overhead only; exclude vendor-linked from create/list"
+        ],
+        "test_cases": [
+          { "id": "TC-1", "desc": "Frontend build passes (npm run build)", "level": "L1" },
+          { "id": "TC-2", "desc": "KPIs update when date/vendor/product filters change; month default on load", "level": "L4" },
+          { "id": "TC-3", "desc": "Hub tabs render; Awaiting Bills→register invoice; Vendor Bills multi-select→Record Payment deep-link", "level": "L4" },
+          { "id": "TC-4", "desc": "Record Payment: vendor select, FIFO bill allocation, voucher posts, balances update", "level": "L4" },
+          { "id": "TC-5", "desc": "Target Payment tab: vendor-wise balance due (cumulative cap) vs payments in period", "level": "L4" },
+          { "id": "TC-6", "desc": "Phase 2: Mark indirect accrues AP; pay allocates via voucher; Marked→Partially paid→Paid", "level": "L4" }
+        ]
+      },
+      "bug": null,
+      "review": null
+    }
+  ]
 }

@@ -22,6 +22,7 @@ export const PO_PAYABLE_SELECT = {
   orderDate: true,
   expectedDeliveryDate: true,
   vendorId: true,
+  lens_id: true,
   supplierInvoiceNo: true,
   saleOrderId: true,
   rightEye: true,

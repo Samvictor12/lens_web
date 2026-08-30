@@ -82,6 +82,8 @@ export class ExpenseService {
   async list({ categoryId, from, to, paymentMethod, page = 1, limit = 20 }) {
     const where = {
       delete_status: false,
+      vendorId: null,
+      vendorExpenseStatus: null,
       ...(categoryId && { categoryId: parseInt(categoryId) }),
       ...(paymentMethod && { paymentMethod }),
       ...((from || to) && {

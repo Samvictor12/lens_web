@@ -1,5 +1,7 @@
 export const BILLING_AND_INVOICING_PATH = "/accounts/billing-and-invoicing";
 export const RECORD_PAYMENT_PATH = "/accounts/billing-and-invoicing/record-payment";
+export const VENDOR_PAYMENTS_PATH = "/accounts/vendor-payments";
+export const VENDOR_RECORD_PAYMENT_PATH = "/accounts/vendor-payments/record-payment";
 export const CUSTOMER_360_PATH = "/accounts/customer-360";
 
 export const invoiceDetailPath = (invoiceId) =>
@@ -24,6 +26,26 @@ export function recordPaymentPath({
   }
   const qs = params.toString();
   return qs ? `${RECORD_PAYMENT_PATH}?${qs}` : RECORD_PAYMENT_PATH;
+}
+
+/** Build vendor Record Payment route with optional deep-link query params. */
+export function vendorRecordPaymentPath({
+  vendorId,
+  invoiceId,
+  amount,
+  invoiceIds,
+  allocation = "bills",
+} = {}) {
+  const params = new URLSearchParams();
+  if (vendorId != null && vendorId !== "") params.set("vendorId", String(vendorId));
+  if (invoiceId != null && invoiceId !== "") params.set("invoiceId", String(invoiceId));
+  if (amount != null && amount !== "") params.set("amount", String(amount));
+  if (Array.isArray(invoiceIds) && invoiceIds.length) {
+    params.set("invoiceIds", invoiceIds.join(","));
+  }
+  if (allocation) params.set("allocation", allocation);
+  const qs = params.toString();
+  return qs ? `${VENDOR_RECORD_PAYMENT_PATH}?${qs}` : VENDOR_RECORD_PAYMENT_PATH;
 }
 
 /** Current calendar month as YYYY-MM-DD start/end. */

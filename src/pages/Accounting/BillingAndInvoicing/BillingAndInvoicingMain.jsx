@@ -85,6 +85,7 @@ export default function BillingAndInvoicingMain() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForCustomer, setCreateForCustomer] = useState("");
   const [createPaymentOpen, setCreatePaymentOpen] = useState(false);
+  const [creditNoteCreateOpen, setCreditNoteCreateOpen] = useState(false);
   const [paymentDialogMode, setPaymentDialogMode] = useState("record");
   const [paymentPreselectedCustomerId, setPaymentPreselectedCustomerId] = useState("");
   const [paymentPreselectedInvoiceIds, setPaymentPreselectedInvoiceIds] = useState([]);
@@ -130,6 +131,28 @@ export default function BillingAndInvoicingMain() {
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
+    if (searchParams.get("openPayment") !== "1") return;
+    const customerId = searchParams.get("customerId") || filters.customerId || "";
+    const invoiceIdsParam = searchParams.get("invoiceIds") || searchParams.get("invoiceId") || "";
+    const ids = invoiceIdsParam
+      ? invoiceIdsParam
+          .split(",")
+          .map((x) => parseInt(x, 10))
+          .filter((n) => !Number.isNaN(n))
+      : [];
+    setPaymentDialogMode(ids.length ? "record" : "new");
+    setPaymentPreselectedCustomerId(customerId ? String(customerId) : "");
+    setPaymentPreselectedInvoiceIds(ids);
+    setPaymentPrefillAmount(searchParams.get("amount") || "");
+    setCreatePaymentOpen(true);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("openPayment");
+      return next;
+    });
+  }, [searchParams, filters.customerId, setSearchParams]);
+
+  useEffect(() => {
     (async () => {
       try {
         const [custRes, prodRes, ledgers] = await Promise.all([
@@ -160,6 +183,14 @@ export default function BillingAndInvoicingMain() {
       productId: filters.productId || undefined,
     }),
     [filters]
+  );
+
+  const awaitingFilters = useMemo(
+    () => ({
+      customerId: filters.customerId || undefined,
+      productId: filters.productId || undefined,
+    }),
+    [filters.customerId, filters.productId]
   );
 
   const { data: statsRes, isLoading: statsLoading } = useQuery({
@@ -253,7 +284,7 @@ export default function BillingAndInvoicingMain() {
 
   const hasInvoiceSelection = selectedInvoiceIds.length > 0;
 
-  const openRecordPaymentDialog = (opts = {}) => {
+  const openRecordPaymentDialog = useCallback((opts = {}) => {
     if (opts.invoice) {
       const inv = opts.invoice;
       if (!canRecordPayment(inv.status)) {
@@ -273,15 +304,23 @@ export default function BillingAndInvoicingMain() {
     }
     if (hasInvoiceSelection) {
       const selected = allInvoices.filter((inv) => selectedInvoiceIds.includes(inv.id));
-      const customerId = selected[0]?.customerId;
+      const payable = selected.filter((inv) => canRecordPayment(inv.status));
+      if (!payable.length) {
+        toast({
+          variant: "destructive",
+          title: "Selected invoices must be issued before recording payment.",
+        });
+        return;
+      }
+      const customerId = payable[0]?.customerId;
       if (!customerId) {
         toast({ variant: "destructive", title: "Selected invoices must belong to one customer" });
         return;
       }
-      const prefill = selected.reduce((sum, inv) => sum + (parseFloat(inv.outstanding) || 0), 0);
+      const prefill = payable.reduce((sum, inv) => sum + (parseFloat(inv.outstanding) || 0), 0);
       setPaymentDialogMode("record");
       setPaymentPreselectedCustomerId(String(customerId));
-      setPaymentPreselectedInvoiceIds([...selectedInvoiceIds]);
+      setPaymentPreselectedInvoiceIds(payable.map((inv) => inv.id));
       setPaymentPrefillAmount(prefill > 0 ? String(prefill.toFixed(2)) : "");
       setCreatePaymentOpen(true);
       return;
@@ -291,7 +330,41 @@ export default function BillingAndInvoicingMain() {
     setPaymentPreselectedInvoiceIds([]);
     setPaymentPrefillAmount("");
     setCreatePaymentOpen(true);
-  };
+  }, [
+    hasInvoiceSelection,
+    allInvoices,
+    selectedInvoiceIds,
+    filters.customerId,
+    toast,
+  ]);
+
+  const headerAction = useMemo(() => {
+    switch (activeTab) {
+      case "awaiting":
+        return {
+          label: "Create Invoice",
+          icon: Plus,
+          onClick: () => {
+            setCreateForCustomer(filters.customerId || "");
+            setCreateOpen(true);
+          },
+        };
+      case "invoices":
+        return {
+          label: "Record Payment",
+          icon: CreditCard,
+          onClick: () => openRecordPaymentDialog(),
+        };
+      case "creditNotes":
+        return {
+          label: "New Credit Note",
+          icon: FileText,
+          onClick: () => setCreditNoteCreateOpen(true),
+        };
+      default:
+        return null;
+    }
+  }, [activeTab, filters.customerId, openRecordPaymentDialog]);
 
   const handleViewPayment = async (p) => {
     setLoadingDetail(true);
@@ -338,32 +411,12 @@ export default function BillingAndInvoicingMain() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          {hasInvoiceSelection && (
-            <Button
-              size="xs"
-              variant="outline"
-              className="gap-1.5 h-8"
-              onClick={() => openRecordPaymentDialog()}
-            >
-              <CreditCard className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Record Payment</span>
+          {headerAction && (
+            <Button size="xs" className="gap-1.5 h-8" onClick={headerAction.onClick}>
+              <headerAction.icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{headerAction.label}</span>
             </Button>
           )}
-          {!hasInvoiceSelection && (
-            <Button
-              size="xs"
-              variant="outline"
-              className="gap-1.5 h-8"
-              onClick={() => openRecordPaymentDialog()}
-            >
-              <CreditCard className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Record Payment</span>
-            </Button>
-          )}
-          <Button size="xs" className="gap-1.5 h-8" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Create Invoice</span>
-          </Button>
         </div>
       </div>
 
@@ -472,13 +525,7 @@ export default function BillingAndInvoicingMain() {
 
         <TabsContent value="awaiting" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="overflow-y-auto flex-1 pb-4">
-            <DispatchedOrdersTab
-              sharedFilters={statsParams}
-              onBillCustomer={(customerId) => {
-                setCreateForCustomer(customerId);
-                setCreateOpen(true);
-              }}
-            />
+            <DispatchedOrdersTab sharedFilters={awaitingFilters} />
           </div>
         </TabsContent>
 
@@ -577,7 +624,12 @@ export default function BillingAndInvoicingMain() {
         </TabsContent>
 
         <TabsContent value="creditNotes" className="mt-0 flex-1 min-h-0 flex flex-col gap-2">
-          <CreditDebitNotesTab type="credit" customers={customers} />
+          <CreditDebitNotesTab
+            type="credit"
+            customers={customers}
+            createOpen={creditNoteCreateOpen}
+            onCreateOpenChange={setCreditNoteCreateOpen}
+          />
         </TabsContent>
 
         <TabsContent value="collection" className="mt-0 flex-1 min-h-0 overflow-y-auto">
@@ -602,6 +654,10 @@ export default function BillingAndInvoicingMain() {
         onClose={() => {
           setCreateOpen(false);
           setCreateForCustomer("");
+        }}
+        onCreated={() => {
+          setRefreshKey((k) => k + 1);
+          fetchOutstanding();
         }}
         initialCustomerId={createForCustomer}
       />

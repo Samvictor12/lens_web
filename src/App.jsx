@@ -85,6 +85,7 @@ import IncomeCategoryMain from "./pages/IncomeCategory/IncomeCategoryMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
 import BillingAndInvoicingMain from "./pages/Accounting/BillingAndInvoicing/BillingAndInvoicingMain";
 import RecordPaymentPage from "./pages/Accounting/BillingAndInvoicing/RecordPaymentPage";
+import VendorRecordPaymentPage from "./pages/Accounting/VendorPayments/RecordPaymentPage";
 import Customer360Main from "./pages/Accounting/Customer360/Customer360Main";
 import FinancialReports from "./pages/Accounting/FinancialReports";
 import GstReports from "./pages/Accounting/GstReports";
@@ -285,6 +286,10 @@ const AppRoutes = () => (
         element={<ProtectedRoute><LegacyCustomerPaymentsRedirect /></ProtectedRoute>}
       />
       <Route path="/accounts/vendor-payments" element={<ProtectedRoute><VendorPayments /></ProtectedRoute>} />
+      <Route
+        path="/accounts/vendor-payments/record-payment"
+        element={<ProtectedRoute><VendorRecordPaymentPage /></ProtectedRoute>}
+      />
       <Route path="/accounts/bank-reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
       <Route path="/accounts/ledgers" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />
       <Route path="/masters/expense-categories" element={<ProtectedRoute><ExpenseCategories /></ProtectedRoute>} />

@@ -42,4 +42,4 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 
 1. Open **Customer 360** (Accounting sidebar → `/accounts/customer-360`).
 2. Select customer.
-3. Review Section 1 metrics; click Section 2 cards for 5-row lists; review charts (Section 3); use Section 4 tabs for invoices/payments/CN/ledger.
+3. Review Section 1 two-column details (identity left, financial right); click Section 2 KPI cards to load inline 5-row lists below; review spec-grouped top lens chart (Section 3); scroll to Section 4 tabs for invoices/payments/CN/ledger.

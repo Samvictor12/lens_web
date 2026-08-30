@@ -32,7 +32,7 @@ function formatLocalDate(d) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export default function CreateInvoiceDialog({ open, onClose, initialCustomerId = "" }) {
+export default function CreateInvoiceDialog({ open, onClose, onCreated, initialCustomerId = "" }) {
   const qc = useQueryClient();
   const { company } = useCompany();
   const [customerId, setCustomerId] = useState(initialCustomerId);
@@ -102,8 +102,10 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
       toast.success("Invoice created successfully");
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["invoices-stats"] });
+      qc.invalidateQueries({ queryKey: ["billing-invoicing-stats"] });
       qc.invalidateQueries({ queryKey: ["dispatched-orders"] });
       qc.invalidateQueries({ queryKey: ["awaiting-invoice-customers"] });
+      onCreated?.();
       handleClose();
     },
     onError: (err) => toast.error(err?.message || "Failed to create invoice"),

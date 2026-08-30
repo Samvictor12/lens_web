@@ -73,7 +73,7 @@ graph TD
 * **Payment traceability:** Customer/vendor payment history and detail views show expandable breakdown trees with navigation to Billing invoice detail or PO view.
 * **Billing Tax Invoice (2026-07-14):** Preview/print HTML matches M.V.V Tax Invoice layout (`buildInvoiceHtml` / `printInvoice`); line **Ref No.** = `SaleOrder.customerRefNo`; seller extras (PAN, state code, bank/IFSC) from `CompanySettings.customAttributes` when set.
 * **Invoice due date:** `Invoice.dueDate` = invoice date + `Customer.credit_days` when client omits override.
-* **Payment UX:** Vendor payments are **invoice-first** (`POST /api/vendor-payments/from-invoices`); Customer/Vendor Payment History are multi-column registers; Record Payment uses Outstanding Invoice/Vendor-Invoice List UI. Cancel payment reverses FT via `postReversingTransaction` and restores allocations (blocked if reconciled). Vendor payment GST % from Company Settings when registering invoices.
+* **Payment UX:** Vendor payments are **invoice-first** (`POST /api/vendor-payments/from-invoices`); Record Payment opens in-page dialog on Vendor Payments hub (tab-aware header CTA on Vendor Bills tab); legacy `/record-payment` route redirects to hub. Customer/Vendor Payment History are multi-column registers. Cancel payment reverses FT via `postReversingTransaction` and restores allocations (blocked if reconciled). Vendor payment GST % from Company Settings when registering invoices.
 * **Vendor Invoice create:** Eligible PO list excludes POs already linked to a non-cancelled `VendorInvoice`.
 * **Expenses:** Category from Expense Category (type auto-fills); optional `Expense.dueDate`; Payment Account from `getCashBankLedgers()` (service returns array â€” do not check `.success` on client).
 * **Income & Bank Accounts (2026-07-25):** Income vouchers use **From + To** ledgers (Cash / Bank / Capital); posting **Dr To / Cr From**. Bank Account manage CRUD for GRP-CASH/GRP-BANK. Permissions `income`, `income_categories`, `bank_accounts` must stay in `role.constants.js` + `role-seed.js` (KB-026/034). **UI (2026-07-26):** Income From/To labels include `currentBalance` via `formatCashBankLedgerLabel`; dialog data loads independently on open (categories not wiped by ledger failure).
@@ -102,18 +102,18 @@ To prevent race conditions and inventory mismatches:
 ## DD-2.1 Financial accounting surfaces
 
 Primary UI paths:
-- **Billing and invoicing (shipped 2026-08-27):** `src/pages/Accounting/BillingAndInvoicing/` → `/accounts/billing-and-invoicing`; Record Payment → `/accounts/billing-and-invoicing/record-payment`
+- **Billing and invoicing (shipped 2026-08-27):** `src/pages/Accounting/BillingAndInvoicing/` → `/accounts/billing-and-invoicing`; tab-aware header CTAs (Awaiting→Create Invoice, Invoices→Record Payment, Credit Notes→New Credit Note); Record Payment in-page dialog; legacy `/record-payment` redirects to hub
 - Legacy redirects: `/billing`, `/accounts/customer-payments` → merged workspace
 - Income: `src/pages/Accounting/Income/` → `/accounts/income` (nav label **Income and loans**; Loan via category filter)
-- Expenses: `src/pages/Accounting/Expenses/` → `/accounts/expenses`
-- Vendor Payments: `src/pages/Accounting/VendorPayments/` → `/accounts/vendor-payments`
+- **Vendor & payments (shipped 2026-08-30):** `src/pages/Accounting/VendorPayments/` → `/accounts/vendor-payments`; Record Payment in-page dialog (header on Vendor Bills tab); legacy `/record-payment` redirects to hub; nav **Vendor & payments**
+- Expenses: `src/pages/Accounting/Expenses/` → `/accounts/expenses` (non-vendor overhead only)
 - Financial Reports: `src/pages/Accounting/FinancialReports.jsx` → `/accounts/reports`
 - **Customer 360 (shipped 2026-08-30):** `src/pages/Accounting/Customer360/` → `/accounts/customer-360`
 - Nav: `src/components/layout/AppSidebar.jsx` — Accounting › Billing and invoicing (billing key), Customer 360 (customers key)
 
-Key APIs: `/api/invoices` (+ filter-scoped stats), `/api/customer-payments` (+ `applyAdvanceAmount`), `/api/incomes`, `/api/expenses`, `/api/vendor-payments`, `/api/financial-reports/*`, `/api/ledgers/cash-bank`, `/api/customer-360/:customerId/overview`, `/api/customer-360/:customerId/cards/:cardKey`.
+Key APIs: `/api/invoices` (+ filter-scoped stats), `/api/customer-payments` (+ `applyAdvanceAmount`), `/api/incomes`, `/api/expenses`, `/api/vendor-payments` (+ `/stats`, `/outstanding-invoices` filters), `/api/vendor-indirect-expenses`, `/api/accounting/vendor-invoices/awaiting-bills`, `/api/financial-reports/*`, `/api/ledgers/cash-bank`, `/api/customer-360/:customerId/overview`, `/api/customer-360/:customerId/cards/:cardKey`.
 
-Allocation: `src/backend/utils/paymentAllocation.js`. Posting: `src/backend/services/accountingService.js`. Customer 360 aggregation: `src/backend/services/customer360Service.js` (read-only; reuses invoice/payment/SO/CN/ledger data).
+Allocation: `src/backend/utils/paymentAllocation.js`. Posting: `src/backend/services/accountingService.js` (+ `postVendorExpenseAccrual`). Customer 360 aggregation: `src/backend/services/customer360Service.js` (read-only; reuses invoice/payment/SO/CN/ledger data).
 
-**Target IA (PRD-4.x):** Held: Vendor restructure, Expenses accrual, Finance dashboard, BI.
+**Target IA (PRD-4.x):** Held: Finance dashboard, BI.
 

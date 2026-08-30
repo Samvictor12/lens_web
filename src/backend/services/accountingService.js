@@ -340,6 +340,38 @@ export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmo
 }
 
 /**
+ * Mark vendor indirect expense — accrual only (no bank movement).
+ * Dr expense category ledger, Cr vendor AP ledger.
+ */
+export async function postVendorExpenseAccrual(
+  tx,
+  { expenseId, expenseNumber, amount, categoryLedgerId, vendor, description },
+  userId
+) {
+  const [expLedger, apLedger] = await Promise.all([
+    tx.ledger.findUnique({ where: { id: categoryLedgerId } }),
+    getOwnedLedger(tx, vendor, 'Vendor'),
+  ]);
+  if (!expLedger) throw new APIError('Expense category ledger not found', 400, 'LEDGER_NOT_FOUND');
+
+  return postTransaction(
+    tx,
+    {
+      transactionType: 'JOURNAL',
+      referenceType: 'MANUAL',
+      referenceId: expenseId,
+      referenceNumber: expenseNumber,
+      description: description || `Vendor expense accrual — ${expenseNumber}`,
+    },
+    [
+      { ledgerId: expLedger.id, entryType: 'DEBIT', amount, description: `Expense — ${description}` },
+      { ledgerId: apLedger.id, entryType: 'CREDIT', amount, description: `AP accrued — ${expenseNumber}` },
+    ],
+    userId
+  );
+}
+
+/**
  * Auto-post on expense creation.
  * Dr [category ledger], Cr Cash/Bank (bankLedgerId)
  */

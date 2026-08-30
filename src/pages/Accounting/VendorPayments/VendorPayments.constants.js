@@ -40,10 +40,22 @@ function round2(n) {
 
 function sortVendorInvoices(invoices) {
   return [...invoices].sort((a, b) => {
+    const dueA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+    const dueB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+    if (dueA !== dueB) return dueA - dueB;
     const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : Infinity;
     const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : Infinity;
     if (dateA !== dateB) return dateA - dateB;
     return String(a.invoiceNumber || "").localeCompare(String(b.invoiceNumber || ""));
+  });
+}
+
+function sortVendorIndirectExpenses(expenses) {
+  return [...expenses].sort((a, b) => {
+    const dueA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+    const dueB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+    if (dueA !== dueB) return dueA - dueB;
+    return String(a.expenseNumber || "").localeCompare(String(b.expenseNumber || ""));
   });
 }
 
@@ -74,6 +86,38 @@ export function previewAllocations(invoices, totalAmount, overrides = {}) {
     const max = round2(inv.outstanding);
     const amt = round2(Math.min(remaining, max));
     result[inv.id] = amt;
+    remaining = round2(remaining - amt);
+  }
+
+  return { allocations: result, remaining: round2(remaining) };
+}
+
+/** Client-side FIFO preview for vendor indirect expense allocation */
+export function previewIndirectAllocations(expenses, totalAmount, overrides = {}) {
+  const sorted = sortVendorIndirectExpenses(expenses);
+  const total = round2(totalAmount);
+  let remaining = total;
+  const result = {};
+  const overrideIds = new Set(Object.keys(overrides).map((k) => parseInt(k, 10)));
+
+  for (const exp of sorted) {
+    if (overrideIds.has(exp.id)) {
+      const amt = round2(overrides[exp.id]);
+      const max = round2(exp.outstanding);
+      result[exp.id] = Math.min(amt, max, remaining);
+      remaining = round2(remaining - result[exp.id]);
+    }
+  }
+
+  for (const exp of sorted) {
+    if (overrideIds.has(exp.id)) continue;
+    if (remaining <= 0) {
+      result[exp.id] = 0;
+      continue;
+    }
+    const max = round2(exp.outstanding);
+    const amt = round2(Math.min(remaining, max));
+    result[exp.id] = amt;
     remaining = round2(remaining - amt);
   }
 
