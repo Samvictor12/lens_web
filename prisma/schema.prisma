@@ -1997,6 +1997,7 @@ model VendorInvoice {
   subtotalAmount    Decimal                    @db.Decimal(15, 2)
   taxAmount         Decimal                    @db.Decimal(15, 2)
   totalAmount       Decimal                    @db.Decimal(15, 2)
+  courierCharges    Decimal                    @default(0) @db.Decimal(15, 2)
   paidAmount        Decimal                    @default(0) @db.Decimal(15, 2)
   invoiceCopyPath   String?
   notes             String?

@@ -2226,6 +2226,8 @@ export class SaleOrderService {
   async getStatistics(filters = {}) {
     try {
       const where = this.buildSaleOrderListWhere(filters);
+      const { startDate, endDate, start_date, end_date, ...undatedFilters } = filters;
+      const whereOpen = this.buildSaleOrderListWhere(undatedFilters);
 
       const sumAdditional = (additionalPrice) => {
         if (!Array.isArray(additionalPrice)) return 0;
@@ -2255,10 +2257,10 @@ export class SaleOrderService {
         valueRows,
       ] = await Promise.all([
         prisma.saleOrder.count({ where }),
-        prisma.saleOrder.count({ where: { AND: [where, { status: 'DRAFT' }] } }),
-        prisma.saleOrder.count({ where: { AND: [where, { urgentOrder: true }] } }),
-        prisma.saleOrder.count({ where: { AND: [where, { status: 'READY_FOR_DISPATCH' }] } }),
-        prisma.saleOrder.count({ where: { AND: [where, { status: 'PO_RAISED' }] } }),
+        prisma.saleOrder.count({ where: { AND: [whereOpen, { status: 'DRAFT' }] } }),
+        prisma.saleOrder.count({ where: { AND: [whereOpen, { urgentOrder: true }] } }),
+        prisma.saleOrder.count({ where: { AND: [whereOpen, { status: 'READY_FOR_DISPATCH' }] } }),
+        prisma.saleOrder.count({ where: { AND: [whereOpen, { status: 'PO_RAISED' }] } }),
         prisma.saleOrder.findMany({
           where,
           select: {

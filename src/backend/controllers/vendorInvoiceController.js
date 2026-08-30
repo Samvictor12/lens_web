@@ -14,7 +14,14 @@ export class VendorInvoiceController {
     try { res.json({ success: true, data: await vendorInvoiceService.listOutstanding(req.query.vendorId) }); } catch (e) { next(e); }
   }
   async getEligiblePOs(req, res, next) {
-    try { res.json({ success: true, data: await vendorInvoiceService.listEligiblePOs(req.query.vendorId) }); } catch (e) { next(e); }
+    try {
+      res.json({
+        success: true,
+        data: await vendorInvoiceService.listEligiblePOs(req.query.vendorId, req.query),
+      });
+    } catch (e) {
+      next(e);
+    }
   }
   async create(req, res, next) {
     try {
@@ -24,6 +31,17 @@ export class VendorInvoiceController {
         success: true,
         data: await vendorInvoiceService.create(payload, req.user.id, req.file),
         message: 'Vendor invoice registered',
+      });
+    } catch (e) { next(e); }
+  }
+  async update(req, res, next) {
+    try {
+      let payload = req.body;
+      if (typeof payload.data === 'string') payload = JSON.parse(payload.data);
+      res.json({
+        success: true,
+        data: await vendorInvoiceService.update(req.params.id, payload, req.user.id, req.file),
+        message: 'Vendor invoice updated',
       });
     } catch (e) { next(e); }
   }

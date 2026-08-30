@@ -65,6 +65,7 @@ import {
     statusColors,
     getDefaultDeliveryLeadDays,
     buildDefaultDeliverySchedule,
+    toDateInputValue,
     cylRequiresAxis,
     hasAxisEntry,
     FREE_LENS_APPROVAL,
@@ -3051,7 +3052,7 @@ export default function SaleOrderForm() {
                             singleLine={true} label="Delivery Schedule"
                             type="date"
                             name="deliverySchedule"
-                            value={formData.deliverySchedule ? new Date(formData.deliverySchedule).toISOString().split("T")[0] : ""}
+                            value={toDateInputValue(formData.deliverySchedule)}
                             onChange={handleChange}
                             disabled={!isEditing}
                         />
@@ -3365,26 +3366,26 @@ export default function SaleOrderForm() {
 
                 {/* Block 2, 3, 4: Tabbed View */}
                 <div className="flex flex-col gap-3 md:w-[65%] md:h-full md:overflow-auto pb-3">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-shrink-0">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 flex-shrink-0">
                         {creditCards.map((card) => {
                             const Icon = card.icon;
                             const t = card.theme;
                             return (
-                                <div key={card.key} className={cn("rounded-xl border shadow-sm", t.card)}>
-                                    <div className="p-2.5 flex flex-col gap-1.5">
-                                        <div className="flex items-start justify-between gap-1.5">
-                                            <p className={cn("text-[10px] font-semibold leading-tight", t.label)}>
+                                <div key={card.key} className={cn("rounded-md border shadow-sm", t.card)}>
+                                    <div className="px-2 py-1.5 flex flex-col gap-0.5">
+                                        <div className="flex items-center justify-between gap-1">
+                                            <p className={cn("text-[9px] font-semibold leading-tight truncate", t.label)}>
                                                 {card.label}
                                             </p>
-                                            <span className={cn("inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md", t.iconWrap)}>
-                                                <Icon className="h-3 w-3" />
+                                            <span className={cn("inline-flex h-4 w-4 shrink-0 items-center justify-center rounded", t.iconWrap)}>
+                                                <Icon className="h-2.5 w-2.5" />
                                             </span>
                                         </div>
-                                        <p className={cn("text-sm font-bold tracking-tight leading-none truncate", t.value)}>
+                                        <p className={cn("text-xs font-bold tracking-tight leading-none truncate", t.value)}>
                                             {card.value}
                                         </p>
                                         {card.hint && (
-                                            <p className="text-[10px] font-medium text-red-600 leading-tight">
+                                            <p className="text-[9px] font-medium text-red-600 leading-tight truncate">
                                                 {card.hint}
                                             </p>
                                         )}

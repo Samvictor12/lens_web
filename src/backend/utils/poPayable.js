@@ -23,7 +23,30 @@ export const PO_PAYABLE_SELECT = {
   expectedDeliveryDate: true,
   vendorId: true,
   supplierInvoiceNo: true,
+  saleOrderId: true,
+  rightEye: true,
+  leftEye: true,
 };
+
+/** Required receive qty: 1 per eye for SO-linked POs, else PO quantity */
+export function requiredReceiveQty(po) {
+  if (po.saleOrderId) {
+    let qty = 0;
+    if (po.rightEye) qty += 1;
+    if (po.leftEye) qty += 1;
+    return qty || 1;
+  }
+  return parseFloat(po.quantity) || 1;
+}
+
+/** Revert PO status after removal from a vendor bill (based on received qty). */
+export function poStatusAfterBillRemoval(po) {
+  const received = parseFloat(po.receivedQty) || 0;
+  if (received <= 0) return 'DRAFT';
+  const required = requiredReceiveQty(po);
+  if (received >= required - 0.001) return 'RECEIVED';
+  return 'PO_PARTIAL_RECEIVED';
+}
 
 /** POs eligible for vendor payment (received, not yet fully paid to vendor). */
 export const PO_PAYMENT_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED', 'INVOICE_RECEIVED'];
@@ -31,7 +54,10 @@ export const PO_PAYMENT_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED', 
 /** POs eligible for new Vendor Invoice registration (excludes INVOICE_RECEIVED / PAID). */
 export const PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
-/** Default Purchase list: operational POs that have not had a vendor bill raised. */
+/** POs eligible for new Vendor Invoice registration (excludes INVOICE_RECEIVED / PAID). */
+export const PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED'];
+
+/** List filter: POs not yet vendor-billed (Pending + Partial + Full Received). */
 export const PO_UNBILLED_LIST_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
 /** True when PO already has a legacy/Excel supplier invoice mark. */

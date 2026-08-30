@@ -12,6 +12,7 @@ router.get('/summary', ...guard, vendorInvoiceController.summary.bind(vendorInvo
 router.get('/', ...guard, vendorInvoiceController.list.bind(vendorInvoiceController));
 router.get('/:id', ...guard, vendorInvoiceController.getById.bind(vendorInvoiceController));
 router.post('/', ...guard, vendorInvoiceUpload.single('invoiceCopy'), vendorInvoiceController.create.bind(vendorInvoiceController));
+router.put('/:id', ...guard, vendorInvoiceUpload.single('invoiceCopy'), vendorInvoiceController.update.bind(vendorInvoiceController));
 router.patch('/:id/cancel', ...guard, vendorInvoiceController.cancel.bind(vendorInvoiceController));
 
 export default router;

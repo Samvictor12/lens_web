@@ -110,25 +110,40 @@ export const getStatusColor = (status) => {
   }
 };
 
-/** Default list: pending / received POs that have not had a vendor bill raised. */
+/** List filter: POs not yet vendor-billed (Pending + Partial Received + Full Received). */
 export const UNBILLED_STATUS = "unbilled";
 export const ALL_STATUS = "all";
+export const PENDING_STATUS = "pending";
 export const VENDOR_BILL_ELIGIBLE_STATUSES = ["PO_PARTIAL_RECEIVED", "RECEIVED"];
 
 export const statusFilterOptions = [
-  { value: UNBILLED_STATUS, label: "Unbilled" },
   { value: ALL_STATUS, label: "All" },
+  { value: UNBILLED_STATUS, label: "Unbilled" },
   ...statusOptions,
+];
+
+/** Date field used by the single From–To filter on the PO list. */
+export const DATE_TYPE_ALL = "all";
+export const DATE_TYPE_ORDER = "order";
+export const DATE_TYPE_RECEIVED = "received";
+export const DATE_TYPE_EXPECTED = "expected";
+
+export const dateTypeFilterOptions = [
+  { value: DATE_TYPE_ALL, label: "All" },
+  { value: DATE_TYPE_ORDER, label: "Order date" },
+  { value: DATE_TYPE_RECEIVED, label: "Received Date" },
+  { value: DATE_TYPE_EXPECTED, label: "Expected Date" },
 ];
 
 // Purchase order filters
 export const purchaseOrderFilters = {
   search: "",
   vendor_id: null,
-  status: UNBILLED_STATUS,
+  status: ALL_STATUS,
   active_status: "all",
   start_date: "",
   end_date: "",
+  date_type: DATE_TYPE_ALL,
 };
 
 /**

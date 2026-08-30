@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
+import { FileText, Pencil } from "lucide-react";
 import { vendorInvoiceCopyUrl } from "@/services/vendorPayment";
 
 const STATUS_STYLES = {
@@ -24,7 +24,7 @@ function formatInr(n) {
   })}`;
 }
 
-export function useVendorBillColumns() {
+export function useVendorBillColumns({ onEdit } = {}) {
   return [
     {
       accessorKey: "invoiceDate",
@@ -80,6 +80,12 @@ export function useVendorBillColumns() {
       cell: (inv) => <span className="text-[11px] font-mono">{formatInr(inv.taxAmount)}</span>,
     },
     {
+      accessorKey: "courierCharges",
+      header: "Courier",
+      sortable: false,
+      cell: (inv) => <span className="text-[11px] font-mono">{formatInr(inv.courierCharges)}</span>,
+    },
+    {
       accessorKey: "totalAmount",
       header: "Total",
       sortable: false,
@@ -108,6 +114,27 @@ export function useVendorBillColumns() {
               <FileText className="h-3.5 w-3.5" />
               View
             </a>
+          </Button>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "",
+      sortable: false,
+      cell: (inv) => {
+        const paid = parseFloat(inv.paidAmount) || 0;
+        const canEdit = inv.status === "OUTSTANDING" && paid <= 0.001;
+        if (!canEdit || !onEdit) return null;
+        return (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 px-2 text-xs gap-1"
+            onClick={() => onEdit(inv)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
           </Button>
         );
       },

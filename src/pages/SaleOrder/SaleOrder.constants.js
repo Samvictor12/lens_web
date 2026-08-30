@@ -206,7 +206,25 @@ export function hasAxisEntry(axis) {
 }
 
 /**
- * Build a datetime-local ISO string: orderDate + leadDays (local calendar).
+ * Normalize a date-like value to YYYY-MM-DD (local calendar, no UTC shift).
+ * @param {string|Date|null|undefined} value
+ * @returns {string}
+ */
+export function toDateInputValue(value) {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Build YYYY-MM-DD: orderDate + leadDays (local calendar).
  * @param {string|Date|null} orderDate
  * @param {number} leadDays
  * @returns {string|null}
@@ -215,10 +233,10 @@ export function buildDefaultDeliverySchedule(orderDate, leadDays) {
   if (leadDays == null || Number.isNaN(Number(leadDays))) return null;
   const raw = orderDate
     ? String(orderDate).slice(0, 10)
-    : new Date().toISOString().split("T")[0];
+    : toDateInputValue(new Date());
   const [y, m, d] = raw.split("-").map(Number);
   if (!y || !m || !d) return null;
   const date = new Date(y, m - 1, d, 12, 0, 0, 0);
   date.setDate(date.getDate() + Number(leadDays));
-  return date.toISOString();
+  return toDateInputValue(date);
 }

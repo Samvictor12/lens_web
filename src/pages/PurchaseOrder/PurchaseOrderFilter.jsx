@@ -8,7 +8,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getVendorDropdown } from "@/services/vendor";
-import { statusFilterOptions } from "./PurchaseOrder.constants";
+import {
+  statusFilterOptions,
+  dateTypeFilterOptions,
+  DATE_TYPE_ALL,
+} from "./PurchaseOrder.constants";
 
 const ALL = "__all__";
 
@@ -77,26 +81,37 @@ export default function PurchaseOrderFilter({
 
   const set = (key, value) => onChange({ ...filters, [key]: value });
 
+  const dateInputClass =
+    "!h-8 min-w-[110px] max-w-[140px] flex-[0.9] text-xs px-1.5";
+
   return (
     <>
       <Input
         type="date"
         value={filters.start_date || ""}
         onChange={(e) => set("start_date", e.target.value || "")}
-        className="!h-8 min-w-[110px] max-w-[140px] flex-[0.9] text-xs px-1.5"
-        title="Start date"
+        className={dateInputClass}
+        title="From date"
       />
       <Input
         type="date"
         value={filters.end_date || ""}
         onChange={(e) => set("end_date", e.target.value || "")}
-        className="!h-8 min-w-[110px] max-w-[140px] flex-[0.9] text-xs px-1.5"
-        title="End date"
+        className={dateInputClass}
+        title="To date"
+      />
+      <CompactSelect
+        placeholder="Date type"
+        value={filters.date_type || DATE_TYPE_ALL}
+        onChange={(v) => set("date_type", v || DATE_TYPE_ALL)}
+        includePlaceholder={false}
+        className="min-w-[120px] flex-1"
+        options={dateTypeFilterOptions}
       />
       <CompactSelect
         placeholder="Status"
-        value={filters.status || "unbilled"}
-        onChange={(v) => set("status", v || "unbilled")}
+        value={filters.status || "all"}
+        onChange={(v) => set("status", v || "all")}
         includePlaceholder={false}
         className="min-w-[110px] flex-1"
         options={statusFilterOptions}

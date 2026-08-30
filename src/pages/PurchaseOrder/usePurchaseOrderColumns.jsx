@@ -1,4 +1,4 @@
-import { Building, Trash2, PackageCheck, PencilLine, Warehouse } from "lucide-react";
+import { Building, Trash2, PackageCheck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,16 +8,21 @@ import { getStatusColor, getStatusLabel } from "./PurchaseOrder.constants";
 const canReceive = (po) =>
   ["DRAFT", "PARTIALLY_RECEIVED", "PO_PARTIAL_RECEIVED"].includes(po.status) &&
   (po.quantity || 0) > (po.receivedQty || 0);
-// Allow editing the latest receipt when PO is RECEIVED
-const canEditReceipt = (status) => status === "RECEIVED";
+
+function formatListDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString();
+}
+
+function formatLensNameWithIndex(po) {
+  const name = po.lensProduct?.lens_name;
+  if (!name) return "-";
+  const indexName = po.lensProduct?.index?.index_name;
+  return indexName ? `${name} [${indexName}]` : name;
+}
 
 /**
  * Custom hook that returns the table columns configuration for the purchase order list
- * @param {Function} navigate - React Router navigate function
- * @param {Function} onDelete - Delete handler function
- * @param {Function} onReceive - Receive PO handler function
- * @param {Function} onEditReceive - Edit receipt handler function
- * @returns {Array} Array of column definitions
  */
 export const usePurchaseOrderColumns = (
   navigate,
@@ -29,12 +34,37 @@ export const usePurchaseOrderColumns = (
   downloadingId,
   selectedIds = new Set(),
   onToggleSelect,
+  onSelectAll,
+  allPageSelected = false,
+  somePageSelected = false,
+  selectAllDisabled = false,
 ) => {
   return [
     // ── Checkbox column ──────────────────────────────────────────────────────
     {
       accessorKey: "__select",
-      header: "",
+      header: (
+        <div
+          className="flex items-center justify-center px-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Checkbox
+            checked={
+              allPageSelected
+                ? true
+                : somePageSelected
+                  ? "indeterminate"
+                  : false
+            }
+            onCheckedChange={(checked) =>
+              onSelectAll && onSelectAll(checked === true)
+            }
+            disabled={selectAllDisabled}
+            aria-label="Select all on this page"
+            title="Select all on this page"
+          />
+        </div>
+      ),
       sortable: false,
       width: 40,
       cell: (po) => (
@@ -69,13 +99,22 @@ export const usePurchaseOrderColumns = (
       header: "Customer Ref / Ref No",
       sortable: true,
       cell: (po) => {
-        // For Single POs linked to an SO, prefer the SO's customer reference number
         const displayRef =
           po.orderType !== "Bulk" && po.saleOrder?.customerRefNo
             ? po.saleOrder.customerRefNo
             : (po.reference_id || "-");
         return <span className="text-[11px]">{displayRef}</span>;
       },
+    },
+    {
+      accessorKey: "soCustomer",
+      header: "SO Customer",
+      sortable: false,
+      cell: (po) => (
+        <span className="text-[11px]">
+          {po.saleOrder?.customer?.name || "-"}
+        </span>
+      ),
     },
     {
       accessorKey: "vendor",
@@ -102,61 +141,10 @@ export const usePurchaseOrderColumns = (
       accessorKey: "lensProduct",
       header: "Lens Name",
       sortable: false,
-      width: 200,
+      width: 220,
       cell: (po) => (
         <span className="text-[11px] block min-w-[180px]">
-          {po.lensProduct?.lens_name || "-"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "category",
-      header: "Lens Category",
-      sortable: false,
-      cell: (po) => (
-        <span className="text-[11px]">
-          {po.category?.name || "-"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "orderDate",
-      header: "Order Date",
-      sortable: true,
-      cell: (po) => (
-        <span className="text-[11px]">
-          {po.orderDate ? new Date(po.orderDate).toLocaleDateString() : "-"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "quantity",
-      header: "Ordered / Received",
-      sortable: true,
-      cell: (po) => {
-        // Prefer eye-based qty for SO-linked single POs when stored quantity is stale
-        let ordered = po.quantity || 0;
-        if (po.saleOrderId && po.orderType !== "Bulk") {
-          const fromEyes = (po.rightEye ? 1 : 0) + (po.leftEye ? 1 : 0);
-          if (fromEyes > 0) ordered = fromEyes;
-        }
-        return (
-          <div className="text-[11px]">
-            <span>{ordered}</span>
-            {po.receivedQty > 0 && (
-              <span className="text-green-600 ml-1">/ {po.receivedQty}</span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "totalValue",
-      header: "Total Value",
-      sortable: true,
-      cell: (po) => (
-        <span className="text-[11px] font-medium">
-          ₹{(po.totalValue || 0).toLocaleString("en-IN")}
+          {formatLensNameWithIndex(po)}
         </span>
       ),
     },
@@ -174,14 +162,38 @@ export const usePurchaseOrderColumns = (
       },
     },
     {
+      accessorKey: "orderDate",
+      header: "Ordered Date",
+      sortable: true,
+      cell: (po) => (
+        <span className="text-[11px]">{formatListDate(po.orderDate)}</span>
+      ),
+    },
+    {
       accessorKey: "expectedDeliveryDate",
-      header: "Expected Delivery",
+      header: "Expected Date",
       sortable: true,
       cell: (po) => (
         <span className="text-[11px]">
-          {po.expectedDeliveryDate
-            ? new Date(po.expectedDeliveryDate).toLocaleDateString()
-            : "-"}
+          {formatListDate(po.expectedDeliveryDate)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "receivedDate",
+      header: "Received Date",
+      sortable: false,
+      cell: (po) => (
+        <span className="text-[11px]">{formatListDate(po.receivedDate)}</span>
+      ),
+    },
+    {
+      accessorKey: "tatDays",
+      header: "TAT",
+      sortable: false,
+      cell: (po) => (
+        <span className="text-[11px]">
+          {po.tatDays == null ? "-" : `${po.tatDays}d`}
         </span>
       ),
     },
@@ -213,19 +225,6 @@ export const usePurchaseOrderColumns = (
               Inward
             </Button>
           )}
-          {/* 
-          {po.status === "RECEIVED" && (
-            <Button
-              variant="outline"
-              size="xs"
-              className="h-7 px-2 text-xs text-amber-700 border-amber-200 hover:bg-amber-50 hover:text-amber-700 gap-1"
-              onClick={() => onEditReceive && onEditReceive(po)}
-            >
-              <PencilLine className="h-3.5 w-3.5" />
-              Edit Receive
-            </Button>
-          )}
-          */}
         </div>
       ),
     },
@@ -236,18 +235,6 @@ export const usePurchaseOrderColumns = (
       cell: (po) => {
         return (
           <div className="flex gap-1">
-            {/* Download button moved to batch action bar — comment kept for reference
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              onClick={() => onDownload && onDownload(po)}
-              disabled={downloadingId === po.id}
-              title="Download PO as Excel"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-            */}
             {po.status !== "RECEIVED" && po.status !== "PARTIALLY_RECEIVED" && (po.receivedQty || 0) === 0 && (
               <Button
                 variant="ghost"

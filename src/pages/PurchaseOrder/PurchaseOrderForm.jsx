@@ -34,6 +34,11 @@ import {
   getLensCoatingsByLensProduct,
 } from "@/services/saleOrder";
 import { defaultPurchaseOrder, activeStatusOptions, statusOptions, purchaseTypeOptions, orderTypeOptions, poQuantityFromEyes } from "./PurchaseOrder.constants";
+import {
+  getDefaultDeliveryLeadDays,
+  buildDefaultDeliverySchedule,
+  toDateInputValue,
+} from "@/pages/SaleOrder/SaleOrder.constants";
 import BulkLensSelection from "./BulkLensSelection";
 import PurchaseOrderStatusBar from "@/components/purchase-order/PurchaseOrderStatusBar";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -56,8 +61,14 @@ export default function PurchaseOrderForm() {
   const [isSaving, setIsSaving] = useState(false);
   const [currentOrderType, setCurrentOrderType] = useState(null); // Track actual order type from data
   const [showTabs, setShowTabs] = useState(true); // Control tab visibility
+  const [deliveryDateTouched, setDeliveryDateTouched] = useState(false);
+  const fromSaleOrder = Boolean(location.state?.fromSaleOrder);
 
-  // Dropdown data
+  const resolveExpectedDelivery = (orderDate, typeId, types = lensTypes) => {
+    const selectedType = types.find((t) => String(t.id ?? t.value) === String(typeId));
+    const leadDays = getDefaultDeliveryLeadDays(selectedType?.name || selectedType?.label);
+    return buildDefaultDeliverySchedule(orderDate, leadDays);
+  };
   const [vendors, setVendors] = useState([]);
   const [saleOrders, setSaleOrders] = useState([]);
   const [lensProducts, setLensProducts] = useState([]);
@@ -116,7 +127,17 @@ export default function PurchaseOrderForm() {
             (t) => (t.name || t.label || "").toUpperCase() === targetName
           );
           if (match) {
-            setFormData(prev => ({ ...prev, Type_id: match.id ?? match.value }));
+            const typeId = match.id ?? match.value;
+            const expected = resolveExpectedDelivery(
+              defaultPurchaseOrder.orderDate,
+              typeId,
+              lensTypeResponse.data
+            );
+            setFormData((prev) => ({
+              ...prev,
+              Type_id: typeId,
+              ...(expected && !deliveryDateTouched ? { expectedDeliveryDate: expected } : {}),
+            }));
           }
         }
       } catch (error) {
@@ -136,7 +157,8 @@ export default function PurchaseOrderForm() {
   useEffect(() => {
     if (mode === "add" && location.state?.fromSaleOrder) {
       const so = location.state.fromSaleOrder;
-        const qty = poQuantityFromEyes(so);
+      const qty = poQuantityFromEyes(so);
+      const soDelivery = toDateInputValue(so.deliverySchedule);
       setFormData((prev) => ({
         ...prev,
         saleOrderId: so.id ?? null,
@@ -163,7 +185,9 @@ export default function PurchaseOrderForm() {
         quantity: qty,
         itemDescription: so.orderNo || "",
         notes: so.remark || "",
+        ...(soDelivery ? { expectedDeliveryDate: soDelivery } : {}),
       }));
+      if (soDelivery) setDeliveryDateTouched(true);
       setLinkedSaleOrder({
         orderNo: so.orderNo,
         customerRefNo: so.customerRefNo,
@@ -503,13 +527,30 @@ export default function PurchaseOrderForm() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
-    if (type === "checkbox") {
-      setFormData((prev) => ({ ...prev, [name]: checked }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "expectedDeliveryDate") {
+      setDeliveryDateTouched(true);
     }
 
-    // Clear error for this field when user starts typing
+    if (type === "checkbox") {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+      if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+      return;
+    }
+
+    if (name === "orderDate" && mode === "add" && !fromSaleOrder && !deliveryDateTouched) {
+      setFormData((prev) => {
+        const expected = resolveExpectedDelivery(value, prev.Type_id);
+        return {
+          ...prev,
+          orderDate: value,
+          ...(expected ? { expectedDeliveryDate: expected } : {}),
+        };
+      });
+      if (errors.orderDate) setErrors((prev) => ({ ...prev, orderDate: "" }));
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -543,7 +584,7 @@ export default function PurchaseOrderForm() {
   const handleOrderTypeChange = (newOrderType) => {
     setFilteredLensProducts(null);
     setFilteredLensCoatings(null);
-    setFormData(prev => {
+    setFormData((prev) => {
       const updated = { ...prev, orderType: newOrderType };
 
       // Auto-set default type based on order type
@@ -567,6 +608,11 @@ export default function PurchaseOrderForm() {
       // Clear bulk selection when switching to single
       if (newOrderType === "Single") {
         updated.lensBulkSelection = null;
+      }
+
+      if (mode === "add" && !fromSaleOrder && !deliveryDateTouched) {
+        const expected = resolveExpectedDelivery(updated.orderDate, updated.Type_id);
+        if (expected) updated.expectedDeliveryDate = expected;
       }
 
       return updated;
