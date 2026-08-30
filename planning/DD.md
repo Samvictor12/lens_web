@@ -107,13 +107,14 @@ Primary UI paths:
 - Income: `src/pages/Accounting/Income/` → `/accounts/income` (nav label **Income and loans**; Loan via category filter)
 - **Vendor & payments (shipped 2026-08-30):** `src/pages/Accounting/VendorPayments/` → `/accounts/vendor-payments`; Record Payment in-page dialog (header on Vendor Bills tab); legacy `/record-payment` redirects to hub; nav **Vendor & payments**
 - Expenses: `src/pages/Accounting/Expenses/` → `/accounts/expenses` (non-vendor overhead only)
+- **Finance Dashboard (shipped 2026-08-31):** `src/pages/Accounting/FinanceDashboard/` → `/accounts/finance-dashboard`
 - Financial Reports: `src/pages/Accounting/FinancialReports.jsx` → `/accounts/reports`
 - **Customer 360 (shipped 2026-08-30):** `src/pages/Accounting/Customer360/` → `/accounts/customer-360`
-- Nav: `src/components/layout/AppSidebar.jsx` — Accounting › Billing and invoicing (billing key), Customer 360 (customers key)
+- Nav: `src/components/layout/AppSidebar.jsx` — Accounting › Finance Dashboard (finance_dashboard key) first, then Billing, Customer 360, Vendor & payments
 
-Key APIs: `/api/invoices` (+ filter-scoped stats), `/api/customer-payments` (+ `applyAdvanceAmount`), `/api/incomes`, `/api/expenses`, `/api/vendor-payments` (+ `/stats`, `/outstanding-invoices` filters), `/api/vendor-indirect-expenses`, `/api/accounting/vendor-invoices/awaiting-bills`, `/api/financial-reports/*`, `/api/ledgers/cash-bank`, `/api/customer-360/:customerId/overview`, `/api/customer-360/:customerId/cards/:cardKey`.
+Key APIs: `/api/invoices` (+ filter-scoped stats), `/api/customer-payments` (+ `applyAdvanceAmount`), `/api/incomes`, `/api/expenses`, `/api/vendor-payments` (+ `/stats`, `/outstanding-invoices` filters), `/api/vendor-indirect-expenses` (+ `/pay`), `/api/accounting/vendor-invoices/awaiting-bills`, `/api/financial-reports/*` (+ `/dashboard`, `/trial-balance-grouped`), `/api/ledgers/cash-bank`, `/api/ledgers/liability-posting`, `/api/customer-360/:customerId/overview`, `/api/customer-360/:customerId/cards/:cardKey`.
 
-Allocation: `src/backend/utils/paymentAllocation.js`. Posting: `src/backend/services/accountingService.js` (+ `postVendorExpenseAccrual`). Customer 360 aggregation: `src/backend/services/customer360Service.js` (read-only; reuses invoice/payment/SO/CN/ledger data).
+Allocation: `src/backend/utils/paymentAllocation.js`. Posting: `src/backend/services/accountingService.js` (+ `postIndirectExpenseAccrual`, `postIndirectExpensePayment`). Indirect expense pay UI: `PayExpenseBillDialog.jsx` (liability account + FIFO). Customer 360 aggregation: `src/backend/services/customer360Service.js` (read-only; reuses invoice/payment/SO/CN/ledger data).
 
-**Target IA (PRD-4.x):** Held: Finance dashboard, BI.
+**Target IA (PRD-4.x):** Held: BI (PRD-4.7).
 

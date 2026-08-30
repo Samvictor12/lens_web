@@ -22,4 +22,16 @@ export class VendorIndirectExpenseController {
       next(e);
     }
   }
+
+  async pay(req, res, next) {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.pay(req.body, req.user.id),
+        message: 'Expense bill payment recorded',
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
 }

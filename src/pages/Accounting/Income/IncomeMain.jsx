@@ -157,7 +157,7 @@ export default function IncomeMain() {
       });
       return;
     }
-    navigate(`/accounts/reports?tab=ledger&ledgerId=${ledgerId}`);
+    navigate("/accounts/finance-dashboard");
   };
 
   const handleTabChange = (tab) => {

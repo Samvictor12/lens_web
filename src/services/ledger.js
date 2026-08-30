@@ -8,6 +8,9 @@ export const getCashBankLedgers = () => apiClient("get", `${BASE}/cash-bank`).th
 /** Cash / Bank / Capital posting ledgers for Income From/To pickers. */
 export const getCashBankCapitalLedgers = () =>
   apiClient("get", `${BASE}/cash-bank-capital`).then((res) => res.data ?? []);
+/** Active LIABILITY posting ledgers for indirect expense "Expense for" picker. */
+export const getLiabilityPostingLedgers = () =>
+  apiClient("get", `${BASE}/liability-posting`).then((res) => res.data ?? []);
 export const createLedger = (data) => apiClient("post", BASE, { data });
 export const updateLedger = (id, data) => apiClient("put", `${BASE}/${id}`, { data });
 export const deleteLedger = (id) => apiClient("delete", `${BASE}/${id}`);

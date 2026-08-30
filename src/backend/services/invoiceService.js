@@ -54,6 +54,19 @@ function calcInvoiceTaxFromCompany(taxableAmount, companySettings) {
   };
 }
 
+/** Delivered SOs not yet on an issued invoice — shown on Awaiting tab. */
+const AWAITING_TAB_INVOICE_OR = [
+  { invoiceId: null },
+  { invoice: { status: 'CANCELLED' } },
+  { invoice: { status: 'DRAFT' } },
+];
+
+/** Delivered SOs with no active bill — used when creating a new invoice. */
+const UNBILLED_SO_INVOICE_OR = [
+  { invoiceId: null },
+  { invoice: { status: 'CANCELLED' } },
+];
+
 /**
  * Invoice Service
  * Handles business logic for combining delivered sale orders into invoices/bills.
@@ -359,6 +372,180 @@ export class InvoiceService {
   }
 
   // ──────────────────────────────────────────────────────────
+  // Update DRAFT invoice — due date, notes, sale order lines
+  // ──────────────────────────────────────────────────────────
+  async updateInvoice(invoiceId, { dueDate, notes, saleOrderIds }, userId, req = null) {
+    try {
+      if (!saleOrderIds?.length) {
+        throw new APIError('At least one sale order is required', 400, 'NO_ORDERS');
+      }
+
+      const uniqueIds = [...new Set(saleOrderIds.map(Number))];
+
+      await prisma.$transaction(async (tx) => {
+        const invoice = await tx.invoice.findUnique({
+          where: { id: invoiceId },
+          include: {
+            saleOrders: {
+              where: { deleteStatus: false },
+              select: {
+                id: true,
+                orderNo: true,
+                status: true,
+                customerId: true,
+                lensPrice: true,
+                fittingPrice: true,
+                tintingPrice: true,
+                rightEyeExtra: true,
+                leftEyeExtra: true,
+                discount: true,
+                additionalPrice: true,
+              },
+            },
+          },
+        });
+
+        if (!invoice || invoice.deleteStatus) {
+          throw new APIError('Invoice not found', 404, 'INVOICE_NOT_FOUND');
+        }
+        if (invoice.status !== 'DRAFT') {
+          throw new APIError('Only DRAFT invoices can be edited', 400, 'NOT_EDITABLE');
+        }
+        if ((invoice.paidAmount || 0) > 0.01) {
+          throw new APIError('Cannot edit an invoice with recorded payments', 400, 'HAS_PAYMENTS');
+        }
+
+        const currentIds = new Set(invoice.saleOrders.map((o) => o.id));
+        const newIdSet = new Set(uniqueIds);
+        const addedIds = uniqueIds.filter((id) => !currentIds.has(id));
+        const removedIds = [...currentIds].filter((id) => !newIdSet.has(id));
+
+        const orders = await tx.saleOrder.findMany({
+          where: { id: { in: uniqueIds }, deleteStatus: false },
+          include: { invoice: { select: { id: true, status: true } } },
+        });
+
+        if (orders.length !== uniqueIds.length) {
+          throw new APIError('One or more sale orders not found', 404, 'ORDERS_NOT_FOUND');
+        }
+
+        const wrongCustomer = orders.filter((o) => o.customerId !== invoice.customerId);
+        if (wrongCustomer.length) {
+          throw new APIError('All sale orders must belong to the invoice customer', 400, 'MULTIPLE_CUSTOMERS');
+        }
+
+        const nonDelivered = orders.filter((o) => o.status !== 'DELIVERED' && !currentIds.has(o.id));
+        if (nonDelivered.length) {
+          throw new APIError(
+            `Sale orders must be DELIVERED before billing: ${nonDelivered.map((o) => o.orderNo).join(', ')}`,
+            400,
+            'ORDERS_NOT_DELIVERED'
+          );
+        }
+
+        const alreadyBilled = orders.filter(
+          (o) =>
+            addedIds.includes(o.id) &&
+            o.invoiceId !== null &&
+            o.invoiceId !== invoiceId &&
+            o.invoice?.status !== 'CANCELLED'
+        );
+        if (alreadyBilled.length) {
+          throw new APIError(
+            `Some orders are already on another invoice: ${alreadyBilled.map((o) => o.orderNo).join(', ')}`,
+            400,
+            'ALREADY_INVOICED'
+          );
+        }
+
+        if (removedIds.length) {
+          await tx.saleOrder.updateMany({
+            where: { id: { in: removedIds }, invoiceId },
+            data: { invoiceId: null, status: 'DELIVERED', updatedBy: userId },
+          });
+        }
+
+        if (addedIds.length) {
+          const linked = await tx.saleOrder.updateMany({
+            where: {
+              id: { in: addedIds },
+              deleteStatus: false,
+              OR: [{ invoiceId: null }, { invoice: { status: 'CANCELLED' } }],
+            },
+            data: { invoiceId, updatedBy: userId },
+          });
+          if (linked.count !== addedIds.length) {
+            throw new APIError('Some orders could not be added to this invoice', 400, 'ALREADY_INVOICED');
+          }
+        }
+
+        const taxableSubtotal = orders.reduce((sum, o) => sum + saleOrderTaxableTotal(o), 0);
+        const companySettings = await tx.companySettings.findFirst();
+        const taxBreakdown = calcInvoiceTaxFromCompany(taxableSubtotal, companySettings);
+        const newTotal = taxBreakdown.totalAmount;
+        const oldTotal = parseFloat(invoice.totalAmount) || 0;
+        const delta = Math.round((newTotal - oldTotal) * 100) / 100;
+
+        let resolvedDueDate = invoice.dueDate;
+        if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '') {
+          const dateStr = String(dueDate).trim();
+          resolvedDueDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+            ? new Date(`${dateStr}T12:00:00`)
+            : new Date(dueDate);
+          if (Number.isNaN(resolvedDueDate.getTime())) {
+            throw new APIError('Invalid due date', 400, 'INVALID_DUE_DATE');
+          }
+        }
+
+        const taxNoteParts = [];
+        if (taxBreakdown.gstPercent > 0 || taxBreakdown.sgstPercent > 0) {
+          taxNoteParts.push(
+            `Tax: GST ${taxBreakdown.gstPercent}% = ${taxBreakdown.gstAmount.toFixed(2)}, SGST ${taxBreakdown.sgstPercent}% = ${taxBreakdown.sgstAmount.toFixed(2)}`
+          );
+        }
+        const mergedNotes = [notes || null, ...taxNoteParts].filter(Boolean).join('\n') || null;
+
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            dueDate: resolvedDueDate,
+            notes: mergedNotes,
+            totalAmount: newTotal,
+            taxAmount: taxBreakdown.taxAmount,
+            updatedBy: userId,
+          },
+        });
+
+        if (Math.abs(delta) > 0.01) {
+          await tx.customer.update({
+            where: { id: invoice.customerId },
+            data: {
+              reserved_amount: { decrement: delta },
+              outstanding_credit: { increment: delta },
+            },
+          });
+        }
+      });
+
+      await logUpdate({
+        userId,
+        entity: 'Invoice',
+        entityId: invoiceId,
+        oldValues: {},
+        newValues: { saleOrderIds: uniqueIds, dueDate, notes },
+        req,
+        metadata: { operation: 'updateInvoice' },
+      }).catch(() => {});
+
+      return this.getInvoiceById(invoiceId);
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      await logDatabaseError({ error, userId, req, metadata: { operation: 'updateInvoice', invoiceId } }).catch(() => {});
+      throw new APIError('Failed to update invoice', 500, 'UPDATE_INVOICE_ERROR');
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Cancel invoice — unlinks sale orders (returns them to DELIVERED)
   // ──────────────────────────────────────────────────────────
   async cancelInvoice(invoiceId, userId, req = null) {
@@ -511,10 +698,7 @@ export class InvoiceService {
       deleteStatus: false,
       AND: [
         {
-          OR: [
-            { invoiceId: null },
-            { invoice: { status: 'CANCELLED' } },
-          ],
+          OR: AWAITING_TAB_INVOICE_OR,
         },
       ],
       ...(customerId && { customerId: parseInt(customerId) }),
@@ -622,8 +806,7 @@ export class InvoiceService {
       deleteStatus: false,
       ...(cid && { customerId: cid }),
       ...productSoFilter,
-      ...(Object.keys(createdAt).length ? { createdAt } : {}),
-      OR: [{ invoiceId: null }, { invoice: { status: 'CANCELLED' } }],
+      OR: AWAITING_TAB_INVOICE_OR,
     };
 
     const paymentDateFilter = Object.keys(createdAt).length
@@ -748,10 +931,7 @@ export class InvoiceService {
       where: {
         status: 'DELIVERED',
         deleteStatus: false,
-        OR: [
-          { invoiceId: null },
-          { invoice: { status: 'CANCELLED' } },
-        ],
+        OR: AWAITING_TAB_INVOICE_OR,
       },
       select: {
         customerId: true,
@@ -799,10 +979,7 @@ export class InvoiceService {
         status: 'DELIVERED',
         deleteStatus: false,
         // Include SOs with no invoice OR SOs from a cancelled invoice (available for re-invoicing)
-        OR: [
-          { invoiceId: null },
-          { invoice: { status: 'CANCELLED' } },
-        ],
+        OR: UNBILLED_SO_INVOICE_OR,
         ...(Object.keys(createdAt).length ? { createdAt } : {}),
       },
       select: {

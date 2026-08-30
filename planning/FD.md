@@ -9,6 +9,8 @@ sections:
     title: Income and loans operator flow
   - id: FD-2.3
     title: Customer 360 operator flow
+  - id: FD-2.4
+    title: Finance dashboard operator flow
 ---
 
 # Flow Document
@@ -43,3 +45,14 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 1. Open **Customer 360** (Accounting sidebar → `/accounts/customer-360`).
 2. Select customer.
 3. Review Section 1 two-column details (identity left, financial right); click Section 2 KPI cards to load inline 5-row lists below; review spec-grouped top lens chart (Section 3); scroll to Section 4 tabs for invoices/payments/CN/ledger.
+
+## FD-2.4 Finance dashboard operator flow
+
+**Status:** shipped (`req-006`, 2026-08-31).
+
+1. Open **Finance Dashboard** (Accounting sidebar → `/accounts/finance-dashboard`).
+2. Review Row 1 today KPIs and Row 2 position KPIs (single server bundle).
+3. Scan FY income vs expense trend and receivables >90d risk table; drill to Customer 360 or invoice from risk rows.
+4. Review month expense breakup and P&L snapshot (inventory + assets/liabilities summary).
+5. Use report sub-tabs: grouped Trial Balance (SD/SC expanded; optional flat drill-down), Balance Sheet, Day Book, Monthly Sales, GST Collection (invoice-level output GST detail).
+6. Bookmarks to `/accounts/reports` redirect to Finance Dashboard; standalone Financial Reports page removed.

@@ -11,4 +11,9 @@
 | KB-007 | Billing & invoicing tab-context header actions | PRD-4.1, DD-2.1, req-007 |
 | KB-008 | Customer 360 UI corrections | PRD-4.3, DD-2.1, FD-2.3, req-005 |
 | KB-009 | Billing awaiting list & DRAFT invoices | PRD-4.1, DD-2.1, req-009 |
+| KB-010 | Invoice detail open & DRAFT edit | PRD-4.1, DD-2.1, req-010 |
+| KB-011 | Vendor Payments hub UAT fixes | PRD-4.4, PRD-4.5, req-005 |
+| KB-012 | Finance Dashboard | PRD-4.6, DD-2.1, FD-2.4, req-006 |
+| KB-013 | Finance Dashboard reports polish | PRD-4.6, DD-2.1, FD-2.4, req-005 |
+| KB-014 | Indirect expense liability-ledger refactor | PRD-4.5, DD-2.1, SD-1.1, req-007 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

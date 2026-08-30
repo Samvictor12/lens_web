@@ -335,8 +335,9 @@ export default function ExpenseCategoryForm() {
               {mode === "add" && (
                 <Alert className="bg-primary/5 border-primary/20">
                   <AlertDescription className="text-xs">
-                    Fields marked with{" "}
-                    <span className="text-red-500">*</span> are required.
+                    Expense categories defined here are used when marking vendor indirect
+                    expenses. An accounting ledger is created automatically when needed.
+                    Fields marked with <span className="text-red-500">*</span> are required.
                   </AlertDescription>
                 </Alert>
               )}

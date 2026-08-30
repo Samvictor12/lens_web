@@ -277,7 +277,7 @@ export class VendorInvoiceService {
   }
 
   /** POs received but not yet registered as vendor invoices. */
-  async listAwaitingBills({ vendorId, productId, startDate, endDate } = {}) {
+  async listAwaitingBills({ vendorId, productId } = {}) {
     const vid = vendorId ? parseInt(vendorId, 10) : null;
     const pid = productId ? parseInt(productId, 10) : null;
 
@@ -293,18 +293,6 @@ export class VendorInvoiceService {
     });
     const invoicedPoIds = [...new Set(invoicedLinks.map((l) => l.purchaseOrderId))];
 
-    const orderDate = {};
-    if (startDate) {
-      const from = new Date(startDate);
-      from.setHours(0, 0, 0, 0);
-      orderDate.gte = from;
-    }
-    if (endDate) {
-      const to = new Date(endDate);
-      to.setHours(23, 59, 59, 999);
-      orderDate.lte = to;
-    }
-
     const where = {
       deleteStatus: false,
       status: { in: ELIGIBLE_PO_STATUSES },
@@ -313,7 +301,6 @@ export class VendorInvoiceService {
       ...(invoicedPoIds.length ? { id: { notIn: invoicedPoIds } } : {}),
       ...(vid && { vendorId: vid }),
       ...(pid && { lens_id: pid }),
-      ...(Object.keys(orderDate).length ? { orderDate } : {}),
     };
 
     const pos = await prisma.purchaseOrder.findMany({

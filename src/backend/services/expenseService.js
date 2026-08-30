@@ -1,6 +1,57 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { generateExpenseNumber, postExpense, postReversingTransaction } from './accountingService.js';
+import { LedgerService } from './ledgerService.js';
+
+const ledgerService = new LedgerService();
+
+const EXPENSE_GROUP_BY_TYPE = {
+  DIRECT: 'GRP-DIRECT-EXP',
+  INDIRECT: 'GRP-INDIRECT-EXP',
+};
+
+const categoryInclude = {
+  ledger: { select: { id: true, ledgerCode: true, ledgerName: true } },
+  _count: { select: { expenses: { where: { delete_status: false } } } },
+};
+
+/**
+ * Expense Category is the master list for expense types. Auto-create a posting
+ * ledger when missing so users do not configure COA links separately.
+ */
+export async function ensureExpenseCategoryLedger(tx, category, userId) {
+  if (category.ledger_id) return category.ledger_id;
+
+  const groupCode = EXPENSE_GROUP_BY_TYPE[category.expenseType] || EXPENSE_GROUP_BY_TYPE.INDIRECT;
+  const group = await tx.accountGroup.findFirst({
+    where: { groupCode, delete_status: false, active_status: true },
+    select: { id: true },
+  });
+
+  const ledgerCode = await ledgerService.generateLedgerCode('EXPENSE');
+  const ledger = await tx.ledger.create({
+    data: {
+      ledgerCode,
+      ledgerName: category.name,
+      ledgerType: 'EXPENSE',
+      accountGroupId: group?.id ?? null,
+      openingBalance: 0,
+      currentBalance: 0,
+      description: `Expense category: ${category.name}`,
+      isSystemLedger: false,
+      isGroupLedger: false,
+      allowsDirectPosting: true,
+      createdBy: userId,
+    },
+  });
+
+  await tx.expenseCategory.update({
+    where: { id: category.id },
+    data: { ledger_id: ledger.id, updatedBy: userId },
+  });
+
+  return ledger.id;
+}
 
 export class ExpenseService {
 
@@ -37,18 +88,26 @@ export class ExpenseService {
     if (!name) throw new APIError('Category name is required', 400, 'VALIDATION_ERROR');
     const exists = await prisma.expenseCategory.findFirst({ where: { name } });
     if (exists) throw new APIError('Category already exists', 409, 'DUPLICATE');
-    return prisma.expenseCategory.create({
-      data: {
-        name,
-        ledger_id: ledger_id || null,
-        expenseType: expenseType || 'INDIRECT',
-        active_status: active_status !== undefined ? active_status : true,
-        createdBy: userId,
-      },
-      include: {
-        ledger: { select: { id: true, ledgerCode: true, ledgerName: true } },
-        _count: { select: { expenses: { where: { delete_status: false } } } },
-      },
+
+    return prisma.$transaction(async (tx) => {
+      const category = await tx.expenseCategory.create({
+        data: {
+          name,
+          ledger_id: ledger_id || null,
+          expenseType: expenseType || 'INDIRECT',
+          active_status: active_status !== undefined ? active_status : true,
+          createdBy: userId,
+        },
+      });
+
+      if (!category.ledger_id) {
+        await ensureExpenseCategoryLedger(tx, category, userId);
+      }
+
+      return tx.expenseCategory.findFirst({
+        where: { id: category.id },
+        include: categoryInclude,
+      });
     });
   }
 
@@ -160,11 +219,12 @@ export class ExpenseService {
       include: { ledger: true },
     });
     if (!category) throw new APIError('Expense category not found', 404, 'CATEGORY_NOT_FOUND');
-    if (!category.ledger_id) throw new APIError('Category has no linked ledger; please configure it first', 400, 'NO_LEDGER');
 
     const expenseNumber = await generateExpenseNumber();
 
     return prisma.$transaction(async (tx) => {
+      const categoryLedgerId = await ensureExpenseCategoryLedger(tx, category, userId);
+
       const expense = await tx.expense.create({
         data: {
           expenseNumber,
@@ -186,7 +246,7 @@ export class ExpenseService {
         expenseId: expense.id,
         expenseNumber,
         amount: parseFloat(amount),
-        categoryLedgerId: category.ledger_id,
+        categoryLedgerId,
         bankLedgerId: parseInt(bankLedgerId),
         description,
       }, userId);
@@ -212,9 +272,11 @@ export class ExpenseService {
       where: { id: newCategoryId, delete_status: false },
       include: { ledger: true },
     });
-    if (!category?.ledger_id) throw new APIError('Category has no linked ledger', 400, 'NO_LEDGER');
+    if (!category) throw new APIError('Expense category not found', 404, 'CATEGORY_NOT_FOUND');
 
     return prisma.$transaction(async (tx) => {
+      const categoryLedgerId = await ensureExpenseCategoryLedger(tx, category, userId);
+
       // Save change log
       await tx.expenseLog.create({
         data: {
@@ -254,7 +316,7 @@ export class ExpenseService {
         expenseId: id,
         expenseNumber: existing.expenseNumber,
         amount: newAmount,
-        categoryLedgerId: category.ledger_id,
+        categoryLedgerId,
         bankLedgerId: newBankLedgerId,
         description: body.description || existing.description,
       }, userId);

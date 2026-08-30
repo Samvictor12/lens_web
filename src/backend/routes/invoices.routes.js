@@ -177,6 +177,12 @@ router.get(
  *         description: Invoice issued
  */
 router.patch(
+  '/:id',
+  // requireRole({ module: 'Invoice', actions: ['update'] }),
+  (req, res, next) => controller.update(req, res, next)
+);
+
+router.patch(
   '/:id/issue',
   // requireRole({ module: 'Invoice', actions: ['update'] }),
   (req, res, next) => controller.issue(req, res, next)

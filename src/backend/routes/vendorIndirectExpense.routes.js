@@ -8,5 +8,6 @@ const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
 router.get('/', ...guard, ctrl.list.bind(ctrl));
 router.post('/', ...guard, ctrl.create.bind(ctrl));
+router.post('/pay', ...guard, ctrl.pay.bind(ctrl));
 
 export default router;

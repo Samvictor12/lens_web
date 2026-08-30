@@ -10,14 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { canRecordPayment } from "@/pages/Billing/Billing.constants";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
 
-function InvoicesTable({ invoices, selectedIds, selectedCustomerId, onToggleInvoice }) {
+function InvoicesTable({ invoices, selectedIds, selectedCustomerId, onToggleInvoice, onViewInvoice }) {
   return (
     <RawTable>
       <TableHeader>
@@ -33,35 +32,29 @@ function InvoicesTable({ invoices, selectedIds, selectedCustomerId, onToggleInvo
       <TableBody>
         {invoices.map((inv) => {
           const notPayable = !canRecordPayment(inv.status);
-          const disabled =
+          const checkboxDisabled =
             notPayable ||
             (selectedCustomerId != null &&
               inv.customerId !== selectedCustomerId &&
               !selectedIds.includes(inv.id));
           const selected = selectedIds.includes(inv.id);
           return (
-            <TableRow
-              key={inv.id}
-              className={cn(
-                "cursor-pointer",
-                disabled && "opacity-50 cursor-not-allowed"
-              )}
-              data-state={selected ? "selected" : undefined}
-              onClick={() => {
-                if (!disabled) onToggleInvoice(inv);
-              }}
-            >
-              <TableCell
-                onClick={(e) => e.stopPropagation()}
-              >
+            <TableRow key={inv.id} data-state={selected ? "selected" : undefined}>
+              <TableCell>
                 <Checkbox
                   checked={selected}
                   onCheckedChange={() => onToggleInvoice(inv)}
-                  disabled={disabled}
+                  disabled={checkboxDisabled}
                 />
               </TableCell>
               <TableCell className="font-medium">
-                {inv.invoiceNo}
+                <button
+                  type="button"
+                  className="text-primary hover:underline text-left font-medium"
+                  onClick={() => onViewInvoice?.(inv.id)}
+                >
+                  {inv.invoiceNo}
+                </button>
                 {notPayable && inv.status === "DRAFT" && (
                   <Badge variant="outline" className="ml-2 text-[10px] h-5">
                     Draft
@@ -90,6 +83,7 @@ function CustomerGroupCard({
   selectedCustomerId,
   onToggleGroup,
   onToggleInvoice,
+  onViewInvoice,
 }) {
   const [expanded, setExpanded] = useState(true);
   const ids = group.invoices.map((i) => i.id);
@@ -161,6 +155,7 @@ function CustomerGroupCard({
           selectedIds={selectedIds}
           selectedCustomerId={selectedCustomerId}
           onToggleInvoice={onToggleInvoice}
+          onViewInvoice={onViewInvoice}
         />
       )}
     </div>
@@ -173,6 +168,7 @@ export default function OutstandingInvoicesQueue({
   grouped = true,
   selectedIds,
   onSelectionChange,
+  onViewInvoice,
 }) {
   const selectedCustomerId = useMemo(() => {
     if (!selectedIds.length) return null;
@@ -224,6 +220,7 @@ export default function OutstandingInvoicesQueue({
             selectedCustomerId={selectedCustomerId}
             onToggleGroup={toggleCustomerGroup}
             onToggleInvoice={toggleInvoice}
+            onViewInvoice={onViewInvoice}
           />
         ))}
       </div>
@@ -254,6 +251,7 @@ export default function OutstandingInvoicesQueue({
           selectedIds={selectedIds}
           selectedCustomerId={selectedCustomerId}
           onToggleInvoice={toggleInvoice}
+          onViewInvoice={onViewInvoice}
         />
       </div>
     </div>

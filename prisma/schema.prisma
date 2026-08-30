@@ -141,6 +141,8 @@ model User {
   printerConfigsUpdated          PrinterConfig[]          @relation("printerConfigUpdatedBy")
   vpvCreatedBy                   VendorPaymentVoucher[]   @relation("vpvCreatedBy")
   vpvUpdatedBy                   VendorPaymentVoucher[]   @relation("vpvUpdatedBy")
+  iepvCreatedBy                  IndirectExpensePaymentVoucher[] @relation("iepvCreatedBy")
+  iepvUpdatedBy                  IndirectExpensePaymentVoucher[] @relation("iepvUpdatedBy")
   cpvCreatedBy                   CustomerPaymentVoucher[] @relation("cpvCreatedBy")
   cpvUpdatedBy                   CustomerPaymentVoucher[] @relation("cpvUpdatedBy")
   expCatCreatedBy                ExpenseCategory[]        @relation("expCatCreatedBy")
@@ -1621,6 +1623,9 @@ model Ledger {
   incomesTo          Income[]                 @relation("incomeToLedger")
   vpvBankLedger      VendorPaymentVoucher[]   @relation("vpvBankLedger")
   cpvBankLedger      CustomerPaymentVoucher[] @relation("cpvBankLedger")
+  expenseLiabilities Expense[]                @relation("expenseLiabilityLedger")
+  iepvLiabilityLedger IndirectExpensePaymentVoucher[] @relation("iepvLiabilityLedger")
+  iepvBankLedger     IndirectExpensePaymentVoucher[] @relation("iepvBankLedger")
   invoicePayments    Invoice[]                @relation("invoicePaymentLedger")
   vendor             Vendor?                  @relation("vendorLedger")
   customer           Customer?                @relation("customerLedger")
@@ -2128,6 +2133,7 @@ model Expense {
   paymentMethod PaymentMethod?
   bankLedgerId  Int?
   vendorId      Int?
+  liabilityLedgerId Int?
   vendorExpenseStatus VendorExpenseStatus?
   expenseDate   DateTime             @default(now())
   dueDate       DateTime?
@@ -2144,14 +2150,57 @@ model Expense {
   category      ExpenseCategory      @relation(fields: [categoryId], references: [id])
   bankLedger    Ledger?              @relation("expenseBankLedger", fields: [bankLedgerId], references: [id])
   vendor        Vendor?              @relation("vendorIndirectExpenses", fields: [vendorId], references: [id])
+  liabilityLedger Ledger?            @relation("expenseLiabilityLedger", fields: [liabilityLedgerId], references: [id])
   createdByUser User                 @relation("expenseCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User?                @relation("expenseUpdatedBy", fields: [updatedBy], references: [id])
   logs          ExpenseLog[]
   paymentItems  VendorPaymentVoucherItem[] @relation("vendorPaymentExpenseItems")
+  indirectPaymentItems IndirectExpensePaymentVoucherItem[] @relation("indirectExpensePaymentItems")
 
   @@index([expenseDate])
   @@index([categoryId])
   @@index([vendorId])
+  @@index([liabilityLedgerId])
+}
+
+model IndirectExpensePaymentVoucher {
+  id                Int      @id @default(autoincrement())
+  voucherNumber     String   @unique
+  liabilityLedgerId Int
+  paymentDate       DateTime @default(now())
+  totalAmount       Decimal  @db.Decimal(15, 2)
+  paymentMethod     PaymentMethod
+  bankLedgerId      Int
+  referenceNo       String?
+  notes             String?
+  active_status     Boolean  @default(true)
+  delete_status     Boolean  @default(false)
+  cancelledStatus   Boolean  @default(false)
+  cancelledAt       DateTime?
+  createdAt         DateTime @default(now())
+  createdBy         Int
+  updatedAt         DateTime @updatedAt
+  updatedBy         Int?
+  liabilityLedger   Ledger   @relation("iepvLiabilityLedger", fields: [liabilityLedgerId], references: [id])
+  bankLedger        Ledger   @relation("iepvBankLedger", fields: [bankLedgerId], references: [id])
+  createdByUser     User     @relation("iepvCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser     User?    @relation("iepvUpdatedBy", fields: [updatedBy], references: [id])
+  items             IndirectExpensePaymentVoucherItem[]
+
+  @@index([liabilityLedgerId])
+  @@index([paymentDate])
+}
+
+model IndirectExpensePaymentVoucherItem {
+  id              Int      @id @default(autoincrement())
+  voucherId       Int
+  expenseId       Int
+  allocatedAmount Decimal  @db.Decimal(15, 2)
+  voucher         IndirectExpensePaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  expense         Expense  @relation("indirectExpensePaymentItems", fields: [expenseId], references: [id])
+
+  @@index([voucherId])
+  @@index([expenseId])
 }
 
 model ExpenseLog {

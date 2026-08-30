@@ -84,7 +84,7 @@ function OrdersTable({ orders, onBillCustomer }) {
 export default function DispatchedOrdersTab({ onBillCustomer, sharedFilters = {} }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [groupBy, setGroupBy] = useState(null);
+  const [groupBy, setGroupBy] = useState("customer");
 
   const filterParams = {
     ...(sharedFilters.customerId && { customerId: sharedFilters.customerId }),
@@ -165,7 +165,7 @@ export default function DispatchedOrdersTab({ onBillCustomer, sharedFilters = {}
             <Receipt className="h-10 w-10 text-muted-foreground/40" />
             <p className="font-medium">No orders awaiting invoice</p>
             <p className="text-sm text-muted-foreground">
-              Delivered sale orders that are not yet billed will appear here.
+              Delivered sale orders not yet issued on an invoice (includes draft bills).
             </p>
           </CardContent>
         </Card>

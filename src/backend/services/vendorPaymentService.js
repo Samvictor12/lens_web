@@ -252,9 +252,10 @@ export class VendorPaymentService {
     });
   }
 
-  async getStats({ startDate, endDate, vendorId, productId } = {}) {
+  async getStats({ startDate, endDate, vendorId, productId, liabilityLedgerId } = {}) {
     const vid = vendorId ? parseInt(vendorId, 10) : null;
     const pid = productId ? parseInt(productId, 10) : null;
+    const llid = liabilityLedgerId ? parseInt(liabilityLedgerId, 10) : null;
 
     const invoiceDate = {};
     if (startDate) {
@@ -305,9 +306,9 @@ export class VendorPaymentService {
 
     const indirectBase = {
       delete_status: false,
-      vendorId: { not: null },
+      liabilityLedgerId: { not: null },
       vendorExpenseStatus: { not: null },
-      ...(vid && { vendorId: vid }),
+      ...(llid && { liabilityLedgerId: llid }),
     };
 
     const indirectPeriodWhere = {
@@ -436,16 +437,20 @@ export class VendorPaymentService {
     } = payload;
     const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
 
+    if (indirectExpenseIds?.length || indirectItems?.length) {
+      throw new APIError(
+        'Indirect expense payments must use POST /api/vendor-indirect-expenses/pay',
+        400,
+        'INDIRECT_NOT_SUPPORTED'
+      );
+    }
+
     if (!vendorId || !paymentMethod) {
       throw new APIError('vendorId, paymentMethod required', 400, 'VALIDATION_ERROR');
     }
 
-    const indirectList = indirectItems?.length
-      ? indirectItems
-      : (indirectExpenseIds || []).map((id) => ({ expenseId: id }));
-
-    if (!items?.length && !indirectList?.length) {
-      throw new APIError('At least one vendor invoice or indirect expense must be selected', 400, 'VALIDATION_ERROR');
+    if (!items?.length) {
+      throw new APIError('At least one vendor invoice must be selected', 400, 'VALIDATION_ERROR');
     }
 
     const vid = parseInt(vendorId, 10);
@@ -467,21 +472,10 @@ export class VendorPaymentService {
     }
 
     const invoiceIds = items.map((i) => parseInt(i.vendorInvoiceId, 10));
-    const expenseIds = indirectList.map((i) => parseInt(i.expenseId, 10));
 
-    const [invoices, expenses, vendor] = await Promise.all([
+    const [invoices, vendor] = await Promise.all([
       invoiceIds.length
         ? prisma.vendorInvoice.findMany({ where: { id: { in: invoiceIds }, deleteStatus: false } })
-        : [],
-      expenseIds.length
-        ? prisma.expense.findMany({
-            where: {
-              id: { in: expenseIds },
-              delete_status: false,
-              vendorId: vid,
-              vendorExpenseStatus: { in: ['MARKED', 'PARTIALLY_PAID'] },
-            },
-          })
         : [],
       prisma.vendor.findUnique({
         where: { id: vid },
@@ -502,9 +496,6 @@ export class VendorPaymentService {
 
     if (invoiceIds.length && invoices.length !== invoiceIds.length) {
       throw new APIError('One or more vendor invoices not found', 404, 'INVOICE_NOT_FOUND');
-    }
-    if (expenseIds.length && expenses.length !== expenseIds.length) {
-      throw new APIError('One or more indirect expenses not found', 404, 'EXPENSE_NOT_FOUND');
     }
 
     for (const inv of invoices) {
@@ -531,24 +522,8 @@ export class VendorPaymentService {
       normalizedInvoiceItems.push({ vendorInvoiceId: invId, allocatedAmount: allocated });
     }
 
-    const normalizedExpenseItems = [];
-    for (const item of indirectList) {
-      const expId = parseInt(item.expenseId, 10);
-      const expense = expenses.find((e) => e.id === expId);
-      const outstanding = round2(parseFloat(expense.amount) - parseFloat(expense.paidAmount));
-      const allocated = round2(item.allocatedAmount ?? outstanding);
-      if (allocated <= 0) {
-        throw new APIError(`Payment amount required for expense ${expense.expenseNumber}`, 400, 'VALIDATION_ERROR');
-      }
-      if (allocated > outstanding + 0.01) {
-        throw new APIError(`Allocation for ${expense.expenseNumber} exceeds outstanding (${outstanding})`, 400, 'OVER_ALLOCATION');
-      }
-      normalizedExpenseItems.push({ expenseId: expId, allocatedAmount: allocated });
-    }
-
     const allocationTotal = round2(
-      normalizedInvoiceItems.reduce((s, i) => s + i.allocatedAmount, 0) +
-        normalizedExpenseItems.reduce((s, i) => s + i.allocatedAmount, 0)
+      normalizedInvoiceItems.reduce((s, i) => s + i.allocatedAmount, 0)
     );
     const pool = round2(cashAmount + applyPrior);
 
@@ -606,16 +581,10 @@ export class VendorPaymentService {
           closedAt: now,
           createdBy: userId,
           items: {
-            create: [
-              ...normalizedInvoiceItems.map((item) => ({
-                vendorInvoiceId: item.vendorInvoiceId,
-                allocatedAmount: item.allocatedAmount,
-              })),
-              ...normalizedExpenseItems.map((item) => ({
-                expenseId: item.expenseId,
-                allocatedAmount: item.allocatedAmount,
-              })),
-            ],
+            create: normalizedInvoiceItems.map((item) => ({
+              vendorInvoiceId: item.vendorInvoiceId,
+              allocatedAmount: item.allocatedAmount,
+            })),
           },
         },
         include: { items: true },
@@ -628,18 +597,6 @@ export class VendorPaymentService {
         await tx.vendorInvoice.update({
           where: { id: invoice.id },
           data: { paidAmount: newPaid, status: newStatus, updatedBy: userId },
-        });
-      }
-
-      for (const item of normalizedExpenseItems) {
-        const expense = expenses.find((e) => e.id === item.expenseId);
-        const newPaid = round2(parseFloat(expense.paidAmount) + item.allocatedAmount);
-        const total = round2(expense.amount);
-        let newStatus = 'PARTIALLY_PAID';
-        if (newPaid >= total - 0.01) newStatus = 'PAID';
-        await tx.expense.update({
-          where: { id: expense.id },
-          data: { paidAmount: newPaid, vendorExpenseStatus: newStatus, updatedBy: userId },
         });
       }
 

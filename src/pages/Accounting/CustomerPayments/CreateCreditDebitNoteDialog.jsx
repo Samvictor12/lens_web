@@ -137,8 +137,7 @@ export default function CreateCreditDebitNoteDialog({
           <div className="space-y-1">
             <Label>Originating Invoice ID (optional)</Label>
             <Input
-              type="number"
-              min="1"
+              type="text"
               value={form.invoiceId}
               onChange={(e) => set("invoiceId", e.target.value)}
               placeholder="Leave blank if not linked to an invoice"

@@ -577,6 +577,7 @@ export default function BillingAndInvoicingMain() {
                   grouped={groupBy === "customer"}
                   selectedIds={selectedInvoiceIds}
                   onSelectionChange={setSelectedInvoiceIds}
+                  onViewInvoice={(id) => setDetailId(id)}
                 />
               </div>
             )}
@@ -669,11 +670,11 @@ export default function BillingAndInvoicingMain() {
           setDetailId(null);
           openRecordPaymentDialog({ invoice: inv });
         }}
-        onQuickClose={(inv) => {
-          setDetailId(null);
-          openRecordPaymentDialog({ invoice: inv, lockAmount: true });
-        }}
         onPreview={(inv) => setPreviewInvoice(inv)}
+        onUpdated={() => {
+          setRefreshKey((k) => k + 1);
+          fetchOutstanding();
+        }}
       />
       <InvoicePreviewDialog
         invoice={previewInvoice}

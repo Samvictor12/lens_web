@@ -125,7 +125,9 @@ export class CustomerPaymentService {
 
     const invoices = await prisma.invoice.findMany({
       where: {
-        status: { in: ['DRAFT', 'ISSUED', 'PARTIALLY_PAID'] },
+        status: collectible
+          ? { in: ['ISSUED', 'PARTIALLY_PAID'] }
+          : { in: ['DRAFT', 'ISSUED', 'PARTIALLY_PAID'] },
         deleteStatus: false,
         ...(customerId && { customerId: parseInt(customerId) }),
         ...(productId && {

@@ -10,3 +10,5 @@ export const getDayBook = (params = {}) => apiClient("get", `${BASE}/day-book`, 
 export const getCashBankBook = (params = {}) => apiClient("get", `${BASE}/cash-bank-book`, { params });
 export const getGroupSummary = (params = {}) => apiClient("get", `${BASE}/group-summary`, { params });
 export const getBalanceSheet = (params = {}) => apiClient("get", `${BASE}/balance-sheet`, { params });
+export const getDashboard = (params = {}) => apiClient("get", `${BASE}/dashboard`, { params });
+export const getTrialBalanceGrouped = (params = {}) => apiClient("get", `${BASE}/trial-balance-grouped`, { params });

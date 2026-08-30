@@ -7,3 +7,6 @@ export const getVendorIndirectExpenses = (params = {}) =>
 
 export const createVendorIndirectExpense = (payload) =>
   apiClient("post", BASE, { data: payload });
+
+export const payVendorIndirectExpenses = (payload) =>
+  apiClient("post", `${BASE}/pay`, { data: payload });

@@ -9,6 +9,7 @@ router.use(authenticateToken);
 
 router.get('/cash-bank', ctrl.getCashBankLedgers.bind(ctrl));
 router.get('/cash-bank-capital', ctrl.getCashBankCapitalLedgers.bind(ctrl));
+router.get('/liability-posting', ctrl.getLiabilityPostingLedgers.bind(ctrl));
 router.get('/', ctrl.list.bind(ctrl));
 router.get('/:id', ctrl.getById.bind(ctrl));
 router.post('/', requireRole(['Accounts', 'Admin']), ctrl.create.bind(ctrl));

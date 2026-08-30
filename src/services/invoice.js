@@ -39,6 +39,10 @@ export const getDeliveredOrdersForCustomer = (customerId, params = {}) =>
 export const createInvoice = (data) =>
   apiClient("post", BASE, { data });
 
+/** Update DRAFT invoice (due date, notes, sale orders) */
+export const updateInvoice = (id, data) =>
+  apiClient("patch", `${BASE}/${id}`, { data });
+
 /** Issue invoice (DRAFT → ISSUED) */
 export const issueInvoice = (id) =>
   apiClient("patch", `${BASE}/${id}/issue`);

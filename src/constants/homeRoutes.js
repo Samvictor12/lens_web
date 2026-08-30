@@ -18,7 +18,7 @@ export const SCREEN_HOME_ROUTES = [
   { key: "customer_payments", path: "/accounts/billing-and-invoicing" },
   { key: "vendor_payments", path: "/accounts/vendor-payments" },
   { key: "bank_reconciliation", path: "/accounts/bank-reconciliation" },
-  { key: "financial_reports", path: "/accounts/reports" },
+  { key: "financial_reports", path: "/accounts/finance-dashboard" },
   { key: "reports", path: "/reports" },
   { key: "customers", path: "/sales/customers" },
   { key: "vendors", path: "/masters/vendors" },

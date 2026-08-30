@@ -37,6 +37,7 @@ import { useVendorPaymentColumns } from "./useVendorPaymentColumns";
 import CreateVendorInvoiceDialog from "./CreateVendorInvoiceDialog";
 import CreateVendorPaymentFromInvoicesDialog from "./CreateVendorPaymentFromInvoicesDialog";
 import MarkIndirectExpenseDialog from "./MarkIndirectExpenseDialog";
+import PayExpenseBillDialog from "./PayExpenseBillDialog";
 import VendorPaymentDetailDialog from "./VendorPaymentDetailDialog";
 import OutstandingVendorInvoicesQueue from "./OutstandingVendorInvoicesQueue";
 import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpandRow";
@@ -85,6 +86,7 @@ export default function VendorPaymentsMain() {
   const [paymentPreselectedInvoiceIds, setPaymentPreselectedInvoiceIds] = useState([]);
   const [paymentPrefillAmount, setPaymentPrefillAmount] = useState("");
   const [markExpenseOpen, setMarkExpenseOpen] = useState(false);
+  const [payExpenseBillOpen, setPayExpenseBillOpen] = useState(false);
   const [debitNoteCreateOpen, setDebitNoteCreateOpen] = useState(false);
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
@@ -298,37 +300,50 @@ export default function VendorPaymentsMain() {
     toast,
   ]);
 
-  const headerAction = useMemo(() => {
+  const headerActions = useMemo(() => {
     switch (activeTab) {
       case "awaiting":
-        return {
-          label: "Register Bill",
-          icon: Plus,
-          onClick: () => {
-            setCreateForVendor(filters.vendorId || "");
-            setCreateInvoiceOpen(true);
+        return [
+          {
+            label: "Register Bill",
+            icon: Plus,
+            onClick: () => {
+              setCreateForVendor(filters.vendorId || "");
+              setCreateInvoiceOpen(true);
+            },
           },
-        };
+        ];
       case "bills":
-        return {
-          label: "Record Payment",
-          icon: CreditCard,
-          onClick: () => openRecordPayment(),
-        };
+        return [
+          {
+            label: "Record Payment",
+            icon: CreditCard,
+            onClick: () => openRecordPayment(),
+          },
+        ];
       case "indirect":
-        return {
-          label: "Mark Expense",
-          icon: Banknote,
-          onClick: () => setMarkExpenseOpen(true),
-        };
+        return [
+          {
+            label: "Mark Expense",
+            icon: Banknote,
+            onClick: () => setMarkExpenseOpen(true),
+          },
+          {
+            label: "Pay Expense Bill",
+            icon: CreditCard,
+            onClick: () => setPayExpenseBillOpen(true),
+          },
+        ];
       case "debitNotes":
-        return {
-          label: "New Debit Note",
-          icon: FileText,
-          onClick: () => setDebitNoteCreateOpen(true),
-        };
+        return [
+          {
+            label: "New Debit Note",
+            icon: FileText,
+            onClick: () => setDebitNoteCreateOpen(true),
+          },
+        ];
       default:
-        return null;
+        return [];
     }
   }, [activeTab, filters.vendorId, openRecordPayment]);
 
@@ -386,12 +401,12 @@ export default function VendorPaymentsMain() {
           </p>
         </div>
         <div className="flex gap-1.5">
-          {headerAction && (
-            <Button size="xs" className="gap-1.5 h-8" onClick={headerAction.onClick}>
-              <headerAction.icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{headerAction.label}</span>
+          {headerActions.map((action) => (
+            <Button key={action.label} size="xs" className="gap-1.5 h-8" onClick={action.onClick}>
+              <action.icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{action.label}</span>
             </Button>
-          )}
+          ))}
         </div>
       </div>
 
@@ -643,8 +658,13 @@ export default function VendorPaymentsMain() {
       <MarkIndirectExpenseDialog
         open={markExpenseOpen}
         onOpenChange={setMarkExpenseOpen}
-        vendors={vendors}
-        initialVendorId={filters.vendorId}
+        onCreated={handleRefresh}
+      />
+
+      <PayExpenseBillDialog
+        open={payExpenseBillOpen}
+        onOpenChange={setPayExpenseBillOpen}
+        bankLedgers={bankLedgers}
         onCreated={handleRefresh}
       />
 

@@ -43,6 +43,21 @@ export class InvoiceController {
     });
   }
 
+  /** PATCH /api/invoices/:id — update DRAFT invoice */
+  async update(req, res, next) {
+    try {
+      const invoice = await service.updateInvoice(
+        parseInt(req.params.id),
+        req.body,
+        req.user.id,
+        req
+      );
+      res.status(200).json({ success: true, message: 'Invoice updated successfully', data: invoice });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /** PATCH /api/invoices/:id/issue — issue invoice (DRAFT → ISSUED) */
   async issue(req, res, next) {
     try {

@@ -157,4 +157,25 @@ export class LedgerService {
       orderBy: { ledgerCode: 'asc' },
     });
   }
+
+  /** Active LIABILITY posting ledgers for indirect expense "Expense for" picker. */
+  async getLiabilityPostingLedgers() {
+    return prisma.ledger.findMany({
+      where: {
+        delete_status: false,
+        active_status: true,
+        ledgerType: 'LIABILITY',
+        allowsDirectPosting: true,
+        isGroupLedger: false,
+      },
+      select: {
+        id: true,
+        ledgerCode: true,
+        ledgerName: true,
+        currentBalance: true,
+        accountGroup: { select: { groupCode: true, groupName: true } },
+      },
+      orderBy: [{ ledgerCode: 'asc' }, { ledgerName: 'asc' }],
+    });
+  }
 }

@@ -87,7 +87,7 @@ import BillingAndInvoicingMain from "./pages/Accounting/BillingAndInvoicing/Bill
 import RecordPaymentPage from "./pages/Accounting/BillingAndInvoicing/RecordPaymentPage";
 import VendorRecordPaymentPage from "./pages/Accounting/VendorPayments/RecordPaymentPage";
 import Customer360Main from "./pages/Accounting/Customer360/Customer360Main";
-import FinancialReports from "./pages/Accounting/FinancialReports";
+import FinanceDashboardMain from "./pages/Accounting/FinanceDashboard/FinanceDashboardMain";
 import GstReports from "./pages/Accounting/GstReports";
 import BankReconciliation from "./pages/Accounting/BankReconciliation/BankReconciliationMain";
 import {
@@ -296,7 +296,8 @@ const AppRoutes = () => (
       <Route path="/masters/expense-categories/:mode" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
       <Route path="/masters/expense-categories/:mode/:id" element={<ProtectedRoute><ExpenseCategoryForm /></ProtectedRoute>} />
       <Route path="/masters/income-categories" element={<ProtectedRoute><IncomeCategoryMain /></ProtectedRoute>} />
-      <Route path="/accounts/reports" element={<ProtectedRoute><FinancialReports /></ProtectedRoute>} />
+      <Route path="/accounts/reports" element={<ProtectedRoute><Navigate to="/accounts/finance-dashboard" replace /></ProtectedRoute>} />
+      <Route path="/accounts/finance-dashboard" element={<ProtectedRoute><FinanceDashboardMain /></ProtectedRoute>} />
       <Route path="/accounts/gst-reports" element={<ProtectedRoute><GstReports /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/masters/vendors" element={<ProtectedRoute><Vendors /></ProtectedRoute>} />

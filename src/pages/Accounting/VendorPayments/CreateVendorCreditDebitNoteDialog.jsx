@@ -16,7 +16,7 @@ import { createVendorCreditNote, createVendorDebitNote } from "@/services/vendor
 
 const emptyForm = {
   vendorId: "",
-  vendorInvoiceId: "",
+  invoiceNumber: "",
   amount: "",
   taxAmount: "",
   reason: "",
@@ -55,7 +55,7 @@ export default function CreateVendorCreditDebitNoteDialog({ open, onOpenChange, 
     try {
       const payload = {
         vendorId: parseInt(form.vendorId, 10),
-        vendorInvoiceId: form.vendorInvoiceId ? parseInt(form.vendorInvoiceId, 10) : undefined,
+        invoiceNumber: form.invoiceNumber.trim() || undefined,
         amount,
         taxAmount: form.taxAmount ? parseFloat(form.taxAmount) : 0,
         reason: form.reason || undefined,
@@ -111,13 +111,12 @@ export default function CreateVendorCreditDebitNoteDialog({ open, onOpenChange, 
             <Input type="date" value={form.noteDate} onChange={(e) => set("noteDate", e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label>Vendor Invoice ID (optional)</Label>
+            <Label>Vendor Invoice No. (optional)</Label>
             <Input
-              type="number"
-              min="1"
-              value={form.vendorInvoiceId}
-              onChange={(e) => set("vendorInvoiceId", e.target.value)}
-              placeholder="Leave blank if not linked to an invoice"
+              type="text"
+              value={form.invoiceNumber}
+              onChange={(e) => set("invoiceNumber", e.target.value)}
+              placeholder="e.g. VINV-2026-0001"
             />
           </div>
           <div className="space-y-1">

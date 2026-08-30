@@ -2,8 +2,8 @@ import * as React from "react"
 
 const TabsContext = React.createContext()
 
-const Tabs = ({ value, onValueChange, children, className, ...props }) => {
-  const [activeTab, setActiveTab] = React.useState(value)
+const Tabs = ({ value, defaultValue, onValueChange, children, className, ...props }) => {
+  const [activeTab, setActiveTab] = React.useState(value ?? defaultValue)
 
   React.useEffect(() => {
     if (value !== undefined) {

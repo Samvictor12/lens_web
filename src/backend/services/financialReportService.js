@@ -1,8 +1,87 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { AccountGroupService } from './accountGroupService.js';
+import { DashboardService } from './dashboardService.js';
+import { InvoiceService } from './invoiceService.js';
+import vendorPaymentService from './vendorPaymentService.js';
+import { LedgerService } from './ledgerService.js';
+import InventoryService from './inventory.service.js';
 
 const accountGroupService = new AccountGroupService();
+const dashboardService = new DashboardService();
+const invoiceService = new InvoiceService();
+const ledgerService = new LedgerService();
+const inventoryService = new InventoryService();
+
+const EXPAND_TRIAL_BALANCE_GROUPS = new Set(['GRP-SUNDRY-DEBTORS', 'GRP-SUNDRY-CREDITORS']);
+
+function toIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseAsOf(asOf) {
+  if (asOf) {
+    const d = new Date(asOf);
+    if (Number.isNaN(d.getTime())) throw new APIError('Invalid asOf date', 400, 'VALIDATION_ERROR');
+    return d;
+  }
+  return new Date();
+}
+
+function dayBounds(date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function monthStart(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function financialYearBounds(asOfDate) {
+  const y = asOfDate.getFullYear();
+  const m = asOfDate.getMonth();
+  const startYear = m >= 3 ? y : y - 1;
+  const start = new Date(startYear, 3, 1);
+  const end = new Date(startYear + 1, 2, 31, 23, 59, 59, 999);
+  return {
+    start,
+    end,
+    label: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+    startYear,
+  };
+}
+
+function fyMonthsThrough(asOfDate) {
+  const fy = financialYearBounds(asOfDate);
+  const months = [];
+  let cursor = new Date(fy.start);
+  const cap = new Date(asOfDate.getFullYear(), asOfDate.getMonth(), 1);
+  while (cursor <= cap) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    const from = new Date(y, m, 1);
+    const lastDay = new Date(y, m + 1, 0);
+    const to = lastDay > asOfDate ? asOfDate : lastDay;
+    months.push({
+      month: `${y}-${String(m + 1).padStart(2, '0')}`,
+      monthLabel: from.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+      from: toIsoDate(from),
+      to: toIsoDate(to),
+    });
+    cursor = new Date(y, m + 1, 1);
+  }
+  return months;
+}
+
+function round2(n) {
+  return Math.round((parseFloat(n) || 0) * 100) / 100;
+}
 
 function dateRange(from, to) {
   if (!from && !to) return undefined;
@@ -454,6 +533,298 @@ export class FinancialReportService {
       periodIncome:    income.toFixed(2),
       periodExpenses:  expenses.toFixed(2),
       netProfit:       (income - expenses).toFixed(2),
+    };
+  }
+
+  // ── Finance Dashboard ────────────────────────────────────────
+
+  async getDashboard({ asOf } = {}) {
+    const asOfDate = parseAsOf(asOf);
+    const asOfStr = toIsoDate(asOfDate);
+    const { start: dayStart, end: dayEnd } = dayBounds(asOfDate);
+    const monthFrom = toIsoDate(monthStart(asOfDate));
+    const fy = financialYearBounds(asOfDate);
+
+    const isActualToday = toIsoDate(new Date()) === asOfStr;
+
+    const [
+      todaySummary,
+      dayPurchasesAgg,
+      dayExpensesAgg,
+      dayCollectionAgg,
+      dayPnl,
+      invoiceStats,
+      vendorStats,
+      cashBankLedgers,
+      inventoryDash,
+      fyTrendMonths,
+    ] = await Promise.all([
+      isActualToday
+        ? dashboardService.getTodaySummary()
+        : prisma.invoice.aggregate({
+            where: {
+              deleteStatus: false,
+              status: { not: 'CANCELLED' },
+              createdAt: { gte: dayStart, lte: dayEnd },
+            },
+            _sum: { totalAmount: true },
+          }).then((r) => ({ todaySales: parseFloat(r._sum.totalAmount || 0) })),
+      prisma.vendorInvoice.aggregate({
+        where: {
+          deleteStatus: false,
+          status: { not: 'CANCELLED' },
+          invoiceDate: { gte: dayStart, lte: dayEnd },
+        },
+        _sum: { totalAmount: true },
+      }),
+      prisma.transactionEntry.aggregate({
+        where: {
+          entryType: 'DEBIT',
+          ledger: { ledgerType: 'EXPENSE', delete_status: false },
+          transaction: { transactionDate: { gte: dayStart, lte: dayEnd }, isPosted: true },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.customerPaymentVoucher.aggregate({
+        where: {
+          delete_status: false,
+          cancelledStatus: false,
+          paymentDate: { gte: dayStart, lte: dayEnd },
+        },
+        _sum: { totalAmount: true },
+      }),
+      this.getProfitLoss({ from: asOfStr, to: asOfStr }),
+      invoiceService.getStats({ startDate: monthFrom, endDate: asOfStr }),
+      vendorPaymentService.getStats({ startDate: monthFrom, endDate: asOfStr }),
+      ledgerService.getCashBankLedgers(),
+      inventoryService.getInventoryDashboardEnhanced({}),
+      Promise.resolve(fyMonthsThrough(asOfDate)),
+    ]);
+
+    const cashBankTotal = cashBankLedgers.reduce(
+      (s, l) => s + parseFloat(l.currentBalance || 0),
+      0
+    );
+
+    const [receivablesRisk, expenseBreakup, profitLossSnapshot, fyTrend] = await Promise.all([
+      this._getReceivablesRisk(asOfDate),
+      this._getExpenseBreakup(asOfDate, monthFrom, asOfStr),
+      this._getProfitLossSnapshot(asOfStr, inventoryDash),
+      this._getFyTrend(fyTrendMonths),
+    ]);
+
+    return {
+      asOf: asOfStr,
+      financialYear: { label: fy.label, start: toIsoDate(fy.start), end: toIsoDate(fy.end) },
+      today: {
+        todaySales: round2(todaySummary.todaySales),
+        todayCollection: round2(dayCollectionAgg._sum.totalAmount || 0),
+        todayPurchases: round2(dayPurchasesAgg._sum.totalAmount || 0),
+        todayExpenses: round2(dayExpensesAgg._sum.amount || 0),
+        grossProfit: round2(dayPnl.grossProfit),
+        netProfit: round2(dayPnl.netProfit),
+      },
+      position: {
+        cashBankTotal: round2(cashBankTotal),
+        collectionTarget: round2(invoiceStats.targetCollection),
+        receivableOutstanding: round2(invoiceStats.outstanding),
+        payablesPending: round2(vendorStats.outstanding),
+        inventoryValue: round2(inventoryDash.totalValue || 0),
+      },
+      fyTrend,
+      receivablesRisk,
+      expenseBreakup,
+      profitLossSnapshot,
+    };
+  }
+
+  async _getReceivablesRisk(asOfDate) {
+    const cutoff = new Date(asOfDate);
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - 90);
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        deleteStatus: false,
+        status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
+        dueDate: { lt: cutoff },
+      },
+      select: {
+        id: true,
+        invoiceNo: true,
+        dueDate: true,
+        totalAmount: true,
+        paidAmount: true,
+        customerId: true,
+        customer: { select: { name: true } },
+      },
+    });
+
+    const asOfMs = new Date(asOfDate).setHours(0, 0, 0, 0);
+
+    return invoices
+      .map((inv) => {
+        const balance = Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0));
+        const dueMs = new Date(inv.dueDate).setHours(0, 0, 0, 0);
+        const daysPastDue = Math.max(0, Math.floor((asOfMs - dueMs) / 86400000));
+        return {
+          customerId: inv.customerId,
+          customerName: inv.customer?.name || '—',
+          invoiceId: inv.id,
+          invoiceNo: inv.invoiceNo,
+          dueDate: inv.dueDate ? toIsoDate(new Date(inv.dueDate)) : null,
+          daysPastDue,
+          balance: round2(balance),
+        };
+      })
+      .filter((r) => r.balance > 0)
+      .sort((a, b) => b.balance - a.balance);
+  }
+
+  async _getExpenseBreakup(asOfDate, monthFrom, asOfStr) {
+    const pnl = await this.getProfitLoss({ from: monthFrom, to: asOfStr });
+    const rows = [
+      ...(pnl.costOfGoodsSold?.breakdown || []).map((r) => ({
+        ledgerCode: r.ledgerCode,
+        ledgerName: r.ledgerName,
+        amount: round2(r.amount),
+        category: 'direct',
+      })),
+      ...(pnl.operatingExpenses?.breakdown || []).map((r) => ({
+        ledgerCode: r.ledgerCode,
+        ledgerName: r.ledgerName,
+        amount: round2(r.amount),
+        category: 'indirect',
+      })),
+    ]
+      .filter((r) => r.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    return {
+      from: monthFrom,
+      to: asOfStr,
+      total: round2(rows.reduce((s, r) => s + r.amount, 0)),
+      items: rows,
+    };
+  }
+
+  async _getProfitLossSnapshot(asOfStr, inventoryDash) {
+    const monthFrom = toIsoDate(monthStart(parseAsOf(asOfStr)));
+    const [pnl, bs] = await Promise.all([
+      this.getProfitLoss({ from: monthFrom, to: asOfStr }),
+      this.getBalanceSheet({ asOf: asOfStr }),
+    ]);
+
+    return {
+      period: { from: monthFrom, to: asOfStr },
+      income: pnl.income?.total,
+      costOfGoodsSold: pnl.costOfGoodsSold?.total,
+      grossProfit: pnl.grossProfit,
+      operatingExpenses: pnl.operatingExpenses?.total,
+      netProfit: pnl.netProfit,
+      isProfit: pnl.isProfit,
+      inventoryValue: round2(inventoryDash.totalValue || 0).toFixed(2),
+      totalAssets: bs.totalAssets,
+      totalLiabilities: bs.totalLiabilities,
+      totalCapital: bs.totalCapital,
+      totalLiabilitiesAndCapital: bs.totalLiabilitiesAndCapital,
+    };
+  }
+
+  async _getFyTrend(months) {
+    const points = await Promise.all(
+      months.map(async (m) => {
+        const pnl = await this.getProfitLoss({ from: m.from, to: m.to });
+        const income = parseFloat(pnl.income?.total || 0);
+        const expenses =
+          parseFloat(pnl.costOfGoodsSold?.total || 0) +
+          parseFloat(pnl.operatingExpenses?.total || 0);
+        return {
+          month: m.month,
+          monthLabel: m.monthLabel,
+          income: round2(income),
+          expenses: round2(expenses),
+        };
+      })
+    );
+    return points;
+  }
+
+  // ── Trial Balance (grouped) ──────────────────────────────────
+
+  async getTrialBalanceGrouped({ asOf }) {
+    const flat = await this.getTrialBalance({ asOf });
+    const ledgerCodes = flat.ledgers.map((l) => l.ledgerCode);
+
+    const dbLedgers = await prisma.ledger.findMany({
+      where: { ledgerCode: { in: ledgerCodes }, delete_status: false },
+      select: {
+        id: true,
+        ledgerCode: true,
+        ledgerName: true,
+        ledgerType: true,
+        accountGroupId: true,
+        accountGroup: { select: { id: true, groupCode: true, groupName: true, sortOrder: true } },
+      },
+    });
+
+    const ledgerByCode = Object.fromEntries(dbLedgers.map((l) => [l.ledgerCode, l]));
+    const groupMap = new Map();
+
+    for (const row of flat.ledgers) {
+      const ledger = ledgerByCode[row.ledgerCode];
+      const group = ledger?.accountGroup;
+      if (!group) continue;
+
+      if (!groupMap.has(group.id)) {
+        groupMap.set(group.id, {
+          groupCode: group.groupCode,
+          groupName: group.groupName,
+          sortOrder: group.sortOrder,
+          totalDebit: 0,
+          totalCredit: 0,
+          netBalance: 0,
+          ledgers: [],
+        });
+      }
+
+      const g = groupMap.get(group.id);
+      const dr = parseFloat(row.totalDebit) || 0;
+      const cr = parseFloat(row.totalCredit) || 0;
+      const net = parseFloat(row.netBalance) || 0;
+      g.totalDebit += dr;
+      g.totalCredit += cr;
+      g.netBalance += net;
+
+      if (EXPAND_TRIAL_BALANCE_GROUPS.has(group.groupCode)) {
+        g.ledgers.push({
+          ledgerCode: row.ledgerCode,
+          ledgerName: row.ledgerName,
+          ledgerType: row.ledgerType,
+          totalDebit: row.totalDebit,
+          totalCredit: row.totalCredit,
+          netBalance: row.netBalance,
+        });
+      }
+    }
+
+    const groups = [...groupMap.values()]
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((g) => ({
+        groupCode: g.groupCode,
+        groupName: g.groupName,
+        totalDebit: g.totalDebit.toFixed(2),
+        totalCredit: g.totalCredit.toFixed(2),
+        netBalance: g.netBalance.toFixed(2),
+        ledgers: g.ledgers.sort((a, b) => a.ledgerCode.localeCompare(b.ledgerCode)),
+      }));
+
+    return {
+      asOf: flat.asOf,
+      isBalanced: flat.isBalanced,
+      totalDebit: flat.totalDebit,
+      totalCredit: flat.totalCredit,
+      groups,
     };
   }
 }

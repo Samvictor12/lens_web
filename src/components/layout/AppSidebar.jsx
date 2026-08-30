@@ -137,6 +137,7 @@ const navItems = [
     title: "Accounting",
     icon: BookOpen,
     subItems: [
+      { title: "Finance Dashboard", url: "/accounts/finance-dashboard", icon: LayoutDashboard, key: "finance_dashboard" },
       { title: "Customer 360", url: "/accounts/customer-360", icon: Users, key: "customers" },
       { title: "Billing and invoicing", url: "/accounts/billing-and-invoicing", icon: Receipt, key: "billing" },
       { title: "Vendor Bill & Expenses", url: "/accounts/vendor-payments", icon: CreditCard, key: "vendor_payments" },
@@ -145,7 +146,6 @@ const navItems = [
       { title: "Bank Accounts", url: "/accounts/bank-accounts", icon: Building2, key: "bank_accounts" },
       // { title: "Expenses", url: "/accounts/expenses", icon: TrendingDown, key: "expenses" },
       { title: "Bank Reconciliation", url: "/accounts/bank-reconciliation", icon: RefreshCw, key: "bank_reconciliation" },
-      { title: "Financial Reports", url: "/accounts/reports", icon: Scale, key: "financial_reports" },
     ],
   },
   {

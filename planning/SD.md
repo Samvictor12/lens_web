@@ -153,8 +153,10 @@ Ledger ||--o{ Ledger : "parentLedgerId (AR/AP sub-ledgers)"
 
 **Customer/vendor sub-ledgers** (`AC-1003-C*`, `AC-2001-V*`) inherit `accountGroupId` from Sundry Debtors / Sundry Creditors on create.
 
-### 9. Expense (2026-07-14)
+### 9. Expense (2026-07-14; liability ledger 2026-08-31)
 `Expense.dueDate` (`DateTime?`) stores optional payment due date distinct from `expenseDate`. Category still drives DIRECT/INDIRECT via `ExpenseCategory.expenseType`.
+
+**Indirect accrual track (req-007):** `Expense.liabilityLedgerId` FK `Ledger` — the "Expense for" liability posting account. `vendorExpenseStatus` (MARKED / PARTIALLY_PAID / PAID) + `paidAmount`. `vendorId` null on create for this track. Payment audit: `IndirectExpensePaymentVoucher` + `IndirectExpensePaymentVoucherItem` (`expenseId`). Migration `20260831120000_indirect_expense_liability_ledger` backfills `liabilityLedgerId` from `Vendor.ledgerId` then clears `vendorId`.
 
 ### 10. Income & Income Category (2026-07-25; From/To follow-up)
 Mirrors Expense: `IncomeCategory` + `Income`. Create requires `fromLedgerId` + `toLedgerId` (Cash/Bank/Capital posting ledgers). Posting **Dr To, Cr From**. Legacy `bankLedgerId` optional/nullable after migration `20260725100000_income_from_to_ledgers`.

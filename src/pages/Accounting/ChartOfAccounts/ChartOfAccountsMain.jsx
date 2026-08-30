@@ -373,12 +373,8 @@ export default function ChartOfAccountsMain() {
               typeFilter={typeFilter}
               searchQuery={searchQuery}
               onEditLedger={openEdit}
-              onViewSummary={(g) =>
-                navigate(`/accounts/reports?tab=group&groupId=${g.id}`)
-              }
-              onViewStatement={(l) =>
-                navigate(`/accounts/reports?tab=ledger&ledgerId=${l.id}`)
-              }
+              onViewSummary={() => navigate("/accounts/finance-dashboard")}
+              onViewStatement={() => navigate("/accounts/finance-dashboard")}
             />
           </Card>
         ) : (

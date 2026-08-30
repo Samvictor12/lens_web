@@ -51,4 +51,11 @@ export class LedgerController {
       res.json({ success: true, data });
     } catch (e) { next(e); }
   }
+
+  async getLiabilityPostingLedgers(req, res, next) {
+    try {
+      const data = await service.getLiabilityPostingLedgers();
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
 }

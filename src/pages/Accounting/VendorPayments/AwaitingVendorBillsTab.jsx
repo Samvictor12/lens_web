@@ -38,8 +38,6 @@ export default function AwaitingVendorBillsTab({ filters, refreshKey = 0 }) {
         const params = {
           ...(filters.vendorId && { vendorId: filters.vendorId }),
           ...(filters.productId && { productId: filters.productId }),
-          ...(filters.startDate && { startDate: filters.startDate }),
-          ...(filters.endDate && { endDate: filters.endDate }),
         };
         const res = await getAwaitingVendorBills(params);
         if (!cancelled) setGroups(res.data?.groups || []);
@@ -52,7 +50,7 @@ export default function AwaitingVendorBillsTab({ filters, refreshKey = 0 }) {
     return () => {
       cancelled = true;
     };
-  }, [filters.vendorId, filters.productId, filters.startDate, filters.endDate, refreshKey]);
+  }, [filters.vendorId, filters.productId, refreshKey]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground text-center py-8">Loading awaiting bills…</p>;

@@ -72,11 +72,11 @@ export class VendorCreditDebitNoteService {
     );
   }
 
-  async createDebitNote({ vendorId, vendorInvoiceId, amount, taxAmount = 0, reason, noteDate }, userId) {
-    return this._create('debit', { vendorId, vendorInvoiceId, amount, taxAmount, reason, noteDate }, userId);
+  async createDebitNote({ vendorId, vendorInvoiceId, invoiceNumber, amount, taxAmount = 0, reason, noteDate }, userId) {
+    return this._create('debit', { vendorId, vendorInvoiceId, invoiceNumber, amount, taxAmount, reason, noteDate }, userId);
   }
 
-  async _create(kind, { vendorId, vendorInvoiceId, amount, taxAmount, reason, noteDate }, userId) {
+  async _create(kind, { vendorId, vendorInvoiceId, invoiceNumber, amount, taxAmount, reason, noteDate }, userId) {
     const vid = parseInt(vendorId, 10);
     if (!vid) throw new APIError('vendorId is required', 400, 'VALIDATION_ERROR');
 
@@ -89,8 +89,17 @@ export class VendorCreditDebitNoteService {
     if (!vendor) throw new APIError('Vendor not found', 404, 'VENDOR_NOT_FOUND');
 
     let vendorInvoice = null;
+    const invoiceRef = (invoiceNumber || '').trim();
     if (vendorInvoiceId) {
-      vendorInvoice = await prisma.vendorInvoice.findFirst({ where: { id: parseInt(vendorInvoiceId, 10), deleteStatus: false } });
+      vendorInvoice = await prisma.vendorInvoice.findFirst({
+        where: { id: parseInt(vendorInvoiceId, 10), deleteStatus: false },
+      });
+    } else if (invoiceRef) {
+      vendorInvoice = await prisma.vendorInvoice.findFirst({
+        where: { invoiceNumber: invoiceRef, vendorId: vid, deleteStatus: false },
+      });
+    }
+    if (vendorInvoiceId || invoiceRef) {
       if (!vendorInvoice) throw new APIError('Vendor invoice not found', 404, 'INVOICE_NOT_FOUND');
       if (vendorInvoice.vendorId !== vid) {
         throw new APIError('Invoice does not belong to this vendor', 400, 'INVOICE_VENDOR_MISMATCH');

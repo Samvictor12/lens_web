@@ -14,9 +14,10 @@ import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createVendorIndirectExpense } from "@/services/vendorIndirectExpense";
 import { getExpenseCategories } from "@/services/expense";
+import { getLiabilityPostingLedgers } from "@/services/ledger";
 
 const emptyForm = {
-  vendorId: "",
+  liabilityLedgerId: "",
   categoryId: "",
   amount: "",
   dueDate: "",
@@ -25,15 +26,20 @@ const emptyForm = {
   notes: "",
 };
 
+function formatLiabilityLabel(ledger) {
+  if (!ledger) return "";
+  return `${ledger.ledgerCode} — ${ledger.ledgerName}`;
+}
+
 export default function MarkIndirectExpenseDialog({
   open,
   onOpenChange,
-  vendors = [],
-  initialVendorId = "",
+  initialLiabilityLedgerId = "",
   onCreated,
 }) {
   const { toast } = useToast();
   const [categories, setCategories] = useState([]);
+  const [liabilityLedgers, setLiabilityLedgers] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -41,20 +47,32 @@ export default function MarkIndirectExpenseDialog({
     if (!open) return;
     setForm({
       ...emptyForm,
-      vendorId: initialVendorId ? String(initialVendorId) : "",
+      liabilityLedgerId: initialLiabilityLedgerId ? String(initialLiabilityLedgerId) : "",
     });
-  }, [open, initialVendorId]);
+  }, [open, initialLiabilityLedgerId]);
 
   useEffect(() => {
     if (!open) return;
     (async () => {
       try {
-        const res = await getExpenseCategories();
-        const list = res?.data || res || [];
+        const [catRes, ledgerList] = await Promise.all([
+          getExpenseCategories(),
+          getLiabilityPostingLedgers(),
+        ]);
+        const list = catRes?.data || catRes || [];
         setCategories(
           (Array.isArray(list) ? list : []).filter(
-            (c) => c.expenseType === "INDIRECT" || !c.expenseType
+            (c) =>
+              c.active_status !== false &&
+              c.delete_status !== true &&
+              (c.expenseType === "INDIRECT" || !c.expenseType)
           )
+        );
+        setLiabilityLedgers(
+          (Array.isArray(ledgerList) ? ledgerList : []).map((l) => ({
+            id: l.id,
+            name: formatLiabilityLabel(l),
+          }))
         );
       } catch {
         // non-critical
@@ -64,17 +82,31 @@ export default function MarkIndirectExpenseDialog({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.vendorId || !form.categoryId || !form.amount || !form.description) {
+    if (!categories.length) {
       toast({
         variant: "destructive",
-        title: "Vendor, category, amount, and description are required",
+        title: "No expense categories found. Add categories under Masters → Expense Categories.",
+      });
+      return;
+    }
+    if (!liabilityLedgers.length) {
+      toast({
+        variant: "destructive",
+        title: "No liability posting ledgers found in Chart of Accounts.",
+      });
+      return;
+    }
+    if (!form.liabilityLedgerId || !form.categoryId || !form.amount || !form.description) {
+      toast({
+        variant: "destructive",
+        title: "Expense for, expense category, amount, and description are required",
       });
       return;
     }
     setSaving(true);
     try {
       await createVendorIndirectExpense({
-        vendorId: parseInt(form.vendorId, 10),
+        liabilityLedgerId: parseInt(form.liabilityLedgerId, 10),
         categoryId: parseInt(form.categoryId, 10),
         amount: parseFloat(form.amount),
         dueDate: form.dueDate || undefined,
@@ -88,7 +120,7 @@ export default function MarkIndirectExpenseDialog({
     } catch (err) {
       toast({
         variant: "destructive",
-        title: err?.response?.data?.message || "Failed to mark expense",
+        title: err?.message || err?.response?.data?.message || "Failed to mark expense",
       });
     } finally {
       setSaving(false);
@@ -104,13 +136,15 @@ export default function MarkIndirectExpenseDialog({
         <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 py-2">
           <div className="space-y-1">
             <Label className="text-xs">
-              Vendor <span className="text-red-500">*</span>
+              Expense for <span className="text-red-500">*</span>
             </Label>
             <FormSelect
-              options={vendors}
-              value={form.vendorId || null}
-              onChange={(v) => setForm((f) => ({ ...f, vendorId: v != null ? String(v) : "" }))}
-              placeholder="Select vendor"
+              options={liabilityLedgers}
+              value={form.liabilityLedgerId || null}
+              onChange={(v) =>
+                setForm((f) => ({ ...f, liabilityLedgerId: v != null ? String(v) : "" }))
+              }
+              placeholder="Select liability account"
               isSearchable
               menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
               menuPosition="fixed"
@@ -118,13 +152,13 @@ export default function MarkIndirectExpenseDialog({
           </div>
           <div className="space-y-1">
             <Label className="text-xs">
-              Category <span className="text-red-500">*</span>
+              Expense Category <span className="text-red-500">*</span>
             </Label>
             <FormSelect
               options={categories}
               value={form.categoryId || null}
               onChange={(v) => setForm((f) => ({ ...f, categoryId: v != null ? String(v) : "" }))}
-              placeholder="Indirect category"
+              placeholder="Select expense category"
               isSearchable
               menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
               menuPosition="fixed"
@@ -182,7 +216,7 @@ export default function MarkIndirectExpenseDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Mark liability"}
+              {saving ? "Submitting…" : "Submit"}
             </Button>
           </DialogFooter>
         </form>

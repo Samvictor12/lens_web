@@ -43,6 +43,7 @@ const mapFromBackend = (backendData) => {
     gstNumber: backendData.gstin || "",
     remarks: backendData.notes || "",
     activeStatus: backendData.active_status !== undefined ? backendData.active_status : true,
+    ledgerId: backendData.ledgerId || backendData.ledger?.id || null,
     createdAt: backendData.createdAt,
     updatedAt: backendData.updatedAt,
     ledgerCode: backendData.ledger?.ledgerCode || null,

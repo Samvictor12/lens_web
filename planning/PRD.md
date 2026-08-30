@@ -52,13 +52,12 @@ requirements:
     fd: [FD-2.1]
   - id: PRD-4.6
     title: Finance dashboard
-    status: draft
+    status: shipped
     module: accounting
-    tsd: []
-    dd: []
-    sd: []
-    fd: []
-    note: HOLD — user briefs later (diagrams)
+    tsd: [TSD-1.1]
+    dd: [DD-1.1, DD-2.1]
+    sd: [SD-1.1]
+    fd: [FD-2.4]
   - id: PRD-4.7
     title: Business intelligence Finance and Lab
     status: draft
@@ -145,24 +144,37 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 
 ## PRD-4.5 Vendor indirect expenses accrual
 
-**Status:** shipped (`req-004`, 2026-08-30). Lives inside Vendor & payments hub (Option A).
+**Status:** shipped (`req-004`, 2026-08-30; liability-ledger refactor `req-007`, 2026-08-31). Lives inside Vendor & payments hub (Option A).
 
 ### Shipped
-- Mark-first: `POST /api/vendor-indirect-expenses` — Dr expense category / Cr vendor AP (`postVendorExpenseAccrual`)
-- `Expense.vendorId` + `vendorExpenseStatus` (MARKED / PARTIALLY_PAID / PAID)
-- Pay via `VendorPaymentVoucherItem.expenseId`; `Vendor.advance_credit` on schema
-- Indirect Expenses tab in vendor hub; legacy `/accounts/expenses` for non-vendor overhead only
+- Mark-first: `POST /api/vendor-indirect-expenses` — **Expense for** = liability posting ledger (`liabilityLedgerId`); Dr expense category / Cr liability (`postIndirectExpenseAccrual`)
+- `Expense.liabilityLedgerId` + `vendorExpenseStatus` (MARKED / PARTIALLY_PAID / PAID); `vendorId` null on indirect track
+- Pay via **Pay Expense Bill** dialog: `POST /api/vendor-indirect-expenses/pay` — Dr liability / Cr bank; `IndirectExpensePaymentVoucher` + items (FIFO by due date)
+- `GET /api/ledgers/liability-posting` — picker for all active LIABILITY posting ledgers
+- Indirect Expenses tab: Mark Expense + Pay Expense Bill header actions; optional liability filter
+- Vendor bill payment unchanged (`POST /api/vendor-payments/from-invoices` invoice-only)
+- Legacy `/accounts/expenses` for non-vendor overhead only
 
-## PRD-4.6–4.7 Held
+## PRD-4.6 Finance dashboard
+
+**Status:** shipped (`req-006`, 2026-08-31).
+
+- Route: `/accounts/finance-dashboard` (first item under Accounting sidebar).
+- Row 1 KPIs (today): Today Sales, Today Collection, Today Purchases, Today Expenses, Gross Profit, Net Profit.
+- Row 2 KPIs (position): Cash & Bank Total, Collection Target (month), Receivable Outstanding, Payables Pending, Inventory Value.
+- FY income vs expense trend chart (India Apr–Mar); portfolio receivables >90d risk table.
+- Expense breakup (month, 40%) + P&L snapshot with inventory and balance-sheet summary (60%).
+- Report sub-tabs: Trial Balance (grouped SD/SC), Balance Sheet, Day Book, GST Reports (embedded).
+- `GET /api/financial-reports/dashboard`, `GET /api/financial-reports/trial-balance-grouped`.
+- Legacy `/accounts/reports` retained for full Financial Reports entry.
+
+## PRD-4.7 Held
 
 | ID | Title | Reason |
 |----|-------|--------|
-| PRD-4.4 | Vendor and payments | — |
-| PRD-4.5 | Vendor indirect expenses | — |
-| PRD-4.6 | Finance dashboard | User will brief later + diagrams |
 | PRD-4.7 | Business intelligence | User will brief later + diagrams |
 
-Do not create active `execution_state` work for these until briefed.
+Do not create active `execution_state` work for PRD-4.7 until briefed.
 
 ## Shipped index (legacy)
 

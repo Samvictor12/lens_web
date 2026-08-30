@@ -27,4 +27,10 @@ export class FinancialReportController {
   async getBalanceSheet(req, res, next) {
     try { res.json({ success: true, data: await service.getBalanceSheet(req.query) }); } catch (e) { next(e); }
   }
+  async getDashboard(req, res, next) {
+    try { res.json({ success: true, data: await service.getDashboard(req.query) }); } catch (e) { next(e); }
+  }
+  async getTrialBalanceGrouped(req, res, next) {
+    try { res.json({ success: true, data: await service.getTrialBalanceGrouped(req.query) }); } catch (e) { next(e); }
+  }
 }

@@ -47,6 +47,17 @@ export async function generateExpenseNumber() {
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
+export async function generateIndirectExpensePaymentVoucherNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `IEPV-${year}-`;
+  const last = await prisma.indirectExpensePaymentVoucher.findFirst({
+    where: { voucherNumber: { startsWith: prefix } },
+    orderBy: { voucherNumber: 'desc' },
+  });
+  const next = last ? parseInt(last.voucherNumber.split('-').pop()) + 1 : 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
 export async function generateIncomeNumber() {
   const year = new Date().getFullYear();
   const prefix = `INC-${year}-`;
@@ -340,8 +351,83 @@ export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmo
 }
 
 /**
+ * Mark indirect expense — accrual only (no bank movement).
+ * Dr expense category ledger, Cr selected liability posting ledger.
+ */
+export async function postIndirectExpenseAccrual(
+  tx,
+  { expenseId, expenseNumber, amount, categoryLedgerId, liabilityLedgerId, description },
+  userId
+) {
+  const [expLedger, liabilityLedger] = await Promise.all([
+    tx.ledger.findUnique({ where: { id: categoryLedgerId } }),
+    tx.ledger.findUnique({ where: { id: liabilityLedgerId } }),
+  ]);
+  if (!expLedger) throw new APIError('Expense category ledger not found', 400, 'LEDGER_NOT_FOUND');
+  if (!liabilityLedger) throw new APIError('Liability ledger not found', 400, 'LEDGER_NOT_FOUND');
+  if (liabilityLedger.delete_status || !liabilityLedger.active_status) {
+    throw new APIError('Liability ledger is inactive', 400, 'LEDGER_INACTIVE');
+  }
+  if (!liabilityLedger.allowsDirectPosting || liabilityLedger.isGroupLedger) {
+    throw new APIError('Liability ledger does not allow direct posting', 400, 'LEDGER_NOT_POSTABLE');
+  }
+  if (liabilityLedger.ledgerType !== 'LIABILITY') {
+    throw new APIError('Selected ledger is not a liability account', 400, 'INVALID_LEDGER_TYPE');
+  }
+
+  return postTransaction(
+    tx,
+    {
+      transactionType: 'JOURNAL',
+      referenceType: 'MANUAL',
+      referenceId: expenseId,
+      referenceNumber: expenseNumber,
+      description: description || `Indirect expense accrual — ${expenseNumber}`,
+    },
+    [
+      { ledgerId: expLedger.id, entryType: 'DEBIT', amount, description: `Expense — ${description}` },
+      { ledgerId: liabilityLedger.id, entryType: 'CREDIT', amount, description: `Liability accrued — ${expenseNumber}` },
+    ],
+    userId
+  );
+}
+
+/**
+ * Pay indirect expense bill — Dr liability ledger, Cr bank/cash.
+ */
+export async function postIndirectExpensePayment(
+  tx,
+  { voucherId, voucherNumber, totalAmount, bankLedgerId, liabilityLedgerId },
+  userId
+) {
+  const [liabilityLedger, bankLedger] = await Promise.all([
+    tx.ledger.findUnique({ where: { id: liabilityLedgerId } }),
+    tx.ledger.findUnique({ where: { id: bankLedgerId } }),
+  ]);
+  if (!liabilityLedger) throw new APIError('Liability ledger not found', 400, 'LEDGER_NOT_FOUND');
+  if (!bankLedger) throw new APIError('Selected bank/cash ledger not found', 400, 'LEDGER_NOT_FOUND');
+
+  return postTransaction(
+    tx,
+    {
+      transactionType: 'PAYMENT',
+      referenceType: 'MANUAL',
+      referenceId: voucherId,
+      referenceNumber: voucherNumber,
+      description: `Indirect expense payment — ${voucherNumber}`,
+    },
+    [
+      { ledgerId: liabilityLedger.id, entryType: 'DEBIT', amount: totalAmount, description: `Liability reduced — ${voucherNumber}` },
+      { ledgerId: bankLedger.id, entryType: 'CREDIT', amount: totalAmount, description: `Payment from ${bankLedger.ledgerName}` },
+    ],
+    userId
+  );
+}
+
+/**
  * Mark vendor indirect expense — accrual only (no bank movement).
  * Dr expense category ledger, Cr vendor AP ledger.
+ * @deprecated Use postIndirectExpenseAccrual for liability-ledger-centric indirect expenses.
  */
 export async function postVendorExpenseAccrual(
   tx,
