@@ -7,8 +7,8 @@ export const getInvoices = (params = {}) =>
   apiClient("get", BASE, { params });
 
 /** Aggregated billing stats (total, pending, paid, outstanding) — fast DB aggregation */
-export const getInvoiceStats = () =>
-  apiClient("get", `${BASE}/stats`);
+export const getInvoiceStats = (params = {}) =>
+  apiClient("get", `${BASE}/stats`, { params });
 
 /**
  * Get ALL delivered, un-billed sale orders — for billing screen list

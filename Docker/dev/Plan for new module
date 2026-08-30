@@ -1,0 +1,76 @@
+Major Correction in Accounting module:
+- Side bar
+    - Finanance dashboard
+    - income and loans 
+    - expenses and payables
+    - billing and invoicing
+    - customer 360 view
+
+- income and loans:
+    - Dashboard to show the Cards like Total Income, Total Loans, Total Income this Month, Total Loans this Month.
+    - next to the Cards need tabs to show the list of Income, Loans with the add button on the top right.
+    - Income and Loan Record page:
+        - the Form has the info like From account to account, amount, date, description, Reference No.
+    - Income and Loan Ledger report
+
+- expenses and payables:
+    - Dashboard to show the Cards like Total Expenses, Total Expenses this Month, Total Payables this Month.
+    - next to the Cards need tabs to show the list of Expenses, awaiting payments, Payables with the add button on the top right.
+    - Expense and Payable Record page:
+        - the Form has the info like account to pay, amount, date, description, Reference No.
+    - Expense and Payable Ledger report
+    - the Expences need to mark first and marked as liability in the expense record page. and after the user can pay to the liability account.
+
+- customer 360 view purpose to understand the customer and their business.
+    - select the customer from the dropdown.
+    - section 1 -> Customer Details and customer transactions(Billing cycle, Credit Limit, outstanding, Discounts, Total Credit Notes, Last Payment Amount).
+    - section 2 -> Cards to List records if any card selected below need to show the list records accordingly(5 records each other need to have small pagination cards below) -> Total Orders of this Month(SO), in Production(SO), in Dispatch(SO), Delivered(SO), Collection target(this month, list need to show the Invoice due for this month), actual Collection(this Month, payment History of this month).
+    - section 3 -> Need to have 2 sections Top Lens order Horizontal Bar chart and Credit Analysis (Invoices count and Amount with in 30 days due, 60 days due, 90 days due).
+    - section 4 -> tabs to list records -> Invoices(outstanding invoices from the customer payments ), Payments(payment History in the Customer payments module), Credit Notes(Credit Notes from the customer payments module), Customer Ledger.
+
+- billing and invoicing: merge the Billing and Customer payments module.
+    - Dashboard to show the Cards like Total Billing, Total outstanding, Total Awaiting Bills, Target Collection, Total Collection, Today Collection. 
+    - next to the Cards need tabs to show the list of Awaiting Invoices, Invoices(outstanding invoices from the customer payments with default customer grouped list), Payments(payment History in the Customer payments module), Credit Notes, Collection(Show customer wise Collection amount of this Month and total Collection per customer as Cards), Customer Ledger.
+    - select and select all option for invoice.
+    - invoice data need to get form the SO to the Invoice. 
+    - target collect for the customer using tat. target need to be for the month.
+    - tat of invoice form the billed date to credit dates.
+    - CN -> against not invoice.
+    - on the top section need to have the filters for date between(default current month), customer, product. based on this filter selection the entire dashboard and other tabs need to be updated.
+    - Record Payments page:
+        - First Select the Customer from the dropdown. after select the Customer in the First section next to the Customer Select section Customer Details Section with the Amount Due, Last Payment Amount, Due Days. 
+        - 3rd section is Payment Details need to ask for the Advance Amount(If any marked as advance form the customer in previous payment or any. this can be added to the Invoices below as same as Payment amount), payment Amount, Payment Date, Payment Method, Account Receivable, reference No and Notes. 
+        - 4th section is Invoice Allocation (FIFO by Due Date) need to show the List of invoices pending for payment with order by due date. this is same as already in the Record payment page. 
+        - 5th Payment Summary need to show the Total Amount Received, Total Advance Amount, Sum of the Invoices Amount. total balance due after the payment.
+
+- vendor & payments: Change vendor payments module.
+    - Dashboard to show the Cards like Total Purchases(Vendor Invoice Billed), Total outstanding(Vendor Invoice Outstanding), Total Awaiting Bills(Vendor Invoice Awaiting), Target Payment(Vendor Invoice Target Payment), Total Payment(Vendor Invoice Total Payment).
+    - next to the Cards need tabs to show the list of Awaiting Vendor Bills, Vendor Bills(outstanding invoices from the vendor payments with default vendor grouped list), Payments(payment History in the Vendor payments module), Debit Notes, Vendor Ledger.
+    - DN -> against not PO.
+    - on the top section need to have the filters for date between(default current month), vendor, product. based on this filter selection the entire dashboard and other tabs need to be updated.
+    - Record Payments page:
+        - First Select the Vendor from the dropdown. after select the Vendor in the First section next to the Vendor Select section Vendor Details Section with the Amount Due, Last Payment Amount. 
+        - 3rd section is Payment Details need to ask for the Advance Amount(If any marked as advance form the vendor in previous payment or any. this can be added to the Vendor Bills below as same as Payment amount), payment Amount, Payment Date, Payment Method, Account Payable, reference No and Notes. 
+        - 4th section is Vendor Bill Allocation (FIFO by Due Date) need to show the List of vendor bills pending for payment with order by due date. this is same as already in the Record payment page. 
+        - 5th Payment Summary need to show the Total Amount paid, Total Advance Amount, Sum of the Vendor Bills Amount. total balance due after the payment.
+
+- accounting dashboard
+    - trail balance - > sundry debtors and sundry creditors. and other accounts.
+    - other reports Refer diagram.
+
+- business intelligence.
+    - Finance Tab:
+        - based on the diagram
+        - Gross profit of this month. Net profit of this month.
+        - Financial year monthly trend chat of income and expenses.
+        - customer > 90 days outstanding is risk report. 
+        - Expenses breakup. 
+
+    - lab operations:
+        - lap productivity today, week, month.
+        - lab productivity trend chat.
+        - refere drawing.
+        - RX/Stock POs raise. 
+        - rejection rate -> agaisnt total production. 
+        - Rejection List -> list of rejection items with reason.
+        - hot jobs -> list of urgent jobs.

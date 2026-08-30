@@ -78,18 +78,26 @@ function OrdersTable({ orders, onBillCustomer }) {
   );
 }
 
-export default function DispatchedOrdersTab({ onBillCustomer }) {
+export default function DispatchedOrdersTab({ onBillCustomer, sharedFilters = {} }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [groupBy, setGroupBy] = useState(null);
 
+  const filterParams = {
+    ...(sharedFilters.customerId && { customerId: sharedFilters.customerId }),
+    ...(sharedFilters.productId && { productId: sharedFilters.productId }),
+    ...(sharedFilters.startDate && { startDate: sharedFilters.startDate }),
+    ...(sharedFilters.endDate && { endDate: sharedFilters.endDate }),
+  };
+
   const { data: res, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["dispatched-orders", { search, page, groupBy }],
+    queryKey: ["dispatched-orders", { search, page, groupBy, ...filterParams }],
     queryFn: () =>
       getDispatchedOrders({
         search: search || undefined,
         page: groupBy ? 1 : page,
         limit: groupBy ? 500 : 20,
+        ...filterParams,
       }),
     placeholderData: keepPreviousData,
   });

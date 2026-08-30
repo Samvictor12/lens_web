@@ -11,7 +11,11 @@ export class CustomerPaymentController {
   }
   async getOutstanding(req, res, next) {
     try {
-      res.json({ success: true, data: await service.getOutstanding({ groupBy: req.query.groupBy || 'customer' }) });
+      const { groupBy = 'customer', customerId, productId, startDate, endDate } = req.query;
+      res.json({
+        success: true,
+        data: await service.getOutstanding({ groupBy, customerId, productId, startDate, endDate }),
+      });
     } catch (e) { next(e); }
   }
   async create(req, res, next) {

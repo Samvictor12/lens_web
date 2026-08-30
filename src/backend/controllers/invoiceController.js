@@ -77,10 +77,11 @@ export class InvoiceController {
     }
   }
 
-  /** GET /api/invoices/stats — aggregated billing stats (no full row scan) */
+  /** GET /api/invoices/stats — filter-scoped billing KPIs */
   async getStats(req, res, next) {
     try {
-      const stats = await service.getStats();
+      const { startDate, endDate, customerId, productId } = req.query;
+      const stats = await service.getStats({ startDate, endDate, customerId, productId });
       res.status(200).json({ success: true, data: stats });
     } catch (error) {
       next(error);

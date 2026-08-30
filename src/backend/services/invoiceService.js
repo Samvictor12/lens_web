@@ -300,12 +300,21 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // List invoices with filters + pagination
   // ──────────────────────────────────────────────────────────
-  async getInvoices({ page = 1, limit = 20, customerId, status, search, startDate, endDate } = {}) {
+  async getInvoices({ page = 1, limit = 20, customerId, status, search, startDate, endDate, productId } = {}) {
     const skip = (page - 1) * limit;
+    const statusFilter =
+      status === 'outstanding'
+        ? { status: { in: ['ISSUED', 'PARTIALLY_PAID'] } }
+        : status
+          ? { status }
+          : {};
     const where = {
       deleteStatus: false,
       ...(customerId && { customerId: parseInt(customerId) }),
-      ...(status && { status }),
+      ...statusFilter,
+      ...(productId && {
+        saleOrders: { some: { lens_id: parseInt(productId) } },
+      }),
       ...(search && {
         OR: [
           { invoiceNo: { contains: search, mode: 'insensitive' } },
@@ -494,8 +503,20 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Get ALL delivered, un-billed orders — for the billing screen
   // ──────────────────────────────────────────────────────────
-  async getAllDispatchedOrders({ page = 1, limit = 20, search, customerId } = {}) {
+  async getAllDispatchedOrders({ page = 1, limit = 20, search, customerId, productId, startDate, endDate } = {}) {
     const skip = (page - 1) * limit;
+    const createdAt = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      createdAt.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      createdAt.lte = to;
+    }
+
     const where = {
       status: 'DELIVERED',
       deleteStatus: false,
@@ -508,6 +529,8 @@ export class InvoiceService {
         },
       ],
       ...(customerId && { customerId: parseInt(customerId) }),
+      ...(productId && { lens_id: parseInt(productId) }),
+      ...(Object.keys(createdAt).length ? { createdAt } : {}),
     };
 
     if (search) {
@@ -552,33 +575,175 @@ export class InvoiceService {
   }
 
   // ──────────────────────────────────────────────────────────
-  // Aggregated stats for the Billing dashboard (fast, no row scan)
+  // Aggregated stats for Billing and invoicing KPIs (filter-scoped)
   // ──────────────────────────────────────────────────────────
-  async getStats() {
-    const [total, grouped, outstandingAgg] = await Promise.all([
-      prisma.invoice.count({ where: { deleteStatus: false } }),
+  async getStats({ startDate, endDate, customerId, productId } = {}) {
+    const cid = customerId ? parseInt(customerId) : null;
+    const pid = productId ? parseInt(productId) : null;
+
+    const createdAt = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      createdAt.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      createdAt.lte = to;
+    }
+
+    const dueDate = { ...createdAt };
+
+    const productInvoiceFilter = pid
+      ? { saleOrders: { some: { lens_id: pid } } }
+      : {};
+    const productSoFilter = pid ? { lens_id: pid } : {};
+
+    const invoiceBase = {
+      deleteStatus: false,
+      ...(cid && { customerId: cid }),
+      ...productInvoiceFilter,
+    };
+
+    const billedWhere = {
+      ...invoiceBase,
+      status: { not: 'CANCELLED' },
+      ...(Object.keys(createdAt).length ? { createdAt } : {}),
+    };
+
+    const outstandingWhere = {
+      ...invoiceBase,
+      status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
+    };
+
+    const targetWhere = {
+      ...invoiceBase,
+      status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
+      ...(Object.keys(dueDate).length ? { dueDate } : {}),
+    };
+
+    const awaitingWhere = {
+      status: 'DELIVERED',
+      deleteStatus: false,
+      ...(cid && { customerId: cid }),
+      ...productSoFilter,
+      ...(Object.keys(createdAt).length ? { createdAt } : {}),
+      OR: [{ invoiceId: null }, { invoice: { status: 'CANCELLED' } }],
+    };
+
+    const paymentDateFilter = Object.keys(createdAt).length
+      ? { paymentDate: createdAt }
+      : {};
+    const paymentBase = {
+      delete_status: false,
+      cancelledStatus: false,
+      ...(cid && { customerId: cid }),
+      ...paymentDateFilter,
+      ...(pid
+        ? {
+            items: {
+              some: {
+                invoice: { saleOrders: { some: { lens_id: pid } } },
+              },
+            },
+          }
+        : {}),
+    };
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const todayPaymentWhere = {
+      delete_status: false,
+      cancelledStatus: false,
+      ...(cid && { customerId: cid }),
+      paymentDate: { gte: todayStart, lte: todayEnd },
+      ...(pid
+        ? {
+            items: {
+              some: {
+                invoice: { saleOrders: { some: { lens_id: pid } } },
+              },
+            },
+          }
+        : {}),
+    };
+
+    const [
+      total,
+      grouped,
+      outstandingRows,
+      targetRows,
+      awaitingBills,
+      billingAgg,
+      collectionAgg,
+      todayCollectionAgg,
+    ] = await Promise.all([
+      prisma.invoice.count({ where: invoiceBase }),
       prisma.invoice.groupBy({
         by: ['status'],
-        where: { deleteStatus: false },
+        where: invoiceBase,
         _count: { id: true },
       }),
+      prisma.invoice.findMany({
+        where: outstandingWhere,
+        select: { totalAmount: true, paidAmount: true },
+      }),
+      prisma.invoice.findMany({
+        where: targetWhere,
+        select: { totalAmount: true, paidAmount: true },
+      }),
+      prisma.saleOrder.count({ where: awaitingWhere }),
       prisma.invoice.aggregate({
-        where: { deleteStatus: false, status: { not: 'CANCELLED' } },
-        _sum: { totalAmount: true, paidAmount: true },
+        where: billedWhere,
+        _sum: { totalAmount: true },
+      }),
+      prisma.customerPaymentVoucher.aggregate({
+        where: paymentBase,
+        _sum: { totalAmount: true },
+      }),
+      prisma.customerPaymentVoucher.aggregate({
+        where: todayPaymentWhere,
+        _sum: { totalAmount: true },
       }),
     ]);
 
     const byStatus = {};
     for (const g of grouped) byStatus[g.status] = g._count.id;
 
-    const totalRevenue = outstandingAgg._sum.totalAmount || 0;
-    const totalPaid    = outstandingAgg._sum.paidAmount  || 0;
-    const outstanding  = Math.max(0, totalRevenue - totalPaid);
+    const outstanding = outstandingRows.reduce(
+      (s, inv) => s + Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0)),
+      0
+    );
+    const targetCollection = targetRows.reduce(
+      (s, inv) => s + Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0)),
+      0
+    );
 
-    const pending = (byStatus['DRAFT'] || 0) + (byStatus['ISSUED'] || 0) + (byStatus['PARTIALLY_PAID'] || 0);
-    const paid    = byStatus['PAID'] || 0;
+    const pending =
+      (byStatus['DRAFT'] || 0) +
+      (byStatus['ISSUED'] || 0) +
+      (byStatus['PARTIALLY_PAID'] || 0);
+    const paid = byStatus['PAID'] || 0;
 
-    return { total, pending, paid, outstanding, byStatus };
+    const totalBilling = billingAgg._sum.totalAmount || 0;
+    const totalCollection = parseFloat(collectionAgg._sum.totalAmount || 0);
+    const todayCollection = parseFloat(todayCollectionAgg._sum.totalAmount || 0);
+
+    return {
+      total,
+      pending,
+      paid,
+      outstanding: Math.round(outstanding * 100) / 100,
+      byStatus,
+      totalBilling: Math.round(totalBilling * 100) / 100,
+      awaitingBills,
+      targetCollection: Math.round(targetCollection * 100) / 100,
+      totalCollection: Math.round(totalCollection * 100) / 100,
+      todayCollection: Math.round(todayCollection * 100) / 100,
+    };
   }
 
   // ──────────────────────────────────────────────────────────

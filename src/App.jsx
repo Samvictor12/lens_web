@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -24,7 +24,6 @@ import PurchaseOrderReceive from "./pages/PurchaseOrder/PurchaseOrderReceive";
 import POInwardToInventory from "./pages/PurchaseOrder/POInwardToInventory";
 import Dispatch from "./pages/Dispatch/DispatchMain";
 import DispatchWindow from "./pages/DispatchWindow/DispatchWindowMain";
-import Billing from "./pages/Billing/BillingMain";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
 import Vendors from "./pages/Vendor/VendorsMain";
@@ -84,10 +83,16 @@ import IncomeMain from "./pages/Accounting/Income/IncomeMain";
 import BankAccountsMain from "./pages/Accounting/BankAccounts/BankAccountsMain";
 import IncomeCategoryMain from "./pages/IncomeCategory/IncomeCategoryMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
-import CustomerPayments from "./pages/Accounting/CustomerPayments/CustomerPaymentsMain";
+import BillingAndInvoicingMain from "./pages/Accounting/BillingAndInvoicing/BillingAndInvoicingMain";
+import RecordPaymentPage from "./pages/Accounting/BillingAndInvoicing/RecordPaymentPage";
+import Customer360Main from "./pages/Accounting/Customer360/Customer360Main";
 import FinancialReports from "./pages/Accounting/FinancialReports";
 import GstReports from "./pages/Accounting/GstReports";
 import BankReconciliation from "./pages/Accounting/BankReconciliation/BankReconciliationMain";
+import {
+  BILLING_AND_INVOICING_PATH,
+  RECORD_PAYMENT_PATH,
+} from "./constants/accountingPaths";
 
 const queryClient = new QueryClient();
 
@@ -139,6 +144,37 @@ const LegacyFittingOperatorRedirect = () => {
 const LegacyInventoryInwardRedirect = () => {
   const { id, receiptId } = useParams();
   return <Navigate to={`/inventory/stock/inward/${id}/${receiptId}`} replace />;
+};
+
+/** Legacy /billing → Billing and invoicing (preserve query). */
+const LegacyBillingRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const qs = searchParams.toString();
+  return (
+    <Navigate
+      to={qs ? `${BILLING_AND_INVOICING_PATH}?${qs}` : BILLING_AND_INVOICING_PATH}
+      replace
+    />
+  );
+};
+
+/** Legacy /accounts/customer-payments → merged workspace or Record Payment. */
+const LegacyCustomerPaymentsRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const openForm = searchParams.get("openForm");
+  const next = new URLSearchParams(searchParams);
+  next.delete("openForm");
+  const qs = next.toString();
+  if (openForm === "1") {
+    return (
+      <Navigate
+        to={qs ? `${RECORD_PAYMENT_PATH}?${qs}` : RECORD_PAYMENT_PATH}
+        replace
+      />
+    );
+  }
+  const tabQs = qs ? `${qs}&tab=payments` : "tab=payments";
+  return <Navigate to={`${BILLING_AND_INVOICING_PATH}?${tabQs}`} replace />;
 };
 
 const SessionExpiryHandler = () => {
@@ -227,12 +263,27 @@ const AppRoutes = () => (
       <Route path="/quality/operator" element={<ProtectedRoute><QualityOperatorList title="Post-QC" /></ProtectedRoute>} />
       <Route path="/quality/operator/:id" element={<ProtectedRoute><QualityOrderDetail /></ProtectedRoute>} />
       <Route path="/live-tracking" element={<ProtectedRoute allowedPermission="live_tracking"><LiveTrackingMain /></ProtectedRoute>} />
-      <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      <Route path="/billing" element={<ProtectedRoute><LegacyBillingRedirect /></ProtectedRoute>} />
+      <Route
+        path="/accounts/billing-and-invoicing"
+        element={<ProtectedRoute><BillingAndInvoicingMain /></ProtectedRoute>}
+      />
+      <Route
+        path="/accounts/billing-and-invoicing/record-payment"
+        element={<ProtectedRoute><RecordPaymentPage /></ProtectedRoute>}
+      />
+      <Route
+        path="/accounts/customer-360"
+        element={<ProtectedRoute><Customer360Main /></ProtectedRoute>}
+      />
 
       <Route path="/accounts/expenses" element={<ProtectedRoute><ExpensesMain /></ProtectedRoute>} />
       <Route path="/accounts/income" element={<ProtectedRoute><IncomeMain /></ProtectedRoute>} />
       <Route path="/accounts/bank-accounts" element={<ProtectedRoute><BankAccountsMain /></ProtectedRoute>} />
-      <Route path="/accounts/customer-payments" element={<ProtectedRoute><CustomerPayments /></ProtectedRoute>} />
+      <Route
+        path="/accounts/customer-payments"
+        element={<ProtectedRoute><LegacyCustomerPaymentsRedirect /></ProtectedRoute>}
+      />
       <Route path="/accounts/vendor-payments" element={<ProtectedRoute><VendorPayments /></ProtectedRoute>} />
       <Route path="/accounts/bank-reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
       <Route path="/accounts/ledgers" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />

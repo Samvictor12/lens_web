@@ -92,11 +92,28 @@ export class CustomerPaymentService {
     });
   }
 
-  async getOutstanding({ groupBy = 'customer' } = {}) {
+  async getOutstanding({ groupBy = 'customer', customerId, productId, startDate, endDate } = {}) {
+    const dueDate = {};
+    if (startDate) {
+      const from = new Date(startDate);
+      from.setHours(0, 0, 0, 0);
+      dueDate.gte = from;
+    }
+    if (endDate) {
+      const to = new Date(endDate);
+      to.setHours(23, 59, 59, 999);
+      dueDate.lte = to;
+    }
+
     const invoices = await prisma.invoice.findMany({
       where: {
         status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
         deleteStatus: false,
+        ...(customerId && { customerId: parseInt(customerId) }),
+        ...(productId && {
+          saleOrders: { some: { lens_id: parseInt(productId) } },
+        }),
+        ...(Object.keys(dueDate).length ? { dueDate } : {}),
       },
       include: {
         customer: {
@@ -109,6 +126,10 @@ export class CustomerPaymentService {
             phone: true,
             address: true,
             state: true,
+            advance_credit: true,
+            outstanding_credit: true,
+            credit_days: true,
+            ledgerId: true,
           },
         },
       },
@@ -147,6 +168,10 @@ export class CustomerPaymentService {
             city: c.city || '',
             phone: c.phone || '',
             address: [c.address, c.city, c.state].filter(Boolean).join(', '),
+            advanceCredit: round2(c.advance_credit || 0),
+            outstandingCredit: round2(c.outstanding_credit || 0),
+            creditDays: c.credit_days ?? 0,
+            ledgerId: c.ledgerId || null,
             invoices: [],
           });
         }
@@ -159,16 +184,36 @@ export class CustomerPaymentService {
   }
 
   async create(
-    { customerId, paymentDate, paymentMethod, bankLedgerId, referenceNo, notes, totalAmount, items, advanceAmount = 0, acceptAdvance },
+    {
+      customerId,
+      paymentDate,
+      paymentMethod,
+      bankLedgerId,
+      referenceNo,
+      notes,
+      totalAmount,
+      items,
+      advanceAmount = 0,
+      acceptAdvance,
+      applyAdvanceAmount = 0,
+    },
     userId
   ) {
     paymentMethod = normalizePaymentMethod(paymentMethod);
-    if (!customerId || !paymentMethod || !bankLedgerId || !items?.length) {
-      throw new APIError('customerId, paymentMethod, bankLedgerId, items[] required', 400, 'VALIDATION_ERROR');
+    if (!customerId || !paymentMethod || !items?.length) {
+      throw new APIError('customerId, paymentMethod, items[] required', 400, 'VALIDATION_ERROR');
     }
 
-    const total = round2(totalAmount);
-    if (total <= 0) throw new APIError('Total amount must be greater than zero', 400, 'VALIDATION_ERROR');
+    const cashAmount = round2(totalAmount);
+    const applyPrior = round2(applyAdvanceAmount || 0);
+    if (cashAmount < 0) throw new APIError('Total amount cannot be negative', 400, 'VALIDATION_ERROR');
+    if (applyPrior < 0) throw new APIError('Apply advance amount cannot be negative', 400, 'VALIDATION_ERROR');
+    if (cashAmount <= 0 && applyPrior <= 0) {
+      throw new APIError('Payment amount or prior advance apply must be greater than zero', 400, 'VALIDATION_ERROR');
+    }
+    if (cashAmount > 0 && !bankLedgerId) {
+      throw new APIError('bankLedgerId required when receiving cash/bank payment', 400, 'VALIDATION_ERROR');
+    }
 
     const advance = round2(advanceAmount || 0);
     if (advance < 0) throw new APIError('Advance amount cannot be negative', 400, 'VALIDATION_ERROR');
@@ -181,7 +226,14 @@ export class CustomerPaymentService {
       where: { id: { in: invoiceIds }, deleteStatus: false },
       include: {
         saleOrders: { select: { id: true } },
-        customer: { select: { id: true, code: true, ledgerId: true } },
+        customer: {
+          select: {
+            id: true,
+            code: true,
+            ledgerId: true,
+            advance_credit: true,
+          },
+        },
       },
     });
 
@@ -203,6 +255,17 @@ export class CustomerPaymentService {
     const customer = invoices[0].customer;
     if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
+    const availableAdvance = round2(customer.advance_credit || 0);
+    if (applyPrior > availableAdvance + 0.01) {
+      throw new APIError(
+        `Apply advance (₹${applyPrior.toFixed(2)}) exceeds available advance credit (₹${availableAdvance.toFixed(2)})`,
+        400,
+        'INSUFFICIENT_ADVANCE'
+      );
+    }
+
+    const pool = round2(cashAmount + applyPrior);
+
     const allocationItems = invoices.map((inv) => ({
       id: inv.id,
       outstanding: round2(inv.totalAmount - inv.paidAmount),
@@ -220,18 +283,20 @@ export class CustomerPaymentService {
       }
     }
 
+    // Distribute cash + prior advance, reserving new excess advance from the pool
+    const distributable = round2(pool - advance);
     const { allocations, remaining } = distributePayment({
       items: allocationItems,
-      totalAmount: total - advance,
+      totalAmount: distributable,
       overrides: hasExplicitAllocations ? overrides : {},
     });
 
     const allocationSum = round2(allocations.reduce((s, a) => s + a.amount, 0));
-    const expectedAdvance = round2(total - allocationSum);
+    const expectedAdvance = round2(pool - allocationSum);
 
-    if (Math.abs(allocationSum + advance - total) > 0.01) {
+    if (Math.abs(allocationSum + advance - pool) > 0.01) {
       throw new APIError(
-        `Allocations (${allocationSum}) + advance (${advance}) must equal total (${total})`,
+        `Allocations (${allocationSum}) + advance (${advance}) must equal cash+prior advance (${pool})`,
         400,
         'ALLOCATION_MISMATCH'
       );
@@ -259,6 +324,22 @@ export class CustomerPaymentService {
 
     const receiptNumber = await generateReceiptNumber();
     const arClearance = allocationSum;
+    // Prefer a bank ledger when cash received; otherwise reuse any for voucher FK when advance-only
+    let resolvedBankLedgerId = bankLedgerId ? parseInt(bankLedgerId) : null;
+    if (!resolvedBankLedgerId) {
+      const fallback = await prisma.ledger.findFirst({
+        where: {
+          delete_status: false,
+          active_status: true,
+          accountGroup: { groupCode: { in: ['GRP-CASH', 'GRP-BANK'] } },
+        },
+        select: { id: true },
+      });
+      if (!fallback) {
+        throw new APIError('No cash/bank ledger available for advance-only receipt', 400, 'LEDGER_NOT_FOUND');
+      }
+      resolvedBankLedgerId = fallback.id;
+    }
 
     return prisma.$transaction(async (tx) => {
       const voucher = await tx.customerPaymentVoucher.create({
@@ -266,12 +347,17 @@ export class CustomerPaymentService {
           receiptNumber,
           customerId: cid,
           paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-          totalAmount: total,
+          totalAmount: cashAmount,
           advanceAmount: advance,
           paymentMethod,
-          bankLedgerId: parseInt(bankLedgerId),
+          bankLedgerId: resolvedBankLedgerId,
           referenceNo: referenceNo || null,
-          notes: notes || null,
+          notes: [
+            notes || null,
+            applyPrior > 0 ? `Applied prior advance: ₹${applyPrior.toFixed(2)}` : null,
+          ]
+            .filter(Boolean)
+            .join(' | ') || null,
           closedStatus: true,
           closedAt: new Date(),
           createdBy: userId,
@@ -326,20 +412,28 @@ export class CustomerPaymentService {
         });
       }
 
-      if (advance > 0) {
+      const advanceDelta = round2(advance - applyPrior);
+      if (Math.abs(advanceDelta) > 0.001) {
         await tx.customer.update({
           where: { id: cid },
-          data: { advance_credit: { increment: advance } },
+          data: {
+            advance_credit:
+              advanceDelta > 0
+                ? { increment: advanceDelta }
+                : { decrement: Math.abs(advanceDelta) },
+          },
         });
       }
 
-      await postCustomerPaymentReceipt(tx, {
-        voucherId: voucher.id,
-        receiptNumber,
-        totalAmount: total,
-        bankLedgerId: parseInt(bankLedgerId),
-        customer,
-      }, userId);
+      if (cashAmount > 0) {
+        await postCustomerPaymentReceipt(tx, {
+          voucherId: voucher.id,
+          receiptNumber,
+          totalAmount: cashAmount,
+          bankLedgerId: resolvedBankLedgerId,
+          customer,
+        }, userId);
+      }
 
       return voucher;
     });

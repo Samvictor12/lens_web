@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { getInvoices, getInvoiceStats } from "@/services/invoice";
 
 import { fmt, PAGE_SIZE, billingFilters, canRecordPayment } from "./Billing.constants";
+import { recordPaymentPath } from "@/constants/accountingPaths";
 import BillingFilter from "./BillingFilter";
 import BillingDashboard from "./BillingDashboard";
 import InvoiceCard, { InvoiceStatusBadge } from "./InvoiceCard";
@@ -173,16 +174,15 @@ export default function BillingMain() {
       toast.error("Invoice must be issued before recording payment.");
       return;
     }
-    const params = new URLSearchParams({
-      customerId: String(inv.customerId),
-      invoiceId: String(inv.id),
-      openForm: "1",
-    });
-    if (lockAmount) {
-      const outstanding = Math.max(0, inv.totalAmount - inv.paidAmount);
-      params.set("amount", String(outstanding.toFixed(2)));
-    }
-    navigate(`/accounts/customer-payments?${params.toString()}`);
+    navigate(
+      recordPaymentPath({
+        customerId: inv.customerId,
+        invoiceId: inv.id,
+        amount: lockAmount
+          ? Math.max(0, inv.totalAmount - inv.paidAmount).toFixed(2)
+          : undefined,
+      })
+    );
   };
 
   // Invoice list controls

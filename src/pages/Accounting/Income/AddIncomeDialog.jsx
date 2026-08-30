@@ -22,31 +22,59 @@ import { createIncome } from "@/services/income";
 import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 import { emptyIncomeForm } from "./Income.constants";
 
-export default function AddIncomeDialog({ open, onOpenChange, categories, transferLedgers, onCreated }) {
+const LOAN_CATEGORY_NAME = "Loan";
+
+export default function AddIncomeDialog({
+  open,
+  onOpenChange,
+  mode = "income",
+  loanCategory,
+  categories,
+  transferLedgers,
+  onCreated,
+}) {
   const { toast } = useToast();
   const [form, setForm] = useState(emptyIncomeForm);
   const [saving, setSaving] = useState(false);
+  const isLoans = mode === "loans";
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  const activeCategories = useMemo(
-    () =>
-      (categories || []).filter(
-        (c) => c.active_status !== false && c.delete_status !== true
-      ),
-    [categories]
-  );
+  const activeCategories = useMemo(() => {
+    const list = (categories || []).filter(
+      (c) => c.active_status !== false && c.delete_status !== true
+    );
+    if (isLoans) {
+      return list.filter((c) => c.name === LOAN_CATEGORY_NAME);
+    }
+    return list.filter((c) => c.name !== LOAN_CATEGORY_NAME);
+  }, [categories, isLoans]);
+
+  const resolvedLoanCategory = loanCategory || activeCategories.find((c) => c.name === LOAN_CATEGORY_NAME);
 
   const ledgerOptions = transferLedgers || [];
 
   useEffect(() => {
     if (!open) return;
-    setForm(emptyIncomeForm);
-  }, [open]);
+    const base = { ...emptyIncomeForm };
+    if (isLoans && resolvedLoanCategory?.id) {
+      base.categoryId = String(resolvedLoanCategory.id);
+    }
+    setForm(base);
+  }, [open, isLoans, resolvedLoanCategory?.id]);
 
   const handleSave = async () => {
-    if (!form.categoryId || !form.amount || !form.description || !form.fromLedgerId || !form.toLedgerId) {
-      toast({ variant: "destructive", title: "Category, amount, description, From and To are required" });
+    const categoryId = isLoans
+      ? resolvedLoanCategory?.id || form.categoryId
+      : form.categoryId;
+
+    if (!categoryId || !form.amount || !form.description || !form.fromLedgerId || !form.toLedgerId) {
+      toast({
+        variant: "destructive",
+        title: isLoans
+          ? "Amount, description, From and To are required (Loan category must exist)"
+          : "Category, amount, description, From and To are required",
+      });
       return;
     }
     if (form.fromLedgerId === form.toLedgerId) {
@@ -60,7 +88,7 @@ export default function AddIncomeDialog({ open, onOpenChange, categories, transf
     setSaving(true);
     try {
       const res = await createIncome({
-        categoryId: parseInt(form.categoryId, 10),
+        categoryId: parseInt(categoryId, 10),
         description: form.description,
         amount: parseFloat(form.amount),
         incomeDate: form.incomeDate,
@@ -71,21 +99,20 @@ export default function AddIncomeDialog({ open, onOpenChange, categories, transf
         notes: form.notes || null,
       });
       if (res.success) {
-        toast({ title: "Income recorded" });
+        toast({ title: isLoans ? "Loan recorded" : "Income recorded" });
         onOpenChange(false);
         onCreated?.();
       }
     } catch (e) {
       toast({
         variant: "destructive",
-        title: e?.response?.data?.message || e.message || "Failed to save income",
+        title: e?.response?.data?.message || e.message || "Failed to save",
       });
     } finally {
       setSaving(false);
     }
   };
 
-  // Compose optional group suffix, then reuse shared balance formatter
   const ledgerLabel = (l) => {
     const group = l.accountGroup?.groupName || l.accountGroup?.groupCode;
     const name = group ? `${l.ledgerName} (${group})` : l.ledgerName;
@@ -96,66 +123,128 @@ export default function AddIncomeDialog({ open, onOpenChange, categories, transf
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Record Income</DialogTitle>
+          <DialogTitle>{isLoans ? "Record Loan" : "Record Income"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 py-2">
           <div className="space-y-1">
-            <Label>Category <span className="text-red-500">*</span></Label>
-            <Select value={form.categoryId || undefined} onValueChange={(v) => set("categoryId", v)}>
-              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <Label>
+              Category <span className="text-red-500">*</span>
+            </Label>
+            {isLoans ? (
+              <Input
+                value={resolvedLoanCategory?.name || LOAN_CATEGORY_NAME}
+                disabled
+                readOnly
+              />
+            ) : (
+              <Select value={form.categoryId || undefined} onValueChange={(v) => set("categoryId", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeCategories.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label>
+              Date <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              type="date"
+              value={form.incomeDate}
+              onChange={(e) => set("incomeDate", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>
+              Description <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>
+              Amount <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.amount}
+              onChange={(e) => set("amount", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>
+              From <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={form.fromLedgerId || undefined}
+              onValueChange={(v) => set("fromLedgerId", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select source ledger" />
+              </SelectTrigger>
               <SelectContent>
-                {activeCategories.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                {ledgerOptions.map((l) => (
+                  <SelectItem key={l.id} value={String(l.id)}>
+                    {ledgerLabel(l)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>Date <span className="text-red-500">*</span></Label>
-            <Input type="date" value={form.incomeDate} onChange={(e) => set("incomeDate", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Description <span className="text-red-500">*</span></Label>
-            <Input value={form.description} onChange={(e) => set("description", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Amount <span className="text-red-500">*</span></Label>
-            <Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>From <span className="text-red-500">*</span></Label>
-            <Select value={form.fromLedgerId || undefined} onValueChange={(v) => set("fromLedgerId", v)}>
-              <SelectTrigger><SelectValue placeholder="Select source ledger" /></SelectTrigger>
+            <Label>
+              To <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={form.toLedgerId || undefined}
+              onValueChange={(v) => set("toLedgerId", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select destination ledger" />
+              </SelectTrigger>
               <SelectContent>
                 {ledgerOptions.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>{ledgerLabel(l)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>To <span className="text-red-500">*</span></Label>
-            <Select value={form.toLedgerId || undefined} onValueChange={(v) => set("toLedgerId", v)}>
-              <SelectTrigger><SelectValue placeholder="Select destination ledger" /></SelectTrigger>
-              <SelectContent>
-                {ledgerOptions.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>{ledgerLabel(l)}</SelectItem>
+                  <SelectItem key={l.id} value={String(l.id)}>
+                    {ledgerLabel(l)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
             <Label>Reference No.</Label>
-            <Input value={form.referenceNo} onChange={(e) => set("referenceNo", e.target.value)} />
+            <Input
+              value={form.referenceNo}
+              onChange={(e) => set("referenceNo", e.target.value)}
+            />
           </div>
           <div className="space-y-1">
             <Label>Notes</Label>
-            <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} />
+            <Textarea
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              rows={2}
+            />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

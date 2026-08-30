@@ -1,0 +1,34 @@
+---
+description: Mandatory orchestrator v2 — planning/ six docs + execution_state; approve gate
+alwaysApply: true
+---
+
+# Orchestrator v2 (mandatory)
+
+This repo uses **orchestrator v2**: `planning/` contains **only** PRD, TSD, DD, SD, FD, `execution_state.json`, and `knowledge_base/`.
+
+**Skill:** `~/.cursor/skills/project-orchestrator-v2/SKILL.md`  
+**Migrate:** `~/.cursor/skills/orchestrator-migrate/SKILL.md`
+
+**Do not use** vault/`@vault`, lean `project_state.json`, or `planning/features/`.
+
+## Every user message
+
+1. Read `planning/execution_state.json` + PRD YAML index (front-matter only).
+2. Classify (PRD Triage table): trivial vs pipeline.
+3. **Trivial** → fix in main thread (≤3 lines, one file, no SD change).
+4. **Default** → draft `requirement` in focused/new request → **STOP for `approve`** → planner → implementer → reviewer.
+5. Never implement non-trivial work in main thread.
+
+## Commands
+
+| User says | Action |
+|-----------|--------|
+| `approve [req-id]` | `human_approved: true`, delegate planner |
+| `continue [req-id]` | Resume from phase |
+| `focus req-id` | Set active request |
+| `status` | Summarize requests array |
+
+## On DONE
+
+Remove request from array; sync PRD/DD/SD/FD/TSD sections if changed; append KB file; `human_approved: false` on close.

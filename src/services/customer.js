@@ -58,6 +58,8 @@ const mapFromBackend = (backendData) => {
     creditLimit: backendData.credit_limit || 0,
     creditDays: backendData.credit_days ?? 0,
     outstandingBalance: backendData.outstanding_credit || 0,
+    advanceCredit: backendData.advance_credit || 0,
+    ledgerId: backendData.ledgerId || backendData.ledger?.id || null,
     salePersonId: backendData.sale_person_id || null,
     deliveryPersonId: backendData.delivery_person_id || null,
     salePerson: backendData.salePerson || null,

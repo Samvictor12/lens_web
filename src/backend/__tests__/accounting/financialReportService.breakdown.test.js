@@ -153,7 +153,9 @@ describe('accountingPaths', () => {
     const { invoiceDetailPath, purchaseOrderDetailPath } = await import(
       '../../../constants/accountingPaths.js'
     );
-    expect(invoiceDetailPath(42)).toBe('/billing?invoiceId=42&openDetail=1');
+    expect(invoiceDetailPath(42)).toBe(
+      '/accounts/billing-and-invoicing?invoiceId=42&openDetail=1'
+    );
     expect(purchaseOrderDetailPath(7)).toBe('/masters/purchase-orders/view/7');
   });
 });

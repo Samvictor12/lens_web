@@ -79,10 +79,9 @@ export class IncomeService {
 
   // ── Income ──────────────────────────────────────────────────
 
-  async list({ categoryId, from, to, paymentMethod, page = 1, limit = 20 }) {
+  async list({ categoryId, excludeCategoryId, from, to, paymentMethod, search, page = 1, limit = 20 }) {
     const where = {
       delete_status: false,
-      ...(categoryId && { categoryId: parseInt(categoryId) }),
       ...(paymentMethod && { paymentMethod }),
       ...((from || to) && {
         incomeDate: {
@@ -90,7 +89,19 @@ export class IncomeService {
           ...(to && { lte: new Date(new Date(to).setHours(23, 59, 59, 999)) }),
         },
       }),
+      ...(search && {
+        OR: [
+          { incomeNumber: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { referenceNo: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
     };
+    if (categoryId) {
+      where.categoryId = parseInt(categoryId);
+    } else if (excludeCategoryId) {
+      where.categoryId = { not: parseInt(excludeCategoryId) };
+    }
     const [data, total] = await Promise.all([
       prisma.income.findMany({
         where,
@@ -124,7 +135,32 @@ export class IncomeService {
       where,
       include: { category: { select: { name: true } } },
     });
-    const totalIncome = incomes.reduce((s, e) => s + parseFloat(e.amount), 0);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const inCurrentMonth = (d) => {
+      const t = new Date(d).getTime();
+      return t >= monthStart.getTime() && t <= monthEnd.getTime();
+    };
+
+    let totalIncome = 0;
+    let totalLoans = 0;
+    let monthIncome = 0;
+    let monthLoans = 0;
+
+    for (const e of incomes) {
+      const amt = parseFloat(e.amount) || 0;
+      const isLoan = e.category?.name === 'Loan';
+      if (isLoan) {
+        totalLoans += amt;
+        if (inCurrentMonth(e.incomeDate)) monthLoans += amt;
+      } else {
+        totalIncome += amt;
+        if (inCurrentMonth(e.incomeDate)) monthIncome += amt;
+      }
+    }
+
     const byCategory = Object.values(
       incomes.reduce((acc, e) => {
         const k = e.category.name;
@@ -134,7 +170,13 @@ export class IncomeService {
         return acc;
       }, {})
     );
-    return { totalIncome: totalIncome.toFixed(2), byCategory };
+    return {
+      totalIncome: totalIncome.toFixed(2),
+      totalLoans: totalLoans.toFixed(2),
+      monthIncome: monthIncome.toFixed(2),
+      monthLoans: monthLoans.toFixed(2),
+      byCategory,
+    };
   }
 
   async getById(id) {
