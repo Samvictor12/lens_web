@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,10 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { FormSelect } from "@/components/ui/form-select";
-import { FormInput } from "@/components/ui/form-input";
-import { FormTextarea } from "@/components/ui/form-textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   getDeliveredOrdersForCustomer,
@@ -43,7 +42,8 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Sync state when dialog opens — always start with 0 orders selected
+  const customerLocked = Boolean(initialCustomerId);
+
   useEffect(() => {
     if (open) {
       setCustomerId(initialCustomerId || "");
@@ -55,7 +55,6 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     }
   }, [open, initialCustomerId]);
 
-  // Only customers currently in the Awaiting Invoice queue
   const { data: customersRes, isLoading: customersLoading } = useQuery({
     queryKey: ["awaiting-invoice-customers"],
     queryFn: getAwaitingInvoiceCustomers,
@@ -81,7 +80,6 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
   });
   const deliveredOrders = ordersRes?.data || [];
 
-  // Auto-fill Due Date = today + customer creditDays when customer changes
   useEffect(() => {
     if (!open || !customerId) return;
     const list = customersRes?.data || [];
@@ -93,7 +91,6 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
     setDueDate(formatLocalDate(d));
   }, [open, customerId, customersRes?.data]);
 
-  // Drop selections that fall out of the filtered list
   useEffect(() => {
     const ids = new Set(deliveredOrders.map((o) => o.id));
     setSelectedOrderIds((prev) => prev.filter((id) => ids.has(id)));
@@ -127,14 +124,13 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
 
-  const selectedTotal = deliveredOrders
-    .filter((o) => selectedOrderIds.includes(o.id))
-    .reduce((s, o) => s + orderTotal(o), 0);
+  const selectedOrders = deliveredOrders.filter((o) => selectedOrderIds.includes(o.id));
+  const selectedSubtotal = selectedOrders.reduce((s, o) => s + orderTotal(o), 0);
 
   const taxRates = useMemo(() => getInvoiceTaxRatesFromCompany(company), [company]);
   const taxBreakdown = useMemo(
-    () => calcInvoiceTaxBreakdown(selectedTotal, taxRates.gstPercent, taxRates.sgstPercent),
-    [selectedTotal, taxRates.gstPercent, taxRates.sgstPercent]
+    () => calcInvoiceTaxBreakdown(selectedSubtotal, taxRates.gstPercent, taxRates.sgstPercent),
+    [selectedSubtotal, taxRates.gstPercent, taxRates.sgstPercent]
   );
 
   const selectedCustomerCreditDays = useMemo(() => {
@@ -157,163 +153,218 @@ export default function CreateInvoiceDialog({ open, onClose, initialCustomerId =
         if (!next) handleClose();
       }}
     >
-      <DialogContent className="max-w-2xl max-h-[90vh] !flex flex-col p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-4 pt-4 pb-3 pr-12 border-b shrink-0 space-y-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" /> Create Invoice / Bill
-          </DialogTitle>
+      <DialogContent className="!flex !flex-col !w-[75vw] !max-w-[75vw] !h-[88vh] !max-h-[88vh] overflow-hidden gap-0 p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12">
+          <DialogTitle>Create Invoice / Bill</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
-          <FormSelect
-            label="Customer"
-            name="customerId"
-            options={customers}
-            value={customerId}
-            onChange={(v) => {
-              setCustomerId(v || "");
-              setSelectedOrderIds([]);
-            }}
-            placeholder={
-              customersLoading
-                ? "Loading customers…"
-                : customers.length === 0
-                  ? "No customers awaiting invoice"
-                  : "Select customer…"
-            }
-            isSearchable
-            isClearable
-            required
-            helperText="Only customers with delivered, unbilled orders"
-          />
+        <div className="min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,17.5rem)_minmax(0,1fr)] grid-rows-1 gap-0 overflow-hidden border-t">
+          {/* Left — invoice details */}
+          <div className="min-h-0 h-full overflow-y-auto space-y-4 px-4 py-4 border-b lg:border-b-0 lg:border-r">
+            <FormSelect
+              label="Customer"
+              name="customerId"
+              options={customers}
+              value={customerId}
+              onChange={(v) => {
+                setCustomerId(v || "");
+                setSelectedOrderIds([]);
+              }}
+              placeholder={
+                customersLoading
+                  ? "Loading customers…"
+                  : customers.length === 0
+                    ? "No customers awaiting invoice"
+                    : "Select customer…"
+              }
+              isSearchable
+              isClearable={!customerLocked}
+              disabled={customerLocked}
+              required
+            />
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              Only customers with delivered, unbilled orders
+            </p>
 
-          {customerId && (
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">
-                Delivered Orders (select to include){" "}
-                <span className="text-red-500">*</span>
+            <div className="space-y-1">
+              <Label>
+                Due Date <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+              {customerId && (
+                <p className="text-[11px] text-muted-foreground">
+                  Auto-set from credit days ({selectedCustomerCreditDays} day
+                  {selectedCustomerCreditDays === 1 ? "" : "s"}). You can override.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Optional notes"
+              />
+            </div>
+          </div>
+
+          {/* Right — sale order selection */}
+          <div className="min-h-0 h-full flex flex-col overflow-hidden px-6 py-4">
+            <div className="shrink-0 space-y-2 mb-3">
+              <Label>
+                Sale Orders <span className="text-red-500">*</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Delivered orders not yet invoiced. Filter by created date, then select orders to
+                include on this bill.
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                <FormInput
-                  label="Created From"
-                  name="soStartDate"
+              <div className="flex flex-wrap items-end gap-2">
+                <span className="text-[10px] font-medium text-muted-foreground shrink-0 pb-2">
+                  Created Date
+                </span>
+                <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => {
                     setStartDate(e.target.value);
                     setSelectedOrderIds([]);
                   }}
+                  className="!h-8 min-w-[110px] max-w-[140px] text-xs px-1.5"
+                  title="Created from"
+                  disabled={!customerId}
                 />
-                <FormInput
-                  label="Created To"
-                  name="soEndDate"
+                <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => {
                     setEndDate(e.target.value);
                     setSelectedOrderIds([]);
                   }}
+                  className="!h-8 min-w-[110px] max-w-[140px] text-xs px-1.5"
+                  title="Created to"
+                  disabled={!customerId}
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Leave dates empty to show all unbilled delivered orders. Filter uses sale order created date.
-              </p>
-              {ordersLoading ? (
-                <p className="text-sm text-muted-foreground py-2">Loading orders…</p>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
+              {!customerId ? (
+                <p className="text-xs text-muted-foreground py-2">Select a customer to load sale orders.</p>
+              ) : ordersLoading ? (
+                <p className="text-xs text-muted-foreground py-2">Loading sale orders…</p>
               ) : deliveredOrders.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  No un-billed orders for this customer
-                  {startDate || endDate ? " in the selected date range" : ""}. Orders must be in{" "}
-                  <strong>DELIVERED</strong> status and not already linked to an invoice.
+                <p className="text-xs text-muted-foreground py-2">
+                  No un-billed delivered orders for this customer
+                  {startDate || endDate ? " in the selected date range" : ""}.
                 </p>
               ) : (
-                <div className="border rounded-md divide-y">
-                  {deliveredOrders.map((o) => (
-                    <label
-                      key={o.id}
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedOrderIds.includes(o.id)}
-                        onCheckedChange={() => toggleOrder(o.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-sm">{o.orderNo}</span>
-                        {o.customerRefNo && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            Ref: {o.customerRefNo}
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground ml-2">
-                          {o.lensProduct?.lens_name || "—"} · {o.coating?.name || "—"}
-                        </span>
-                        {o.createdAt && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            · Created {new Date(o.createdAt).toLocaleDateString("en-IN")}
-                          </span>
-                        )}
+                <>
+                  <div className="border rounded-md divide-y text-xs">
+                    <div className="sticky top-0 z-[1] grid grid-cols-[2rem_1fr_6.5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                      <span />
+                      <span>Order</span>
+                      <span className="text-right">Amount</span>
+                    </div>
+                    {deliveredOrders.map((o) => {
+                      const selected = selectedOrderIds.includes(o.id);
+                      return (
+                        <div
+                          key={o.id}
+                          className={`grid grid-cols-[2rem_1fr_6.5rem] gap-2 items-center px-3 py-2 ${selected ? "bg-primary/5" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleOrder(o.id)}
+                            className="h-4 w-4"
+                          />
+                          <div>
+                            <p className="font-medium">{o.orderNo}</p>
+                            <p className="text-muted-foreground">
+                              {o.lensProduct?.lens_name || "—"} · {o.coating?.name || "—"}
+                              {o.customerRefNo ? ` · Ref: ${o.customerRefNo}` : ""}
+                              {o.createdAt
+                                ? ` · ${new Date(o.createdAt).toLocaleDateString("en-IN")}`
+                                : ""}
+                            </p>
+                          </div>
+                          <span className="text-right font-mono pr-1">{fmt(orderTotal(o))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {selectedOrders.length > 0 && (
+                    <div className="border rounded-md divide-y text-xs">
+                      <div className="sticky top-0 z-[1] grid grid-cols-[1fr_6.5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                        <span>Selected — {selectedOrders.length} order(s)</span>
+                        <span className="text-right">Taxable</span>
                       </div>
-                      <span className="text-sm font-semibold shrink-0">
-                        {fmt(orderTotal(o))}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                      {selectedOrders.map((o) => (
+                        <div
+                          key={o.id}
+                          className="grid grid-cols-[1fr_6.5rem] gap-2 items-center px-3 py-2"
+                        >
+                          <p className="font-medium">{o.orderNo}</p>
+                          <span className="text-right font-mono pr-1">{fmt(orderTotal(o))}</span>
+                        </div>
+                      ))}
+                      <div className="grid grid-cols-[1fr_6.5rem] gap-2 px-3 py-2 bg-muted/20 font-semibold">
+                        <span>Subtotal</span>
+                        <span className="text-right font-mono">{fmt(taxBreakdown.taxableAmount)}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
-          )}
-
-          {/* Always show selection summary — defaults to 0 */}
-          <div className="space-y-2 bg-muted px-3 py-2 rounded-md text-sm">
-            <div className="flex justify-between items-center font-medium">
-              <span>{selectedOrderIds.length} order(s) selected</span>
-              <span>Taxable {fmt(taxBreakdown.taxableAmount)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground text-xs">
-              <span>GST ({taxBreakdown.gstPercent}%)</span>
-              <span>{fmt(taxBreakdown.gstAmount)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground text-xs">
-              <span>SGST ({taxBreakdown.sgstPercent}%)</span>
-              <span>{fmt(taxBreakdown.sgstAmount)}</span>
-            </div>
-            <div className="flex justify-between items-center border-t pt-2 text-base font-bold">
-              <span>Final total</span>
-              <span>{fmt(taxBreakdown.totalAmount)}</span>
-            </div>
           </div>
-
-          <FormInput
-            label="Due Date"
-            name="dueDate"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            required
-            helperText={
-              customerId
-                ? `Auto-set from customer credit days (${selectedCustomerCreditDays} day${selectedCustomerCreditDays === 1 ? "" : "s"}). You can override.`
-                : undefined
-            }
-          />
-
-          <FormTextarea
-            label="Notes (optional)"
-            name="notes"
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any remarks…"
-          />
         </div>
 
-        <DialogFooter className="px-4 py-3 border-t shrink-0 gap-2 bg-background sm:justify-end">
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={mutation.isPending}>
-            {mutation.isPending ? "Creating…" : "Create Invoice"}
-          </Button>
+        <DialogFooter className="shrink-0 px-6 py-4 border-t bg-background !flex-row !items-center !justify-between gap-3 flex-wrap">
+          <div className="text-xs sm:text-sm space-y-0.5 min-w-[10rem]">
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>Taxable</span>
+              <span className="font-mono text-foreground">{fmt(taxBreakdown.taxableAmount)}</span>
+            </div>
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>GST ({taxBreakdown.gstPercent}%)</span>
+              <span className="font-mono text-foreground">{fmt(taxBreakdown.gstAmount)}</span>
+            </div>
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>SGST ({taxBreakdown.sgstPercent}%)</span>
+              <span className="font-mono text-foreground">{fmt(taxBreakdown.sgstAmount)}</span>
+            </div>
+            <div className="flex justify-between gap-6 font-semibold border-t pt-0.5">
+              <span>Invoice Total</span>
+              <span className="font-mono">{fmt(taxBreakdown.totalAmount)}</span>
+            </div>
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                mutation.isPending ||
+                !customerId ||
+                !selectedOrderIds.length ||
+                !dueDate ||
+                taxBreakdown.totalAmount <= 0
+              }
+            >
+              {mutation.isPending
+                ? "Creating…"
+                : `Create Invoice ${taxBreakdown.totalAmount > 0 ? fmt(taxBreakdown.totalAmount) : ""}`}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -101,8 +101,8 @@ Merged top-level Billing and Accounting Customer Payments into **Billing and inv
 - Canonical UI: `/accounts/billing-and-invoicing`; Record Payment: `/accounts/billing-and-invoicing/record-payment`
 - Redirects: `/billing`, `/accounts/customer-payments` (incl. `openForm=1`)
 - Shared filters (default current month, customer, product) → KPIs + tabs
-- KPIs: Total Billing, Outstanding, Awaiting Bills, Target Collection (outstanding with `dueDate` in month), Total/Today Collection
-- Tabs: Awaiting Invoices | Invoices (customer-grouped + multi-select) | Payments | Credit Notes | Collection | Customer Ledger
+- KPIs: Total Billing, Outstanding, Awaiting Bills, Target Collection (cumulative collectible: unpaid on `ISSUED`/`PARTIALLY_PAID` where `dueDate <= LEAST(today, filter.endDate)` — includes prior-month overdue; no `startDate` lower bound), Total/Today Collection
+- Tabs: Awaiting Invoices | Invoices (customer-grouped + multi-select) | Payments | Credit Notes | Collection (Balance to Collect + Collections Received) | Customer Ledger
 - Record Payment page: 5 sections; apply prior `advance_credit` + FIFO; POST `/api/customer-payments`
 - CN remains document-only
 

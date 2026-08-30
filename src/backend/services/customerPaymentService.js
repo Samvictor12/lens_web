@@ -92,17 +92,35 @@ export class CustomerPaymentService {
     });
   }
 
-  async getOutstanding({ groupBy = 'customer', customerId, productId, startDate, endDate } = {}) {
+  async getOutstanding({
+    groupBy = 'customer',
+    customerId,
+    productId,
+    startDate,
+    endDate,
+    collectible = false,
+  } = {}) {
     const dueDate = {};
-    if (startDate) {
-      const from = new Date(startDate);
-      from.setHours(0, 0, 0, 0);
-      dueDate.gte = from;
-    }
-    if (endDate) {
-      const to = new Date(endDate);
-      to.setHours(23, 59, 59, 999);
-      dueDate.lte = to;
+    if (collectible) {
+      const cap = new Date();
+      cap.setHours(23, 59, 59, 999);
+      if (endDate) {
+        const filterEnd = new Date(endDate);
+        filterEnd.setHours(23, 59, 59, 999);
+        if (filterEnd < cap) cap.setTime(filterEnd.getTime());
+      }
+      dueDate.lte = cap;
+    } else {
+      if (startDate) {
+        const from = new Date(startDate);
+        from.setHours(0, 0, 0, 0);
+        dueDate.gte = from;
+      }
+      if (endDate) {
+        const to = new Date(endDate);
+        to.setHours(23, 59, 59, 999);
+        dueDate.lte = to;
+      }
     }
 
     const invoices = await prisma.invoice.findMany({

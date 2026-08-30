@@ -11,13 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createCustomerPayment } from "@/services/customerPayment";
@@ -32,6 +25,15 @@ import {
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
+
+function round2(n) {
+  return Math.round(parseFloat(n || 0) * 100) / 100;
+}
+
+const paymentMethodOptions = PAYMENT_METHODS.map((m) => ({
+  id: m,
+  name: PAYMENT_METHOD_LABELS[m],
+}));
 
 export default function CreateCustomerPaymentDialog({
   open,
@@ -86,9 +88,9 @@ export default function CreateCustomerPaymentDialog({
     setAcceptAdvance(false);
   }, [open, isRecordMode, form.customerId]);
 
-  const totalOutstanding = selectedInvoices.reduce(
-    (s, inv) => s + parseFloat(inv.outstanding || 0),
-    0
+  const totalOutstanding = useMemo(
+    () => round2(selectedInvoices.reduce((s, inv) => s + parseFloat(inv.outstanding || 0), 0)),
+    [selectedInvoices]
   );
 
   const paymentAmount = parseFloat(form.totalAmount) || 0;
@@ -104,16 +106,29 @@ export default function CreateCustomerPaymentDialog({
     setAllocations(preview);
   }, [preview]);
 
+  const totalAllocated = useMemo(
+    () => round2(selectedInvoices.reduce((s, inv) => s + (parseFloat(allocations[inv.id]) || 0), 0)),
+    [selectedInvoices, allocations]
+  );
+
   const canSave =
     form.customerId &&
     form.bankLedgerId &&
     paymentAmount > 0 &&
     selectedInvoices.length > 0 &&
+    totalAllocated > 0 &&
     (excess <= 0.01 || (acceptAdvance && excess > 0));
 
   const handleSave = async () => {
     if (!canSave) {
-      toast({ variant: "destructive", title: "Please complete all required fields" });
+      if (excess > 0.01 && !acceptAdvance) {
+        toast({
+          variant: "destructive",
+          title: `Payment exceeds selected invoice outstanding by ${fmt(excess)}`,
+        });
+      } else {
+        toast({ variant: "destructive", title: "Please complete all required fields" });
+      }
       return;
     }
 
@@ -129,8 +144,8 @@ export default function CreateCustomerPaymentDialog({
     setSaving(true);
     try {
       await createCustomerPayment({
-        customerId: parseInt(form.customerId),
-        bankLedgerId: parseInt(form.bankLedgerId),
+        customerId: parseInt(form.customerId, 10),
+        bankLedgerId: parseInt(form.bankLedgerId, 10),
         paymentDate: form.paymentDate,
         paymentMethod: form.paymentMethod,
         referenceNo: form.referenceNumber || undefined,
@@ -192,33 +207,42 @@ export default function CreateCustomerPaymentDialog({
     );
   }, [isRecordMode, preselectedCustomerId, preselectedInvoices, customers]);
 
+  const bankLedgerOptions = bankLedgers.map((l) => ({
+    id: l.id,
+    name: formatCashBankLedgerLabel(l),
+  }));
+
+  const dialogTitle = isRecordMode ? "Record Payment" : "New Customer Payment";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isRecordMode ? "Record Customer Payment" : "New Customer Payment"}
-          </DialogTitle>
+      <DialogContent className="!flex !flex-col !w-[75vw] !max-w-[75vw] !h-[88vh] !max-h-[88vh] overflow-hidden gap-0 p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-3 pr-12">
+          <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <Label>Customer <span className="text-red-500">*</span></Label>
+
+        <div className="min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,17.5rem)_minmax(0,1fr)] grid-rows-1 gap-0 overflow-hidden border-t">
+          {/* Left — payment details */}
+          <div className="min-h-0 h-full overflow-y-auto space-y-4 px-4 py-4 border-b lg:border-b-0 lg:border-r">
             <FormSelect
+              label="Customer"
+              name="customerId"
               options={customerOptions}
-              value={form.customerId || null}
-              onChange={(val) => set("customerId", val != null && val !== "" ? String(val) : "")}
-              placeholder={isRecordMode ? "Customer" : "Search customer with outstanding invoices..."}
+              value={form.customerId}
+              onChange={(value) => {
+                set("customerId", value != null && value !== "" ? String(value) : "");
+              }}
+              placeholder={isRecordMode ? "Customer" : "Search customer with outstanding invoices…"}
               isSearchable
               isClearable={!lockedCustomer}
               disabled={lockedCustomer}
-              menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
-              menuPosition="fixed"
+              required
             />
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Payment Amount <span className="text-red-500">*</span></Label>
+              <Label>
+                Payment Amount <span className="text-red-500">*</span>
+              </Label>
               <Input
                 type="number"
                 min="0"
@@ -227,146 +251,191 @@ export default function CreateCustomerPaymentDialog({
                 onChange={(e) => set("totalAmount", e.target.value)}
                 placeholder="Amount received"
               />
+              {selectedInvoices.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Selected outstanding: {fmt(totalOutstanding)}
+                </p>
+              )}
             </div>
+
             <div className="space-y-1">
-              <Label>Payment Date <span className="text-red-500">*</span></Label>
+              <Label>
+                Payment Date <span className="text-red-500">*</span>
+              </Label>
               <Input
                 type="date"
                 value={form.paymentDate}
                 onChange={(e) => set("paymentDate", e.target.value)}
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Payment Method <span className="text-red-500">*</span></Label>
-              <Select value={form.paymentMethod} onValueChange={(v) => set("paymentMethod", v)}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[9999]">
-                  {PAYMENT_METHODS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {PAYMENT_METHOD_LABELS[m]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Receiving Account <span className="text-red-500">*</span></Label>
-              <Select value={form.bankLedgerId} onValueChange={(v) => set("bankLedgerId", v)}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Cash / Bank account" />
-                </SelectTrigger>
-                <SelectContent className="z-[9999]">
-                  {bankLedgers.map((l) => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      {formatCashBankLedgerLabel(l)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Reference No.</Label>
-            <Input
-              value={form.referenceNumber}
-              onChange={(e) => set("referenceNumber", e.target.value)}
-              placeholder="Cheque / UTR"
+            <FormSelect
+              label="Payment Method"
+              name="paymentMethod"
+              options={paymentMethodOptions}
+              value={form.paymentMethod || null}
+              onChange={(val) => set("paymentMethod", val ?? PAYMENT_METHODS[0])}
+              placeholder="Select payment method"
+              isSearchable={false}
+              isClearable={false}
+              required
             />
+
+            <FormSelect
+              label="Receiving Account"
+              name="bankLedgerId"
+              options={bankLedgerOptions}
+              value={form.bankLedgerId || null}
+              onChange={(val) => set("bankLedgerId", val != null && val !== "" ? String(val) : "")}
+              placeholder="Cash / Bank account"
+              isSearchable
+              isClearable
+              required
+            />
+
+            <div className="space-y-1">
+              <Label>Reference No.</Label>
+              <Input
+                value={form.referenceNumber}
+                onChange={(e) => set("referenceNumber", e.target.value)}
+                placeholder="Cheque / UTR"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => set("notes", e.target.value)}
+                rows={3}
+                placeholder="Optional notes"
+              />
+            </div>
           </div>
 
-          {!isRecordMode && form.customerId && selectedInvoices.length === 0 && (
-            <p className="text-xs text-muted-foreground rounded-md border border-dashed p-3">
-              This customer has no outstanding invoices. Payment cannot be recorded until invoices
-              are issued.
-            </p>
-          )}
-
-          {selectedInvoices.length > 0 && (
-            <div className="space-y-2">
-              <Label>Invoice Allocation (FIFO by due date)</Label>
-              <div className="border rounded-md divide-y text-xs">
-                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
-                  <span>Invoice</span>
-                  <span className="text-right">Outstanding</span>
-                  <span className="text-right w-28">Allocate</span>
-                </div>
-                {selectedInvoices.map((inv) => (
-                  <div
-                    key={inv.id}
-                    className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2"
-                  >
-                    <div>
-                      <p className="font-medium">{inv.invoiceNo}</p>
-                      <p className="text-muted-foreground">
-                        Due {new Date(inv.dueDate).toLocaleDateString("en-IN")}
-                      </p>
-                    </div>
-                    <span className="text-right font-mono">{fmt(inv.outstanding)}</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      max={inv.outstanding}
-                      className="w-28 h-7 text-xs text-right"
-                      value={allocations[inv.id] ?? ""}
-                      onChange={(e) =>
-                        setManualOverrides((prev) => ({
-                          ...prev,
-                          [inv.id]: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                ))}
-                <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 bg-muted/20 font-semibold">
-                  <span>Selected outstanding</span>
-                  <span className="font-mono">{fmt(totalOutstanding)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {excess > 0.01 && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2 text-sm">
-              <p className="text-amber-800">
-                Payment exceeds selected invoice outstanding by <strong>{fmt(excess)}</strong>.
+          {/* Right — invoice allocation */}
+          <div className="min-h-0 h-full flex flex-col overflow-hidden px-6 py-4">
+            <div className="shrink-0 space-y-2 mb-3">
+              <Label>
+                Invoice Allocation (FIFO by due date) <span className="text-red-500">*</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {isRecordMode
+                  ? "Selected outstanding invoices are listed below. Adjust per-invoice allocations as needed."
+                  : "Choose a customer to load their outstanding invoices. Payment is allocated oldest due date first."}
               </p>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="accept-advance"
-                  checked={acceptAdvance}
-                  onCheckedChange={(v) => setAcceptAdvance(!!v)}
-                />
-                <label htmlFor="accept-advance" className="text-xs cursor-pointer">
-                  Treat excess as advance payment
-                </label>
-              </div>
             </div>
-          )}
 
-          <div className="space-y-1">
-            <Label>Notes</Label>
-            <Textarea
-              value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
-              rows={2}
-              placeholder="Optional notes"
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
+              {!form.customerId ? (
+                <p className="text-xs text-muted-foreground py-2">Select a customer first.</p>
+              ) : !isRecordMode && selectedInvoices.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2 rounded-md border border-dashed p-3">
+                  This customer has no outstanding invoices. Payment cannot be recorded until
+                  invoices are issued.
+                </p>
+              ) : selectedInvoices.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  No invoices selected. Choose invoices from the Outstanding tab first.
+                </p>
+              ) : (
+                <div className="border rounded-md divide-y text-xs overflow-x-auto">
+                  <div className="sticky top-0 z-[1] grid grid-cols-[1fr_6.5rem_6.5rem_8rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[36rem]">
+                    <span>Invoice</span>
+                    <span className="text-right">Total</span>
+                    <span className="text-right">Outstanding</span>
+                    <span className="text-right">Allocate</span>
+                  </div>
+                  {selectedInvoices.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="grid grid-cols-[1fr_6.5rem_6.5rem_8rem] gap-2 items-center px-3 py-2 min-w-[36rem]"
+                    >
+                      <div>
+                        <p className="font-medium">{inv.invoiceNo}</p>
+                        <p className="text-muted-foreground">
+                          Due {new Date(inv.dueDate).toLocaleDateString("en-IN")}
+                        </p>
+                      </div>
+                      <span className="text-right font-mono">{fmt(inv.totalAmount)}</span>
+                      <span className="text-right font-mono text-orange-600">
+                        {fmt(inv.outstanding)}
+                      </span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        max={inv.outstanding}
+                        className="h-7 text-xs text-right"
+                        value={allocations[inv.id] ?? ""}
+                        onChange={(e) =>
+                          setManualOverrides((prev) => ({
+                            ...prev,
+                            [inv.id]: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-[1fr_6.5rem_6.5rem_8rem] gap-2 px-3 py-2 bg-muted/20 font-semibold min-w-[36rem]">
+                    <span>Allocated Total</span>
+                    <span />
+                    <span className="text-right font-mono">{fmt(totalOutstanding)}</span>
+                    <span className="text-right font-mono">{fmt(totalAllocated)}</span>
+                  </div>
+                </div>
+              )}
+
+              {excess > 0.01 && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2 text-sm">
+                  <p className="text-amber-800">
+                    Payment exceeds selected invoice outstanding by <strong>{fmt(excess)}</strong>.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="accept-advance"
+                      checked={acceptAdvance}
+                      onCheckedChange={(v) => setAcceptAdvance(!!v)}
+                    />
+                    <label htmlFor="accept-advance" className="text-xs cursor-pointer">
+                      Treat excess as advance payment
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !canSave}>
-            {saving ? "Saving..." : `Record ${fmt(paymentAmount)}`}
-          </Button>
+
+        <DialogFooter className="shrink-0 px-6 py-4 border-t bg-background !flex-row !items-center !justify-between gap-3 flex-wrap">
+          <div className="text-xs sm:text-sm space-y-0.5 min-w-[10rem]">
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>Payment amount</span>
+              <span className="font-mono text-foreground">{fmt(paymentAmount)}</span>
+            </div>
+            <div className="flex justify-between gap-6 text-muted-foreground">
+              <span>Allocated</span>
+              <span className="font-mono text-foreground">{fmt(totalAllocated)}</span>
+            </div>
+            {excess > 0.01 && acceptAdvance && (
+              <div className="flex justify-between gap-6 text-muted-foreground">
+                <span>New advance</span>
+                <span className="font-mono text-foreground">{fmt(excess)}</span>
+              </div>
+            )}
+            <div className="flex justify-between gap-6 font-semibold border-t pt-0.5">
+              <span>Outstanding (selected)</span>
+              <span className="font-mono">{fmt(totalOutstanding)}</span>
+            </div>
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" onClick={handleClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !canSave}>
+              {saving ? "Recording…" : `Record ${paymentAmount > 0 ? fmt(paymentAmount) : ""}`}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

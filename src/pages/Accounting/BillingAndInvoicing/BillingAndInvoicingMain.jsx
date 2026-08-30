@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Plus,
@@ -29,6 +29,7 @@ import {
   getOutstandingInvoices,
 } from "@/services/customerPayment";
 import { getCustomerDropdown } from "@/services/customer";
+import { getCashBankLedgers } from "@/services/ledger";
 import { getLensProductsDropdown } from "@/services/saleOrder";
 import { canRecordPayment } from "@/pages/Billing/Billing.constants";
 import CreateInvoiceDialog from "@/pages/Billing/CreateInvoiceDialog";
@@ -38,12 +39,10 @@ import DispatchedOrdersTab from "@/pages/Billing/DispatchedOrdersTab";
 import OutstandingInvoicesQueue from "@/pages/Accounting/CustomerPayments/OutstandingInvoicesQueue";
 import CreditDebitNotesTab from "@/pages/Accounting/CustomerPayments/CreditDebitNotesTab";
 import { useCustomerPaymentColumns } from "@/pages/Accounting/CustomerPayments/useCustomerPaymentColumns";
+import CreateCustomerPaymentDialog from "@/pages/Accounting/CustomerPayments/CreateCustomerPaymentDialog";
 import CustomerPaymentDetailDialog from "@/pages/Accounting/CustomerPayments/CustomerPaymentDetailDialog";
 import PaymentHistoryExpandRow from "@/components/accounting/PaymentHistoryExpandRow";
-import {
-  currentMonthRange,
-  recordPaymentPath,
-} from "@/constants/accountingPaths";
+import { currentMonthRange } from "@/constants/accountingPaths";
 import BillingAndInvoicingKpis from "./BillingAndInvoicingKpis";
 import CollectionTab from "./CollectionTab";
 import CustomerLedgerTab from "./CustomerLedgerTab";
@@ -68,7 +67,6 @@ function matchesInvoiceSearch(inv, q, group) {
 }
 
 export default function BillingAndInvoicingMain() {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const monthDefaults = useMemo(() => currentMonthRange(), []);
@@ -86,6 +84,12 @@ export default function BillingAndInvoicingMain() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForCustomer, setCreateForCustomer] = useState("");
+  const [createPaymentOpen, setCreatePaymentOpen] = useState(false);
+  const [paymentDialogMode, setPaymentDialogMode] = useState("record");
+  const [paymentPreselectedCustomerId, setPaymentPreselectedCustomerId] = useState("");
+  const [paymentPreselectedInvoiceIds, setPaymentPreselectedInvoiceIds] = useState([]);
+  const [paymentPrefillAmount, setPaymentPrefillAmount] = useState("");
+  const [bankLedgers, setBankLedgers] = useState([]);
   const [detailId, setDetailId] = useState(null);
   const [previewInvoice, setPreviewInvoice] = useState(null);
 
@@ -128,11 +132,13 @@ export default function BillingAndInvoicingMain() {
   useEffect(() => {
     (async () => {
       try {
-        const [custRes, prodRes] = await Promise.all([
+        const [custRes, prodRes, ledgers] = await Promise.all([
           getCustomerDropdown(),
           getLensProductsDropdown(),
+          getCashBankLedgers(),
         ]);
         if (custRes.success) setCustomers(custRes.data || []);
+        setBankLedgers(Array.isArray(ledgers) ? ledgers : []);
         const prodList = prodRes?.data || prodRes || [];
         setProducts(
           (Array.isArray(prodList) ? prodList : []).map((p) => ({
@@ -215,9 +221,12 @@ export default function BillingAndInvoicingMain() {
   ]);
 
   useEffect(() => {
-    if (activeTab === "invoices") fetchOutstanding();
-    else if (activeTab === "payments") fetchPayments();
-  }, [activeTab, fetchOutstanding, fetchPayments]);
+    fetchOutstanding();
+  }, [fetchOutstanding]);
+
+  useEffect(() => {
+    if (activeTab === "payments") fetchPayments();
+  }, [activeTab, fetchPayments]);
 
   const allInvoices = useMemo(
     () => outstandingGroups.flatMap((g) => g.invoices),
@@ -244,36 +253,44 @@ export default function BillingAndInvoicingMain() {
 
   const hasInvoiceSelection = selectedInvoiceIds.length > 0;
 
-  const goRecordPayment = (opts = {}) => {
+  const openRecordPaymentDialog = (opts = {}) => {
     if (opts.invoice) {
       const inv = opts.invoice;
       if (!canRecordPayment(inv.status)) {
         toast({ variant: "destructive", title: "Invoice must be issued before recording payment." });
         return;
       }
-      navigate(
-        recordPaymentPath({
-          customerId: inv.customerId,
-          invoiceId: inv.id,
-          amount: opts.lockAmount
-            ? Math.max(0, inv.totalAmount - inv.paidAmount).toFixed(2)
-            : undefined,
-        })
+      setPaymentDialogMode("record");
+      setPaymentPreselectedCustomerId(String(inv.customerId));
+      setPaymentPreselectedInvoiceIds([inv.id]);
+      setPaymentPrefillAmount(
+        opts.lockAmount
+          ? String(Math.max(0, inv.totalAmount - inv.paidAmount).toFixed(2))
+          : ""
       );
+      setCreatePaymentOpen(true);
       return;
     }
     if (hasInvoiceSelection) {
       const selected = allInvoices.filter((inv) => selectedInvoiceIds.includes(inv.id));
       const customerId = selected[0]?.customerId;
-      navigate(
-        recordPaymentPath({
-          customerId,
-          invoiceIds: selectedInvoiceIds,
-        })
-      );
+      if (!customerId) {
+        toast({ variant: "destructive", title: "Selected invoices must belong to one customer" });
+        return;
+      }
+      const prefill = selected.reduce((sum, inv) => sum + (parseFloat(inv.outstanding) || 0), 0);
+      setPaymentDialogMode("record");
+      setPaymentPreselectedCustomerId(String(customerId));
+      setPaymentPreselectedInvoiceIds([...selectedInvoiceIds]);
+      setPaymentPrefillAmount(prefill > 0 ? String(prefill.toFixed(2)) : "");
+      setCreatePaymentOpen(true);
       return;
     }
-    navigate(recordPaymentPath({ customerId: filters.customerId || undefined }));
+    setPaymentDialogMode("new");
+    setPaymentPreselectedCustomerId(filters.customerId ? String(filters.customerId) : "");
+    setPaymentPreselectedInvoiceIds([]);
+    setPaymentPrefillAmount("");
+    setCreatePaymentOpen(true);
   };
 
   const handleViewPayment = async (p) => {
@@ -326,7 +343,7 @@ export default function BillingAndInvoicingMain() {
               size="xs"
               variant="outline"
               className="gap-1.5 h-8"
-              onClick={() => goRecordPayment()}
+              onClick={() => openRecordPaymentDialog()}
             >
               <CreditCard className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Record Payment</span>
@@ -337,7 +354,7 @@ export default function BillingAndInvoicingMain() {
               size="xs"
               variant="outline"
               className="gap-1.5 h-8"
-              onClick={() => goRecordPayment()}
+              onClick={() => openRecordPaymentDialog()}
             >
               <CreditCard className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Record Payment</span>
@@ -564,7 +581,15 @@ export default function BillingAndInvoicingMain() {
         </TabsContent>
 
         <TabsContent value="collection" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-          <CollectionTab filters={filters} refreshKey={refreshKey} />
+          <CollectionTab
+            filters={filters}
+            collectibleParams={{
+              endDate: filters.endDate,
+              customerId: filters.customerId,
+              productId: filters.productId,
+            }}
+            refreshKey={refreshKey}
+          />
         </TabsContent>
 
         <TabsContent value="ledger" className="mt-0 flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -586,11 +611,11 @@ export default function BillingAndInvoicingMain() {
         onClose={() => setDetailId(null)}
         onPay={(inv) => {
           setDetailId(null);
-          goRecordPayment({ invoice: inv });
+          openRecordPaymentDialog({ invoice: inv });
         }}
         onQuickClose={(inv) => {
           setDetailId(null);
-          goRecordPayment({ invoice: inv, lockAmount: true });
+          openRecordPaymentDialog({ invoice: inv, lockAmount: true });
         }}
         onPreview={(inv) => setPreviewInvoice(inv)}
       />
@@ -598,6 +623,23 @@ export default function BillingAndInvoicingMain() {
         invoice={previewInvoice}
         open={!!previewInvoice}
         onClose={() => setPreviewInvoice(null)}
+      />
+      <CreateCustomerPaymentDialog
+        open={createPaymentOpen}
+        onOpenChange={setCreatePaymentOpen}
+        mode={paymentDialogMode}
+        customers={customers}
+        bankLedgers={bankLedgers}
+        preselectedCustomerId={paymentPreselectedCustomerId}
+        preselectedInvoiceIds={paymentPreselectedInvoiceIds}
+        preselectedInvoices={flatInvoices}
+        prefillAmount={paymentPrefillAmount}
+        onCreated={() => {
+          setRefreshKey((k) => k + 1);
+          setSelectedInvoiceIds([]);
+          fetchOutstanding();
+          fetchPayments();
+        }}
       />
       <CustomerPaymentDetailDialog
         open={detailOpen}

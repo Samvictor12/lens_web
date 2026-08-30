@@ -54,9 +54,6 @@ export const PO_PAYMENT_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED', 
 /** POs eligible for new Vendor Invoice registration (excludes INVOICE_RECEIVED / PAID). */
 export const PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED'];
 
-/** POs eligible for new Vendor Invoice registration (excludes INVOICE_RECEIVED / PAID). */
-export const PO_VENDOR_INVOICE_ELIGIBLE_STATUSES = ['PO_PARTIAL_RECEIVED', 'RECEIVED'];
-
 /** List filter: POs not yet vendor-billed (Pending + Partial + Full Received). */
 export const PO_UNBILLED_LIST_STATUSES = ['DRAFT', 'PO_PARTIAL_RECEIVED', 'RECEIVED'];
 

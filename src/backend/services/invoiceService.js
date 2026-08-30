@@ -593,8 +593,6 @@ export class InvoiceService {
       createdAt.lte = to;
     }
 
-    const dueDate = { ...createdAt };
-
     const productInvoiceFilter = pid
       ? { saleOrders: { some: { lens_id: pid } } }
       : {};
@@ -617,10 +615,18 @@ export class InvoiceService {
       status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
     };
 
+    const targetDueCap = new Date();
+    targetDueCap.setHours(23, 59, 59, 999);
+    if (endDate) {
+      const filterEnd = new Date(endDate);
+      filterEnd.setHours(23, 59, 59, 999);
+      if (filterEnd < targetDueCap) targetDueCap.setTime(filterEnd.getTime());
+    }
+
     const targetWhere = {
       ...invoiceBase,
       status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
-      ...(Object.keys(dueDate).length ? { dueDate } : {}),
+      dueDate: { lte: targetDueCap },
     };
 
     const awaitingWhere = {
