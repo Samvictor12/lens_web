@@ -16,4 +16,7 @@
 | KB-012 | Finance Dashboard | PRD-4.6, DD-2.1, FD-2.4, req-006 |
 | KB-013 | Finance Dashboard reports polish | PRD-4.6, DD-2.1, FD-2.4, req-005 |
 | KB-014 | Indirect expense liability-ledger refactor | PRD-4.5, DD-2.1, SD-1.1, req-007 |
+| KB-015 | Vendor bill GL accrual (not PO receipt) | PRD-4.4, DD-1.1, SD-1.1, req-014 |
+| KB-016 | Inventory Audit and dashboard overhaul | PRD-4.8, DD-1.1, SD-1.1, FD-2.5, req-013 |
+| KB-017 | Income and loans UI simplify | PRD-4.2, FD-2.2, req-017 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

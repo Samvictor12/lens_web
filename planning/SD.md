@@ -105,6 +105,9 @@ Stores physical stock rows. Note that a single row can hold multiple units of id
 ### 1b. InventoryQcReturn
 Pending QC reject returns shown in Inward Queue. Fields include `saleOrderId`, optional `inventoryItemId`, `sourceStatus`, `rejectRemark`, `status` (PENDING|REUSED|DISPOSED), and **`eyeSide`** (`IssuedEyeSide?`, required on new rows). Scrap rejects do **not** create rows. Queue listing filters by `saleOrder.procurementType` (RX vs STOCK godown), not item location godown.
 
+### 1c. InventorySpecThreshold (req-013, 2026-08-31)
+Per-product, per-godown, per-power-spec min/max stock configuration. Fields: `lens_id` FK, `godownType` (`STOCK`|`RX`), `sph`/`cyl`/`add` (`Decimal(6,2)`, normalized), `minQty` Int≥0, `maxQty` Int? nullable. `@@unique([lens_id, godownType, sph, cyl, add])`. Alerts computed at read from `specQty` (sum `InventoryItem.quantity` by lens + coalescePower, godown-scoped) vs threshold — no writes to `InventoryAlert`. Product-level `LensProductMaster.minThresholdQty`/`maxThresholdQty` retained on schema but deprecated for dashboard KPIs.
+
 ### 2. InventoryTransaction
 Records all inward movements (Manual or PO Inward) and outward movements (Sale Order dispatch). Keeps track of historical unit prices and values.
 
@@ -128,7 +131,7 @@ Payment }o--o| CustomerPaymentVoucher : "voucherId"
 ```
 
 ### 7. Vendor Payment Voucher & Vendor Invoice
-Invoice-first payables (2026-07): `VendorInvoice` / `VendorInvoiceItem` link supplier invoices to POs; `VendorPaymentVoucherItem.vendorInvoiceId` allocates payments. **`cancelledStatus` / `cancelledAt`** on vouchers (2026-07-25). Eligible-PO query excludes POs already on a non-cancelled Vendor Invoice.
+Invoice-first payables (2026-07): `VendorInvoice` / `VendorInvoiceItem` link supplier invoices to POs; `VendorPaymentVoucherItem.vendorInvoiceId` allocates payments. **`cancelledStatus` / `cancelledAt`** on vouchers (2026-07-25). Eligible-PO query excludes POs already on a non-cancelled Vendor Invoice. **GL timing (req-014):** accrual FT posts on Vendor Bill create (`postVendorInvoice`, `ReferenceType.VENDOR_INVOICE`); PO receipt does not post GL; payment closes AP via `postVendorPayment`.
 
 ### 8. Account Groups & Ledger Classification (2026-07-05)
 

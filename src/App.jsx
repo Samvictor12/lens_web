@@ -226,6 +226,7 @@ const AppRoutes = () => (
       <Route path="/inventory/stock/request-queue" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/stock/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/stock/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/stock/audit" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/stock/transactions/add" element={<ProtectedRoute><InventoryTransactionPage /></ProtectedRoute>} />
       <Route path="/inventory/stock/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
       <Route path="/inventory/rx/dashboard" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
@@ -233,6 +234,7 @@ const AppRoutes = () => (
       <Route path="/inventory/rx/request-queue" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/rx/transactions" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/rx/stock" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
+      <Route path="/inventory/rx/audit" element={<ProtectedRoute><InventoryMain /></ProtectedRoute>} />
       <Route path="/inventory/rx/transactions/add" element={<ProtectedRoute><InventoryTransactionPage /></ProtectedRoute>} />
       <Route path="/inventory/rx/inward/:id/:receiptId" element={<ProtectedRoute><POInwardToInventory /></ProtectedRoute>} />
       {/* Legacy inventory URLs → Stock Godown */}

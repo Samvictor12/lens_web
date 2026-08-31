@@ -11,6 +11,8 @@ sections:
     title: Customer 360 operator flow
   - id: FD-2.4
     title: Finance dashboard operator flow
+  - id: FD-2.5
+    title: Inventory Audit and dashboard operator flow
 ---
 
 # Flow Document
@@ -35,8 +37,7 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 
 1. Open **Income and loans**.
 2. Review total / this-month income and loan cards.
-3. Tab Income or Loans → Add → From/To, amount, date, description, reference → save (posts ledgers).
-4. Open ledger report for income or loan category as needed.
+3. Tab Income or Loans → Add → From/To, amount, date, description, reference → save (posts ledgers; category assigned automatically).
 
 ## FD-2.3 Customer 360 operator flow
 
@@ -56,3 +57,12 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 4. Review month expense breakup and P&L snapshot (inventory + assets/liabilities summary).
 5. Use report sub-tabs: grouped Trial Balance (SD/SC expanded; optional flat drill-down), Balance Sheet, Day Book, Monthly Sales, GST Collection (invoice-level output GST detail).
 6. Bookmarks to `/accounts/reports` redirect to Finance Dashboard; standalone Financial Reports page removed.
+
+## FD-2.5 Inventory Audit and dashboard operator flow
+
+**Status:** shipped (`req-013`, 2026-08-31).
+
+1. Open **Inventory** → select **RX Godown** or **STOCK Godown** (left switcher).
+2. **Dashboard tab:** review six KPI cards (Total Products, Total Stock, Total Value, Low, Out, Over). Click Low/Out/Over to see filtered spec alert list; click again to deselect and restore inward/outward trend chart. Review Top 10 / Least 10 selling products below.
+3. **Audit tab:** configure spec thresholds — select product, set SPH/CYL/ADD range + step (default 0.25), generate grid, edit per-cell min/max, save. Use **Manual Add Stock** for single-spec inward or **Initialize Stock** for bulk grid inward.
+4. After inward or threshold changes, return to Dashboard to verify alert counts and drill-down lists.

@@ -11,6 +11,7 @@ import InventoryInwardQueueTab from './InventoryInwardQueueTab';
 import InventoryRequestQueueTab from './InventoryRequestQueueTab';
 import InventoryTransactionsTab from './InventoryTransactionsTab';
 import InventoryStockTab from './InventoryStockTab';
+import InventoryAuditTab from './InventoryAuditTab';
 import { inventoryService } from '@/services/inventory';
 import {
   parseInventoryPath,
@@ -25,6 +26,7 @@ const FEATURE_TAB_LABELS = {
   requestQueue: 'SO Request Query',
   transactions: 'Transactions',
   stock: 'Stock Summary',
+  audit: 'Audit',
 };
 
 const InventoryMain = () => {
@@ -184,6 +186,10 @@ const InventoryMain = () => {
 
         <TabsContent value="stock" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryStockTab key={`stock-${godownType}`} refreshKey={refreshKey} godownType={godownType} />
+        </TabsContent>
+
+        <TabsContent value="audit" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <InventoryAuditTab key={`audit-${godownType}`} godownType={godownType} onRefresh={handleRefresh} />
         </TabsContent>
       </Tabs>
     </div>

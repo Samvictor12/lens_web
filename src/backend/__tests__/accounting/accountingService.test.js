@@ -31,6 +31,7 @@ import {
   postInvoice,
   postClientPayment,
   postVendorPayment,
+  postVendorInvoice,
   postExpense,
   postReversingTransaction,
 } from '../../services/accountingService.js';
@@ -364,6 +365,92 @@ describe('postClientPayment()', () => {
     });
     await expect(postClientPayment(tx, { invoiceId: 1, invoiceNo: 'INV-001', amount: 3000, bankLedgerId: 999, customer }, USER_ID))
       .rejects.toThrow('Selected bank/cash ledger not found');
+  });
+});
+
+// ── postVendorInvoice ─────────────────────────────────────────────────────────
+
+describe('postVendorInvoice()', () => {
+  let tx;
+  const inventoryLedger = makeLedger({ id: 60, ledgerCode: 'AC-1004', ledgerType: 'ASSET', currentBalance: 0, ledgerName: 'Inventory' });
+  const gstInputLedger  = makeLedger({ id: 61, ledgerCode: 'AC-1005', ledgerType: 'ASSET', currentBalance: 0, ledgerName: 'GST Input' });
+  const apLedger        = makeLedger({ id: 40, ledgerCode: 'AC-2001-V1', ledgerType: 'LIABILITY', currentBalance: 0 });
+  const vendor = { id: 1, code: 'VEND-001', ledgerId: 40 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tx = makeTx();
+    prisma.financialTransaction.findFirst.mockResolvedValue(null);
+    tx.financialTransaction.findFirst.mockResolvedValue(null);
+
+    tx.ledger.findFirst.mockImplementation(({ where: { ledgerCode } }) => {
+      const map = {
+        'AC-1004': inventoryLedger,
+        'AC-1005': gstInputLedger,
+        'AC-2001': apLedger,
+      };
+      return Promise.resolve(map[ledgerCode] ?? null);
+    });
+    tx.ledger.findUnique.mockImplementation(({ where: { id } }) => {
+      if (id === 40) return Promise.resolve(apLedger);
+      if (id === 60) return Promise.resolve(inventoryLedger);
+      if (id === 61) return Promise.resolve(gstInputLedger);
+      return Promise.resolve(null);
+    });
+    tx.financialTransaction.create.mockImplementation(({ data }) => Promise.resolve({
+      id: 6, transactionNumber: `TXN-${YEAR}-00001`, totalAmount: data.totalAmount,
+      entries: data.entries.create.map((e, i) => ({ ...e, id: i + 1 })),
+    }));
+  });
+
+  it('creates PURCHASE transaction with referenceType VENDOR_INVOICE, Dr Inventory, Cr AP (no tax)', async () => {
+    await postVendorInvoice(tx, {
+      vendorInvoiceId: 10,
+      invoiceNumber: 'VINV-2026-0001',
+      subtotal: 5000,
+      taxAmount: 0,
+      totalAmount: 5000,
+      vendor,
+    }, USER_ID);
+    const call = tx.financialTransaction.create.mock.calls[0][0];
+    expect(call.data.transactionType).toBe('PURCHASE');
+    expect(call.data.referenceType).toBe('VENDOR_INVOICE');
+    expect(call.data.referenceId).toBe(10);
+    expect(call.data.referenceNumber).toBe('VINV-2026-0001');
+    const entries = call.data.entries.create;
+    expect(entries).toHaveLength(2);
+    const dr = entries.find(e => e.entryType === 'DEBIT');
+    const cr = entries.find(e => e.entryType === 'CREDIT');
+    expect(dr.ledgerId).toBe(60);
+    expect(dr.amount).toBe(5000);
+    expect(cr.ledgerId).toBe(40);
+    expect(cr.amount).toBe(5000);
+  });
+
+  it('splits GST into separate DEBIT entry when taxAmount > 0', async () => {
+    await postVendorInvoice(tx, {
+      vendorInvoiceId: 11,
+      invoiceNumber: 'VINV-2026-0002',
+      subtotal: 10000,
+      taxAmount: 1800,
+      totalAmount: 11800,
+      vendor,
+    }, USER_ID);
+    const call = tx.financialTransaction.create.mock.calls[0][0];
+    const entries = call.data.entries.create;
+    expect(entries).toHaveLength(3);
+    const inventoryEntry = entries.find(e => e.ledgerId === 60);
+    const gstEntry = entries.find(e => e.ledgerId === 61);
+    const apEntry = entries.find(e => e.ledgerId === 40);
+    expect(inventoryEntry.entryType).toBe('DEBIT');
+    expect(inventoryEntry.amount).toBe(10000);
+    expect(gstEntry.entryType).toBe('DEBIT');
+    expect(gstEntry.amount).toBe(1800);
+    expect(apEntry.entryType).toBe('CREDIT');
+    expect(apEntry.amount).toBe(11800);
+    const totalDr = entries.filter(e => e.entryType === 'DEBIT').reduce((s, e) => s + e.amount, 0);
+    const totalCr = entries.filter(e => e.entryType === 'CREDIT').reduce((s, e) => s + e.amount, 0);
+    expect(totalDr).toBe(totalCr);
   });
 });
 

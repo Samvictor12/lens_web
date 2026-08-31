@@ -109,6 +109,10 @@ router.post('/bulk-inward', (req, res, next) => {
   inventoryController.bulkInwardFromGrid(req, res, next);
 });
 
+router.post('/items/bulk-grid', (req, res, next) => {
+  inventoryController.bulkInwardFromGrid(req, res, next);
+});
+
 /**
  * @swagger
  * /api/inventory/items:
@@ -572,6 +576,26 @@ router.get('/reports/top-low-selling', (req, res, next) => {
 
 router.get('/reports/stock-pivot', (req, res, next) => {
   inventoryController.getInventoryStockPivot(req, res, next);
+});
+
+router.get('/spec-alerts', (req, res, next) => {
+  inventoryController.getSpecAlerts(req, res, next);
+});
+
+router.get('/spec-thresholds', (req, res, next) => {
+  inventoryController.listSpecThresholds(req, res, next);
+});
+
+router.post('/spec-thresholds', (req, res, next) => {
+  inventoryController.upsertSpecThresholds(req, res, next);
+});
+
+router.post('/spec-thresholds/generate', (req, res, next) => {
+  inventoryController.generateSpecThresholds(req, res, next);
+});
+
+router.delete('/spec-thresholds/:id', (req, res, next) => {
+  inventoryController.deleteSpecThreshold(req, res, next);
 });
 
 export default router;

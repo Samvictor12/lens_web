@@ -22,14 +22,6 @@ export const useIncomeColumns = (onDelete) => {
       ),
     },
     {
-      accessorKey: "category",
-      header: "Category",
-      sortable: false,
-      cell: (e) => (
-        <span className="font-medium text-xs">{e.category?.name || "—"}</span>
-      ),
-    },
-    {
       accessorKey: "description",
       header: "Description",
       sortable: false,

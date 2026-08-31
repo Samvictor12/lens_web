@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Plus, Search, TrendingUp, Landmark, FileText } from "lucide-react";
+import { Plus, Search, TrendingUp, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +19,6 @@ const fmt = (v) =>
 
 export default function IncomeMain() {
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("income");
   const [incomes, setIncomes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,15 +43,14 @@ export default function IncomeMain() {
     [categories]
   );
 
-  const incomeLedgerCategory = useMemo(() => {
+  const defaultIncomeCategory = useMemo(() => {
     const nonLoan = (categories || []).filter(
-      (c) => c.name !== LOAN_CATEGORY_NAME && c.delete_status !== true && (c.ledger_id || c.ledger?.id)
+      (c) =>
+        c.name !== LOAN_CATEGORY_NAME &&
+        c.delete_status !== true &&
+        c.active_status !== false
     );
-    return (
-      nonLoan.find((c) => c.name === "Bank Transfer") ||
-      nonLoan[0] ||
-      null
-    );
+    return nonLoan.find((c) => c.name === "Bank Transfer") || nonLoan[0] || null;
   }, [categories]);
 
   const handleDelete = async (row) => {
@@ -149,17 +146,6 @@ export default function IncomeMain() {
     fetchDialogData();
   }, [dialogOpen, fetchDialogData]);
 
-  const openLedgerReport = (ledgerId) => {
-    if (!ledgerId) {
-      toast({
-        variant: "destructive",
-        title: "No ledger linked to this category",
-      });
-      return;
-    }
-    navigate("/accounts/finance-dashboard");
-  };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setPageIndex(0);
@@ -178,26 +164,6 @@ export default function IncomeMain() {
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() =>
-              openLedgerReport(incomeLedgerCategory?.ledger_id || incomeLedgerCategory?.ledger?.id)
-            }
-          >
-            <FileText className="h-4 w-4" />
-            Income ledger
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => openLedgerReport(loanCategory?.ledger_id || loanCategory?.ledger?.id)}
-          >
-            <FileText className="h-4 w-4" />
-            Loan ledger
-          </Button>
           <Refresh onClick={() => setRefreshKey((k) => k + 1)} />
           <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -283,7 +249,7 @@ export default function IncomeMain() {
         onOpenChange={setDialogOpen}
         mode={isLoans ? "loans" : "income"}
         loanCategory={loanCategory}
-        categories={categories}
+        defaultIncomeCategory={defaultIncomeCategory}
         transferLedgers={transferLedgers}
         onCreated={() => setRefreshKey((k) => k + 1)}
       />

@@ -165,6 +165,37 @@ export const getInventoryStockPivot = async (params = {}) => {
   return response;
 };
 
+export const getSpecAlerts = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/spec-alerts`, { params });
+  return response;
+};
+
+export const getSpecThresholds = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/spec-thresholds`, { params });
+  return response;
+};
+
+export const upsertSpecThresholds = async (rows) => {
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/spec-thresholds`, {
+    data: rows,
+  });
+  return response;
+};
+
+export const generateSpecThresholds = async (payload) => {
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/spec-thresholds/generate`, {
+    data: payload,
+  });
+  return response;
+};
+
+export const deleteSpecThreshold = async (id, params = {}) => {
+  const response = await apiClient("delete", `${INVENTORY_BASE_URL}/spec-thresholds/${id}`, {
+    params,
+  });
+  return response;
+};
+
 export const inventoryService = {
   getInventoryItems,
   getInventoryInwardQueue,
@@ -187,4 +218,9 @@ export const inventoryService = {
   getInventorySpecCountTrend,
   getTopLowSellingProducts,
   getInventoryStockPivot,
+  getSpecAlerts,
+  getSpecThresholds,
+  upsertSpecThresholds,
+  generateSpecThresholds,
+  deleteSpecThreshold,
 };

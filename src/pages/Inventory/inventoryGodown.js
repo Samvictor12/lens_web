@@ -25,6 +25,7 @@ export function parseInventoryPath(pathname) {
     "request-queue": "requestQueue",
     transactions: "transactions",
     stock: "stock",
+    audit: "audit",
     reports: "dashboard",
     items: "dashboard",
   };
@@ -42,6 +43,7 @@ export function inventoryTabPath(slug, tabKey) {
     requestQueue: "request-queue",
     transactions: "transactions",
     stock: "stock",
+    audit: "audit",
   }[tabKey] || "dashboard";
   return `/inventory/${slug}/${segment}`;
 }

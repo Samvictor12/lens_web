@@ -9,6 +9,7 @@ import {
   poStatusAfterBillRemoval,
 } from '../utils/poPayable.js';
 import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
+import { postVendorInvoice, postReversingTransaction } from './accountingService.js';
 
 const ELIGIBLE_PO_STATUSES = PO_VENDOR_INVOICE_ELIGIBLE_STATUSES;
 
@@ -69,6 +70,17 @@ function productInvoiceFilter(productId) {
   const pid = productId ? parseInt(productId, 10) : null;
   if (!pid) return {};
   return { items: { some: { purchaseOrder: { lens_id: pid } } } };
+}
+
+async function findVendorInvoiceAccrual(tx, vendorInvoiceId) {
+  return tx.financialTransaction.findFirst({
+    where: {
+      referenceType: 'VENDOR_INVOICE',
+      referenceId: vendorInvoiceId,
+      isPosted: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
 }
 
 /**
@@ -500,7 +512,7 @@ export class VendorInvoiceService {
 
     const vendor = await prisma.vendor.findFirst({
       where: { id: parseInt(vendorId, 10) },
-      select: { id: true, credit_days: true },
+      select: { id: true, code: true, ledgerId: true, credit_days: true },
     });
 
     const invoiceNumber = await generateInvoiceNumber();
@@ -546,6 +558,17 @@ export class VendorInvoiceService {
           items: { include: { purchaseOrder: { select: { id: true, poNumber: true } } } },
         },
       });
+
+      if (totalAmount > 0.01 && vendor) {
+        await postVendorInvoice(tx, {
+          vendorInvoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          subtotal: subtotalAmount,
+          taxAmount,
+          totalAmount,
+          vendor,
+        }, userId);
+      }
 
       return invoice;
     });
@@ -662,6 +685,12 @@ export class VendorInvoiceService {
       ? `${UPLOADS_PUBLIC_PREFIX}/${invoiceFile.filename}`
       : invoice.invoiceCopyPath;
 
+    const amountsChanged =
+      round2(parseFloat(invoice.subtotalAmount)) !== subtotalAmount
+      || round2(parseFloat(invoice.taxAmount)) !== taxAmount
+      || round2(parseFloat(invoice.totalAmount)) !== totalAmount
+      || round2(parseFloat(invoice.courierCharges) || 0) !== courierCharges;
+
     const removedPos = invoice.items
       .filter((i) => removedPoIds.includes(i.purchaseOrderId))
       .map((i) => i.purchaseOrder);
@@ -720,7 +749,7 @@ export class VendorInvoiceService {
         }
       }
 
-      return tx.vendorInvoice.update({
+      const updated = await tx.vendorInvoice.update({
         where: { id: invoiceId },
         data: {
           supplierInvoiceNo: supplierNo,
@@ -738,6 +767,34 @@ export class VendorInvoiceService {
           items: { include: { purchaseOrder: { select: { id: true, poNumber: true } } } },
         },
       });
+
+      if (amountsChanged) {
+        const originalTxn = await findVendorInvoiceAccrual(tx, invoiceId);
+        if (originalTxn) {
+          await postReversingTransaction(
+            tx,
+            originalTxn.id,
+            userId,
+            `Edit of ${invoice.invoiceNumber}`,
+          );
+        }
+        const vendorForGl = await tx.vendor.findFirst({
+          where: { id: invoice.vendorId },
+          select: { id: true, code: true, ledgerId: true },
+        });
+        if (totalAmount > 0.01 && vendorForGl) {
+          await postVendorInvoice(tx, {
+            vendorInvoiceId: invoiceId,
+            invoiceNumber: invoice.invoiceNumber,
+            subtotal: subtotalAmount,
+            taxAmount,
+            totalAmount,
+            vendor: vendorForGl,
+          }, userId);
+        }
+      }
+
+      return updated;
     });
   }
 
@@ -748,9 +805,20 @@ export class VendorInvoiceService {
     if (parseFloat(invoice.paidAmount) > 0.01) {
       throw new APIError('Cannot cancel an invoice with recorded payments', 400, 'HAS_PAYMENTS');
     }
-    return prisma.vendorInvoice.update({
-      where: { id: invoice.id },
-      data: { status: 'CANCELLED', updatedBy: userId },
+    return prisma.$transaction(async (tx) => {
+      const originalTxn = await findVendorInvoiceAccrual(tx, invoice.id);
+      if (originalTxn) {
+        await postReversingTransaction(
+          tx,
+          originalTxn.id,
+          userId,
+          `Cancel vendor invoice ${invoice.invoiceNumber}`,
+        );
+      }
+      return tx.vendorInvoice.update({
+        where: { id: invoice.id },
+        data: { status: 'CANCELLED', updatedBy: userId },
+      });
     });
   }
 }

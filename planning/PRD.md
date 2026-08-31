@@ -67,6 +67,14 @@ requirements:
     sd: []
     fd: []
     note: HOLD — user briefs later (diagrams)
+  - id: PRD-4.8
+    title: Inventory Audit and dashboard overhaul
+    status: shipped
+    module: inventory
+    tsd: [TSD-1.1]
+    dd: [DD-1.1]
+    sd: [SD-1.1]
+    fd: [FD-2.5]
 ---
 
 # Project Requirements Document
@@ -112,9 +120,10 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 
 - Sidebar: **Income and loans** (`/accounts/income`)
 - Cards: Total Income, Total Loans, Total Income this Month, Total Loans this Month (Loan = `IncomeCategory.name === 'Loan'`)
-- Tabs: Income (exclude Loan) | Loans (Loan only) + Add (Loans locks Loan category)
+- Tabs: Income (exclude Loan) | Loans (Loan only) + Add
 - Form: From/To, amount, date, description, Reference No.; posting unchanged Dr To / Cr From
-- Ledger deep-links: `/accounts/reports?tab=ledger&ledgerId=…`
+- Category auto-assigned internally (Income: Bank Transfer else first non-loan; Loans: Loan category) — not shown in UI
+- No ledger deep-link header buttons (req-017)
 
 ## PRD-4.3 Customer 360 view
 
@@ -136,7 +145,7 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 - Shared filters (default current month, vendor, product) → KPIs + tabs
 - KPIs: Total Purchases, Outstanding, Awaiting Bills, Total Indirect Expenses, Target Payment (KB-004 cumulative cap), Total Payment
 - Tabs: Awaiting Vendor Bills | Vendor Bills (vendor-grouped + multi-select) | Indirect Expenses | Payments | Debit Notes | Target Payment | Vendor Ledger
-- Direct track: M5 PO → VendorInvoice → VendorPaymentVoucher (GL unchanged)
+- Direct track: M5 PO → VendorInvoice → VendorPaymentVoucher; GL accrual on Vendor Bill (`postVendorInvoice`, KB-015), payment closes AP (req-014)
 - `GET /api/vendor-payments/stats`, extended `outstanding-invoices` (groupBy, collectible, productId)
 
 ### Follow-up
@@ -175,6 +184,19 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 | PRD-4.7 | Business intelligence | User will brief later + diagrams |
 
 Do not create active `execution_state` work for PRD-4.7 until briefed.
+
+## PRD-4.8 Inventory Audit and dashboard overhaul
+
+**Status:** shipped (`req-013`, 2026-08-31).
+
+- Routes: `/inventory/{stock|rx}/audit` (new Audit tab); Dashboard tab updated for both godowns.
+- **Audit tab:** Manual Add Stock (single-spec `INWARD_DIRECT`), Initialize Stock (bulk SPH/CYL/ADD grid), Spec Threshold editor (range/step generate + per-cell min/max), spec alert summary.
+- **Spec thresholds:** `InventorySpecThreshold` per `lens_id` + `godownType` + normalized `sph/cyl/add`; min/max qty; godown-scoped (RX vs STOCK).
+- **Alerts (computed-only):** OUT = threshold row + `specQty===0`; LOW = `0 < specQty < minQty`; OVER = `maxQty` set and `specQty > maxQty`. `InventoryAlert` table unchanged/unused for threshold alerts. Product-level `LensProductMaster.minThresholdQty`/`maxThresholdQty` deprecated for dashboard KPIs.
+- **Dashboard KPIs:** Total Products, Total Stock (units), Total Value, Low Stock, Out of Stock, Over Stock — godown-scoped.
+- **Dashboard sections:** Clickable Low/Out/Over KPI cards → filtered spec alert list (50%); no selection → inward/outward quantity trend (100%). Top 10 / Least 10 selling products side-by-side (50/50).
+- Initialize Stock removed from Dashboard; accessible only via Audit tab.
+- APIs: `GET /api/inventory/spec-alerts`, `GET|POST|DELETE /api/inventory/spec-thresholds`, `POST /api/inventory/spec-thresholds/generate`, enhanced `GET /api/inventory/dashboard`.
 
 ## Shipped index (legacy)
 

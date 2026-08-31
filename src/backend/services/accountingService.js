@@ -218,6 +218,40 @@ export async function postPurchaseReceipt(tx, { purchaseOrderId, poNumber, subto
 }
 
 /**
+ * Auto-post on Vendor Bill (VendorInvoice) registration.
+ * Dr Inventory (AC-1004) for totalAmount − taxAmount (subtotal + courier),
+ * Dr GST Input (AC-1005 if tax > 0), Cr vendor's AP ledger (child of AC-2001)
+ */
+export async function postVendorInvoice(tx, { vendorInvoiceId, invoiceNumber, subtotal, taxAmount, totalAmount, vendor }, userId) {
+  const [inventoryLedger, apLedger] = await Promise.all([
+    getLedger(tx, 'AC-1004'),
+    getOwnedLedger(tx, vendor, 'Vendor'),
+  ]);
+
+  const tax = parseFloat(taxAmount || 0);
+  const total = parseFloat(totalAmount);
+  const inventoryAmount = total - tax;
+
+  const entries = [
+    { ledgerId: inventoryLedger.id, entryType: 'DEBIT', amount: inventoryAmount, description: `Vendor bill — ${invoiceNumber}` },
+    { ledgerId: apLedger.id, entryType: 'CREDIT', amount: total, description: `Payable to vendor — ${invoiceNumber}` },
+  ];
+
+  if (tax > 0.001) {
+    const gstInputLedger = await getLedger(tx, 'AC-1005');
+    entries.splice(1, 0, { ledgerId: gstInputLedger.id, entryType: 'DEBIT', amount: tax, description: 'GST Input Credit' });
+  }
+
+  return postTransaction(tx, {
+    transactionType: 'PURCHASE',
+    referenceType: 'VENDOR_INVOICE',
+    referenceId: vendorInvoiceId,
+    referenceNumber: invoiceNumber,
+    description: `Vendor invoice — ${invoiceNumber}`,
+  }, entries, userId);
+}
+
+/**
  * Auto-post on Invoice creation.
  * Dr customer's AR ledger (child of AC-1003), Cr Sales Revenue (AC-3001), Cr GST Output (AC-2003 if tax > 0)
  */

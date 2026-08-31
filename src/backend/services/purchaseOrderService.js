@@ -2,7 +2,6 @@ import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
 import InventoryService from "./inventory.service.js";
 import ExcelJS from "exceljs";
-import { postPurchaseReceipt } from "./accountingService.js";
 import { PO_UNBILLED_LIST_STATUSES } from "../utils/poPayable.js";
 
 /** Required receive qty: 1 per eye for SO-linked POs, else PO quantity */
@@ -1746,16 +1745,6 @@ class PurchaseOrderService {
             updatedBy: receiptData.createdBy,
           },
         });
-
-        // Auto-post accounting entry
-        await postPurchaseReceipt(tx, {
-          purchaseOrderId: poId,
-          poNumber: po.poNumber,
-          subtotal: subtotal || totalValue,
-          taxAmount,
-          totalValue,
-          vendor: po.vendor,
-        }, receiptData.createdBy);
 
         return created;
       });

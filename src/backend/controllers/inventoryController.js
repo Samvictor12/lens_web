@@ -590,6 +590,73 @@ export class InventoryController {
       next(error);
     }
   }
+
+  /** @route GET /api/inventory/spec-alerts */
+  async getSpecAlerts(req, res, next) {
+    try {
+      const result = await this.inventoryService.getSpecAlerts({
+        godownType: req.query.godownType,
+        type: req.query.type,
+        page: req.query.page,
+        limit: req.query.limit,
+        lens_id: req.query.lens_id,
+      });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** @route GET /api/inventory/spec-thresholds */
+  async listSpecThresholds(req, res, next) {
+    try {
+      const data = await this.inventoryService.listSpecThresholds({
+        lens_id: req.query.lens_id,
+        godownType: req.query.godownType,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** @route POST /api/inventory/spec-thresholds */
+  async upsertSpecThresholds(req, res, next) {
+    try {
+      const rows = Array.isArray(req.body) ? req.body : [req.body];
+      const data = await this.inventoryService.upsertSpecThresholds(rows, req.user.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** @route POST /api/inventory/spec-thresholds/generate */
+  async generateSpecThresholds(req, res, next) {
+    try {
+      const data = await this.inventoryService.generateSpecThresholds(req.body, req.user.id);
+      res.status(201).json({ success: true, data, count: data.length });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** @route DELETE /api/inventory/spec-thresholds/:id */
+  async deleteSpecThreshold(req, res, next) {
+    try {
+      if (req.query.lens_id && req.query.godownType) {
+        const result = await this.inventoryService.deleteSpecThresholdsByLens(
+          req.query.lens_id,
+          req.query.godownType
+        );
+        return res.json({ success: true, ...result });
+      }
+      const result = await this.inventoryService.deleteSpecThreshold(req.params.id);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default InventoryController;

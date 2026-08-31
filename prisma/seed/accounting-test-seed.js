@@ -2,7 +2,7 @@
  * Accounting Module Test Seed
  * ────────────────────────────
  * Creates sample GL transactions for the full accounting flow:
- *   Opening Balance → PO Receipt → Vendor Payment → Invoice → Client Payment → Expenses
+ *   Opening Balance → PO Receipt (ops) → Vendor Bill GL → Vendor Payment → Invoice → Client Payment → Expenses
  *
  * Prerequisites: system user (id=1) + master data (run `npm run db:seed` first).
  * Also runs financial-ledgers-seed if AC-* ledgers are missing.
@@ -14,7 +14,7 @@
 import { PrismaClient } from '@prisma/client';
 import {
   postTransaction,
-  postPurchaseReceipt,
+  postVendorInvoice,
   postInvoice,
   postClientPayment,
   postVendorPayment,
@@ -147,17 +147,7 @@ export async function seedAccountingTestData(client = prisma) {
         createdBy: USER_ID,
       },
     });
-    await client.$transaction(async (tx) => {
-      await postPurchaseReceipt(tx, {
-        purchaseOrderId: po1.id,
-        poNumber: po1.poNumber,
-        subtotal: 10000,
-        taxAmount: 1800,
-        totalValue: 11800,
-        vendor: vendor,
-      }, USER_ID);
-    });
-    console.log('   ✅ TEST-PO-2026-001 received + GL posted');
+    console.log('   ✅ TEST-PO-2026-001 received (ops only, no GL)');
   } else {
     console.log('   ⏭️  TEST-PO-2026-001 receipt already exists');
   }
@@ -199,19 +189,107 @@ export async function seedAccountingTestData(client = prisma) {
         createdBy: USER_ID,
       },
     });
-    await client.$transaction(async (tx) => {
-      await postPurchaseReceipt(tx, {
-        purchaseOrderId: po2.id,
-        poNumber: po2.poNumber,
-        subtotal: 20000,
-        taxAmount: 3600,
-        totalValue: 23600,
-        vendor: vendor2 ?? vendor,
-      }, USER_ID);
-    });
-    console.log('   ✅ TEST-PO-2026-002 received + GL posted');
+    console.log('   ✅ TEST-PO-2026-002 received (ops only, no GL)');
   } else {
     console.log('   ⏭️  TEST-PO-2026-002 receipt already exists');
+  }
+
+  // ── 2b. Vendor invoices (GL accrual) ───────────────────────────────────────
+  console.log('🧾 Creating vendor invoices (payable accrual)…');
+
+  let vendorInv1 = await client.vendorInvoice.findFirst({
+    where: { invoiceNumber: 'TEST-VINV-2026-0001' },
+  });
+  if (!vendorInv1) {
+    vendorInv1 = await client.vendorInvoice.create({
+      data: {
+        invoiceNumber: 'TEST-VINV-2026-0001',
+        vendorId: vendor.id,
+        supplierInvoiceNo: 'SUP-INV-1001',
+        invoiceDate: new Date('2026-02-01'),
+        dueDate: new Date('2026-03-03'),
+        subtotalAmount: 10000,
+        taxAmount: 1800,
+        totalAmount: 11800,
+        courierCharges: 0,
+        invoiceCopyPath: '/uploads/test/vendor-invoice-001.pdf',
+        status: 'OUTSTANDING',
+        createdBy: USER_ID,
+        items: {
+          create: [{
+            purchaseOrderId: po1.id,
+            subtotalAmount: 10000,
+            taxAmount: 1800,
+            amount: 11800,
+          }],
+        },
+      },
+    });
+    await client.purchaseOrder.update({
+      where: { id: po1.id },
+      data: { supplierInvoiceNo: 'SUP-INV-1001', status: 'INVOICE_RECEIVED' },
+    });
+    await client.$transaction(async (tx) => {
+      await postVendorInvoice(tx, {
+        vendorInvoiceId: vendorInv1.id,
+        invoiceNumber: vendorInv1.invoiceNumber,
+        subtotal: 10000,
+        taxAmount: 1800,
+        totalAmount: 11800,
+        vendor,
+      }, USER_ID);
+    });
+    console.log('   ✅ TEST-VINV-2026-0001 registered + GL posted');
+  } else {
+    console.log('   ⏭️  TEST-VINV-2026-0001 already exists');
+  }
+
+  let vendorInv2 = await client.vendorInvoice.findFirst({
+    where: { invoiceNumber: 'TEST-VINV-2026-0002' },
+  });
+  if (!vendorInv2) {
+    const vendor2Ref = vendor2 ?? vendor;
+    vendorInv2 = await client.vendorInvoice.create({
+      data: {
+        invoiceNumber: 'TEST-VINV-2026-0002',
+        vendorId: vendor2Ref.id,
+        supplierInvoiceNo: 'SUP-INV-1002',
+        invoiceDate: new Date('2026-02-05'),
+        dueDate: new Date('2026-03-07'),
+        subtotalAmount: 20000,
+        taxAmount: 3600,
+        totalAmount: 23600,
+        courierCharges: 0,
+        invoiceCopyPath: '/uploads/test/vendor-invoice-002.pdf',
+        status: 'OUTSTANDING',
+        createdBy: USER_ID,
+        items: {
+          create: [{
+            purchaseOrderId: po2.id,
+            subtotalAmount: 20000,
+            taxAmount: 3600,
+            amount: 23600,
+          }],
+        },
+      },
+    });
+    await client.purchaseOrder.update({
+      where: { id: po2.id },
+      data: { supplierInvoiceNo: 'SUP-INV-1002', status: 'INVOICE_RECEIVED' },
+    });
+    await client.$transaction(async (tx) => {
+      await postVendorInvoice(tx, {
+        vendorInvoiceId: vendorInv2.id,
+        invoiceNumber: vendorInv2.invoiceNumber,
+        subtotal: 20000,
+        taxAmount: 3600,
+        totalAmount: 23600,
+        vendor: vendor2Ref,
+      }, USER_ID);
+    });
+    console.log('   ✅ TEST-VINV-2026-0002 registered + GL posted');
+  } else {
+    console.log('   ⏭️  TEST-VINV-2026-0002 already exists');
   }
 
   // ── 3. Vendor payment voucher ─────────────────────────────────────────────
@@ -229,10 +307,10 @@ export async function seedAccountingTestData(client = prisma) {
         paymentMethod: 'BANK_TRANSFER',
         bankLedgerId: bankLedger.id,
         referenceNo: 'NEFT-TEST-001',
-        notes: 'Full payment for TEST-PO-2026-001',
+        notes: 'Full payment for TEST-VINV-2026-0001',
         createdBy: USER_ID,
         items: {
-          create: [{ purchaseOrderId: po1.id, allocatedAmount: 11800, notes: 'PO-001 settlement' }],
+          create: [{ vendorInvoiceId: vendorInv1.id, allocatedAmount: 11800, notes: 'VINV-001 settlement' }],
         },
       },
     });
@@ -505,7 +583,8 @@ async function main() {
     console.log('📊 Test records created:');
     console.log('   Ledgers        : AC-1001…AC-5002 (Chart of Accounts)');
     console.log('   Opening balance: OB-TEST-2026 (₹5,00,000 cash)');
-    console.log('   Purchase orders: TEST-PO-2026-001, TEST-PO-2026-002');
+    console.log('   Purchase orders: TEST-PO-2026-001, TEST-PO-2026-002 (receipt ops only)');
+    console.log('   Vendor invoices: TEST-VINV-2026-0001, TEST-VINV-2026-0002 (payable accrual)');
     console.log('   Vendor payment : TEST-VPV-2026-0001');
     console.log('   Invoices       : TEST-INV-2026-001 (partial paid), TEST-INV-2026-002');
     console.log('   Expenses       : TEST-EXP-2026-0001 (Rent), TEST-EXP-2026-0002 (Utilities)');

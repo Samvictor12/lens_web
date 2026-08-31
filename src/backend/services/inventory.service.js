@@ -21,6 +21,24 @@ const RX_SOURCE_EXCLUSION_FILTER = {
   },
 };
 
+// Same RX-source rule as above, nested for InventoryTransaction queries.
+const RX_SOURCE_EXCLUSION_TXN_FILTER = {
+  NOT: {
+    AND: [
+      { inventoryItem: { isReused: false } },
+      {
+        inventoryItem: {
+          purchaseOrder: {
+            saleOrder: {
+              procurementType: 'RX',
+            },
+          },
+        },
+      },
+    ],
+  },
+};
+
 /** Normalize godown query to STOCK | RX | null */
 function normalizeGodownType(godownType) {
   const raw = String(godownType || '').trim().toUpperCase();
@@ -233,7 +251,7 @@ function transactionGodownWhere(godownType) {
           },
         },
       },
-      RX_SOURCE_EXCLUSION_FILTER,
+      RX_SOURCE_EXCLUSION_TXN_FILTER,
     ],
   };
 }
@@ -1869,6 +1887,12 @@ export class InventoryService {
             lens_name: true,
             product_code: true,
             type_id: true,
+            sphere_min: true,
+            sphere_max: true,
+            cyl_min: true,
+            cyl_max: true,
+            add_min: true,
+            add_max: true,
             type: { select: { id: true, name: true } },
           },
           orderBy: { lens_name: 'asc' }
@@ -2352,8 +2376,358 @@ export class InventoryService {
   }
 
   /**
-   * Get items below low stock threshold
-   * @returns {Promise<Array>} Items below minimum threshold
+   * Build spec-level quantity map: lens_id + normalized SPH/CYL/ADD → total qty.
+   * Includes AVAILABLE, RESERVED, RETURNED active non-deleted items in godown scope.
+   */
+  async buildSpecQtyMap(godownType) {
+    const items = await prisma.inventoryItem.findMany({
+      where: inventoryItemGodownWhere(godownType, {
+        deleteStatus: false,
+        activeStatus: true,
+        status: { in: ['AVAILABLE', 'RESERVED', 'RETURNED'] },
+      }),
+      select: {
+        lens_id: true,
+        quantity: true,
+        rightEye: true,
+        leftEye: true,
+        rightSpherical: true,
+        rightCylindrical: true,
+        rightAdd: true,
+        leftSpherical: true,
+        leftCylindrical: true,
+        leftAdd: true,
+      },
+    });
+
+    const map = new Map();
+    for (const item of items) {
+      const { sph, cyl, add } = coalescePower(item);
+      const key = `${item.lens_id}|${sph}|${cyl}|${add}`;
+      map.set(key, (map.get(key) || 0) + (item.quantity || 0));
+    }
+    return map;
+  }
+
+  /** Classify a spec row against threshold bounds. Returns 'low'|'out'|'over'|null */
+  classifySpecAlert(specQty, minQty, maxQty) {
+    const qty = Number(specQty) || 0;
+    const min = Number(minQty) || 0;
+    if (qty === 0) return 'out';
+    if (qty > 0 && qty < min) return 'low';
+    if (maxQty != null && qty > Number(maxQty)) return 'over';
+    return null;
+  }
+
+  /** Compute gap for alert display */
+  specAlertGap(type, specQty, minQty, maxQty) {
+    const qty = Number(specQty) || 0;
+    if (type === 'out') return Number(minQty) || 0;
+    if (type === 'low') return (Number(minQty) || 0) - qty;
+    if (type === 'over') return qty - (Number(maxQty) || 0);
+    return 0;
+  }
+
+  /**
+   * Get all spec alerts for a godown, optionally filtered by type and lens_id.
+   * Computed-only — no InventoryAlert writes.
+   */
+  async getSpecAlerts({ godownType, type, page = 1, limit = 20, lens_id } = {}) {
+    const gt = normalizeGodownType(godownType);
+    if (!gt) {
+      throw new APIError('godownType is required (STOCK or RX)', 400, 'INVALID_GODOWN');
+    }
+
+    const thresholdWhere = { godownType: gt };
+    if (lens_id) thresholdWhere.lens_id = parseInt(lens_id, 10);
+
+    const [thresholds, specQtyMap] = await Promise.all([
+      prisma.inventorySpecThreshold.findMany({
+        where: thresholdWhere,
+        include: {
+          lensProduct: {
+            select: { id: true, lens_name: true, product_code: true },
+          },
+        },
+        orderBy: [{ lens_id: 'asc' }, { sph: 'asc' }, { cyl: 'asc' }, { add: 'asc' }],
+      }),
+      this.buildSpecQtyMap(gt),
+    ]);
+
+    const alertType = type ? String(type).toLowerCase() : null;
+    const rows = [];
+
+    for (const th of thresholds) {
+      const sph = normalizePowerValue(th.sph);
+      const cyl = normalizePowerValue(th.cyl);
+      const add = normalizePowerValue(th.add);
+      const key = `${th.lens_id}|${sph}|${cyl}|${add}`;
+      const specQty = specQtyMap.get(key) || 0;
+      const alertKind = this.classifySpecAlert(specQty, th.minQty, th.maxQty);
+      if (!alertKind) continue;
+      if (alertType && alertKind !== alertType) continue;
+
+      rows.push({
+        id: th.id,
+        lens_id: th.lens_id,
+        lensProduct: th.lensProduct,
+        godownType: th.godownType,
+        sph,
+        cyl,
+        add,
+        specQty,
+        minQty: th.minQty,
+        maxQty: th.maxQty,
+        type: alertKind,
+        gap: this.specAlertGap(alertKind, specQty, th.minQty, th.maxQty),
+      });
+    }
+
+    const total = rows.length;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+    const data = rows.slice(offset, offset + limitNum);
+
+    return {
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    };
+  }
+
+  /** Aggregate spec alert counts for dashboard KPIs */
+  async getSpecAlertCounts(godownType) {
+    const gt = normalizeGodownType(godownType);
+    if (!gt) return { lowStockCount: 0, outOfStockCount: 0, overStockCount: 0 };
+
+    const [thresholds, specQtyMap] = await Promise.all([
+      prisma.inventorySpecThreshold.findMany({ where: { godownType: gt } }),
+      this.buildSpecQtyMap(gt),
+    ]);
+
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+    let overStockCount = 0;
+
+    for (const th of thresholds) {
+      const sph = normalizePowerValue(th.sph);
+      const cyl = normalizePowerValue(th.cyl);
+      const add = normalizePowerValue(th.add);
+      const key = `${th.lens_id}|${sph}|${cyl}|${add}`;
+      const specQty = specQtyMap.get(key) || 0;
+      const kind = this.classifySpecAlert(specQty, th.minQty, th.maxQty);
+      if (kind === 'low') lowStockCount++;
+      else if (kind === 'out') outOfStockCount++;
+      else if (kind === 'over') overStockCount++;
+    }
+
+    return { lowStockCount, outOfStockCount, overStockCount };
+  }
+
+  /**
+   * List spec thresholds for a product + godown
+   */
+  async listSpecThresholds({ lens_id, godownType }) {
+    const gt = normalizeGodownType(godownType);
+    if (!gt) throw new APIError('godownType is required', 400, 'INVALID_GODOWN');
+    if (!lens_id) throw new APIError('lens_id is required', 400, 'INVALID_LENS');
+
+    const rows = await prisma.inventorySpecThreshold.findMany({
+      where: { lens_id: parseInt(lens_id, 10), godownType: gt },
+      orderBy: [{ sph: 'asc' }, { cyl: 'asc' }, { add: 'asc' }],
+    });
+
+    return rows.map((r) => ({
+      ...r,
+      sph: normalizePowerValue(r.sph),
+      cyl: normalizePowerValue(r.cyl),
+      add: normalizePowerValue(r.add),
+    }));
+  }
+
+  /**
+   * Upsert one or bulk spec threshold rows
+   */
+  async upsertSpecThresholds(rows, userId) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new APIError('At least one threshold row required', 400, 'INVALID_PAYLOAD');
+    }
+
+    const results = [];
+    for (const row of rows) {
+      const gt = normalizeGodownType(row.godownType);
+      if (!gt) throw new APIError('Invalid godownType', 400, 'INVALID_GODOWN');
+      const lensId = parseInt(row.lens_id, 10);
+      if (!lensId) throw new APIError('lens_id required', 400, 'INVALID_LENS');
+
+      const sph = normalizePowerValue(row.sph);
+      const cyl = normalizePowerValue(row.cyl);
+      const add = normalizePowerValue(row.add);
+      const minQty = Math.max(0, parseInt(row.minQty, 10) || 0);
+      const maxQty = row.maxQty != null && row.maxQty !== ''
+        ? parseInt(row.maxQty, 10)
+        : null;
+
+      const saved = await prisma.inventorySpecThreshold.upsert({
+        where: {
+          lens_id_godownType_sph_cyl_add: {
+            lens_id: lensId,
+            godownType: gt,
+            sph,
+            cyl,
+            add,
+          },
+        },
+        create: {
+          lens_id: lensId,
+          godownType: gt,
+          sph,
+          cyl,
+          add,
+          minQty,
+          maxQty,
+        },
+        update: {
+          minQty,
+          maxQty,
+        },
+      });
+      results.push({
+        ...saved,
+        sph: normalizePowerValue(saved.sph),
+        cyl: normalizePowerValue(saved.cyl),
+        add: normalizePowerValue(saved.add),
+      });
+    }
+    return results;
+  }
+
+  /** Generate power values from range with step */
+  generatePowerRange(from, to, step = 0.25) {
+    const values = [];
+    const f = parseFloat(from);
+    const t = parseFloat(to);
+    const s = parseFloat(step) || 0.25;
+    if (!Number.isFinite(f) || !Number.isFinite(t)) return values;
+    const min = Math.min(f, t);
+    const max = Math.max(f, t);
+    for (let v = min; v <= max + 0.0001; v += s) {
+      values.push(parseFloat(v.toFixed(2)));
+    }
+    return values;
+  }
+
+  /**
+   * Generate cartesian spec threshold grid from power ranges
+   */
+  async generateSpecThresholds(params, userId) {
+    const {
+      lens_id,
+      godownType,
+      sphFrom,
+      sphTo,
+      cylFrom,
+      cylTo,
+      addFrom,
+      addTo,
+      step = 0.25,
+      defaultMin = 0,
+      defaultMax,
+    } = params;
+
+    const gt = normalizeGodownType(godownType);
+    if (!gt) throw new APIError('godownType is required', 400, 'INVALID_GODOWN');
+    const lensId = parseInt(lens_id, 10);
+    if (!lensId) throw new APIError('lens_id is required', 400, 'INVALID_LENS');
+
+    const product = await prisma.lensProductMaster.findUnique({
+      where: { id: lensId },
+      select: {
+        sphere_min: true,
+        sphere_max: true,
+        cyl_min: true,
+        cyl_max: true,
+        add_min: true,
+        add_max: true,
+      },
+    });
+    if (!product) throw new APIError('Lens product not found', 404, 'LENS_NOT_FOUND');
+
+    const validateRange = (from, to, minBound, maxBound, label) => {
+      const f = parseFloat(from);
+      const t = parseFloat(to);
+      const hasMin = minBound != null && Number.isFinite(minBound);
+      const hasMax = maxBound != null && Number.isFinite(maxBound);
+      if (hasMin && f < minBound) {
+        throw new APIError(`${label} from below product minimum (${minBound})`, 400, 'RANGE_ERROR');
+      }
+      if (hasMax && t > maxBound) {
+        throw new APIError(`${label} to above product maximum (${maxBound})`, 400, 'RANGE_ERROR');
+      }
+    };
+
+    validateRange(sphFrom, sphTo, product.sphere_min, product.sphere_max, 'SPH');
+    validateRange(cylFrom, cylTo, product.cyl_min, product.cyl_max, 'CYL');
+    if (addFrom != null && addTo != null && addFrom !== '' && addTo !== '') {
+      validateRange(addFrom, addTo, product.add_min, product.add_max, 'ADD');
+    }
+
+    const sphVals = this.generatePowerRange(sphFrom, sphTo, step);
+    const cylVals = this.generatePowerRange(cylFrom, cylTo, step);
+    const hasAdd = addFrom != null && addTo != null && addFrom !== '' && addTo !== '';
+    const addVals = hasAdd ? this.generatePowerRange(addFrom, addTo, step) : [0];
+
+    const rows = [];
+    for (const sph of sphVals) {
+      for (const cyl of cylVals) {
+        for (const add of addVals) {
+          rows.push({
+            lens_id: lensId,
+            godownType: gt,
+            sph: normalizePowerValue(sph),
+            cyl: normalizePowerValue(cyl),
+            add: normalizePowerValue(add),
+            minQty: Math.max(0, parseInt(defaultMin, 10) || 0),
+            maxQty: defaultMax != null && defaultMax !== ''
+              ? parseInt(defaultMax, 10)
+              : null,
+          });
+        }
+      }
+    }
+
+    return this.upsertSpecThresholds(rows, userId);
+  }
+
+  /** Delete a single spec threshold by id */
+  async deleteSpecThreshold(id) {
+    const rowId = parseInt(id, 10);
+    if (!rowId) throw new APIError('Invalid id', 400, 'INVALID_ID');
+    await prisma.inventorySpecThreshold.delete({ where: { id: rowId } });
+    return { deleted: true };
+  }
+
+  /** Delete all thresholds for a lens + godown */
+  async deleteSpecThresholdsByLens(lens_id, godownType) {
+    const gt = normalizeGodownType(godownType);
+    if (!gt) throw new APIError('godownType is required', 400, 'INVALID_GODOWN');
+    const lensId = parseInt(lens_id, 10);
+    if (!lensId) throw new APIError('lens_id is required', 400, 'INVALID_LENS');
+
+    const result = await prisma.inventorySpecThreshold.deleteMany({
+      where: { lens_id: lensId, godownType: gt },
+    });
+    return { deletedCount: result.count };
+  }
+
+  /**
+   * @deprecated Use getSpecAlerts for spec-level low stock
+   * Get items below low stock threshold (legacy product-level)
    */
   async getItemsBelowThreshold(godownType) {
     try {
@@ -2444,31 +2818,27 @@ export class InventoryService {
       const itemWhere = inventoryItemGodownWhere(gt, {
         deleteStatus: false,
         activeStatus: true,
+        status: { in: ['AVAILABLE', 'RESERVED', 'RETURNED'] },
       });
       const stockWhere = inventoryStockGodownWhere(gt);
 
       const [
         productCountResult,
-        damagedItems,
+        specQtyMap,
         allStock,
-        lowStockItems,
+        alertCounts,
         pendingReceipts,
       ] = await Promise.all([
         prisma.inventoryItem.groupBy({
           by: ['lens_id'],
           where: itemWhere,
         }),
-        prisma.inventoryItem.count({
-          where: {
-            ...itemWhere,
-            status: "DAMAGED",
-          },
-        }),
+        this.buildSpecQtyMap(gt),
         prisma.inventoryStock.findMany({
           where: stockWhere,
-          select: { totalStock: true, avgCostPrice: true, availableStock: true, reservedStock: true },
+          select: { totalStock: true, avgCostPrice: true },
         }),
-        this.getItemsBelowThreshold(gt),
+        this.getSpecAlertCounts(gt),
         prisma.purchaseOrderReceipt.findMany({
           where: {
             deleteStatus: false,
@@ -2482,8 +2852,10 @@ export class InventoryService {
       ]);
 
       const productCount = productCountResult.length;
-      const availableItems = allStock.reduce((sum, s) => sum + (s.availableStock || 0), 0);
-      const reservedItems = allStock.reduce((sum, s) => sum + (s.reservedStock || 0), 0);
+      let totalStockUnits = 0;
+      for (const qty of specQtyMap.values()) {
+        totalStockUnits += qty;
+      }
 
       const totalValue = allStock.reduce(
         (sum, s) => sum + (s.totalStock || 0) * (s.avgCostPrice || 0),
@@ -2494,17 +2866,16 @@ export class InventoryService {
         (r) => (r.totalReceivedQty || 0) > (r.inwardedQty || 0)
       );
       const pendingCount = pendingFiltered.length;
-      const pendingInwardsList = pendingFiltered.slice(0, 5);
+      const pendingInwardsList = pendingFiltered;
 
       return {
         productCount,
-        // Keep legacy name for backward compat so existing dashboard cards don't break
         totalItems: productCount,
-        availableItems,
-        reservedItems,
-        damagedItems,
-        lowStockItems: lowStockItems || [],
+        totalStockUnits,
         totalValue,
+        lowStockCount: alertCounts.lowStockCount,
+        outOfStockCount: alertCounts.outOfStockCount,
+        overStockCount: alertCounts.overStockCount,
         pendingInwardsCount: pendingCount,
         pendingInwardsList: pendingInwardsList || [],
       };

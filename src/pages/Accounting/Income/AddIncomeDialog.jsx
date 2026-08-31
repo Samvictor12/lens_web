@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,14 +22,12 @@ import { createIncome } from "@/services/income";
 import { formatCashBankLedgerLabel } from "@/utils/cashBankLedgerLabel";
 import { emptyIncomeForm } from "./Income.constants";
 
-const LOAN_CATEGORY_NAME = "Loan";
-
 export default function AddIncomeDialog({
   open,
   onOpenChange,
   mode = "income",
   loanCategory,
-  categories,
+  defaultIncomeCategory,
   transferLedgers,
   onCreated,
 }) {
@@ -40,40 +38,28 @@ export default function AddIncomeDialog({
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  const activeCategories = useMemo(() => {
-    const list = (categories || []).filter(
-      (c) => c.active_status !== false && c.delete_status !== true
-    );
-    if (isLoans) {
-      return list.filter((c) => c.name === LOAN_CATEGORY_NAME);
-    }
-    return list.filter((c) => c.name !== LOAN_CATEGORY_NAME);
-  }, [categories, isLoans]);
-
-  const resolvedLoanCategory = loanCategory || activeCategories.find((c) => c.name === LOAN_CATEGORY_NAME);
+  const resolvedCategoryId = isLoans ? loanCategory?.id : defaultIncomeCategory?.id;
 
   const ledgerOptions = transferLedgers || [];
 
   useEffect(() => {
     if (!open) return;
     const base = { ...emptyIncomeForm };
-    if (isLoans && resolvedLoanCategory?.id) {
-      base.categoryId = String(resolvedLoanCategory.id);
+    if (resolvedCategoryId) {
+      base.categoryId = String(resolvedCategoryId);
     }
     setForm(base);
-  }, [open, isLoans, resolvedLoanCategory?.id]);
+  }, [open, resolvedCategoryId]);
 
   const handleSave = async () => {
-    const categoryId = isLoans
-      ? resolvedLoanCategory?.id || form.categoryId
-      : form.categoryId;
+    const categoryId = resolvedCategoryId || form.categoryId;
 
     if (!categoryId || !form.amount || !form.description || !form.fromLedgerId || !form.toLedgerId) {
       toast({
         variant: "destructive",
         title: isLoans
           ? "Amount, description, From and To are required (Loan category must exist)"
-          : "Category, amount, description, From and To are required",
+          : "Amount, description, From and To are required",
       });
       return;
     }
@@ -126,31 +112,6 @@ export default function AddIncomeDialog({
           <DialogTitle>{isLoans ? "Record Loan" : "Record Income"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 py-2">
-          <div className="space-y-1">
-            <Label>
-              Category <span className="text-red-500">*</span>
-            </Label>
-            {isLoans ? (
-              <Input
-                value={resolvedLoanCategory?.name || LOAN_CATEGORY_NAME}
-                disabled
-                readOnly
-              />
-            ) : (
-              <Select value={form.categoryId || undefined} onValueChange={(v) => set("categoryId", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeCategories.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
           <div className="space-y-1">
             <Label>
               Date <span className="text-red-500">*</span>
