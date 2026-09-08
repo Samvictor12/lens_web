@@ -292,9 +292,9 @@ router.post('/refresh', authController.refreshToken.bind(authController));
  *   post:
  *     summary: User logout
  *     description: >
- *       Revokes the server refresh session. Prefer sending `refreshToken` in the body
- *       so logout works when the access token is already expired. Optionally send
- *       Authorization Bearer access token as a fallback.
+ *       Revokes only the matching refresh-token row for this device. Prefer sending
+ *       `refreshToken` in the body so logout works when the access token is already
+ *       expired. Sibling sessions for the same user are not deleted.
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []

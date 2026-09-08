@@ -88,7 +88,7 @@ graph TD
 ---
 
 ### D. Authentication & Session Continuity
-* **Tokens:** Access JWT (`JWT_EXPIRES_IN`, default `15m`) + refresh JWT (`REFRESH_TOKEN_EXPIRES_IN`, default `7d`). Refresh string is reused on renew (no sliding refresh). One `RefreshToken` row per `userId` (upsert).
+* **Tokens:** Access JWT (`JWT_EXPIRES_IN`, default `15m`) + refresh JWT (`REFRESH_TOKEN_EXPIRES_IN`, default `7d`). Refresh string is reused on renew (no sliding refresh). One `RefreshToken` row per device (`User.refreshTokens` 1:n); login **inserts**, never upserts-by-userId. Logout / failed renew delete only the matching token row.
 * **DB TTL:** `storeRefreshToken` sets `expiresAt` via `addDuration(REFRESH_TOKEN_EXPIRES_IN)` (`src/backend/utils/duration.js`) so JWT and DB agree when env TTLs change.
 * **Frontend renew:** Axios interceptor on 401 silently refreshes (raw `axios.post`, not the interceptor stack), queues concurrent 401s, retries; `/auth/login` and `/auth/refresh` are excluded from the 401â†’refresh path. Lock always resets via `failRefreshAndForceLogout` on non-success or throw.
 * **Proactive renew:** `AuthContext` / `auth.js` schedules refresh ~60s before access `exp`; failure uses the same forced-logout path.

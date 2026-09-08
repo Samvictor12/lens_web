@@ -1,93 +1,43 @@
-Major Correction in Accounting module:
-- Side bar
-    - Finanance dashboard
-    - income and loans 
-    - expenses and payables
-    - billing and invoicing
-    - customer 360 view
-
-- income and loans:
-    - Dashboard to show the Cards like Total Income, Total Loans, Total Income this Month, Total Loans this Month.
-    - next to the Cards need tabs to show the list of Income, Loans with the add button on the top right.
-    - Income and Loan Record page:
-        - the Form has the info like From account to account, amount, date, description, Reference No.
-    - Income and Loan Ledger report
-
-
-- customer 360 view purpose to understand the customer and their business.
-    - select the customer from the dropdown.
-    - section 1 -> Customer Details and customer transactions(Billing cycle, Credit Limit, outstanding, Discounts, Total Credit Notes, Last Payment Amount).
-    - section 2 -> Cards to List records if any card selected below need to show the list records accordingly(5 records each other need to have small pagination cards below) -> Total Orders of this Month(SO), in Production(SO), in Dispatch(SO), Delivered(SO), Collection target(this month, list need to show the Invoice due for this month), actual Collection(this Month, payment History of this month).
-    - section 3 -> Need to have 2 sections Top Lens order Horizontal Bar chart and Credit Analysis (Invoices count and Amount with in 30 days due, 60 days due, 90 days due).
-    - section 4 -> tabs to list records -> Invoices(outstanding invoices from the customer payments ), Payments(payment History in the Customer payments module), Credit Notes(Credit Notes from the customer payments module), Customer Ledger.
-
-- billing and invoicing: merge the Billing and Customer payments module.
-    - Dashboard to show the Cards like Total Billing, Total outstanding, Total Awaiting Bills, Target Collection, Total Collection, Today Collection. 
-    - next to the Cards need tabs to show the list of Awaiting Invoices, Invoices(outstanding invoices from the customer payments with default customer grouped list), Payments(payment History in the Customer payments module), Credit Notes, Collection(Show customer wise Collection amount of this Month and total Collection per customer as Cards), Customer Ledger.
-    - select and select all option for invoice.
-    - invoice data need to get form the SO to the Invoice. 
-    - target collect for the customer using tat. target need to be for the month.
-    - tat of invoice form the billed date to credit dates.
-    - CN -> against not invoice.
-    - on the top section need to have the filters for date between(default current month), customer, product. based on this filter selection the entire dashboard and other tabs need to be updated.
-    - Record Payments page:
-        - First Select the Customer from the dropdown. after select the Customer in the First section next to the Customer Select section Customer Details Section with the Amount Due, Last Payment Amount, Due Days. 
-        - 3rd section is Payment Details need to ask for the Advance Amount(If any marked as advance form the customer in previous payment or any. this can be added to the Invoices below as same as Payment amount), payment Amount, Payment Date, Payment Method, Account Receivable, reference No and Notes. 
-        - 4th section is Invoice Allocation (FIFO by Due Date) need to show the List of invoices pending for payment with order by due date. this is same as already in the Record payment page. 
-        - 5th Payment Summary need to show the Total Amount Received, Total Advance Amount, Sum of the Invoices Amount. total balance due after the payment.
+RX po/ Stock PO -> Save seperate purchase.
+Bulk Stock.
+Finance Dashboard -> collection Target vs Actual list view.
+Gst Report -> need to show all the GST records in the list view same as Template excel.
+All Report as Excel download.
+P&L Report need to show all details.
+Balance Sheet need to Show as Standard Format.
+Dashboard -> show P&L Chart as Income and Expense.
+Customer 360 view -> Reports Download.
+Billing and Invoice -> Show the Bill in as Default Draft and need filter to show the Pending and paid.
+Billing and Invoice -> Collection tab need to show the list view with the info of Customer, target, actual and Balance to collect. for the current month.
+Credit Note -> need to mark against the Customer invoice if avaliable or it need to mark against the Customer as pending cn.
+In vendor Bills -> PO column need to SHow the count of the PO's if hover need to show the List of the PO's.
+In indirect Expense -> need bill date for mark the Expense.
+Bank need to Show the List of the Bank and Cash in Hand in the Finance Dashboard dont need seperate page in the Sidebar.
 
 
 
-- expenses and payables: (SUPERSEDED for vendor-linked items — see vendor & payments Option A hub below)
-    - Non-vendor overhead only (petty cash, no vendor) may remain a slim entry later; vendor-linked accruals live in vendor & payments.
 
-- vendor & payments: Restructure vendor payments (mirror Billing & Invoicing). **Option A hub** — all vendor payables (direct + indirect) in this workspace.
 
-    EXPENSE TYPES:
-    - Direct expenses = PO-based vendor bills (VendorInvoice linked to PO(s)). Existing M5 invoice-first flow.
-    - Indirect expenses = non-PO accruals against a vendor (salary, stationary, rent, etc.). MARK first (Dr expense category / Cr vendor AP), pay later via vendor payment.
 
-    Dashboard KPIs (filter-scoped: date range default current month, vendor, product):
-    - Total Purchases — sum of VendorInvoice billed in period (direct only).
-    - Total Outstanding — all open VendorInvoice balance (vendor/product filtered).
-    - Awaiting Bills — POs received/eligible but no vendor invoice yet.
-    - Total Indirect Expenses — sum of marked indirect expenses in period.
-    - Target Payment — unpaid vendor bills + marked indirect expenses due on or before LEAST(today, filter.endDate) (cumulative, like Target Collection).
-    - Total Payment — vendor payment vouchers in period (allocations to bills + indirect).
 
-    Tabs (all respect top filters):
-    - Awaiting Vendor Bills — eligible POs per vendor (register invoice action).
-    - Vendor Bills — outstanding VendorInvoices, default grouped by vendor, multi-select.
-    - Indirect Expenses — marked liabilities (Marked / Partially paid / Paid); Add/Mark action.
-    - Payments — vendor payment history (direct + indirect allocations).
-    - Debit Notes — document-only, not against PO/invoice (mirror customer CN).
-    - Vendor Ledger — subsidiary AP statement for selected vendor.
-    - Target Payment tab — vendor-wise target vs paid this month (mirror Collection tab).
 
-    Record Payment page (/accounts/vendor-payments/record-payment):
-    - Section 1 — Vendor select.
-    - Section 2 — Vendor details: Amount Due (bills + indirect), Last Payment Amount.
-    - Section 3 — Payment details: Advance (prior vendor advance), Payment Amount, Payment Date, Payment Method, Bank account, Reference No, Notes. (AP sub-ledger implicit from vendor.)
-    - Section 4 — Allocation toggle: (a) Vendor Bills FIFO by due date; (b) Indirect Expenses open liabilities FIFO by due date. Advance applicable to either list.
-    - Section 5 — Summary: Total Paid, Advance Applied, Sum Allocated (bills + indirect), Balance Due After Payment.
+i want to do audit on the Accounting module:
+1. Inventroy Stock management.
+    - for inventory Inward 2 types -> PO Inward / Direct Inward
+        - Direct Inward the Transaction Create for the Tray stock and it has the Value.
+        - PO inward the Transaction Create for the Tray stock and it has the Value. even it is Bulk or Single PO the Transaction Saves for a tray. 
+    - for Inventroy outward 3 types -> Sale Outward / Return Outward / Damage.
+        - if any of the this Outward is marked against the tray it need to be like with one or more Inward/transfer transaction to capture the Unit price. if the transaction has Quantity of 10 it can has 10 seperate Outward transaction or Damage Transaction. 
+        - the outward/damage transaction can connect with inward/transfer transaction because if a Tray 1 has 5 Inward/transfer transaction then all with 1 qty and user create Outward tranasaction for 3 qty then the system need to create 3 seperate outward transaction each for each quantity and every outward create tagging one Inward/transfer transaction.
+        - in some case the Inward/transfer transaction has 10 qantity then it can have !0 outward/Damage transaction if this inward/transfer transaction is Connected with 10 outward transactions then Inward/transfer transaction Status need to change to Consumed.
+    - for Inventroy Transfer: remove Adjustment type.
+        - if the Inventory transfer between the trays or racks or Godowns then this transfer Transaction is marked. it need to mark the Inward/transfer transaction to new transfer transaction so the tagged inward/transfer transaction need to marked as consumed and new transfer transaction need to create with the same value as Unit price. the transfer creates for each single lens moment if the user can select 10 qty then 10 seperate transfer transaction create for this transfer each connect with one Inward/transfer transaction.
+    - the Inward transaction get its unit price On the time of bill generated for the PO. on the time the InventoryStock ledger get the value Dr and the Vendor get the values Cr.
+    - on the Time Sale Order billed the Sale Outward Trasaction is marked on the time the InventoryStock Ledger get the Value Cr based on the Sale Outward transaction which is connected with the sale order andthe Customer Ledger get Dr and Sale Revenue Ledger and GST ledger get the value cr. 
 
-- accounting dashboard
-    - trail balance - > sundry debtors and sundry creditors. and other accounts.
-    - other reports Refer diagram.
+    
 
-- business intelligence.
-    - Finance Tab:
-        - based on the diagram
-        - Gross profit of this month. Net profit of this month.
-        - Financial year monthly trend chat of income and expenses.
-        - customer > 90 days outstanding is risk report. 
-        - Expenses breakup. 
 
-    - lab operations:
-        - lap productivity today, week, month.
-        - lab productivity trend chat.
-        - refere drawing.
-        - RX/Stock POs raise. 
-        - rejection rate -> agaisnt total production. 
-        - Rejection List -> list of rejection items with reason.
-        - hot jobs -> list of urgent jobs.
+
+1. want to manage the Inventory Stock value like time of PO Billing the Inventory value increases and time of SO billing Inventory Decreases.  in the transation Type Sale outward, Return Outward, Damage need to have the Unit price of the Inward(PO) Transaction  or Direct Inward transaction. the transaction need to tag with the PO  
+ 

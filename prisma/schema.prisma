@@ -55,7 +55,7 @@ model User {
   // Relationship Fields
   role                          Role?                  @relation(fields: [role_id], references: [id])
   departmentDetails             DepartmentDetails?     @relation("userDepartment", fields: [department_id], references: [id])
-  refreshToken                  RefreshToken?
+  refreshTokens                 RefreshToken[]
   // Relationship Tables
   vendorUserCreate              Vendor[]               @relation("vendorUserCreate")
   vendorUserUpdate              Vendor[]               @relation("vendorUserUpdate")
@@ -194,14 +194,15 @@ model Permission {
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
-  userId    Int      @unique
-  token     String   @db.Text
+  userId    Int
+  token     String   @unique @db.Text
   expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   // Relationship Fields
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("refresh_tokens")
 }
 

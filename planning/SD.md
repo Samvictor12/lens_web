@@ -108,6 +108,9 @@ Pending QC reject returns shown in Inward Queue. Fields include `saleOrderId`, o
 ### 1c. InventorySpecThreshold (req-013, 2026-08-31)
 Per-product, per-godown, per-power-spec min/max stock configuration. Fields: `lens_id` FK, `godownType` (`STOCK`|`RX`), `sph`/`cyl`/`add` (`Decimal(6,2)`, normalized), `minQty` Int≥0, `maxQty` Int? nullable. `@@unique([lens_id, godownType, sph, cyl, add])`. Alerts computed at read from `specQty` (sum `InventoryItem.quantity` by lens + coalescePower, godown-scoped) vs threshold — no writes to `InventoryAlert`. Product-level `LensProductMaster.minThresholdQty`/`maxThresholdQty` retained on schema but deprecated for dashboard KPIs.
 
+### 1d. RefreshToken (req-001, 2026-09-06)
+Per-device session row. `User.refreshTokens` 1:n. Unique on `token`; index on `userId` (not unique). Login inserts a row; refresh looks up by presented token; logout deletes only that row. Migration `20260906160000_refresh_token_per_device` drops `refresh_tokens_userId_key`. Password change / admin revoke still clears all of a user's rows.
+
 ### 2. InventoryTransaction
 Records all inward movements (Manual or PO Inward) and outward movements (Sale Order dispatch). Keeps track of historical unit prices and values.
 

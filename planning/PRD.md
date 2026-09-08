@@ -75,6 +75,14 @@ requirements:
     dd: [DD-1.1]
     sd: [SD-1.1]
     fd: [FD-2.5]
+  - id: PRD-5.1
+    title: Authentication session continuity
+    status: shipped
+    module: admin
+    tsd: [TSD-1.1]
+    dd: [DD-1.1]
+    sd: [SD-1.1]
+    fd: []
 ---
 
 # Project Requirements Document
@@ -197,6 +205,12 @@ Do not create active `execution_state` work for PRD-4.7 until briefed.
 - **Dashboard sections:** Clickable Low/Out/Over KPI cards → filtered spec alert list (50%); no selection → inward/outward quantity trend (100%). Top 10 / Least 10 selling products side-by-side (50/50).
 - Initialize Stock removed from Dashboard; accessible only via Audit tab.
 - APIs: `GET /api/inventory/spec-alerts`, `GET|POST|DELETE /api/inventory/spec-thresholds`, `POST /api/inventory/spec-thresholds/generate`, enhanced `GET /api/inventory/dashboard`.
+
+## PRD-5.1 Authentication session continuity
+
+**Status:** shipped (`req-001`, 2026-09-06).
+
+Operators stay signed in for the configured access + refresh TTL while they are using the app. A login on another browser or machine does not instantly evict an existing valid session or present it as a session timeout. Session-expired UI is reserved for a truly expired or revoked token on that device. One `RefreshToken` row per device (`User.refreshTokens` 1:n).
 
 ## Shipped index (legacy)
 

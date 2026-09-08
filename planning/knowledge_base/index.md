@@ -19,4 +19,5 @@
 | KB-015 | Vendor bill GL accrual (not PO receipt) | PRD-4.4, DD-1.1, SD-1.1, req-014 |
 | KB-016 | Inventory Audit and dashboard overhaul | PRD-4.8, DD-1.1, SD-1.1, FD-2.5, req-013 |
 | KB-017 | Income and loans UI simplify | PRD-4.2, FD-2.2, req-017 |
+| KB-018 | Per-device refresh tokens | PRD-5.1, DD-1.1, SD-1.1, req-001 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |
