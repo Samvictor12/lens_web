@@ -15,6 +15,15 @@ const inventoryService = new InventoryService();
 
 const EXPAND_TRIAL_BALANCE_GROUPS = new Set(['GRP-SUNDRY-DEBTORS', 'GRP-SUNDRY-CREDITORS']);
 
+function findSummaryGroupByCode(childGroups, code) {
+  for (const child of childGroups || []) {
+    if (child.group?.groupCode === code) return child;
+    const nested = findSummaryGroupByCode(child.childGroups, code);
+    if (nested) return nested;
+  }
+  return null;
+}
+
 function toIsoDate(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -451,7 +460,7 @@ export class FinancialReportService {
   // ── Balance Sheet (grouped) ──────────────────────────────────
 
   async getBalanceSheet({ asOf }) {
-    const rootCodes = ['GRP-ASSETS', 'GRP-LIABILITIES', 'GRP-CAPITAL'];
+    const rootCodes = ['GRP-ASSETS', 'GRP-LIABILITIES'];
     const roots = await prisma.accountGroup.findMany({
       where: { groupCode: { in: rootCodes }, delete_status: false },
       orderBy: { sortOrder: 'asc' },
@@ -460,7 +469,6 @@ export class FinancialReportService {
     const sections = [];
     let totalAssets = 0;
     let totalLiabilities = 0;
-    let totalCapital = 0;
 
     for (const root of roots) {
       const summary = await accountGroupService.getSummary({ groupId: root.id, asOf });
@@ -475,18 +483,20 @@ export class FinancialReportService {
       });
       if (root.groupCode === 'GRP-ASSETS') totalAssets = total;
       else if (root.groupCode === 'GRP-LIABILITIES') totalLiabilities = total;
-      else if (root.groupCode === 'GRP-CAPITAL') totalCapital = total;
     }
 
-    const liabPlusCapital = totalLiabilities + totalCapital;
+    const liabSection = sections.find((s) => s.groupCode === 'GRP-LIABILITIES');
+    const capitalSummary = findSummaryGroupByCode(liabSection?.childGroups, 'GRP-CAPITAL');
+    const totalCapital = capitalSummary ? parseFloat(capitalSummary.totalBalance || 0) : 0;
+
     return {
       asOf: asOf || null,
       sections,
       totalAssets: totalAssets.toFixed(2),
       totalLiabilities: totalLiabilities.toFixed(2),
       totalCapital: totalCapital.toFixed(2),
-      totalLiabilitiesAndCapital: liabPlusCapital.toFixed(2),
-      isBalanced: Math.abs(totalAssets - liabPlusCapital) < 0.02,
+      totalLiabilitiesAndCapital: totalLiabilities.toFixed(2),
+      isBalanced: Math.abs(totalAssets - totalLiabilities) < 0.02,
     };
   }
 

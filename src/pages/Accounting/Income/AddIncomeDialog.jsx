@@ -28,7 +28,8 @@ export default function AddIncomeDialog({
   mode = "income",
   loanCategory,
   defaultIncomeCategory,
-  transferLedgers,
+  fromLedgers,
+  toLedgers,
   onCreated,
 }) {
   const { toast } = useToast();
@@ -40,7 +41,8 @@ export default function AddIncomeDialog({
 
   const resolvedCategoryId = isLoans ? loanCategory?.id : defaultIncomeCategory?.id;
 
-  const ledgerOptions = transferLedgers || [];
+  const fromOptions = fromLedgers || [];
+  const toOptions = toLedgers || [];
 
   useEffect(() => {
     if (!open) return;
@@ -152,10 +154,10 @@ export default function AddIncomeDialog({
               onValueChange={(v) => set("fromLedgerId", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select source ledger" />
+                <SelectValue placeholder={isLoans ? "Select loan ledger" : "Select capital ledger"} />
               </SelectTrigger>
               <SelectContent>
-                {ledgerOptions.map((l) => (
+                {fromOptions.map((l) => (
                   <SelectItem key={l.id} value={String(l.id)}>
                     {ledgerLabel(l)}
                   </SelectItem>
@@ -172,10 +174,10 @@ export default function AddIncomeDialog({
               onValueChange={(v) => set("toLedgerId", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select destination ledger" />
+                <SelectValue placeholder="Select cash/bank account" />
               </SelectTrigger>
               <SelectContent>
-                {ledgerOptions.map((l) => (
+                {toOptions.map((l) => (
                   <SelectItem key={l.id} value={String(l.id)}>
                     {ledgerLabel(l)}
                   </SelectItem>

@@ -52,6 +52,20 @@ export class LedgerController {
     } catch (e) { next(e); }
   }
 
+  async getCapitalPostingLedgers(req, res, next) {
+    try {
+      const data = await service.getCapitalPostingLedgers();
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
+  async getLoansPostingLedgers(req, res, next) {
+    try {
+      const data = await service.getLoansPostingLedgers();
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
   async getLiabilityPostingLedgers(req, res, next) {
     try {
       const data = await service.getLiabilityPostingLedgers();

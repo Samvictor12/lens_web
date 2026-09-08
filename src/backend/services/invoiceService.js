@@ -54,6 +54,41 @@ function calcInvoiceTaxFromCompany(taxableAmount, companySettings) {
   };
 }
 
+/** Parse YYYY-MM-DD (local noon) or a Date/ISO string. Empty → null. Invalid → null. */
+export function parseInvoiceCalendarDate(value) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  const dateStr = String(value).trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    ? new Date(`${dateStr}T12:00:00`)
+    : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+/** Bill date: parsed value, else today at local noon. Throws on an unparseable non-empty value. */
+export function resolveInvoiceBillDate(billDate) {
+  const parsed = parseInvoiceCalendarDate(billDate);
+  if (billDate !== undefined && billDate !== null && String(billDate).trim() !== '' && !parsed) {
+    throw new APIError('Invalid bill date', 400, 'INVALID_BILL_DATE');
+  }
+  if (parsed) return parsed;
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+}
+
+/** Due date: parsed override, else billDate + credit_days. Throws on an unparseable non-empty value. */
+export function resolveInvoiceDueDate(dueDate, billDate, creditDays) {
+  const parsed = parseInvoiceCalendarDate(dueDate);
+  if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '' && !parsed) {
+    throw new APIError('Invalid due date', 400, 'INVALID_DUE_DATE');
+  }
+  if (parsed) return parsed;
+  const due = new Date(billDate);
+  const days = Number.isFinite(Number(creditDays)) ? Number(creditDays) : 0;
+  due.setDate(due.getDate() + days);
+  return due;
+}
+
 /** Delivered SOs not yet on an issued invoice — shown on Awaiting tab. */
 const AWAITING_TAB_INVOICE_OR = [
   { invoiceId: null },
@@ -96,7 +131,7 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Create invoice from delivered sale orders
   // ──────────────────────────────────────────────────────────
-  async createInvoice({ saleOrderIds, dueDate, notes }, userId, req = null) {
+  async createInvoice({ saleOrderIds, dueDate, notes, billDate }, userId, req = null) {
     try {
       if (!saleOrderIds?.length) {
         throw new APIError('At least one sale order is required', 400, 'NO_ORDERS');
@@ -166,23 +201,8 @@ export class InvoiceService {
         const taxAmount = taxBreakdown.taxAmount;
         const invoiceNo = await this.generateInvoiceNo(tx);
 
-        // Due date: client override, else invoiceDate + customer.credit_days (default 0)
-        const invoiceDate = new Date();
-        let resolvedDueDate;
-        if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '') {
-          const dateStr = String(dueDate).trim();
-          // YYYY-MM-DD from date input — parse at local noon to avoid UTC day shift
-          resolvedDueDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
-            ? new Date(`${dateStr}T12:00:00`)
-            : new Date(dueDate);
-          if (Number.isNaN(resolvedDueDate.getTime())) {
-            throw new APIError('Invalid due date', 400, 'INVALID_DUE_DATE');
-          }
-        } else {
-          const creditDays = customer.credit_days ?? 0;
-          resolvedDueDate = new Date(invoiceDate);
-          resolvedDueDate.setDate(resolvedDueDate.getDate() + (Number.isFinite(creditDays) ? creditDays : 0));
-        }
+        const resolvedBillDate = resolveInvoiceBillDate(billDate);
+        const resolvedDueDate = resolveInvoiceDueDate(dueDate, resolvedBillDate, customer.credit_days ?? 0);
 
         const taxNoteParts = [];
         if (taxBreakdown.gstPercent > 0 || taxBreakdown.sgstPercent > 0) {
@@ -199,6 +219,7 @@ export class InvoiceService {
             totalAmount: invoicedTotal,
             taxAmount,
             paidAmount: 0,
+            billDate: resolvedBillDate,
             dueDate: resolvedDueDate,
             status: 'DRAFT',
             notes: mergedNotes,
@@ -374,7 +395,7 @@ export class InvoiceService {
   // ──────────────────────────────────────────────────────────
   // Update DRAFT invoice — due date, notes, sale order lines
   // ──────────────────────────────────────────────────────────
-  async updateInvoice(invoiceId, { dueDate, notes, saleOrderIds }, userId, req = null) {
+  async updateInvoice(invoiceId, { dueDate, notes, saleOrderIds, billDate }, userId, req = null) {
     try {
       if (!saleOrderIds?.length) {
         throw new APIError('At least one sale order is required', 400, 'NO_ORDERS');
@@ -486,16 +507,14 @@ export class InvoiceService {
         const oldTotal = parseFloat(invoice.totalAmount) || 0;
         const delta = Math.round((newTotal - oldTotal) * 100) / 100;
 
-        let resolvedDueDate = invoice.dueDate;
-        if (dueDate !== undefined && dueDate !== null && String(dueDate).trim() !== '') {
-          const dateStr = String(dueDate).trim();
-          resolvedDueDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
-            ? new Date(`${dateStr}T12:00:00`)
-            : new Date(dueDate);
-          if (Number.isNaN(resolvedDueDate.getTime())) {
-            throw new APIError('Invalid due date', 400, 'INVALID_DUE_DATE');
-          }
-        }
+        const customer = await tx.customer.findUnique({
+          where: { id: invoice.customerId },
+          select: { credit_days: true },
+        });
+        const resolvedBillDate = billDate !== undefined && billDate !== null && String(billDate).trim() !== ''
+          ? resolveInvoiceBillDate(billDate)
+          : (invoice.billDate || resolveInvoiceBillDate());
+        const resolvedDueDate = resolveInvoiceDueDate(dueDate, resolvedBillDate, customer?.credit_days ?? 0);
 
         const taxNoteParts = [];
         if (taxBreakdown.gstPercent > 0 || taxBreakdown.sgstPercent > 0) {
@@ -508,6 +527,7 @@ export class InvoiceService {
         await tx.invoice.update({
           where: { id: invoiceId },
           data: {
+            billDate: resolvedBillDate,
             dueDate: resolvedDueDate,
             notes: mergedNotes,
             totalAmount: newTotal,
@@ -532,7 +552,7 @@ export class InvoiceService {
         entity: 'Invoice',
         entityId: invoiceId,
         oldValues: {},
-        newValues: { saleOrderIds: uniqueIds, dueDate, notes },
+        newValues: { saleOrderIds: uniqueIds, billDate, dueDate, notes },
         req,
         metadata: { operation: 'updateInvoice' },
       }).catch(() => {});
@@ -669,7 +689,14 @@ export class InvoiceService {
           data: { status: 'INVOICED', updatedBy: userId },
         });
 
-        await postInvoice(tx, { invoiceId, invoiceNo: invoice.invoiceNo, totalAmount: invoice.totalAmount, taxAmount: invoice.taxAmount, customer }, userId);
+        await postInvoice(tx, {
+          invoiceId,
+          invoiceNo: invoice.invoiceNo,
+          totalAmount: invoice.totalAmount,
+          taxAmount: invoice.taxAmount,
+          customer,
+          transactionDate: invoice.billDate || invoice.createdAt,
+        }, userId);
 
         return issued;
       });

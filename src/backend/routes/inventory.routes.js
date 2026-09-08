@@ -67,7 +67,15 @@ router.use(authenticateToken);
  *         type:
  *           type: string
  *           enum: [INWARD_PO, INWARD_DIRECT, OUTWARD_SALE, OUTWARD_RETURN, TRANSFER, ADJUSTMENT, DAMAGE]
- *           description: Type of inventory transaction
+ *           description: Type of inventory transaction. ADJUSTMENT is legacy read-only; POST rejects new ADJUSTMENT writes.
+ *         status:
+ *           type: string
+ *           enum: [OPEN, CONSUMED]
+ *         remainingQty:
+ *           type: number
+ *         parentTransactionId:
+ *           type: integer
+ *           nullable: true
  *         inventoryItemId:
  *           type: integer
  *           description: Related inventory item ID

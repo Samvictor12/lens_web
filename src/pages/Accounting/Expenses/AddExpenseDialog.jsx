@@ -85,6 +85,10 @@ export default function AddExpenseDialog({ open, onOpenChange, categories, bankL
       toast({ variant: "destructive", title: "Payment Account is required" });
       return;
     }
+    if (form.dueDate && form.expenseDate && form.expenseDate > form.dueDate) {
+      toast({ variant: "destructive", title: "Expense date cannot be after due date" });
+      return;
+    }
     setSaving(true);
     try {
       const catName = selectedCategory?.name || "Expense";

@@ -214,6 +214,8 @@ export class IncomeService {
 
     const incomeNumber = await generateIncomeNumber();
     const method = paymentMethod || 'CASH';
+    const resolvedDate = incomeDate ? new Date(incomeDate) : new Date();
+    const fromKind = category.name === 'Loan' ? 'LOANS' : 'CAPITAL';
 
     return prisma.$transaction(async (tx) => {
       const income = await tx.income.create({
@@ -225,7 +227,7 @@ export class IncomeService {
           fromLedgerId: fromId,
           toLedgerId: toId,
           bankLedgerId: bankLedgerId ? parseInt(bankLedgerId, 10) : toId,
-          incomeDate: incomeDate ? new Date(incomeDate) : new Date(),
+          incomeDate: resolvedDate,
           description,
           referenceNo: referenceNo || null,
           notes: notes || null,
@@ -245,6 +247,8 @@ export class IncomeService {
         fromLedgerId: fromId,
         toLedgerId: toId,
         description,
+        transactionDate: resolvedDate,
+        fromKind,
       }, userId);
 
       return income;

@@ -56,11 +56,28 @@ export default function BulkLensSelection({
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const hydratedFromParentRef = useRef(false);
+  // Hydrate when parent later supplies selections (Raise PO navigate state / delayed form fill)
+  useEffect(() => {
+    if (hydratedFromParentRef.current) return;
+    const sel = value?.selections || {};
+    if (Object.keys(sel).length === 0) return;
+    if (value.ranges) setRanges((prev) => ({ ...prev, ...value.ranges }));
+    setSelections(sel);
+    setShowGrid(true);
+    hydratedFromParentRef.current = true;
+  }, [value]);
+
   // Reset grid when category changes
   const prevCategoryRef = useRef(categoryName);
   useEffect(() => {
     if (prevCategoryRef.current !== categoryName) {
+      const wasEmpty = !prevCategoryRef.current;
       prevCategoryRef.current = categoryName;
+      // First category fill from Raise PO / edit hydrate — keep parent selections
+      if (wasEmpty && value?.selections && Object.keys(value.selections).length > 0) {
+        return;
+      }
       setShowGrid(false);
       setSelections({});
       setSelectedCell(null);
@@ -73,7 +90,7 @@ export default function BulkLensSelection({
         addTo: "",
       });
     }
-  }, [categoryName, isSingleVision]);
+  }, [categoryName, isSingleVision, value]);
 
   // Generate 0.25-step range
   const generateRange = (from, to) => {

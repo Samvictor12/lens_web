@@ -34,12 +34,12 @@ export const getDeliveredOrdersForCustomer = (customerId, params = {}) =>
 
 /**
  * Create invoice from delivered sale orders
- * @param {{ saleOrderIds: number[], dueDate: string, notes?: string }} data
+ * @param {{ saleOrderIds: number[], billDate?: string, dueDate?: string, notes?: string }} data
  */
 export const createInvoice = (data) =>
   apiClient("post", BASE, { data });
 
-/** Update DRAFT invoice (due date, notes, sale orders) */
+/** Update DRAFT invoice (bill date, due date, notes, sale orders) */
 export const updateInvoice = (id, data) =>
   apiClient("patch", `${BASE}/${id}`, { data });
 

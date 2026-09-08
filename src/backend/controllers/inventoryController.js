@@ -1,4 +1,4 @@
-import InventoryService from '../services/inventory.service.js';
+import InventoryService, { parseTopLowSellingDays } from '../services/inventory.service.js';
 import {
   validateCreateInventoryItem,
   validateCreateInventoryTransaction,
@@ -556,7 +556,7 @@ export class InventoryController {
     try {
       const { days = 30, godownType = null } = req.query;
       const result = await this.inventoryService.getTopLowSellingProducts({
-        days,
+        days: parseTopLowSellingDays(days),
         godownType,
       });
       res.json({ success: true, data: result });

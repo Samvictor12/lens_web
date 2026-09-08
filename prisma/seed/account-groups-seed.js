@@ -23,8 +23,8 @@ const GROUPS = [
   { groupCode: 'GRP-SUNDRY-CREDITORS', groupName: 'Sundry Creditors', nature: 'LIABILITY', parentCode: 'GRP-CURRENT-LIAB', reportSection: 'BALANCE_SHEET', pnlClassification: 'NOT_APPLICABLE', sortOrder: 22, isSystemGroup: true },
   { groupCode: 'GRP-GST-OUTPUT', groupName: 'GST Output Payable', nature: 'LIABILITY', parentCode: 'GRP-CURRENT-LIAB', reportSection: 'BALANCE_SHEET', pnlClassification: 'NOT_APPLICABLE', sortOrder: 23, isSystemGroup: true },
   { groupCode: 'GRP-TDS', groupName: 'TDS Payable', nature: 'LIABILITY', parentCode: 'GRP-CURRENT-LIAB', reportSection: 'BALANCE_SHEET', pnlClassification: 'NOT_APPLICABLE', sortOrder: 24, isSystemGroup: true },
-
-  { groupCode: 'GRP-CAPITAL', groupName: 'Capital', nature: 'EQUITY', reportSection: 'BALANCE_SHEET', pnlClassification: 'NOT_APPLICABLE', sortOrder: 30, isSystemGroup: true },
+  { groupCode: 'GRP-LOANS', groupName: 'Loans', nature: 'LIABILITY', parentCode: 'GRP-LIABILITIES', reportSection: 'BALANCE_SHEET', pnlClassification: 'NOT_APPLICABLE', sortOrder: 25, isSystemGroup: true },
+  { groupCode: 'GRP-CAPITAL', groupName: 'Capital', nature: 'LIABILITY', parentCode: 'GRP-LIABILITIES', reportSection: 'BALANCE_SHEET', pnlClassification: 'NOT_APPLICABLE', sortOrder: 30, isSystemGroup: true },
 
   { groupCode: 'GRP-INCOME', groupName: 'Income', nature: 'INCOME', reportSection: 'PROFIT_LOSS', pnlClassification: 'NOT_APPLICABLE', sortOrder: 40, isSystemGroup: true },
   { groupCode: 'GRP-DIRECT-INCOME', groupName: 'Direct Income', nature: 'INCOME', parentCode: 'GRP-INCOME', reportSection: 'PROFIT_LOSS', pnlClassification: 'DIRECT_INCOME', sortOrder: 41, isSystemGroup: true },
@@ -45,6 +45,7 @@ const LEDGER_GROUP_MAP = {
   'AC-2001': 'GRP-SUNDRY-CREDITORS',
   'AC-2002': 'GRP-TDS',
   'AC-2003': 'GRP-GST-OUTPUT',
+  'AC-2004': 'GRP-LOANS',
   'AC-3001': 'GRP-DIRECT-INCOME',
   'AC-3002': 'GRP-INDIRECT-INCOME',
   'AC-3003': 'GRP-INDIRECT-INCOME',
@@ -178,10 +179,14 @@ export async function seedAccountGroups(client = prisma, userId = SYSTEM_USER_ID
 
   console.log('   ✅ Ledger group mapping complete\n');
 
-  // Ensure Owner's Capital is postable for Income From/To pickers
+  // Capital ledgers are LIABILITY posting accounts (Income From)
   await client.ledger.updateMany({
-    where: { ledgerCode: 'AC-5001', delete_status: false },
-    data: { allowsDirectPosting: true, isGroupLedger: false },
+    where: { ledgerCode: { in: ['AC-5001', 'AC-5002'] }, delete_status: false },
+    data: { ledgerType: 'LIABILITY', allowsDirectPosting: true, isGroupLedger: false },
+  });
+  await client.ledger.updateMany({
+    where: { ledgerCode: 'AC-2004', delete_status: false },
+    data: { ledgerType: 'LIABILITY', allowsDirectPosting: true, isGroupLedger: false },
   });
   return codeToId;
 }

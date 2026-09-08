@@ -37,6 +37,7 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
   const { company } = useCompany();
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [billDate, setBillDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -48,6 +49,7 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
     if (open) {
       setCustomerId(initialCustomerId || "");
       setSelectedOrderIds([]);
+      setBillDate(formatLocalDate(new Date()));
       setDueDate("");
       setNotes("");
       setStartDate("");
@@ -81,15 +83,16 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
   const deliveredOrders = ordersRes?.data || [];
 
   useEffect(() => {
-    if (!open || !customerId) return;
+    if (!open || !customerId || !billDate) return;
     const list = customersRes?.data || [];
     const cust = list.find((c) => String(c.id) === String(customerId));
     if (!cust && list.length === 0) return;
     const days = Number(cust?.creditDays ?? cust?.credit_days ?? 0) || 0;
-    const d = new Date();
+    const d = new Date(`${billDate}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return;
     d.setDate(d.getDate() + days);
     setDueDate(formatLocalDate(d));
-  }, [open, customerId, customersRes?.data]);
+  }, [open, customerId, billDate, customersRes?.data]);
 
   useEffect(() => {
     const ids = new Set(deliveredOrders.map((o) => o.id));
@@ -114,6 +117,7 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
   const handleClose = () => {
     setCustomerId("");
     setSelectedOrderIds([]);
+    setBillDate("");
     setDueDate("");
     setNotes("");
     setStartDate("");
@@ -145,7 +149,13 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
     if (!customerId) return toast.error("Please select a customer");
     if (!selectedOrderIds.length) return toast.error("Select at least one sale order");
     if (!dueDate) return toast.error("Please set a due date");
-    mutation.mutate({ saleOrderIds: selectedOrderIds, dueDate, notes: notes || undefined });
+    if (!billDate) return toast.error("Please set a bill date");
+    mutation.mutate({
+      saleOrderIds: selectedOrderIds,
+      billDate,
+      dueDate,
+      notes: notes || undefined,
+    });
   };
 
   return (
@@ -190,6 +200,20 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
 
             <div className="space-y-1">
               <Label>
+                Bill Date <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={billDate}
+                onChange={(e) => setBillDate(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Defaults to today. Sale posting uses this date.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label>
                 Due Date <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -199,7 +223,7 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
               />
               {customerId && (
                 <p className="text-[11px] text-muted-foreground">
-                  Auto-set from credit days ({selectedCustomerCreditDays} day
+                  Auto-set from bill date + credit days ({selectedCustomerCreditDays} day
                   {selectedCustomerCreditDays === 1 ? "" : "s"}). You can override.
                 </p>
               )}
@@ -359,6 +383,7 @@ export default function CreateInvoiceDialog({ open, onClose, onCreated, initialC
                 !customerId ||
                 !selectedOrderIds.length ||
                 !dueDate ||
+                !billDate ||
                 taxBreakdown.totalAmount <= 0
               }
             >

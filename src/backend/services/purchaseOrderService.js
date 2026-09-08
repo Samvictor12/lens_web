@@ -2146,7 +2146,7 @@ class PurchaseOrderService {
           location_id: split.location_id,
           tray_id: split.tray_id,
           quantity: split.qty,
-          costPrice: receipt.unitPrice || 0,
+          costPrice: 0,
           batchNo: receipt.receiptNumber,
           purchaseOrderId: poId,
           purchaseReceiptId: receiptId,

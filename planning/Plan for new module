@@ -13,31 +13,3 @@ Credit Note -> need to mark against the Customer invoice if avaliable or it need
 In vendor Bills -> PO column need to SHow the count of the PO's if hover need to show the List of the PO's.
 In indirect Expense -> need bill date for mark the Expense.
 Bank need to Show the List of the Bank and Cash in Hand in the Finance Dashboard dont need seperate page in the Sidebar.
-
-
-
-
-
-
-
-
-i want to do audit on the Accounting module:
-1. Inventroy Stock management.
-    - for inventory Inward 2 types -> PO Inward / Direct Inward
-        - Direct Inward the Transaction Create for the Tray stock and it has the Value.
-        - PO inward the Transaction Create for the Tray stock and it has the Value. even it is Bulk or Single PO the Transaction Saves for a tray. 
-    - for Inventroy outward 3 types -> Sale Outward / Return Outward / Damage.
-        - if any of the this Outward is marked against the tray it need to be like with one or more Inward/transfer transaction to capture the Unit price. if the transaction has Quantity of 10 it can has 10 seperate Outward transaction or Damage Transaction. 
-        - the outward/damage transaction can connect with inward/transfer transaction because if a Tray 1 has 5 Inward/transfer transaction then all with 1 qty and user create Outward tranasaction for 3 qty then the system need to create 3 seperate outward transaction each for each quantity and every outward create tagging one Inward/transfer transaction.
-        - in some case the Inward/transfer transaction has 10 qantity then it can have !0 outward/Damage transaction if this inward/transfer transaction is Connected with 10 outward transactions then Inward/transfer transaction Status need to change to Consumed.
-    - for Inventroy Transfer: remove Adjustment type.
-        - if the Inventory transfer between the trays or racks or Godowns then this transfer Transaction is marked. it need to mark the Inward/transfer transaction to new transfer transaction so the tagged inward/transfer transaction need to marked as consumed and new transfer transaction need to create with the same value as Unit price. the transfer creates for each single lens moment if the user can select 10 qty then 10 seperate transfer transaction create for this transfer each connect with one Inward/transfer transaction.
-    - the Inward transaction get its unit price On the time of bill generated for the PO. on the time the InventoryStock ledger get the value Dr and the Vendor get the values Cr.
-    - on the Time Sale Order billed the Sale Outward Trasaction is marked on the time the InventoryStock Ledger get the Value Cr based on the Sale Outward transaction which is connected with the sale order andthe Customer Ledger get Dr and Sale Revenue Ledger and GST ledger get the value cr. 
-
-    
-
-
-
-1. want to manage the Inventory Stock value like time of PO Billing the Inventory value increases and time of SO billing Inventory Decreases.  in the transation Type Sale outward, Return Outward, Damage need to have the Unit price of the Inward(PO) Transaction  or Direct Inward transaction. the transaction need to tag with the PO  
- 

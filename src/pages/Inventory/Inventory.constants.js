@@ -12,15 +12,19 @@ export const inventoryStatusOptions = [
   { value: 'QUALITY_CHECK', label: 'Quality Check', color: 'bg-orange-100 text-orange-800' },
 ];
 
-// Transaction Type Options
+// Transaction Type Options (operator create — ADJUSTMENT is legacy-only)
 export const transactionTypeOptions = [
   { value: 'INWARD_PO', label: 'Inward (PO)', color: 'bg-green-100 text-green-800' },
   { value: 'INWARD_DIRECT', label: 'Direct Inward', color: 'bg-green-100 text-green-800' },
   { value: 'OUTWARD_SALE', label: 'Sale Outward', color: 'bg-red-100 text-red-800' },
   { value: 'OUTWARD_RETURN', label: 'Return Outward', color: 'bg-orange-100 text-orange-800' },
   { value: 'TRANSFER', label: 'Transfer', color: 'bg-blue-100 text-blue-800' },
-  { value: 'ADJUSTMENT', label: 'Adjustment', color: 'bg-purple-100 text-purple-800' },
   { value: 'DAMAGE', label: 'Damage', color: 'bg-red-100 text-red-800' },
+];
+
+export const transactionTypeDisplayOptions = [
+  ...transactionTypeOptions,
+  { value: 'ADJUSTMENT', label: 'Adjustment', color: 'bg-purple-100 text-purple-800' },
 ];
 
 // Quality Grade Options
@@ -78,6 +82,7 @@ export const defaultTransaction = {
   purchaseOrderId: null,
   saleOrderId: null,
   vendorId: null,
+  parentTransactionId: null,
   reason: '',
   notes: '',
   batchNo: '',
@@ -253,7 +258,7 @@ export const getStatusColor = (status) => {
 };
 
 export const getTransactionTypeColor = (type) => {
-  const typeOption = transactionTypeOptions.find(opt => opt.value === type);
+  const typeOption = transactionTypeDisplayOptions.find(opt => opt.value === type);
   return typeOption ? typeOption.color : 'bg-gray-100 text-gray-800';
 };
 

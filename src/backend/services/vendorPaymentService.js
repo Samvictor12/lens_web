@@ -609,6 +609,7 @@ export class VendorPaymentService {
             totalAmount: cashAmount,
             bankLedgerId: resolvedBankLedgerId,
             vendor,
+            transactionDate: voucher.paymentDate,
           },
           userId
         );

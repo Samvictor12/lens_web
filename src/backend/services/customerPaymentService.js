@@ -452,6 +452,7 @@ export class CustomerPaymentService {
           totalAmount: cashAmount,
           bankLedgerId: resolvedBankLedgerId,
           customer,
+          transactionDate: voucher.paymentDate,
         }, userId);
       }
 

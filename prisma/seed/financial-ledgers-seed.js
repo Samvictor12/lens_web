@@ -29,6 +29,7 @@ const SYSTEM_LEDGERS = [
   { ledgerCode: 'AC-2001', ledgerName: 'Accounts Payable', ledgerType: 'LIABILITY', description: 'Vendor outstanding', isSystemLedger: true },
   { ledgerCode: 'AC-2002', ledgerName: 'TDS Payable', ledgerType: 'LIABILITY', description: 'Tax deducted at source payable', isSystemLedger: false },
   { ledgerCode: 'AC-2003', ledgerName: 'GST Output Collected', ledgerType: 'LIABILITY', description: 'GST collected on sales', isSystemLedger: true },
+  { ledgerCode: 'AC-2004', ledgerName: 'Loans Payable', ledgerType: 'LIABILITY', description: 'Loans payable', isSystemLedger: true },
   { ledgerCode: 'AC-3001', ledgerName: 'Sales Revenue', ledgerType: 'INCOME', description: 'Net lens sales revenue', isSystemLedger: true },
   { ledgerCode: 'AC-3002', ledgerName: 'Other Income', ledgerType: 'INCOME', description: 'Miscellaneous income', isSystemLedger: false },
   { ledgerCode: 'AC-3003', ledgerName: 'Bank Transfer Income', ledgerType: 'INCOME', description: 'Incoming bank transfers', isSystemLedger: false },
@@ -41,8 +42,8 @@ const SYSTEM_LEDGERS = [
   { ledgerCode: 'AC-4006', ledgerName: 'Marketing & Advertising', ledgerType: 'EXPENSE', description: 'Promotional spend', isSystemLedger: false },
   { ledgerCode: 'AC-4007', ledgerName: 'Office Supplies', ledgerType: 'EXPENSE', description: 'Stationery and consumables', isSystemLedger: false },
   { ledgerCode: 'AC-4008', ledgerName: 'Repairs & Maintenance', ledgerType: 'EXPENSE', description: 'Equipment upkeep', isSystemLedger: false },
-  { ledgerCode: 'AC-5001', ledgerName: "Owner's Capital", ledgerType: 'EQUITY', description: 'Owner investment', isSystemLedger: true },
-  { ledgerCode: 'AC-5002', ledgerName: 'Retained Earnings', ledgerType: 'EQUITY', description: 'Accumulated profits', isSystemLedger: true },
+  { ledgerCode: 'AC-5001', ledgerName: "Owner's Capital", ledgerType: 'LIABILITY', description: 'Owner investment', isSystemLedger: true },
+  { ledgerCode: 'AC-5002', ledgerName: 'Retained Earnings', ledgerType: 'LIABILITY', description: 'Accumulated profits', isSystemLedger: true },
 ];
 
 const EXPENSE_CATEGORIES = [
@@ -69,6 +70,7 @@ export async function seedFinancialLedgers(client = prisma) {
       where: { ledgerCode: ledger.ledgerCode },
       update: {
         ledgerName: ledger.ledgerName,
+        ledgerType: ledger.ledgerType,
         description: ledger.description,
         isSystemLedger: ledger.isSystemLedger,
         ...(bankDetails ? { bankDetails } : {}),

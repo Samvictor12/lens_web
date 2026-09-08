@@ -75,6 +75,46 @@ requirements:
     dd: [DD-1.1]
     sd: [SD-1.1]
     fd: [FD-2.5]
+  - id: PRD-4.9
+    title: Inventory unit-cost transaction ledger
+    status: shipped
+    module: inventory
+    tsd: [TSD-1.1]
+    dd: [DD-1.1]
+    sd: [SD-1.1]
+    fd: [FD-2.5]
+  - id: PRD-4.10
+    title: Document-dated GL and sale inventory credit
+    status: shipped
+    module: accounting
+    tsd: [TSD-1.1]
+    dd: [DD-1.1, DD-2.1]
+    sd: [SD-1.1, SD-2.1]
+    fd: [FD-2.1]
+  - id: PRD-4.11
+    title: Capital Loans COA and expense dates
+    status: shipped
+    module: accounting
+    tsd: [TSD-1.1]
+    dd: [DD-1.1, DD-2.1]
+    sd: [SD-1.1, SD-2.2]
+    fd: [FD-2.2]
+  - id: PRD-4.12
+    title: Inventory dashboard KPI and chart corrections
+    status: shipped
+    module: inventory
+    tsd: [TSD-1.1]
+    dd: [DD-1.1]
+    sd: [SD-1.1]
+    fd: [FD-2.5]
+  - id: PRD-4.13
+    title: Inventory dashboard layout and navigation polish
+    status: shipped
+    module: inventory
+    tsd: [TSD-1.1]
+    dd: [DD-1.1]
+    sd: [SD-1.1]
+    fd: [FD-2.5]
   - id: PRD-5.1
     title: Authentication session continuity
     status: shipped
@@ -185,6 +225,40 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 - `GET /api/financial-reports/dashboard`, `GET /api/financial-reports/trial-balance-grouped`.
 - Legacy `/accounts/reports` retained for full Financial Reports entry.
 
+## PRD-4.9 Inventory unit-cost transaction ledger
+
+**Status:** shipped (`req-001`, 2026-09-08).
+
+Close the gap between operational stock and unit-cost traceability. Inward (PO / Direct) and transfer transactions carry unit price and remain OPEN until fully tagged by outward/damage/transfer. Outward (Sale / Return / Damage) and transfer consume source inward/transfer rows one unit at a time (qty N → N rows), each tagged to one source. Fully tagged source rows become Consumed. Remove Adjustment as a user type. Inward unit price is finalized when the vendor bill is generated (not at PO receipt).
+
+### Acceptance
+- PO Inward and Direct Inward create tray-level transactions with value; bulk and single PO both persist per tray.
+- Sale Outward / Return Outward / Damage must tag one or more OPEN inward/transfer rows for unit price; qty N splits into N transactions.
+- Transfer between trays/racks/godowns consumes the tagged source (same unit price on the new transfer row); qty N → N transfer rows. Adjustment type removed from operator UI.
+- Source inward/transfer status becomes Consumed when remaining qty is zero.
+
+## PRD-4.10 Document-dated GL and sale inventory credit
+
+**Status:** shipped (`req-002`, 2026-09-08).
+
+Finance transactions use the document date the operator sets (vendor invoice date, customer bill date, payment date, expense date, income date), defaulting to today. Customer Create Invoice / Bill gains an editable Bill Date. On customer bill, Inventory / Stock (AC-1004) is credited from Sale Outward unit cost connected to that sale order, in addition to existing Customer Dr / Sales + GST Cr.
+
+### Acceptance
+- Vendor bill GL remains Dr Inventory / Cr Vendor; FT date = invoice date (editable, default today). Vendor payment FT date = payment date.
+- Customer invoice has Bill Date (editable, default today); FT date = bill date. Payment FT date = payment date.
+- Sale bill also Cr Inventory / Stock from connected Sale Outward unit cost (Customer Dr, Sales Revenue + GST Cr unchanged).
+
+## PRD-4.11 Capital Loans COA and expense dates
+
+**Status:** shipped (`req-003`, 2026-09-08).
+
+Reclassify Capital from Equity to Liability. Liability parent groups are Capital, Loans, and Current Liability. Income From is Capital → Bank (asset); Loan From is Loans → Bank. Mark expense records against Expense for (liability) and Expense Category; pay expense bill records Expense for and Bank. Expense Date auto-fills today, is editable, is the GL transaction date, and must be on or before due date.
+
+### Acceptance
+- Capital ledgers/groups are LIABILITY (not EQUITY). Liability has three parent groups: Capital, Loans, Current Liability.
+- Income picker From = Capital group; Loan picker From = Loans group; To = Bank/Cash (asset). GL posts Dr To / Cr From.
+- Mark expense: Expense Date field (default today, before due date); GL date = expense date. Pay expense: Dr liability / Cr bank using payment date.
+
 ## PRD-4.7 Held
 
 | ID | Title | Reason |
@@ -205,6 +279,27 @@ Do not create active `execution_state` work for PRD-4.7 until briefed.
 - **Dashboard sections:** Clickable Low/Out/Over KPI cards → filtered spec alert list (50%); no selection → inward/outward quantity trend (100%). Top 10 / Least 10 selling products side-by-side (50/50).
 - Initialize Stock removed from Dashboard; accessible only via Audit tab.
 - APIs: `GET /api/inventory/spec-alerts`, `GET|POST|DELETE /api/inventory/spec-thresholds`, `POST /api/inventory/spec-thresholds/generate`, enhanced `GET /api/inventory/dashboard`.
+
+## PRD-4.12 Inventory dashboard KPI and chart corrections
+
+**Status:** shipped (`req-001`, 2026-09-09). Extends PRD-4.8.
+
+- **KPIs:** Total Products, Total Stock (units), Total Value (₹), calendar-month Inward/Outward qty and value. Low/Out/Over are not KPI cards.
+- **Stock status:** Pie of High / Low / Out (High = OVER: `specQty > maxQty`) plus progress bars sorted by share of (High+Low+Out). Click bar → spec popup grouped by product; selecting a product selects all its specs. Low and Out: Raise PO → bulk PO qty = each spec’s `minQty` (same `lens_id` only).
+- **Trend:** inward/outward quantity chart (godown-scoped).
+- **Top 10 / Low 10:** `OUTWARD_SALE` by product + SPH/CYL/ADD; 30/60/90 days; bar % = unitsSold / sum of those 10.
+- **Donut:** pending Inward vs SO Request Queue counts; click slice → 10 oldest FIFO rows.
+- APIs: enhanced `GET /api/inventory/dashboard`, spec-grain `GET /api/inventory/reports/top-low-selling`, reuse `GET /spec-alerts` and `GET /reports/value`.
+
+## PRD-4.13 Inventory dashboard layout and navigation polish
+
+**Status:** shipped (`req-001`, 2026-09-09). Extends PRD-4.12.
+
+- **KPIs:** five cards — Total Products, Total Stock, Total Value, this-month Inward/Outward qty as one card (`inward / outward`), this-month Inward/Outward value as one card (`₹in / ₹out`).
+- **Stock status / trend row:** Stock status (High / Low / Out) **40%** + Inward / Outward Quantity Trend **60%**.
+- **Inward vs SO Queue:** donut + Stock-status-style progress bars (share of Inward+SO). Click Inward → Inward Queue tab; click SO Queue → SO Request Queue tab. No FIFO popup.
+- **Bottom row:** Inward vs SO Queue 60% + Stock Summary 40% (Products, Locations, Trays, Stock units, Total value only).
+- Dashboard payload adds `locationCount` and `trayCount` (distinct non-null ids). No schema change.
 
 ## PRD-5.1 Authentication session continuity
 

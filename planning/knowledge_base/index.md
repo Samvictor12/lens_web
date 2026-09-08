@@ -20,4 +20,9 @@
 | KB-016 | Inventory Audit and dashboard overhaul | PRD-4.8, DD-1.1, SD-1.1, FD-2.5, req-013 |
 | KB-017 | Income and loans UI simplify | PRD-4.2, FD-2.2, req-017 |
 | KB-018 | Per-device refresh tokens | PRD-5.1, DD-1.1, SD-1.1, req-001 |
+| KB-019 | Inventory unit-cost transaction ledger | PRD-4.9, DD-1.1, SD-1.1, req-001 |
+| KB-020 | Capital/Loans liability COA and expense dates | PRD-4.11, DD-2.1, SD-2.2, req-003 |
+| KB-021 | Document-dated GL and sale inventory credit | PRD-4.10, DD-2.1, SD-2.1, req-002 |
+| KB-022 | Inventory dashboard KPI and chart corrections | PRD-4.12, DD-1.1, SD-1.1, FD-2.5, req-001 |
+| KB-023 | Inventory dashboard layout and navigation polish | PRD-4.13, DD-1.1, SD-1.1, FD-2.5, req-001 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

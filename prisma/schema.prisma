@@ -708,6 +708,7 @@ model Invoice {
   saleOrders          SaleOrder[]
   totalAmount         Float
   paidAmount          Float                        @default(0)
+  billDate            DateTime?
   dueDate             DateTime
   notes               String?
   payments            Payment[]
@@ -1205,8 +1206,13 @@ enum InventoryTransactionType {
   OUTWARD_SALE // Sale Order Outward
   OUTWARD_RETURN // Return to Vendor
   TRANSFER // Inter-location/tray transfer
-  ADJUSTMENT // Stock adjustment (+ or -)
+  ADJUSTMENT // Stock adjustment (+ or -) — legacy rows only, no new writes
   DAMAGE // Damaged stock write-off
+}
+
+enum InventoryTransactionStatus {
+  OPEN
+  CONSUMED
 }
 
 enum InventoryItemStatus {
@@ -1348,10 +1354,17 @@ model InventoryTransaction {
   id            Int                      @id @default(autoincrement())
   transactionNo String                   @unique // Auto-generated: IT-2025-001
   type          InventoryTransactionType
+  status        InventoryTransactionStatus @default(OPEN)
+  remainingQty  Float                      @default(0)
 
   // Item Details
   inventoryItemId Int
   inventoryItem   InventoryItem @relation("inventoryItemTransactions", fields: [inventoryItemId], references: [id])
+
+  // Consume tagging: outward/damage/transfer units point at an OPEN source
+  parentTransactionId Int?
+  parentTransaction   InventoryTransaction?  @relation("InventoryTransactionConsume", fields: [parentTransactionId], references: [id], onDelete: SetNull)
+  childTransactions   InventoryTransaction[] @relation("InventoryTransactionConsume")
 
   // Quantity Movement
   quantity     Float // Positive for inward, negative for outward
@@ -1391,6 +1404,9 @@ model InventoryTransaction {
   updatedBy       Int?
   createdByUser   User     @relation("inventoryTransactionCreatedBy", fields: [createdBy], references: [id])
   updatedByUser   User?    @relation("inventoryTransactionUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([inventoryItemId, status])
+  @@index([parentTransactionId])
 }
 
 // Stock summary for quick lookups (can be generated view or maintained table)

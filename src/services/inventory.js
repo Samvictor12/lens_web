@@ -153,7 +153,7 @@ export const getInventorySpecCountTrend = async (params = {}) => {
 
 export const getTopLowSellingProducts = async (params = {}) => {
   const response = await apiClient("get", `${INVENTORY_BASE_URL}/reports/top-low-selling`, {
-    params,
+    params: { days: 60, ...params },
   });
   return response;
 };

@@ -8,6 +8,7 @@ const SYSTEM_LEDGERS = [
   { ledgerCode: 'AC-2001', ledgerName: 'Accounts Payable',      ledgerType: 'LIABILITY' },
   { ledgerCode: 'AC-2002', ledgerName: 'Salary Payable',        ledgerType: 'LIABILITY' },
   { ledgerCode: 'AC-2003', ledgerName: 'GST Output Payable',    ledgerType: 'LIABILITY' },
+  { ledgerCode: 'AC-2004', ledgerName: 'Loans Payable',         ledgerType: 'LIABILITY' },
   { ledgerCode: 'AC-3001', ledgerName: 'Sales Revenue',         ledgerType: 'INCOME' },
   { ledgerCode: 'AC-3002', ledgerName: 'Service Income',        ledgerType: 'INCOME' },
   { ledgerCode: 'AC-4001', ledgerName: 'Purchase / Cost of Goods', ledgerType: 'EXPENSE' },
@@ -16,7 +17,7 @@ const SYSTEM_LEDGERS = [
   { ledgerCode: 'AC-4004', ledgerName: 'Rent Expense',          ledgerType: 'EXPENSE' },
   { ledgerCode: 'AC-4005', ledgerName: 'Utilities Expense',     ledgerType: 'EXPENSE' },
   { ledgerCode: 'AC-4006', ledgerName: 'Miscellaneous Expense', ledgerType: 'EXPENSE' },
-  { ledgerCode: 'AC-5001', ledgerName: "Owner's Capital",       ledgerType: 'EQUITY' },
+  { ledgerCode: 'AC-5001', ledgerName: "Owner's Capital",       ledgerType: 'LIABILITY' },
 ];
 
 const DEFAULT_EXPENSE_CATEGORIES = [
