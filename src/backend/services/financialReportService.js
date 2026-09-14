@@ -1,15 +1,13 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
 import { AccountGroupService } from './accountGroupService.js';
-import { DashboardService } from './dashboardService.js';
-import { InvoiceService } from './invoiceService.js';
 import vendorPaymentService from './vendorPaymentService.js';
 import { LedgerService } from './ledgerService.js';
 import InventoryService from './inventory.service.js';
+import { aggregateCollectionByCustomer, monthEndCollectibleTotal } from './collectionByCustomer.js';
+import { parseInvoiceCalendarDate, localDayBounds } from '../utils/calendarDate.js';
 
 const accountGroupService = new AccountGroupService();
-const dashboardService = new DashboardService();
-const invoiceService = new InvoiceService();
 const ledgerService = new LedgerService();
 const inventoryService = new InventoryService();
 
@@ -33,19 +31,15 @@ function toIsoDate(d) {
 
 function parseAsOf(asOf) {
   if (asOf) {
-    const d = new Date(asOf);
-    if (Number.isNaN(d.getTime())) throw new APIError('Invalid asOf date', 400, 'VALIDATION_ERROR');
+    const d = parseInvoiceCalendarDate(asOf);
+    if (!d) throw new APIError('Invalid asOf date', 400, 'VALIDATION_ERROR');
     return d;
   }
   return new Date();
 }
 
 function dayBounds(date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
+  return localDayBounds(date);
 }
 
 function monthStart(date) {
@@ -88,8 +82,41 @@ function fyMonthsThrough(asOfDate) {
   return months;
 }
 
+/** Coerce Prisma Decimal / string / number so KPI addends never become NaN. */
+export function coerceNumber(n) {
+  if (n == null || n === '') return 0;
+  if (typeof n === 'object') {
+    if (typeof n.toNumber === 'function') {
+      const v = n.toNumber();
+      return Number.isFinite(v) ? v : 0;
+    }
+    if (typeof n.toString === 'function') {
+      const v = parseFloat(n.toString());
+      return Number.isFinite(v) ? v : 0;
+    }
+  }
+  const v = parseFloat(n);
+  return Number.isFinite(v) ? v : 0;
+}
+
 function round2(n) {
-  return Math.round((parseFloat(n) || 0) * 100) / 100;
+  return Math.round(coerceNumber(n) * 100) / 100;
+}
+
+function outstandingFromRows(rows = []) {
+  return rows.reduce(
+    (s, r) => s + Math.max(0, coerceNumber(r.totalAmount ?? r.amount) - coerceNumber(r.paidAmount)),
+    0
+  );
+}
+
+function documentDayFilter(dateField, dayStart, dayEnd) {
+  return {
+    OR: [
+      { [dateField]: { gte: dayStart, lte: dayEnd } },
+      { createdAt: { gte: dayStart, lte: dayEnd } },
+    ],
+  };
 }
 
 function dateRange(from, to) {
@@ -551,39 +578,37 @@ export class FinancialReportService {
   async getDashboard({ asOf } = {}) {
     const asOfDate = parseAsOf(asOf);
     const asOfStr = toIsoDate(asOfDate);
-    const { start: dayStart, end: dayEnd } = dayBounds(asOfDate);
-    const monthFrom = toIsoDate(monthStart(asOfDate));
+    const { end: asOfEnd } = dayBounds(asOfDate);
+    const periodStart = monthStart(asOfDate);
+    periodStart.setHours(0, 0, 0, 0);
+    const monthFrom = toIsoDate(periodStart);
     const fy = financialYearBounds(asOfDate);
 
-    const isActualToday = toIsoDate(new Date()) === asOfStr;
-
     const [
-      todaySummary,
+      daySalesAgg,
       dayPurchasesAgg,
       dayExpensesAgg,
       dayCollectionAgg,
       dayPnl,
-      invoiceStats,
+      receivableRows,
       vendorStats,
       cashBankLedgers,
       inventoryDash,
       fyTrendMonths,
     ] = await Promise.all([
-      isActualToday
-        ? dashboardService.getTodaySummary()
-        : prisma.invoice.aggregate({
-            where: {
-              deleteStatus: false,
-              status: { not: 'CANCELLED' },
-              createdAt: { gte: dayStart, lte: dayEnd },
-            },
-            _sum: { totalAmount: true },
-          }).then((r) => ({ todaySales: parseFloat(r._sum.totalAmount || 0) })),
+      prisma.invoice.aggregate({
+        where: {
+          deleteStatus: false,
+          status: { not: 'CANCELLED' },
+          ...documentDayFilter('billDate', periodStart, asOfEnd),
+        },
+        _sum: { totalAmount: true },
+      }),
       prisma.vendorInvoice.aggregate({
         where: {
           deleteStatus: false,
           status: { not: 'CANCELLED' },
-          invoiceDate: { gte: dayStart, lte: dayEnd },
+          ...documentDayFilter('invoiceDate', periodStart, asOfEnd),
         },
         _sum: { totalAmount: true },
       }),
@@ -591,7 +616,7 @@ export class FinancialReportService {
         where: {
           entryType: 'DEBIT',
           ledger: { ledgerType: 'EXPENSE', delete_status: false },
-          transaction: { transactionDate: { gte: dayStart, lte: dayEnd }, isPosted: true },
+          transaction: { transactionDate: { gte: periodStart, lte: asOfEnd }, isPosted: true },
         },
         _sum: { amount: true },
       }),
@@ -599,53 +624,101 @@ export class FinancialReportService {
         where: {
           delete_status: false,
           cancelledStatus: false,
-          paymentDate: { gte: dayStart, lte: dayEnd },
+          paymentDate: { gte: periodStart, lte: asOfEnd },
         },
         _sum: { totalAmount: true },
       }),
-      this.getProfitLoss({ from: asOfStr, to: asOfStr }),
-      invoiceService.getStats({ startDate: monthFrom, endDate: asOfStr }),
+      this.getProfitLoss({ from: monthFrom, to: asOfStr }),
+      prisma.invoice.findMany({
+        where: {
+          deleteStatus: false,
+          status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
+        },
+        select: { totalAmount: true, paidAmount: true },
+      }),
       vendorPaymentService.getStats({ startDate: monthFrom, endDate: asOfStr }),
       ledgerService.getCashBankLedgers(),
       inventoryService.getInventoryDashboardEnhanced({}),
       Promise.resolve(fyMonthsThrough(asOfDate)),
     ]);
 
-    const cashBankTotal = cashBankLedgers.reduce(
-      (s, l) => s + parseFloat(l.currentBalance || 0),
+    const cashBankTotal = (cashBankLedgers || []).reduce(
+      (s, l) => s + coerceNumber(l.currentBalance),
       0
     );
 
-    const [receivablesRisk, expenseBreakup, profitLossSnapshot, fyTrend] = await Promise.all([
+    const [receivablesRisk, expenseBreakup, profitLossSnapshot, fyTrend, collectionByCustomer] = await Promise.all([
       this._getReceivablesRisk(asOfDate),
       this._getExpenseBreakup(asOfDate, monthFrom, asOfStr),
       this._getProfitLossSnapshot(asOfStr, inventoryDash),
       this._getFyTrend(fyTrendMonths),
+      this._getCollectionByCustomer(asOfDate),
     ]);
 
     return {
       asOf: asOfStr,
       financialYear: { label: fy.label, start: toIsoDate(fy.start), end: toIsoDate(fy.end) },
       today: {
-        todaySales: round2(todaySummary.todaySales),
-        todayCollection: round2(dayCollectionAgg._sum.totalAmount || 0),
-        todayPurchases: round2(dayPurchasesAgg._sum.totalAmount || 0),
-        todayExpenses: round2(dayExpensesAgg._sum.amount || 0),
+        todaySales: round2(daySalesAgg._sum?.totalAmount),
+        todayCollection: round2(dayCollectionAgg._sum?.totalAmount),
+        todayPurchases: round2(dayPurchasesAgg._sum?.totalAmount),
+        todayExpenses: round2(dayExpensesAgg._sum?.amount),
         grossProfit: round2(dayPnl.grossProfit),
         netProfit: round2(dayPnl.netProfit),
       },
       position: {
         cashBankTotal: round2(cashBankTotal),
-        collectionTarget: round2(invoiceStats.targetCollection),
-        receivableOutstanding: round2(invoiceStats.outstanding),
+        collectionTarget: monthEndCollectibleTotal(collectionByCustomer),
+        receivableOutstanding: round2(outstandingFromRows(receivableRows)),
         payablesPending: round2(vendorStats.outstanding),
-        inventoryValue: round2(inventoryDash.totalValue || 0),
+        inventoryValue: round2(inventoryDash?.totalValue),
       },
       fyTrend,
       receivablesRisk,
       expenseBreakup,
       profitLossSnapshot,
+      collectionByCustomer,
     };
+  }
+
+  /**
+   * Per-customer Target (month-end collectible) vs Actual (calendar-month receipts).
+   */
+  async _getCollectionByCustomer(asOfDate) {
+    const from = monthStart(asOfDate);
+    from.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(asOfDate.getFullYear(), asOfDate.getMonth() + 1, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+
+    const [targetInvoices, paymentVouchers] = await Promise.all([
+      prisma.invoice.findMany({
+        where: {
+          deleteStatus: false,
+          status: { in: ['ISSUED', 'PARTIALLY_PAID'] },
+          dueDate: { lte: monthEnd },
+        },
+        select: {
+          customerId: true,
+          totalAmount: true,
+          paidAmount: true,
+          customer: { select: { name: true } },
+        },
+      }),
+      prisma.customerPaymentVoucher.findMany({
+        where: {
+          delete_status: false,
+          cancelledStatus: false,
+          paymentDate: { gte: from, lte: monthEnd },
+        },
+        select: {
+          customerId: true,
+          totalAmount: true,
+          customer: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    return aggregateCollectionByCustomer(targetInvoices, paymentVouchers);
   }
 
   async _getReceivablesRisk(asOfDate) {
@@ -674,7 +747,7 @@ export class FinancialReportService {
 
     return invoices
       .map((inv) => {
-        const balance = Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0));
+        const balance = Math.max(0, coerceNumber(inv.totalAmount) - coerceNumber(inv.paidAmount));
         const dueMs = new Date(inv.dueDate).setHours(0, 0, 0, 0);
         const daysPastDue = Math.max(0, Math.floor((asOfMs - dueMs) / 86400000));
         return {

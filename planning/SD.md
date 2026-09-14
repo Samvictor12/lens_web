@@ -178,6 +178,7 @@ UI: Customer **Credit Note** only; Vendor **Debit Note** only (create of Custome
 - `Invoice` — billed from Sale Orders; **`billDate`** (req-002, optional; default today on create; GL date on issue, else `createdAt`); `dueDate` defaults to `billDate + Customer.credit_days`; statuses include ISSUED / PARTIALLY_PAID / PAID / CANCELLED. `billDate` is nullable so legacy rows are not blocked.
 - `CustomerPaymentVoucher` + `CustomerPaymentVoucherItem` — receipt header/items; `advanceAmount`; links to `Payment.voucherId`.
 - `Customer.outstanding_credit`, `Customer.advance_credit`, `Customer.credit_days`, `Customer.credit_limit`.
+- **GST register (PRD-4.15):** no extra Invoice columns. GSTNo/state from `Customer`; HSN/Unit defaults (90015000 / Pair) via `CompanySettings.customAttributes` when set. Intra/inter-state tax split at read time.
 
 ## SD-2.2 Income and loan records
 

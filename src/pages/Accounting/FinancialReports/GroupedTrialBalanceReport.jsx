@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getTrialBalanceGrouped } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
+import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
 import TrialBalanceReport from "./TrialBalanceReport";
 
 export default function GroupedTrialBalanceReport({ defaultAsOf, compact = false }) {
@@ -61,6 +62,31 @@ export default function GroupedTrialBalanceReport({ defaultAsOf, compact = false
             {data.isBalanced ? "Balanced" : "Out of Balance!"}
           </Badge>
         )}
+        <ReportExportButtons
+          disabled={!data}
+          onExcel={() => {
+            const rows = [];
+            for (const g of data.groups || []) {
+              rows.push([g.groupCode, g.groupName, g.totalDebit, g.totalCredit, g.netBalance]);
+              for (const l of g.ledgers || []) {
+                rows.push([l.ledgerCode, l.ledgerName, l.totalDebit, l.totalCredit, l.netBalance]);
+              }
+            }
+            downloadExcel({
+              filename: `trial-balance_${asOf}`,
+              sheetName: "Trial Balance",
+              headers: ["Code", "Name", "Debit", "Credit", "Balance"],
+              rows,
+            });
+          }}
+          onPdf={() => {
+            const rows = (data.groups || []).map((g) => [g.groupCode, g.groupName, g.totalDebit, g.totalCredit, g.netBalance]);
+            exportPdf(
+              "Trial Balance",
+              tableHtml(["Code", "Name", "Debit", "Credit", "Balance"], rows, `Trial Balance as of ${asOf}`)
+            );
+          }}
+        />
       </div>
 
       {data && (

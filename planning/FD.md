@@ -53,14 +53,14 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 
 ## FD-2.4 Finance dashboard operator flow
 
-**Status:** shipped (`req-006`, 2026-08-31).
+**Status:** shipped (`req-006`, 2026-08-31; PRD-4.15 collection + reports, 2026-09-14).
 
 1. Open **Finance Dashboard** (Accounting sidebar → `/accounts/finance-dashboard`).
-2. Review Row 1 today KPIs and Row 2 position KPIs (single server bundle).
+2. Review Row 1 period KPIs (**1st of As-of month → As of**) and Row 2 position KPIs (snapshot). Sales / Purchases include documents **created or dated** in that month window. FY chart is still Apr–Mar. Click **Cash & Bank Total** to scroll to Reports Cash & Bank (`#cash-bank`). Inventory Value should match Inventory Stock Summary total value (spec qty × cost).
 3. Scan FY income vs expense trend and receivables >90d risk table; drill to Customer 360 or invoice from risk rows.
-4. Review month expense breakup and P&L snapshot (inventory + assets/liabilities summary).
-5. Use report sub-tabs: grouped Trial Balance (SD/SC expanded; optional flat drill-down), Balance Sheet, Day Book, Monthly Sales, GST Collection (invoice-level output GST detail).
-6. Bookmarks to `/accounts/reports` redirect to Finance Dashboard; standalone Financial Reports page removed.
+4. Review month expense breakup and **Collection — Target vs Actual** (Customer, Target, Actual, Balance).
+5. Use report sub-tabs: Trial Balance, two-column Balance Sheet, MTD Profit & Loss, Day Book, General Ledger, Cash & Bank (list + Add account), GST invoice register. Export Excel or PDF on each tab.
+6. Bookmarks to `/accounts/reports` and `/accounts/bank-accounts` redirect to Finance Dashboard (Cash & Bank hash for the latter). Sidebar has no Bank Accounts item.
 
 ## FD-2.5 Inventory Audit and dashboard operator flow
 

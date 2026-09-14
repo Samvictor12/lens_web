@@ -3,6 +3,9 @@ import { APIError } from '../middleware/errorHandler.js';
 import { logCreate, logUpdate, logDelete } from '../utils/auditLogger.js';
 import { logDatabaseError, logNotFoundError, logBusinessError } from '../utils/errorLogger.js';
 import { postInvoice, reverseInvoice } from './accountingService.js';
+import { parseInvoiceCalendarDate, todayLocalNoon } from '../utils/calendarDate.js';
+
+export { parseInvoiceCalendarDate };
 
 function parseTaxPercent(value) {
   const n = parseFloat(value);
@@ -54,17 +57,6 @@ function calcInvoiceTaxFromCompany(taxableAmount, companySettings) {
   };
 }
 
-/** Parse YYYY-MM-DD (local noon) or a Date/ISO string. Empty → null. Invalid → null. */
-export function parseInvoiceCalendarDate(value) {
-  if (value === undefined || value === null || String(value).trim() === '') return null;
-  const dateStr = String(value).trim();
-  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
-    ? new Date(`${dateStr}T12:00:00`)
-    : new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-}
-
 /** Bill date: parsed value, else today at local noon. Throws on an unparseable non-empty value. */
 export function resolveInvoiceBillDate(billDate) {
   const parsed = parseInvoiceCalendarDate(billDate);
@@ -72,8 +64,7 @@ export function resolveInvoiceBillDate(billDate) {
     throw new APIError('Invalid bill date', 400, 'INVALID_BILL_DATE');
   }
   if (parsed) return parsed;
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  return todayLocalNoon();
 }
 
 /** Due date: parsed override, else billDate + credit_days. Throws on an unparseable non-empty value. */

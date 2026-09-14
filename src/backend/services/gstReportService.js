@@ -1,4 +1,9 @@
 import prisma from '../config/prisma.js';
+import {
+  GST_REGISTER_HEADERS,
+  defaultsFromCompanySettings,
+  deriveGstRegisterRow,
+} from './gstInvoiceRegister.js';
 
 function round2(n) {
   return Math.round((parseFloat(n) || 0) * 100) / 100;
@@ -37,6 +42,53 @@ function splitGst(total, companyState) {
  * Report (output GST collected vs input GST credit, net payable).
  */
 export class GstReportService {
+  async getGstInvoiceRegister({ from, to } = {}) {
+    const now = new Date();
+    const defaultFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const defaultTo = [
+      monthEnd.getFullYear(),
+      String(monthEnd.getMonth() + 1).padStart(2, '0'),
+      String(monthEnd.getDate()).padStart(2, '0'),
+    ].join('-');
+    const fromStr = from || defaultFrom;
+    const toStr = to || defaultTo;
+    const filter = dateRange(fromStr, toStr);
+
+    const company = await prisma.companySettings.findFirst();
+    const ctx = defaultsFromCompanySettings(company);
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        deleteStatus: false,
+        status: { notIn: ['DRAFT', 'CANCELLED'] },
+        OR: [
+          { billDate: filter },
+          { AND: [{ billDate: null }, { createdAt: filter }] },
+        ],
+      },
+      select: {
+        id: true,
+        invoiceNo: true,
+        billDate: true,
+        createdAt: true,
+        totalAmount: true,
+        taxAmount: true,
+        customer: { select: { name: true, gstin: true, state: true } },
+        saleOrders: { select: { rightEye: true, leftEye: true } },
+      },
+      orderBy: [{ billDate: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const rows = invoices.map((inv, i) => deriveGstRegisterRow(inv, ctx, i + 1));
+    return {
+      period: { from: fromStr, to: toStr },
+      headers: GST_REGISTER_HEADERS,
+      companyState: ctx.companyState || null,
+      rows,
+    };
+  }
+
   async getMonthlySalesReport({ from, to } = {}) {
     const filter = dateRange(from, to);
     const invoices = await prisma.invoice.findMany({

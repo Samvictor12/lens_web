@@ -522,7 +522,7 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
                 <SummaryRow label="Products" value={stats.productCount ?? 0} />
                 <SummaryRow label="Locations" value={stats.locationCount ?? 0} />
                 <SummaryRow label="Trays" value={stats.trayCount ?? 0} />
-                <SummaryRow label="Stock units" value={stats.totalStockUnits ?? 0} />
+                <SummaryRow label="Stock units" value={stats.totalStockUnits ?? stats.specQty ?? 0} />
                 <SummaryRow label="Total value" value={formatCurrency(stats.totalValue ?? 0)} />
               </div>
             )}

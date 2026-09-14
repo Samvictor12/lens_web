@@ -26,4 +26,9 @@
 | KB-022 | Inventory dashboard KPI and chart corrections | PRD-4.12, DD-1.1, SD-1.1, FD-2.5, req-001 |
 | KB-023 | Inventory dashboard layout and navigation polish | PRD-4.13, DD-1.1, SD-1.1, FD-2.5, req-001 |
 | KB-024 | Inventory tray transfer and cycle-count audit | PRD-4.14, DD-1.1, SD-1.1, FD-2.5, req-001 |
+| KB-025 | Finance dashboard collection and GST register | PRD-4.15, PRD-4.6, DD-2.1, FD-2.4, req-001 |
+| KB-026 | Finance dashboard KPI zeros and inventory value | PRD-4.6, PRD-4.12, DD-1.1, DD-2.1, FD-2.4, req-001 |
+| KB-027 | Finance dashboard local calendar-day sales/purchases | PRD-4.6, PRD-4.10, DD-2.1, FD-2.4, req-002 |
+| KB-028 | Finance dashboard FYTD Row-1 KPIs | PRD-4.6, DD-2.1, FD-2.4, req-003 |
+| KB-029 | Finance dashboard month-start Row-1 KPIs | PRD-4.6, DD-2.1, FD-2.4, req-004 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

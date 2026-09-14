@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getDayBook } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
+import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
 
 export default function DayBookReport({ defaultDate, compact = false }) {
   const { toast } = useToast();
@@ -41,6 +42,39 @@ export default function DayBookReport({ defaultDate, compact = false }) {
         <Button size="sm" onClick={load} disabled={loading}>
           {loading ? "Loading..." : "Show"}
         </Button>
+        <ReportExportButtons
+          disabled={!data}
+          onExcel={() => {
+            const rows = [];
+            for (const t of data.transactions || []) {
+              rows.push([t.transactionNumber, t.transactionType, t.description, t.totalAmount]);
+              for (const e of t.entries || []) {
+                rows.push([
+                  "",
+                  e.ledgerCode,
+                  e.ledgerName,
+                  e.entryType === "DEBIT" ? e.amount : "",
+                  e.entryType === "CREDIT" ? e.amount : "",
+                ]);
+              }
+            }
+            downloadExcel({
+              filename: `day-book_${date}`,
+              sheetName: "Day Book",
+              headers: ["Txn", "Type / Ledger", "Description", "Debit / Amount", "Credit"],
+              rows,
+            });
+          }}
+          onPdf={() => {
+            const rows = (data.transactions || []).map((t) => [
+              t.transactionNumber,
+              t.transactionType,
+              t.description || "",
+              t.totalAmount,
+            ]);
+            exportPdf("Day Book", tableHtml(["Txn", "Type", "Description", "Amount"], rows, `Day Book ${date}`));
+          }}
+        />
         {data && (
           <span className="text-sm text-muted-foreground">
             {data.totalTransactions} transactions · {fmt(data.totalAmount)}

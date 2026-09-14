@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getLedgerStatement } from "@/services/financialReport";
 import { getLedgers } from "@/services/ledger";
 import { fmt, todayInputDate } from "./reportUtils";
+import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
 
 function monthStartFrom(dateStr) {
   if (!dateStr) return "";
@@ -107,6 +108,45 @@ export default function LedgerStatementReport({ defaultAsOf, compact = false }) 
         <Button size="sm" onClick={load} disabled={loading}>
           {loading ? "Loading…" : "Generate"}
         </Button>
+        <ReportExportButtons
+          disabled={!data}
+          onExcel={() => {
+            const rows = (data.entries || []).map((e) => [
+              e.date,
+              e.transactionNumber,
+              e.referenceNumber || "",
+              e.narration,
+              e.debit,
+              e.credit,
+              e.balance,
+            ]);
+            downloadExcel({
+              filename: `general-ledger_${from}_${to}`,
+              sheetName: "General Ledger",
+              headers: ["Date", "Txn No", "Ref", "Narration", "Debit", "Credit", "Balance"],
+              rows,
+            });
+          }}
+          onPdf={() => {
+            const rows = (data.entries || []).map((e) => [
+              e.date,
+              e.transactionNumber,
+              e.referenceNumber || "",
+              e.narration,
+              e.debit,
+              e.credit,
+              e.balance,
+            ]);
+            exportPdf(
+              "General Ledger",
+              tableHtml(
+                ["Date", "Txn No", "Ref", "Narration", "Debit", "Credit", "Balance"],
+                rows,
+                `General Ledger ${data.ledger?.ledgerName || ""}`
+              )
+            );
+          }}
+        />
         {data && (
           <span className="text-sm text-muted-foreground">
             {data.ledger?.ledgerCode} — {data.ledger?.ledgerName}

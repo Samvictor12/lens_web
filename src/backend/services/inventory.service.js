@@ -241,6 +241,65 @@ export function countDistinctNonNullIds(rows = [], field) {
   return ids.size;
 }
 
+export function specQtyMapFromItems(items = []) {
+  const map = new Map();
+  for (const item of items) {
+    const { sph, cyl, add } = coalescePower(item);
+    const key = `${item.lens_id}|${sph}|${cyl}|${add}`;
+    map.set(key, (map.get(key) || 0) + (Number(item.quantity) || 0));
+  }
+  return map;
+}
+
+export function sumSpecQtyMap(specQtyMap) {
+  let total = 0;
+  if (!specQtyMap) return 0;
+  for (const qty of specQtyMap.values()) total += Number(qty) || 0;
+  return total;
+}
+
+/** Same bucket grain + avg cost × qty as Stock Summary grouping. */
+export function aggregateStockSummaryTotals(items = []) {
+  const buckets = {};
+  for (const item of items) {
+    const power = coalescePower(item);
+    const key = `${item.lens_id}|${item.coating_id}|${item.location_id}|${item.tray_id}|${power.sph}|${power.cyl}|${power.add}`;
+    if (!buckets[key]) {
+      buckets[key] = { totalStock: 0, costSum: 0, costCount: 0 };
+    }
+    const bucket = buckets[key];
+    const qty = Number(item.quantity) || 0;
+    bucket.totalStock += qty;
+    if (item.costPrice != null) {
+      bucket.costSum += Number(item.costPrice);
+      bucket.costCount += 1;
+    }
+  }
+  let totalValue = 0;
+  for (const g of Object.values(buckets)) {
+    const avgCostPrice = g.costCount > 0 ? g.costSum / g.costCount : 0;
+    totalValue += g.totalStock * avgCostPrice;
+  }
+  return { totalValue };
+}
+
+const DASHBOARD_STOCK_ITEM_SELECT = {
+  quantity: true,
+  costPrice: true,
+  rightEye: true,
+  leftEye: true,
+  rightSpherical: true,
+  rightCylindrical: true,
+  rightAdd: true,
+  leftSpherical: true,
+  leftCylindrical: true,
+  leftAdd: true,
+  lens_id: true,
+  coating_id: true,
+  location_id: true,
+  tray_id: true,
+};
+
 export function fifoSaleOrders(orders = [], limit = DASHBOARD_FIFO_LIMIT) {
   return [...orders]
     .sort((a, b) => {
@@ -2715,13 +2774,7 @@ export class InventoryService {
       },
     });
 
-    const map = new Map();
-    for (const item of items) {
-      const { sph, cyl, add } = coalescePower(item);
-      const key = `${item.lens_id}|${sph}|${cyl}|${add}`;
-      map.set(key, (map.get(key) || 0) + (item.quantity || 0));
-    }
-    return map;
+    return specQtyMapFromItems(items);
   }
 
   /** Classify a spec row against threshold bounds. Returns 'low'|'out'|'over'|null */
@@ -3146,7 +3199,6 @@ export class InventoryService {
         activeStatus: true,
         status: { in: ['AVAILABLE', 'RESERVED', 'RETURNED'] },
       });
-      const stockWhere = inventoryStockGodownWhere(gt);
       const { start: monthStart, end: monthEnd } = calendarMonthWindow();
       const txnGodown = transactionGodownWhere(gt);
       const soWhere = {
@@ -3158,7 +3210,7 @@ export class InventoryService {
       const [
         productCountResult,
         specQtyMap,
-        allStock,
+        stockItems,
         alertCounts,
         pendingReceipts,
         monthTxns,
@@ -3170,9 +3222,9 @@ export class InventoryService {
           where: itemWhere,
         }),
         this.buildSpecQtyMap(gt),
-        prisma.inventoryStock.findMany({
-          where: stockWhere,
-          select: { totalStock: true, avgCostPrice: true, location_id: true, tray_id: true },
+        prisma.inventoryItem.findMany({
+          where: itemWhere,
+          select: DASHBOARD_STOCK_ITEM_SELECT,
         }),
         this.getSpecAlertCounts(gt),
         prisma.purchaseOrderReceipt.findMany({
@@ -3219,17 +3271,10 @@ export class InventoryService {
       ]);
 
       const productCount = productCountResult.length;
-      let totalStockUnits = 0;
-      for (const qty of specQtyMap.values()) {
-        totalStockUnits += qty;
-      }
-
-      const totalValue = allStock.reduce(
-        (sum, s) => sum + (s.totalStock || 0) * (s.avgCostPrice || 0),
-        0
-      );
-      const locationCount = countDistinctNonNullIds(allStock, "location_id");
-      const trayCount = countDistinctNonNullIds(allStock, "tray_id");
+      const totalStockUnits = sumSpecQtyMap(specQtyMap);
+      const { totalValue } = aggregateStockSummaryTotals(stockItems);
+      const locationCount = countDistinctNonNullIds(stockItems, "location_id");
+      const trayCount = countDistinctNonNullIds(stockItems, "tray_id");
 
       const pendingFiltered = pendingReceipts.filter(
         (r) => (r.totalReceivedQty || 0) > (r.inwardedQty || 0)
@@ -3242,6 +3287,7 @@ export class InventoryService {
         productCount,
         totalItems: productCount,
         totalStockUnits,
+        specQty: totalStockUnits,
         totalValue,
         locationCount,
         trayCount,

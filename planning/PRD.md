@@ -123,6 +123,14 @@ requirements:
     dd: [DD-1.1]
     sd: [SD-1.1]
     fd: [FD-2.5]
+  - id: PRD-4.15
+    title: Finance dashboard collection report and statutory reports
+    status: shipped
+    module: accounting
+    tsd: [TSD-1.1]
+    dd: [DD-2.1]
+    sd: [SD-1.1, SD-2.1]
+    fd: [FD-2.4]
   - id: PRD-5.1
     title: Authentication session continuity
     status: shipped
@@ -222,16 +230,17 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 
 ## PRD-4.6 Finance dashboard
 
-**Status:** shipped (`req-006`, 2026-08-31).
+**Status:** shipped (`req-006`, 2026-08-31; KPI zeros / calendar-day 2026-09-15; Row-1 month-start→As-of 2026-09-15).
 
 - Route: `/accounts/finance-dashboard` (first item under Accounting sidebar).
-- Row 1 KPIs (today): Today Sales, Today Collection, Today Purchases, Today Expenses, Gross Profit, Net Profit.
-- Row 2 KPIs (position): Cash & Bank Total, Collection Target (month), Receivable Outstanding, Payables Pending, Inventory Value.
+- Row 1 KPIs (month start → As-of): Sales, Collection, Purchases, Expenses, Gross Profit, Net Profit. Window = **1st of As-of month 00:00 local** through **As-of 23:59:59.999** (not FY 1 Apr). Sales = non-cancelled invoice `totalAmount` where `billDate` **or** `createdAt` in window. Purchases = vendor `invoiceDate` **or** `createdAt`. JSON keys remain `today.*`.
+- Row 2 KPIs (position): Cash & Bank Total, Collection Target (month), Receivable Outstanding, Payables Pending, Inventory Value — snapshots as of As-of, not FYTD (`inventoryValue` = stock-summary cost×qty / specQty).
+- UI binds `unwrapDashboardPayload` (`{ success, data }` → inner `{ today, position }`); KPI numbers `parseFloat` Prisma Decimal/`_sum`.
 - FY income vs expense trend chart (India Apr–Mar); portfolio receivables >90d risk table.
-- Expense breakup (month, 40%) + P&L snapshot with inventory and balance-sheet summary (60%).
-- Report sub-tabs: Trial Balance (grouped SD/SC), Balance Sheet, Day Book, GST Reports (embedded).
-- `GET /api/financial-reports/dashboard`, `GET /api/financial-reports/trial-balance-grouped`.
-- Legacy `/accounts/reports` retained for full Financial Reports entry.
+- Expense breakup (month, 40%) + collection Target vs Actual table (60%) — PRD-4.15 replaced MTD P&L snapshot.
+- Report sub-tabs: see PRD-4.15 (TB, BS, P&L, Day Book, General Ledger, Cash & Bank, GST register).
+- `GET /api/financial-reports/dashboard` (`collectionByCustomer`), `GET /api/financial-reports/trial-balance-grouped`.
+- Legacy `/accounts/reports` redirects to Finance Dashboard.
 
 ## PRD-4.9 Inventory unit-cost transaction ledger
 
@@ -292,7 +301,7 @@ Do not create active `execution_state` work for PRD-4.7 until briefed.
 
 **Status:** shipped (`req-001`, 2026-09-09). Extends PRD-4.8.
 
-- **KPIs:** Total Products, Total Stock (units), Total Value (₹), calendar-month Inward/Outward qty and value. Low/Out/Over are not KPI cards.
+- **KPIs:** Total Products, Total Stock (units = specQty sum), Total Value (₹ = stock-summary grouping cost×qty, not `InventoryStock` bucket), calendar-month Inward/Outward qty and value. Low/Out/Over are not KPI cards.
 - **Stock status:** Pie of High / Low / Out (High = OVER: `specQty > maxQty`) plus progress bars sorted by share of (High+Low+Out). Click bar → spec popup grouped by product; selecting a product selects all its specs. Low and Out: Raise PO → bulk PO qty = each spec’s `minQty` (same `lens_id` only).
 - **Trend:** inward/outward quantity chart (godown-scoped).
 - **Top 10 / Low 10:** `OUTWARD_SALE` by product + SPH/CYL/ADD; 30/60/90 days; bar % = unitsSold / sum of those 10.
@@ -316,6 +325,18 @@ Do not create active `execution_state` work for PRD-4.7 until briefed.
 - **Audit — tray transfer:** On `/inventory/{stock|rx}/audit`, operators move items from one tray to another (same godown). Full or partial qty. Each move writes `TRANSFER` `InventoryTransaction` rows (source tray → destination tray), updates `InventoryItem` location/tray, and updates stock buckets in one transaction. Godown isolation unchanged.
 - **Audit — physical cycle count:** Cycle-count sessions scoped by godown, location (rack), and tray. Operator compares book quantity (system) to counted physical quantity per spec in the tray. Record match / variance / recount. Session lifecycle: planned → in progress → pending review (if variance over threshold) → posted. Cycle count is verification-only (no ADJUSTMENT/DAMAGE/INWARD writes). Accuracy and completion metrics come from the open session if any, else the latest POSTED session in the calendar month.
 - **Dashboard:** One card showing cycle-count **completion** (trays counted vs in-scope), **accuracy** (matched lines vs counted), and **outcomes** (matched / variance / pending recount). Click-through to Audit cycle-count section. Godown-scoped.
+
+## PRD-4.15 Finance dashboard collection report and statutory reports
+
+**Status:** shipped (`req-001`, 2026-09-14). Extends PRD-4.6 / FD-2.4.
+
+Replace the MTD P&L snapshot with a customer Target vs Actual collection table (Customer, Target, Actual, Balance) for the current month. Cash & Bank KPI scrolls to an embedded Cash & Bank accounts list with current balances and Add; Accounting sidebar Bank Accounts removed (`/accounts/bank-accounts` redirects). Report tabs: Trial Balance, two-column detailed Balance Sheet, industrial MTD P&L, Day Book, General Ledger, Cash & Bank, GST invoice register (Excel template). Excel + PDF (print-to-PDF) on all report tabs.
+
+### Acceptance
+- Dashboard P&L Snapshot (MTD) is replaced by customer collection Target / Actual / Balance for the current month.
+- Cash & Bank Total is clickable and scrolls to Cash & Bank report; operators can add cash/bank ledgers there; sidebar Bank Accounts is removed.
+- Reports tab set: Trial Balance, Balance Sheet (assets left / liabilities right, detailed), Profit & Loss (current month, detailed), Day Book, General Ledger, Cash & Bank, GST Report (Excel template columns).
+- Every report tab exports Excel and PDF. GST Excel layout matches `GST Report Format.xlsx` (SlNo through Postage).
 
 ## PRD-5.1 Authentication session continuity
 

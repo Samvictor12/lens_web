@@ -11,6 +11,11 @@ export class GstReportController {
       res.json({ success: true, data: await gstReportService.getGstCollectionReport(req.query) });
     } catch (e) { next(e); }
   }
+  async getGstInvoiceRegister(req, res, next) {
+    try {
+      res.json({ success: true, data: await gstReportService.getGstInvoiceRegister(req.query) });
+    } catch (e) { next(e); }
+  }
 }
 
 export default new GstReportController();
