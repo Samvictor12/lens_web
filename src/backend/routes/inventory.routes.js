@@ -606,4 +606,36 @@ router.delete('/spec-thresholds/:id', (req, res, next) => {
   inventoryController.deleteSpecThreshold(req, res, next);
 });
 
+router.post('/cycle-counts', (req, res, next) => {
+  inventoryController.createCycleCountSession(req, res, next);
+});
+
+router.get('/cycle-counts', (req, res, next) => {
+  inventoryController.listCycleCountSessions(req, res, next);
+});
+
+router.get('/cycle-counts/:id/tray-book', (req, res, next) => {
+  inventoryController.getCycleCountTrayBook(req, res, next);
+});
+
+router.get('/cycle-counts/:id', (req, res, next) => {
+  inventoryController.getCycleCountSession(req, res, next);
+});
+
+router.post('/cycle-counts/:id/count', (req, res, next) => {
+  inventoryController.recordCycleCount(req, res, next);
+});
+
+router.post('/cycle-counts/:id/lines/:lineId/recount', (req, res, next) => {
+  inventoryController.recountCycleCountLine(req, res, next);
+});
+
+router.post('/cycle-counts/:id/lines/:lineId/accept-variance', (req, res, next) => {
+  inventoryController.acceptCycleCountVariance(req, res, next);
+});
+
+router.post('/cycle-counts/:id/post', (req, res, next) => {
+  inventoryController.postCycleCountSession(req, res, next);
+});
+
 export default router;

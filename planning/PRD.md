@@ -115,6 +115,14 @@ requirements:
     dd: [DD-1.1]
     sd: [SD-1.1]
     fd: [FD-2.5]
+  - id: PRD-4.14
+    title: Inventory tray transfer and cycle-count audit
+    status: shipped
+    module: inventory
+    tsd: [TSD-1.1]
+    dd: [DD-1.1]
+    sd: [SD-1.1]
+    fd: [FD-2.5]
   - id: PRD-5.1
     title: Authentication session continuity
     status: shipped
@@ -300,6 +308,14 @@ Do not create active `execution_state` work for PRD-4.7 until briefed.
 - **Inward vs SO Queue:** donut + Stock-status-style progress bars (share of Inward+SO). Click Inward → Inward Queue tab; click SO Queue → SO Request Queue tab. No FIFO popup.
 - **Bottom row:** Inward vs SO Queue 60% + Stock Summary 40% (Products, Locations, Trays, Stock units, Total value only).
 - Dashboard payload adds `locationCount` and `trayCount` (distinct non-null ids). No schema change.
+
+## PRD-4.14 Inventory tray transfer and cycle-count audit
+
+**Status:** shipped (`req-001`, 2026-09-14). Extends PRD-4.8 (Audit tab) and PRD-4.13 (Dashboard).
+
+- **Audit — tray transfer:** On `/inventory/{stock|rx}/audit`, operators move items from one tray to another (same godown). Full or partial qty. Each move writes `TRANSFER` `InventoryTransaction` rows (source tray → destination tray), updates `InventoryItem` location/tray, and updates stock buckets in one transaction. Godown isolation unchanged.
+- **Audit — physical cycle count:** Cycle-count sessions scoped by godown, location (rack), and tray. Operator compares book quantity (system) to counted physical quantity per spec in the tray. Record match / variance / recount. Session lifecycle: planned → in progress → pending review (if variance over threshold) → posted. Cycle count is verification-only (no ADJUSTMENT/DAMAGE/INWARD writes). Accuracy and completion metrics come from the open session if any, else the latest POSTED session in the calendar month.
+- **Dashboard:** One card showing cycle-count **completion** (trays counted vs in-scope), **accuracy** (matched lines vs counted), and **outcomes** (matched / variance / pending recount). Click-through to Audit cycle-count section. Godown-scoped.
 
 ## PRD-5.1 Authentication session continuity
 

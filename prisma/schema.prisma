@@ -119,6 +119,10 @@ model User {
   inventoryStockUpdatedBy       InventoryStock[]       @relation("inventoryStockUpdatedBy")
   inventoryAlertCreatedBy       InventoryAlert[]       @relation("inventoryAlertCreatedBy")
   inventoryAlertResolver        InventoryAlert[]       @relation("inventoryAlertResolver")
+  cycleCountSessionCreatedBy    InventoryCycleCountSession[] @relation("cycleCountSessionCreatedBy")
+  cycleCountSessionUpdatedBy    InventoryCycleCountSession[] @relation("cycleCountSessionUpdatedBy")
+  cycleCountSessionPostedBy     InventoryCycleCountSession[] @relation("cycleCountSessionPostedBy")
+  cycleCountLineUpdatedBy       InventoryCycleCountLine[]    @relation("cycleCountLineUpdatedBy")
   lensOffersCreatedBy           LensOffers[]           @relation("lensOffersCreatedBy")
   lensOffersUpdatedBy           LensOffers[]           @relation("lensOffersUpdatedBy")
   dispatchCopiesDelivery        DispatchCopy[]         @relation("dispatchDeliveryPerson")
@@ -1151,6 +1155,8 @@ model LocationMaster {
   inventoryAlerts           InventoryAlert[]
   inventoryFromTransactions InventoryTransaction[] @relation("inventoryFromLocation")
   inventoryToTransactions   InventoryTransaction[] @relation("inventoryToLocation")
+  cycleCountSessions        InventoryCycleCountSession[]
+  cycleCountLines           InventoryCycleCountLine[]
 }
 
 model TrayMaster {
@@ -1174,6 +1180,7 @@ model TrayMaster {
   inventoryStock            InventoryStock[]
   inventoryFromTransactions InventoryTransaction[] @relation("inventoryFromTray")
   inventoryToTransactions   InventoryTransaction[] @relation("inventoryToTray")
+  cycleCountLines           InventoryCycleCountLine[]
 }
 
 /** Destination tray for Pre-QC / issue (UI: Tray). Location is optional. */
@@ -1347,6 +1354,7 @@ model InventoryItem {
   // Relationship Tables
   transactions InventoryTransaction[] @relation("inventoryItemTransactions")
   qcReturns    InventoryQcReturn[]
+  cycleCountLines InventoryCycleCountLine[]
 }
 
 // Track all inventory movements/transactions
@@ -1468,6 +1476,75 @@ model InventorySpecThreshold {
 
   @@unique([lens_id, godownType, sph, cyl, add])
   @@index([lens_id, godownType])
+}
+
+enum CycleCountSessionStatus {
+  PLANNED
+  IN_PROGRESS
+  PENDING_REVIEW
+  POSTED
+  CANCELLED
+}
+
+enum CycleCountLineOutcome {
+  UNCOUNTED
+  MATCH
+  SHORTAGE
+  OVERAGE
+  PENDING_RECOUNT
+}
+
+model InventoryCycleCountSession {
+  id                Int                      @id @default(autoincrement())
+  sessionNo         String                   @unique
+  godownType        GodownType
+  status            CycleCountSessionStatus  @default(PLANNED)
+  location_id       Int?
+  location          LocationMaster?          @relation(fields: [location_id], references: [id])
+  recountThreshold  Float                    @default(0)
+  notes             String?
+  startedAt         DateTime?
+  postedAt          DateTime?
+  createdAt         DateTime                 @default(now())
+  createdBy         Int
+  updatedAt         DateTime                 @updatedAt
+  updatedBy         Int?
+  postedBy          Int?
+  createdByUser     User                     @relation("cycleCountSessionCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser     User?                    @relation("cycleCountSessionUpdatedBy", fields: [updatedBy], references: [id])
+  postedByUser      User?                    @relation("cycleCountSessionPostedBy", fields: [postedBy], references: [id])
+  lines             InventoryCycleCountLine[]
+
+  @@index([godownType, status])
+}
+
+model InventoryCycleCountLine {
+  id               Int                    @id @default(autoincrement())
+  sessionId        Int
+  session          InventoryCycleCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  location_id      Int
+  location         LocationMaster         @relation(fields: [location_id], references: [id])
+  tray_id          Int
+  tray             TrayMaster             @relation(fields: [tray_id], references: [id])
+  inventoryItemId  Int
+  inventoryItem    InventoryItem          @relation(fields: [inventoryItemId], references: [id])
+  lens_id          Int
+  sph              String?
+  cyl              String?
+  add              String?
+  bookQty          Float
+  countedQty       Float?
+  varianceQty      Float?
+  outcome          CycleCountLineOutcome  @default(UNCOUNTED)
+  recountCount     Int                    @default(0)
+  countedAt        DateTime?
+  notes            String?
+  updatedAt        DateTime               @updatedAt
+  updatedBy        Int?
+  updatedByUser    User?                  @relation("cycleCountLineUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@unique([sessionId, inventoryItemId])
+  @@index([sessionId, tray_id])
 }
 
 model InventoryAlert {

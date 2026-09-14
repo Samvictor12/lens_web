@@ -196,6 +196,63 @@ export const deleteSpecThreshold = async (id, params = {}) => {
   return response;
 };
 
+export const createCycleCountSession = async (payload) => {
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/cycle-counts`, {
+    data: payload,
+  });
+  return response;
+};
+
+export const listCycleCountSessions = async (params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/cycle-counts`, { params });
+  return response;
+};
+
+export const getCycleCountSession = async (id, params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/cycle-counts/${id}`, { params });
+  return response;
+};
+
+export const getCycleCountTrayBook = async (id, params = {}) => {
+  const response = await apiClient("get", `${INVENTORY_BASE_URL}/cycle-counts/${id}/tray-book`, {
+    params,
+  });
+  return response;
+};
+
+export const recordCycleCount = async (id, payload, params = {}) => {
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/cycle-counts/${id}/count`, {
+    data: payload,
+    params,
+  });
+  return response;
+};
+
+export const recountCycleCountLine = async (id, lineId, payload, params = {}) => {
+  const response = await apiClient(
+    "post",
+    `${INVENTORY_BASE_URL}/cycle-counts/${id}/lines/${lineId}/recount`,
+    { data: payload, params }
+  );
+  return response;
+};
+
+export const acceptCycleCountVariance = async (id, lineId, params = {}) => {
+  const response = await apiClient(
+    "post",
+    `${INVENTORY_BASE_URL}/cycle-counts/${id}/lines/${lineId}/accept-variance`,
+    { params }
+  );
+  return response;
+};
+
+export const postCycleCountSession = async (id, params = {}) => {
+  const response = await apiClient("post", `${INVENTORY_BASE_URL}/cycle-counts/${id}/post`, {
+    params,
+  });
+  return response;
+};
+
 export const inventoryService = {
   getInventoryItems,
   getInventoryInwardQueue,
@@ -223,4 +280,12 @@ export const inventoryService = {
   upsertSpecThresholds,
   generateSpecThresholds,
   deleteSpecThreshold,
+  createCycleCountSession,
+  listCycleCountSessions,
+  getCycleCountSession,
+  getCycleCountTrayBook,
+  recordCycleCount,
+  recountCycleCountLine,
+  acceptCycleCountVariance,
+  postCycleCountSession,
 };

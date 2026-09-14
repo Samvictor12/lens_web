@@ -95,7 +95,7 @@ function pickEyePower(primary, fallback) {
  * left-only → left powers (fallback right if left empty); right-only → right (fallback left);
  * else legacy right || left.
  */
-function coalescePower(item) {
+export function coalescePower(item) {
   const leftOnly = item.leftEye && !item.rightEye;
   const rightOnly = item.rightEye && !item.leftEye;
   if (leftOnly) {
@@ -295,7 +295,7 @@ function stockScopeClauses(godownType) {
 }
 
 /** Prisma where for InventoryItem rows under a godown (includes PO/RX-source exclusion). */
-function inventoryItemGodownWhere(godownType, extra = {}) {
+export function inventoryItemGodownWhere(godownType, extra = {}) {
   const clauses = stockScopeClauses(godownType);
   if (!clauses.length) return { ...extra };
   return { ...extra, AND: [...(extra.AND || []), ...clauses] };
@@ -2247,6 +2247,8 @@ export class InventoryService {
             quantity: true,
             costPrice: true,
             location_id: true,
+            tray_id: true,
+            status: true,
             lensProduct: {
               select: {
                 id: true,
@@ -3252,6 +3254,29 @@ export class InventoryService {
         soQueueCount,
         soQueueFifo: fifoSaleOrders(soQueueOldest, DASHBOARD_FIFO_LIMIT),
         ...monthAgg,
+        cycleCount: await (async () => {
+          try {
+            const { getCycleCountDashboardKpis } = await import("./inventoryCycleCount.service.js");
+            return await getCycleCountDashboardKpis(gt);
+          } catch (kpiErr) {
+            console.error("Error getting cycle count dashboard KPIs:", kpiErr);
+            return {
+              sessionId: null,
+              sessionNo: null,
+              status: null,
+              traysInScope: 0,
+              traysCounted: 0,
+              completionPct: 0,
+              accuracyPct: null,
+              matched: 0,
+              variance: 0,
+              pendingRecount: 0,
+              shortage: 0,
+              overage: 0,
+              lineCount: 0,
+            };
+          }
+        })(),
       };
     } catch (error) {
       console.error("Error getting inventory dashboard:", error);

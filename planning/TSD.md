@@ -27,4 +27,4 @@ Dockerized **dev / test / prod** under `Docker/`. Env via `.env` (not committed)
 
 ## TSD-1.3 Deploy
 
-Docker compose for each environment. Role/permission seeds must stay in sync with `src/constants/role.constants.js` and `scripts/role-seed.js` (KB pattern from lean archive).
+Docker compose for each environment. Role/permission seeds must stay in sync with `src/constants/role.constants.js` and `scripts/role-seed.js` (KB pattern from lean archive). Apply Prisma migrations with the usual `db:deploy` (includes `20260914180000_inventory_cycle_count` for cycle-count tables).

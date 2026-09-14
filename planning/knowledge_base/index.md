@@ -25,4 +25,5 @@
 | KB-021 | Document-dated GL and sale inventory credit | PRD-4.10, DD-2.1, SD-2.1, req-002 |
 | KB-022 | Inventory dashboard KPI and chart corrections | PRD-4.12, DD-1.1, SD-1.1, FD-2.5, req-001 |
 | KB-023 | Inventory dashboard layout and navigation polish | PRD-4.13, DD-1.1, SD-1.1, FD-2.5, req-001 |
+| KB-024 | Inventory tray transfer and cycle-count audit | PRD-4.14, DD-1.1, SD-1.1, FD-2.5, req-001 |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

@@ -111,6 +111,9 @@ Per-product, per-godown, per-power-spec min/max stock configuration. Fields: `le
 ### 1d. RefreshToken (req-001, 2026-09-06)
 Per-device session row. `User.refreshTokens` 1:n. Unique on `token`; index on `userId` (not unique). Login inserts a row; refresh looks up by presented token; logout deletes only that row. Migration `20260906160000_refresh_token_per_device` drops `refresh_tokens_userId_key`. Password change / admin revoke still clears all of a user's rows.
 
+### 1e. InventoryCycleCountSession / InventoryCycleCountLine (PRD-4.14, 2026-09-14)
+Verification-only physical count. Session: `sessionNo` unique, `godownType`, `status` (`PLANNED` | `IN_PROGRESS` | `PENDING_REVIEW` | `POSTED` | `CANCELLED`), optional `location_id`, `recountThreshold`, `startedAt`/`postedAt`, created/updated/posted user FKs. Line: unique `(sessionId, inventoryItemId)`; tray + location FKs; `bookQty` snapshot; `countedQty`/`varianceQty`; `outcome` (`UNCOUNTED` | `MATCH` | `SHORTAGE` | `OVERAGE` | `PENDING_RECOUNT`); `recountCount`. No ADJUSTMENT/DAMAGE/INWARD writes on count or post. Migration `20260914180000_inventory_cycle_count`.
+
 ### 2. InventoryTransaction
 Records inward (PO / Direct), outward (Sale / Return / Damage), and transfer. **Unit-cost ledger (req-001, 2026-09-08):** `parentTransactionId` (self-FK), `status` (`OPEN` | `CONSUMED`), `remainingQty`. Sources (`INWARD_PO`, `INWARD_DIRECT`, `TRANSFER`) start OPEN with `remainingQty = quantity`. Outward/damage/transfer qty N writes N unit rows each tagged to one OPEN source; source `remainingQty` 0 → CONSUMED. PO inward unit price is finalized on vendor bill, not receipt. `ADJUSTMENT` retained for legacy rows only (no new writes). Migration `20260908120000_inventory_transaction_unit_cost`. **Dashboard month KPIs (PRD-4.12):** calendar-month inward/outward qty+value are computed at read from this table (no new columns).
 

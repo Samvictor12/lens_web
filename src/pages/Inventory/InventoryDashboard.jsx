@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Package, TrendingUp, IndianRupee, Layers,
-  ArrowUpRight, ArrowDownRight, RefreshCw, ShoppingCart,
+  ArrowUpRight, ArrowDownRight, RefreshCw, ShoppingCart, ClipboardList,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -529,6 +529,47 @@ export default function InventoryDashboard({ stats = {}, isLoading = false, onRe
           </Section>
         </div>
       </div>
+
+      <button
+        type="button"
+        className="w-full text-left"
+        onClick={() => navigate(`${inventoryTabPath(godownSlug, "audit")}#cycle-count`)}
+      >
+        <Card className="hover:border-primary/40 transition-colors cursor-pointer">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Cycle count</p>
+                {isLoading ? (
+                  <p className="text-xl font-bold mt-1">—</p>
+                ) : (
+                  <>
+                    <p className="text-xl font-bold mt-1">
+                      {stats.cycleCount?.completionPct ?? 0}% complete
+                      <span className="text-sm font-normal text-muted-foreground ml-2">
+                        {stats.cycleCount?.accuracyPct == null
+                          ? "Accuracy —"
+                          : `${stats.cycleCount.accuracyPct}% accuracy`}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Matched {stats.cycleCount?.matched ?? 0} · Variance {stats.cycleCount?.variance ?? 0} · Pending
+                      recount {stats.cycleCount?.pendingRecount ?? 0}
+                      {stats.cycleCount?.sessionNo ? ` · ${stats.cycleCount.sessionNo}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Trays {stats.cycleCount?.traysCounted ?? 0}/{stats.cycleCount?.traysInScope ?? 0}
+                    </p>
+                  </>
+                )}
+              </div>
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-muted/40 shrink-0">
+                <ClipboardList className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </button>
 
       <Dialog open={Boolean(alertPopup)} onOpenChange={(open) => { if (!open) setAlertPopup(null); }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">

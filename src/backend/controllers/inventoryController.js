@@ -1,5 +1,15 @@
 import InventoryService, { parseTopLowSellingDays } from '../services/inventory.service.js';
 import {
+  createCycleCountSession,
+  listCycleCountSessions,
+  getCycleCountSession,
+  getTrayBook,
+  recordTrayCount,
+  recountLine,
+  acceptVariance,
+  postCycleCountSession,
+} from '../services/inventoryCycleCount.service.js';
+import {
   validateCreateInventoryItem,
   validateCreateInventoryTransaction,
   validateQueryParams,
@@ -653,6 +663,112 @@ export class InventoryController {
       }
       const result = await this.inventoryService.deleteSpecThreshold(req.params.id);
       res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createCycleCountSession(req, res, next) {
+    try {
+      const session = await createCycleCountSession({
+        godownType: req.body.godownType || req.query.godownType,
+        locationId: req.body.locationId ? parseInt(req.body.locationId, 10) : null,
+        recountThreshold: req.body.recountThreshold,
+        notes: req.body.notes,
+        createdBy: req.user.id,
+      });
+      res.status(201).json({ success: true, data: session });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listCycleCountSessions(req, res, next) {
+    try {
+      const sessions = await listCycleCountSessions({
+        godownType: req.query.godownType,
+        limit: req.query.limit,
+      });
+      res.json({ success: true, data: sessions });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getCycleCountSession(req, res, next) {
+    try {
+      const session = await getCycleCountSession(req.params.id, req.query.godownType);
+      res.json({ success: true, data: session });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getCycleCountTrayBook(req, res, next) {
+    try {
+      const book = await getTrayBook({
+        sessionId: req.params.id,
+        trayId: req.query.trayId,
+        godownType: req.query.godownType,
+      });
+      res.json({ success: true, data: book });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recordCycleCount(req, res, next) {
+    try {
+      const session = await recordTrayCount({
+        sessionId: req.params.id,
+        trayId: req.body.trayId,
+        lines: req.body.lines,
+        userId: req.user.id,
+        godownType: req.query.godownType || req.body.godownType,
+      });
+      res.json({ success: true, data: session });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async recountCycleCountLine(req, res, next) {
+    try {
+      const session = await recountLine({
+        sessionId: req.params.id,
+        lineId: req.params.lineId,
+        countedQty: req.body.countedQty,
+        userId: req.user.id,
+        godownType: req.query.godownType || req.body.godownType,
+      });
+      res.json({ success: true, data: session });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async acceptCycleCountVariance(req, res, next) {
+    try {
+      const session = await acceptVariance({
+        sessionId: req.params.id,
+        lineId: req.params.lineId,
+        userId: req.user.id,
+        godownType: req.query.godownType || req.body.godownType,
+      });
+      res.json({ success: true, data: session });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async postCycleCountSession(req, res, next) {
+    try {
+      const session = await postCycleCountSession({
+        sessionId: req.params.id,
+        userId: req.user.id,
+        godownType: req.query.godownType || req.body.godownType,
+      });
+      res.json({ success: true, data: session, message: "Cycle count posted" });
     } catch (error) {
       next(error);
     }
