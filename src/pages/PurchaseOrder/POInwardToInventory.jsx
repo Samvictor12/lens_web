@@ -142,10 +142,11 @@ export default function POInwardToInventory() {
       const receivedItems = Array.isArray(statusRes.data.receipt?.receivedItems)
         ? statusRes.data.receipt.receivedItems
         : [];
+      const inwardedMap = statusRes.data.inwardedByRow || {};
       const initial = {};
       for (const ri of receivedItems) {
         const k = ri.key || `sph_${ri.spherical}_cyl_${ri.cylindrical}`;
-        const alreadyInwarded = (statusRes.data.inwardedByRow || {})[`${ri.spherical ?? "0"}_${ri.cylindrical ?? "0"}`] || 0;
+        const alreadyInwarded = inwardedMap[k] || 0;
         const pending = (parseFloat(ri.receivedQty) || 0) - alreadyInwarded;
         if (pending > 0) {
           initial[k] = [emptyRow()];
@@ -172,7 +173,7 @@ export default function POInwardToInventory() {
   const rowsWithPending = receivedItems.map((ri) => {
     const k = ri.key || `sph_${ri.spherical}_cyl_${ri.cylindrical}`;
     const parsed = parseKey(k);
-    const alreadyInwarded = inwardedByRow[`${ri.spherical ?? "0"}_${ri.cylindrical ?? "0"}`] || 0;
+    const alreadyInwarded = inwardedByRow[k] || 0;
     const pending = Math.max(0, (parseFloat(ri.receivedQty) || 0) - alreadyInwarded);
     const splitsForRow = rowSplits[k] || [];
     const splitTotal = splitsForRow.reduce((s, sp) => s + (parseFloat(sp.qty) || 0), 0);
@@ -434,6 +435,8 @@ export default function POInwardToInventory() {
         key: row.key,
         spherical: row.spherical ?? "0",
         cylindrical: row.cylindrical ?? "0",
+        add: row.add ?? null,
+        eye: row.eye ?? null,
         splits: splits.map((sp) => ({
           location_id: parseInt(globalLocationId),
           tray_id: sp.tray_id ? parseInt(sp.tray_id) : null,
