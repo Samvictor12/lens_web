@@ -31,12 +31,19 @@ function round2(n) {
   return Math.round(parseFloat(n || 0) * 100) / 100;
 }
 
-const emptyForm = {
+function formatLocalDate(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+const emptyForm = () => ({
   vendorId: "",
   supplierInvoiceNo: "",
-  invoiceDate: new Date().toISOString().split("T")[0],
+  invoiceDate: formatLocalDate(new Date()),
   notes: "",
-};
+});
 
 const emptyPoLine = () => ({ subtotalAmount: "", gstPercent: "", taxAmount: "", locked: false });
 
@@ -152,7 +159,7 @@ export default function CreateVendorInvoiceDialog({
     }
     if (isEditMode) return;
     setForm({
-      ...emptyForm,
+      ...emptyForm(),
       vendorId: initialVendorId ? String(initialVendorId) : "",
     });
     setSelectedPoIds([]);
@@ -178,8 +185,8 @@ export default function CreateVendorInvoiceDialog({
           vendorId: String(inv.vendorId),
           supplierInvoiceNo: inv.supplierInvoiceNo || "",
           invoiceDate: inv.invoiceDate
-            ? new Date(inv.invoiceDate).toISOString().split("T")[0]
-            : emptyForm.invoiceDate,
+            ? formatLocalDate(new Date(inv.invoiceDate))
+            : emptyForm().invoiceDate,
           notes: inv.notes || "",
         });
         setCourierCharges(

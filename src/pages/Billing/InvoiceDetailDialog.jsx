@@ -78,6 +78,7 @@ export default function InvoiceDetailDialog({
   const qc = useQueryClient();
   const { company } = useCompany();
   const [dueDate, setDueDate] = useState("");
+  const [billDate, setBillDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
 
@@ -102,6 +103,7 @@ export default function InvoiceDetailDialog({
   useEffect(() => {
     if (!invoice || !open) return;
     setDueDate(formatLocalDate(invoice.dueDate));
+    setBillDate(formatLocalDate(invoice.billDate));
     setNotes(stripTaxNotes(invoice.notes));
     setSelectedOrderIds((invoice.saleOrders || []).map((o) => o.id));
   }, [invoice, open]);
@@ -164,9 +166,11 @@ export default function InvoiceDetailDialog({
   };
 
   const handleSave = () => {
+    if (!billDate) return toast.error("Please set a bill date");
     if (!dueDate) return toast.error("Please set a due date");
     if (!selectedOrderIds.length) return toast.error("Select at least one sale order");
     saveMutation.mutate({
+      billDate,
       dueDate,
       notes: notes || undefined,
       saleOrderIds: selectedOrderIds,
@@ -198,6 +202,32 @@ export default function InvoiceDetailDialog({
               <div>
                 <span className="text-muted-foreground block">Customer</span>
                 <span className="font-medium">{invoice.customer?.name}</span>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs">Bill Date</Label>
+                {isEditable ? (
+                  <Input
+                    type="date"
+                    value={billDate}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setBillDate(next);
+                      const days = Number(invoice.customer?.credit_days ?? invoice.customer?.creditDays ?? 0) || 0;
+                      if (!next) return;
+                      const d = new Date(`${next}T12:00:00`);
+                      if (Number.isNaN(d.getTime())) return;
+                      d.setDate(d.getDate() + days);
+                      setDueDate(formatLocalDate(d));
+                    }}
+                    className="h-8"
+                  />
+                ) : (
+                  <span className="font-medium block">
+                    {invoice.billDate
+                      ? new Date(invoice.billDate).toLocaleDateString("en-IN")
+                      : "—"}
+                  </span>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-muted-foreground text-xs">Due Date</Label>
@@ -357,7 +387,7 @@ export default function InvoiceDetailDialog({
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={saveMutation.isPending || !selectedOrderIds.length || !dueDate}
+                disabled={saveMutation.isPending || !selectedOrderIds.length || !dueDate || !billDate}
               >
                 <Save className="h-4 w-4 mr-1" />
                 {saveMutation.isPending ? "Saving…" : "Save"}

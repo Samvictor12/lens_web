@@ -119,8 +119,8 @@ export default function PurchaseOrderForm() {
         if (lensTintingResponse.success) setLensTintings(lensTintingResponse.data);
 
         // Set default Type_id for new orders based on initial orderType
-        // Skip when pre-filling from a Sale Order (it carries its own Type_id)
-        if (mode === "add" && lensTypeResponse.success && !location.state?.fromSaleOrder) {
+        // Skip when pre-filling from a Sale Order or low-stock Raise PO
+        if (mode === "add" && lensTypeResponse.success && !location.state?.fromSaleOrder && !location.state?.fromLowStockAlert) {
           const initialOrderType = "Bulk"; // default tab
           const targetName = initialOrderType === "Bulk" ? "STOCK" : "RX";
           const match = lensTypeResponse.data.find(
@@ -195,6 +195,30 @@ export default function PurchaseOrderForm() {
       setCurrentOrderType("Single");
       setShowTabs(false);
     }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fill bulk PO when raising from Inventory Dashboard low-stock popup
+  useEffect(() => {
+    if (mode !== "add" || !location.state?.fromLowStockAlert) return;
+    const st = location.state;
+    const bulk = st.lensBulkSelection || null;
+    const totalQty = Object.values(bulk?.selections || {}).reduce((sum, sel) => {
+      if (sel && typeof sel === "object") {
+        if ("quantity" in sel) return sum + (parseInt(sel.quantity, 10) || 0);
+        return sum + Object.values(sel).reduce((s, v) => s + (parseInt(v, 10) || 0), 0);
+      }
+      return sum + (parseInt(sel, 10) || 0);
+    }, 0);
+    setFormData((prev) => ({
+      ...prev,
+      orderType: "Bulk",
+      lens_id: st.lens_id ?? prev.lens_id,
+      category_id: st.category_id ?? prev.category_id,
+      Type_id: st.Type_id ?? prev.Type_id,
+      lensBulkSelection: bulk,
+      quantity: totalQty > 0 ? totalQty : (st.quantity || prev.quantity),
+    }));
+    setCurrentOrderType("Bulk");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate PO Number for new orders
@@ -1762,6 +1786,16 @@ export default function PurchaseOrderForm() {
             <strong>{location.state.fromSaleOrder.orderNo}</strong>. Lens &amp; eye
             specifications have been pre-filled. Please select a vendor and enter the
             total price to complete the PO.
+          </span>
+        </div>
+      )}
+
+      {mode === "add" && location.state?.fromLowStockAlert && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <Package className="h-4 w-4 shrink-0" />
+          <span>
+            Raising a bulk Purchase Order from low-stock specs. Quantities are
+            prefilled to each spec&apos;s minimum. Select a vendor to complete the PO.
           </span>
         </div>
       )}

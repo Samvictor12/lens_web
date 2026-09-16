@@ -27,15 +27,20 @@ router.use(authenticateToken);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [saleOrderIds, dueDate]
+ *             required: [saleOrderIds]
  *             properties:
  *               saleOrderIds:
  *                 type: array
  *                 items: { type: integer }
  *                 description: IDs of DELIVERED sale orders to combine (same customer)
+ *               billDate:
+ *                 type: string
+ *                 format: date
+ *                 description: Operator bill date (YYYY-MM-DD). Defaults to today.
  *               dueDate:
  *                 type: string
  *                 format: date
+ *                 description: Defaults to billDate + customer credit_days when omitted
  *               notes:
  *                 type: string
  *     responses:

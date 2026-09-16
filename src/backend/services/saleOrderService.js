@@ -17,6 +17,10 @@ import {
 } from './softAllocationHelper.js';
 import { resolveAutoInwardLocationAndBin } from '../utils/autoInwardBin.js';
 import {
+  resolveBilledPoUnitPrice,
+  sourceLedgerFields,
+} from './inventoryUnitCostLedger.js';
+import {
   resolveFreeLensApprovalOnWrite,
   pendingFreeLensApprovalFields,
   isAdminUser,
@@ -1261,6 +1265,11 @@ export class SaleOrderService {
                 const { location, tray } = await resolveAutoInwardLocationAndBin(tx, preferredGodown);
 
                 // 3. Create inventory item
+                const billedPrice = await resolveBilledPoUnitPrice(
+                  tx,
+                  receipt.purchaseOrderId,
+                  1
+                );
                 const itemData = {
                   lens_id: existing.lens_id,
                   category_id: existing.category_id,
@@ -1272,7 +1281,7 @@ export class SaleOrderService {
                   location_id: location.id,
                   tray_id: tray?.id ?? null,
                   quantity: 1,
-                  costPrice: receipt.unitPrice || 0,
+                  costPrice: billedPrice ?? 0,
                   batchNo: receipt.receiptNumber,
                   purchaseOrderId: receipt.purchaseOrderId,
                   purchaseReceiptId: receipt.id,
@@ -1299,8 +1308,8 @@ export class SaleOrderService {
                     inventoryItemId: item.id,
                     quantity: itemData.quantity,
                     balanceAfter: itemData.quantity,
-                    unitPrice: itemData.costPrice,
-                    totalValue: itemData.quantity * itemData.costPrice,
+                    unitPrice: billedPrice,
+                    totalValue: billedPrice != null ? itemData.quantity * billedPrice : null,
                     toLocationId: itemData.location_id,
                     toTrayId: itemData.tray_id,
                     purchaseOrderId: itemData.purchaseOrderId,
@@ -1308,6 +1317,7 @@ export class SaleOrderService {
                     batchNo: itemData.batchNo,
                     reason: 'Auto-inward from Inward Queue for Fitting issue',
                     createdBy: userId,
+                    ...sourceLedgerFields(itemData.quantity),
                   },
                 });
                 await inventoryService.updateInventoryStock(item, itemData.quantity, 'ADD', tx);

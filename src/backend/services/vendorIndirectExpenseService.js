@@ -6,7 +6,7 @@ import {
   postIndirectExpenseAccrual,
   postIndirectExpensePayment,
 } from './accountingService.js';
-import { ensureExpenseCategoryLedger } from './expenseService.js';
+import { ensureExpenseCategoryLedger, assertExpenseDateOnOrBeforeDue } from './expenseService.js';
 import { distributePayment } from '../utils/paymentAllocation.js';
 
 function round2(n) {
@@ -74,7 +74,7 @@ export class VendorIndirectExpenseService {
    * Mark indirect expense — Dr expense category / Cr selected liability ledger.
    */
   async create(
-    { liabilityLedgerId, categoryId, amount, dueDate, description, referenceNo, notes, vendorId },
+    { liabilityLedgerId, categoryId, amount, dueDate, expenseDate, description, referenceNo, notes, vendorId },
     userId
   ) {
     if (vendorId != null && vendorId !== '') {
@@ -116,7 +116,9 @@ export class VendorIndirectExpenseService {
 
     const expenseNumber = await generateExpenseNumber();
     const now = new Date();
+    const resolvedExpenseDate = expenseDate ? new Date(expenseDate) : now;
     const resolvedDue = dueDate ? new Date(dueDate) : now;
+    assertExpenseDateOnOrBeforeDue(resolvedExpenseDate, resolvedDue);
 
     return prisma.$transaction(async (tx) => {
       const categoryLedgerId = await ensureExpenseCategoryLedger(tx, category, userId);
@@ -130,7 +132,7 @@ export class VendorIndirectExpenseService {
           amount: amt,
           paidAmount: 0,
           vendorExpenseStatus: 'MARKED',
-          expenseDate: now,
+          expenseDate: resolvedExpenseDate,
           dueDate: resolvedDue,
           description: description.trim(),
           referenceNo: referenceNo || null,
@@ -152,6 +154,7 @@ export class VendorIndirectExpenseService {
           categoryLedgerId,
           liabilityLedgerId: lid,
           description: description.trim(),
+          transactionDate: resolvedExpenseDate,
         },
         userId
       );
@@ -302,13 +305,14 @@ export class VendorIndirectExpenseService {
     const voucherNumber = await generateIndirectExpensePaymentVoucherNumber();
     const now = new Date();
     const resolvedBankLedgerId = parseInt(bankLedgerId, 10);
+    const resolvedPaymentDate = paymentDate ? new Date(paymentDate) : now;
 
     return prisma.$transaction(async (tx) => {
       const voucher = await tx.indirectExpensePaymentVoucher.create({
         data: {
           voucherNumber,
           liabilityLedgerId: lid,
-          paymentDate: paymentDate ? new Date(paymentDate) : now,
+          paymentDate: resolvedPaymentDate,
           totalAmount: cashAmount,
           paymentMethod,
           bankLedgerId: resolvedBankLedgerId,
@@ -348,6 +352,7 @@ export class VendorIndirectExpenseService {
           totalAmount: cashAmount,
           bankLedgerId: resolvedBankLedgerId,
           liabilityLedgerId: lid,
+          transactionDate: resolvedPaymentDate,
         },
         userId
       );

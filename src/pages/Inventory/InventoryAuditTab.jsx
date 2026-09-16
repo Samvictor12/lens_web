@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardCheck, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import InventoryInitializationForm from "./InventoryInitializationForm";
 import InventorySpecThresholdEditor from "./InventorySpecThresholdEditor";
 import InventoryAlertList from "./InventoryAlertList";
+import InventoryManualAddForm from "./InventoryManualAddForm";
+import InventoryTrayTransferForm from "./InventoryTrayTransferForm";
+import InventoryCycleCountSection from "./InventoryCycleCountSection";
 
 export default function InventoryAuditTab({ godownType, onRefresh }) {
   const [showInitForm, setShowInitForm] = useState(false);
@@ -15,12 +18,28 @@ export default function InventoryAuditTab({ godownType, onRefresh }) {
     onRefresh?.();
   };
 
+  useEffect(() => {
+    if (window.location.hash === "#cycle-count") {
+      document.getElementById("cycle-count")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [godownType, refreshKey]);
+
   return (
     <div className="flex-1 overflow-y-auto pr-1 space-y-4 pb-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <ClipboardCheck className="h-4 w-4" />
-        Audit — stock initialization and spec thresholds for {godownType} Godown
+        Audit — tray transfer, cycle count, initialization, and spec thresholds for {godownType} Godown
       </div>
+
+      <InventoryTrayTransferForm godownType={godownType} onSuccess={bump} />
+
+      <InventoryCycleCountSection
+        key={`cc-${godownType}-${refreshKey}`}
+        godownType={godownType}
+        onRefresh={bump}
+      />
+
+      <InventoryManualAddForm godownType={godownType} onSuccess={bump} />
 
       <Card className="border-dashed">
         <CardContent className="p-5">

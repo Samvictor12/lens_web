@@ -11,4 +11,22 @@ export const getCashBankBook = (params = {}) => apiClient("get", `${BASE}/cash-b
 export const getGroupSummary = (params = {}) => apiClient("get", `${BASE}/group-summary`, { params });
 export const getBalanceSheet = (params = {}) => apiClient("get", `${BASE}/balance-sheet`, { params });
 export const getDashboard = (params = {}) => apiClient("get", `${BASE}/dashboard`, { params });
+
+/** apiClient already returns axios body { success, data }. Bind KPIs to data, not the envelope. */
+export function unwrapDashboardPayload(res) {
+  if (!res || typeof res !== "object") return null;
+  if (Object.prototype.hasOwnProperty.call(res, "success")) {
+    return res.success ? res.data ?? null : null;
+  }
+  if (res.today != null || res.position != null) return res;
+  return res.data ?? null;
+}
+
+/** Same bind as FinanceDashboardKpis: envelope as dashboard zeros every card. */
+export function financeKpiSlice(dashboard) {
+  return {
+    today: dashboard?.today || {},
+    position: dashboard?.position || {},
+  };
+}
 export const getTrialBalanceGrouped = (params = {}) => apiClient("get", `${BASE}/trial-balance-grouped`, { params });

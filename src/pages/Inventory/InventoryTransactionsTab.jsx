@@ -6,7 +6,7 @@ import { Table } from "@/components/ui/table";
 import { Refresh } from "@/components/ui/Refresh";
 import { useToast } from "@/hooks/use-toast";
 import { inventoryService } from "@/services/inventory";
-import { transactionTypeOptions, formatCurrency, formatDate } from "./Inventory.constants";
+import { transactionTypeDisplayOptions, formatCurrency, formatDate } from "./Inventory.constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "react-router-dom";
 
@@ -70,7 +70,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0, godownType })
   };
 
   const getTypeBadge = (type) => {
-    const opt = transactionTypeOptions.find((o) => o.value === type);
+    const opt = transactionTypeDisplayOptions.find((o) => o.value === type);
     return opt ? { label: opt.label, color: opt.color } : { label: type, color: "bg-gray-100 text-gray-800" };
   };
 
@@ -162,7 +162,7 @@ export default function InventoryTransactionsTab({ refreshKey = 0, godownType })
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {transactionTypeOptions.map((opt) => (
+                {transactionTypeDisplayOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>

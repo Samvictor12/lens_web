@@ -32,7 +32,7 @@ export function flattenPostingGroups(nodes, depth = 0) {
   for (const n of nodes || []) {
     const isLeafGroup =
       n.groupCode?.startsWith("GRP-") &&
-      !["GRP-ASSETS", "GRP-LIABILITIES", "GRP-CAPITAL", "GRP-INCOME", "GRP-EXPENSES", "GRP-CURRENT-ASSETS", "GRP-CURRENT-LIAB"].includes(n.groupCode);
+      !["GRP-ASSETS", "GRP-LIABILITIES", "GRP-INCOME", "GRP-EXPENSES", "GRP-CURRENT-ASSETS", "GRP-CURRENT-LIAB"].includes(n.groupCode);
     if (isLeafGroup || (n.ledgers?.length === 0 && n.childGroups?.length === 0)) {
       out.push({
         id: n.id,

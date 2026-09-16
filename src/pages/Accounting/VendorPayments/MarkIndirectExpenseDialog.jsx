@@ -20,6 +20,7 @@ const emptyForm = {
   liabilityLedgerId: "",
   categoryId: "",
   amount: "",
+  expenseDate: new Date().toISOString().split("T")[0],
   dueDate: "",
   description: "",
   referenceNo: "",
@@ -48,6 +49,7 @@ export default function MarkIndirectExpenseDialog({
     setForm({
       ...emptyForm,
       liabilityLedgerId: initialLiabilityLedgerId ? String(initialLiabilityLedgerId) : "",
+      expenseDate: new Date().toISOString().split("T")[0],
     });
   }, [open, initialLiabilityLedgerId]);
 
@@ -103,12 +105,20 @@ export default function MarkIndirectExpenseDialog({
       });
       return;
     }
+    if (form.dueDate && form.expenseDate && form.expenseDate > form.dueDate) {
+      toast({
+        variant: "destructive",
+        title: "Expense date cannot be after due date",
+      });
+      return;
+    }
     setSaving(true);
     try {
       await createVendorIndirectExpense({
         liabilityLedgerId: parseInt(form.liabilityLedgerId, 10),
         categoryId: parseInt(form.categoryId, 10),
         amount: parseFloat(form.amount),
+        expenseDate: form.expenseDate || undefined,
         dueDate: form.dueDate || undefined,
         description: form.description,
         referenceNo: form.referenceNo || undefined,
@@ -174,6 +184,17 @@ export default function MarkIndirectExpenseDialog({
               className="h-8"
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">
+              Expense Date <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              type="date"
+              className="h-8"
+              value={form.expenseDate}
+              onChange={(e) => setForm((f) => ({ ...f, expenseDate: e.target.value }))}
             />
           </div>
           <div className="space-y-1">

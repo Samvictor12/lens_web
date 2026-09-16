@@ -1,5 +1,18 @@
 import prisma from "../config/prisma.js";
 import { APIError } from "../middleware/errorHandler.js";
+import { INVENTORY_QUEUE_STATUSES } from "../constants/saleOrderStatus.js";
+import {
+  decrementSourceUnit,
+  nonSourceLedgerFields,
+  pickOpenSourceUnits,
+  resolveBilledPoUnitPrice,
+  sourceLedgerFields,
+} from "./inventoryUnitCostLedger.js";
+
+const MONTH_INWARD_TYPES = ["INWARD_PO", "INWARD_DIRECT"];
+const MONTH_OUTWARD_TYPES = ["OUTWARD_SALE", "OUTWARD_RETURN"];
+const DASHBOARD_FIFO_LIMIT = 10;
+const TOP_LOW_ALLOWED_DAYS = [30, 60, 90];
 
 // Excludes InventoryItems sourced from an RX-linked PurchaseOrder (linked to an RX sale order),
 // while keeping manually-initialized items (purchaseOrderId null), stock-type PO items, and
@@ -82,7 +95,7 @@ function pickEyePower(primary, fallback) {
  * left-only → left powers (fallback right if left empty); right-only → right (fallback left);
  * else legacy right || left.
  */
-function coalescePower(item) {
+export function coalescePower(item) {
   const leftOnly = item.leftEye && !item.rightEye;
   const rightOnly = item.rightEye && !item.leftEye;
   if (leftOnly) {
@@ -104,6 +117,208 @@ function coalescePower(item) {
     cyl: normalizePowerValue(item.rightCylindrical || item.leftCylindrical || "0"),
     add: normalizePowerValue(item.rightAdd || item.leftAdd || "0"),
   };
+}
+
+/** Calendar month start 00:00 through `now` (inclusive). */
+export function calendarMonthWindow(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  return { start, end: now };
+}
+
+export function parseTopLowSellingDays(days) {
+  const n = parseInt(days, 10);
+  return TOP_LOW_ALLOWED_DAYS.includes(n) ? n : 30;
+}
+
+/** Qty = abs(quantity); value = abs(totalValue). Inward = PO+DIRECT; outward = SALE+RETURN. */
+export function aggregateMonthInOut(txns = []) {
+  let monthInwardQty = 0;
+  let monthOutwardQty = 0;
+  let monthInwardValue = 0;
+  let monthOutwardValue = 0;
+  for (const txn of txns) {
+    const qty = Math.abs(Number(txn.quantity) || 0);
+    const val = Math.abs(Number(txn.totalValue) || 0);
+    if (MONTH_INWARD_TYPES.includes(txn.type)) {
+      monthInwardQty += qty;
+      monthInwardValue += val;
+    } else if (MONTH_OUTWARD_TYPES.includes(txn.type)) {
+      monthOutwardQty += qty;
+      monthOutwardValue += val;
+    }
+  }
+  return { monthInwardQty, monthOutwardQty, monthInwardValue, monthOutwardValue };
+}
+
+export function specSaleKey(lensId, sph, cyl, add) {
+  return `${lensId}|${sph}|${cyl}|${add}`;
+}
+
+/** Aggregate OUTWARD_SALE rows by lens_id + coalescePower(sph,cyl,add). */
+export function aggregateSpecSales(txns = []) {
+  const bySpec = {};
+  for (const txn of txns) {
+    const item = txn.inventoryItem;
+    const lensId = item?.lens_id;
+    if (!lensId) continue;
+    const { sph, cyl, add } = coalescePower(item);
+    const key = specSaleKey(lensId, sph, cyl, add);
+    if (!bySpec[key]) {
+      bySpec[key] = {
+        lens_id: lensId,
+        lens_name: item.lensProduct?.lens_name ?? `Lens #${lensId}`,
+        product_code: item.lensProduct?.product_code ?? "",
+        sph,
+        cyl,
+        add,
+        unitsSold: 0,
+      };
+    }
+    bySpec[key].unitsSold += Math.abs(Number(txn.quantity) || 0);
+  }
+  return bySpec;
+}
+
+/** Top high→low; Low low→high among specs with sales. Bar % denom = sum of that list of 10. */
+export function rankTopLowSelling(bySpec, limit = 10) {
+  const withSales = Object.values(bySpec).filter((row) => (row.unitsSold || 0) > 0);
+  const top10 = [...withSales].sort((a, b) => b.unitsSold - a.unitsSold).slice(0, limit);
+  const low10 = [...withSales].sort((a, b) => a.unitsSold - b.unitsSold).slice(0, limit);
+  return { top10, low10 };
+}
+
+export function shareOfTenPct(unitsSold, list = []) {
+  const sum = list.reduce((s, row) => s + (Number(row.unitsSold) || 0), 0);
+  if (!sum) return 0;
+  return (Number(unitsSold) || 0) / sum;
+}
+
+function inwardFifoTime(receipt) {
+  const received = receipt.receivedDate ? new Date(receipt.receivedDate).getTime() : NaN;
+  const created = receipt.createdAt ? new Date(receipt.createdAt).getTime() : NaN;
+  if (Number.isFinite(received) && Number.isFinite(created)) return Math.min(received, created);
+  if (Number.isFinite(received)) return received;
+  if (Number.isFinite(created)) return created;
+  return Number.POSITIVE_INFINITY;
+}
+
+export function fifoPendingInwards(receipts = [], limit = DASHBOARD_FIFO_LIMIT) {
+  return receipts
+    .filter((r) => (Number(r.totalReceivedQty) || 0) > (Number(r.inwardedQty) || 0))
+    .sort((a, b) => {
+      const dt = inwardFifoTime(a) - inwardFifoTime(b);
+      if (dt !== 0) return dt;
+      return (Number(a.id) || 0) - (Number(b.id) || 0);
+    })
+    .slice(0, limit)
+    .map((r) => {
+      const pendingQty = Math.max(
+        0,
+        (Number(r.totalReceivedQty) || 0) - (Number(r.inwardedQty) || 0)
+      );
+      return {
+        id: r.id,
+        receiptNumber: r.receiptNumber,
+        purchaseOrderId: r.purchaseOrderId,
+        purchaseOrderNo: r.purchaseOrder?.poNumber || null,
+        poNumber: r.purchaseOrder?.poNumber || null,
+        vendorName: r.purchaseOrder?.vendor?.name || r.purchaseOrder?.vendor?.code || null,
+        lensName: r.purchaseOrder?.lensProduct?.lens_name || null,
+        pendingQty,
+        createdAt: r.createdAt,
+        receivedDate: r.receivedDate,
+      };
+    });
+}
+
+/** Distinct non-null ids for dashboard locationCount / trayCount (no schema change). */
+export function countDistinctNonNullIds(rows = [], field) {
+  const ids = new Set();
+  for (const row of rows) {
+    const id = row?.[field];
+    if (id != null) ids.add(id);
+  }
+  return ids.size;
+}
+
+export function specQtyMapFromItems(items = []) {
+  const map = new Map();
+  for (const item of items) {
+    const { sph, cyl, add } = coalescePower(item);
+    const key = `${item.lens_id}|${sph}|${cyl}|${add}`;
+    map.set(key, (map.get(key) || 0) + (Number(item.quantity) || 0));
+  }
+  return map;
+}
+
+export function sumSpecQtyMap(specQtyMap) {
+  let total = 0;
+  if (!specQtyMap) return 0;
+  for (const qty of specQtyMap.values()) total += Number(qty) || 0;
+  return total;
+}
+
+/** Same bucket grain + avg cost × qty as Stock Summary grouping. */
+export function aggregateStockSummaryTotals(items = []) {
+  const buckets = {};
+  for (const item of items) {
+    const power = coalescePower(item);
+    const key = `${item.lens_id}|${item.coating_id}|${item.location_id}|${item.tray_id}|${power.sph}|${power.cyl}|${power.add}`;
+    if (!buckets[key]) {
+      buckets[key] = { totalStock: 0, costSum: 0, costCount: 0 };
+    }
+    const bucket = buckets[key];
+    const qty = Number(item.quantity) || 0;
+    bucket.totalStock += qty;
+    if (item.costPrice != null) {
+      bucket.costSum += Number(item.costPrice);
+      bucket.costCount += 1;
+    }
+  }
+  let totalValue = 0;
+  for (const g of Object.values(buckets)) {
+    const avgCostPrice = g.costCount > 0 ? g.costSum / g.costCount : 0;
+    totalValue += g.totalStock * avgCostPrice;
+  }
+  return { totalValue };
+}
+
+const DASHBOARD_STOCK_ITEM_SELECT = {
+  quantity: true,
+  costPrice: true,
+  rightEye: true,
+  leftEye: true,
+  rightSpherical: true,
+  rightCylindrical: true,
+  rightAdd: true,
+  leftSpherical: true,
+  leftCylindrical: true,
+  leftAdd: true,
+  lens_id: true,
+  coating_id: true,
+  location_id: true,
+  tray_id: true,
+};
+
+export function fifoSaleOrders(orders = [], limit = DASHBOARD_FIFO_LIMIT) {
+  return [...orders]
+    .sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (da !== db) return da - db;
+      return (Number(a.id) || 0) - (Number(b.id) || 0);
+    })
+    .slice(0, limit)
+    .map((o) => ({
+      id: o.id,
+      orderNo: o.orderNo,
+      customerRefNo: o.customerRefNo || null,
+      status: o.status,
+      createdAt: o.createdAt,
+      procurementType: o.procurementType || null,
+      customerName: o.customer?.name || o.customer?.code || null,
+      lensName: o.lensProduct?.lens_name || null,
+    }));
 }
 
 /**
@@ -139,7 +354,7 @@ function stockScopeClauses(godownType) {
 }
 
 /** Prisma where for InventoryItem rows under a godown (includes PO/RX-source exclusion). */
-function inventoryItemGodownWhere(godownType, extra = {}) {
+export function inventoryItemGodownWhere(godownType, extra = {}) {
   const clauses = stockScopeClauses(godownType);
   if (!clauses.length) return { ...extra };
   return { ...extra, AND: [...(extra.AND || []), ...clauses] };
@@ -312,13 +527,21 @@ export class InventoryService {
         locationId: itemData.location_id,
       });
 
-      return await prisma.$transaction(async (prisma) => {
-        // Generate transaction number
-        const transactionNo = await this.generateTransactionNumber();
-        
-        // Create inventory item
-        const inventoryItem = await prisma.inventoryItem.create({
-          data: itemData,
+      return await prisma.$transaction(async (tx) => {
+        const isPoInward = !!itemData.purchaseOrderId;
+        const billedPoPrice = isPoInward
+          ? await resolveBilledPoUnitPrice(tx, itemData.purchaseOrderId, itemData.quantity)
+          : null;
+        // PO receipt must not lock unit price; billed POs copy the billed unit price.
+        const itemCostPrice = isPoInward ? (billedPoPrice ?? 0) : itemData.costPrice;
+        const txUnitPrice = isPoInward ? billedPoPrice : itemData.costPrice;
+        const txTotalValue =
+          txUnitPrice != null ? itemData.quantity * txUnitPrice : null;
+
+        const transactionNo = await this.generateTransactionNumber(tx);
+
+        const inventoryItem = await tx.inventoryItem.create({
+          data: { ...itemData, costPrice: itemCostPrice },
           include: {
             lensProduct: { select: { id: true, lens_name: true, product_code: true } },
             category: { select: { id: true, name: true } },
@@ -331,29 +554,28 @@ export class InventoryService {
           }
         });
 
-        // Create inventory transaction
-        const transactionType = itemData.purchaseOrderId ? 'INWARD_PO' : 'INWARD_DIRECT';
-        const transaction = await prisma.inventoryTransaction.create({
+        const transactionType = isPoInward ? 'INWARD_PO' : 'INWARD_DIRECT';
+        const transaction = await tx.inventoryTransaction.create({
           data: {
             transactionNo,
             type: transactionType,
             inventoryItemId: inventoryItem.id,
             quantity: itemData.quantity,
             balanceAfter: itemData.quantity,
-            unitPrice: itemData.costPrice,
-            totalValue: itemData.quantity * itemData.costPrice,
+            unitPrice: txUnitPrice,
+            totalValue: txTotalValue,
             toLocationId: itemData.location_id,
             toTrayId: itemData.tray_id,
             purchaseOrderId: itemData.purchaseOrderId,
             vendorId: itemData.vendorId,
             batchNo: itemData.batchNo,
             reason: 'Initial inward entry',
-            createdBy: itemData.createdBy
+            createdBy: itemData.createdBy,
+            ...sourceLedgerFields(itemData.quantity),
           }
         });
 
-        // Update or create inventory stock summary
-        await this.updateInventoryStock(inventoryItem, itemData.quantity, 'ADD');
+        await this.updateInventoryStock(inventoryItem, itemData.quantity, 'ADD', tx);
 
         return {
           inventoryItem,
@@ -974,12 +1196,12 @@ export class InventoryService {
               },
             });
 
-            // Record reusable return-to-stock as an inventory transaction
+            // Record reusable return-to-stock as an OPEN INWARD_DIRECT source (not ADJUSTMENT)
             const transactionNo = await this.generateTransactionNumber(tx);
             await tx.inventoryTransaction.create({
               data: {
                 transactionNo,
-                type: 'ADJUSTMENT',
+                type: 'INWARD_DIRECT',
                 inventoryItemId: updatedItem.id,
                 quantity: qty,
                 balanceAfter: qty,
@@ -995,6 +1217,7 @@ export class InventoryService {
                   ? `QC reuse return to stock: ${remark}`
                   : 'QC reuse return to stock',
                 createdBy: userId ?? null,
+                ...sourceLedgerFields(qty),
               },
             });
           } else {
@@ -1016,26 +1239,42 @@ export class InventoryService {
             });
             await this.updateInventoryStock(item, qty, 'WRITE_OFF_HOLD', tx);
 
-            const transactionNo = await this.generateTransactionNumber(tx);
-            await tx.inventoryTransaction.create({
-              data: {
-                transactionNo,
-                type: 'DAMAGE',
-                inventoryItemId: item.id,
-                quantity: -qty,
-                balanceAfter: 0,
-                unitPrice: item.costPrice ?? null,
-                totalValue:
-                  item.costPrice != null ? qty * item.costPrice : null,
-                fromLocationId: item.location_id ?? null,
-                fromTrayId: item.tray_id ?? null,
-                saleOrderId: row.saleOrderId ?? null,
-                reason: remark
-                  ? `QC return disposed: ${remark}`
-                  : 'QC return disposed',
-                createdBy: userId ?? null,
-              },
-            });
+            const disposeUnits = Math.max(1, Math.round(qty));
+            const disposePicks = await pickOpenSourceUnits(
+              tx,
+              item.id,
+              disposeUnits,
+              null,
+              { required: false }
+            );
+            let runningBalance = qty;
+            for (let i = 0; i < disposeUnits; i += 1) {
+              const source = disposePicks[i] || null;
+              if (source) await decrementSourceUnit(tx, source);
+              const unitPrice = source?.unitPrice ?? item.costPrice ?? null;
+              runningBalance = Math.max(0, runningBalance - 1);
+              const transactionNo = await this.generateTransactionNumber(tx);
+              await tx.inventoryTransaction.create({
+                data: {
+                  transactionNo,
+                  type: 'DAMAGE',
+                  inventoryItemId: item.id,
+                  quantity: -1,
+                  balanceAfter: runningBalance,
+                  unitPrice,
+                  totalValue: unitPrice != null ? unitPrice : null,
+                  fromLocationId: item.location_id ?? null,
+                  fromTrayId: item.tray_id ?? null,
+                  saleOrderId: row.saleOrderId ?? null,
+                  parentTransactionId: source?.id ?? null,
+                  reason: remark
+                    ? `QC return disposed: ${remark}`
+                    : 'QC return disposed',
+                  createdBy: userId ?? null,
+                  ...nonSourceLedgerFields(),
+                },
+              });
+            }
           }
         }
 
@@ -1291,16 +1530,20 @@ export class InventoryService {
   /**
    * Create inventory transaction (for stock movements)
    * @param {Object} transactionData - Transaction data
-   * @returns {Promise<Object>} Created transaction
+   * @returns {Promise<Object|Object[]>} Created transaction(s)
    */
   async createInventoryTransaction(transactionData) {
     try {
-      return await prisma.$transaction(async (prisma) => {
-        // Generate transaction number
-        const transactionNo = await this.generateTransactionNumber(prisma);
-        
-        // Get current inventory item
-        const inventoryItem = await prisma.inventoryItem.findUnique({
+      if (transactionData.type === 'ADJUSTMENT') {
+        throw new APIError(
+          'ADJUSTMENT is no longer allowed; use INWARD_DIRECT, TRANSFER, or DAMAGE',
+          400,
+          'ADJUSTMENT_NOT_ALLOWED'
+        );
+      }
+
+      return await prisma.$transaction(async (tx) => {
+        const inventoryItem = await tx.inventoryItem.findUnique({
           where: { id: transactionData.inventoryItemId }
         });
 
@@ -1308,123 +1551,58 @@ export class InventoryService {
           throw new APIError("Inventory item not found", 404, "INVENTORY_ITEM_NOT_FOUND");
         }
 
-        if (transactionData.type === 'TRANSFER') {
-          const transferQty = Math.abs(transactionData.quantity);
-          if (transferQty <= 0) {
-            throw new APIError("Transfer quantity must be greater than zero", 400, "INVALID_QUANTITY");
-          }
-          if (transferQty > inventoryItem.quantity) {
-            throw new APIError(`Transfer quantity (${transferQty}) cannot exceed available quantity (${inventoryItem.quantity})`, 400, "INSUFFICIENT_STOCK");
-          }
-
-          const isFullTransfer = Math.abs(transferQty - inventoryItem.quantity) < 0.001;
-
-          // Create the transfer transaction record
-          const transaction = await prisma.inventoryTransaction.create({
-            data: {
-              ...transactionData,
-              transactionNo,
-              quantity: transferQty,
-              balanceAfter: isFullTransfer ? 0 : (inventoryItem.quantity - transferQty),
-              totalValue: null,
-            },
-          });
-
-          if (isFullTransfer) {
-            // Full transfer: just move the item to the new location/tray
-            await prisma.inventoryItem.update({
-              where: { id: transactionData.inventoryItemId },
-              data: {
-                location_id: transactionData.toLocationId,
-                tray_id: transactionData.toTrayId,
-                updatedAt: new Date(),
-                updatedBy: transactionData.createdBy,
-              },
-            });
-          } else {
-            // Partial transfer: decrement source quantity, and create new item at destination
-            await prisma.inventoryItem.update({
-              where: { id: transactionData.inventoryItemId },
-              data: {
-                quantity: inventoryItem.quantity - transferQty,
-                updatedAt: new Date(),
-                updatedBy: transactionData.createdBy,
-              },
-            });
-
-            // Create new inventory item at destination
-            await prisma.inventoryItem.create({
-              data: {
-                batchNo: inventoryItem.batchNo,
-                serialNo: inventoryItem.serialNo,
-                lens_id: inventoryItem.lens_id,
-                category_id: inventoryItem.category_id,
-                Type_id: inventoryItem.Type_id,
-                coating_id: inventoryItem.coating_id,
-                dia_id: inventoryItem.dia_id,
-                fitting_id: inventoryItem.fitting_id,
-                tinting_id: inventoryItem.tinting_id,
-                location_id: transactionData.toLocationId,
-                tray_id: transactionData.toTrayId,
-                quantity: transferQty,
-                costPrice: inventoryItem.costPrice,
-                sellingPrice: inventoryItem.sellingPrice,
-                rightEye: inventoryItem.rightEye,
-                leftEye: inventoryItem.leftEye,
-                rightSpherical: inventoryItem.rightSpherical,
-                rightCylindrical: inventoryItem.rightCylindrical,
-                rightAxis: inventoryItem.rightAxis,
-                rightAdd: inventoryItem.rightAdd,
-                leftSpherical: inventoryItem.leftSpherical,
-                leftCylindrical: inventoryItem.leftCylindrical,
-                leftAxis: inventoryItem.leftAxis,
-                leftAdd: inventoryItem.leftAdd,
-                status: inventoryItem.status,
-                expiryDate: inventoryItem.expiryDate,
-                manufactureDate: inventoryItem.manufactureDate,
-                inwardDate: inventoryItem.inwardDate,
-                purchaseOrderId: inventoryItem.purchaseOrderId,
-                purchaseReceiptId: inventoryItem.purchaseReceiptId,
-                vendorId: inventoryItem.vendorId,
-                qualityGrade: inventoryItem.qualityGrade,
-                notes: inventoryItem.notes,
-                createdBy: transactionData.createdBy,
-              },
-            });
-          }
-
-          // Move totals from source bucket to destination bucket in InventoryStock
-          await this.updateInventoryStock(inventoryItem, transferQty, 'SUBTRACT', prisma);
-          await this.updateInventoryStock(
-            { ...inventoryItem, location_id: transactionData.toLocationId, tray_id: transactionData.toTrayId },
-            transferQty,
-            'ADD',
-            prisma
-          );
-
-          return transaction;
+        const consumingTypes = ['OUTWARD_SALE', 'OUTWARD_RETURN', 'DAMAGE', 'TRANSFER'];
+        if (consumingTypes.includes(transactionData.type)) {
+          return this._createConsumingUnitTransactions(tx, inventoryItem, transactionData);
         }
 
-        // Calculate new balance
+        const signedQty = transactionData.quantity;
         const currentBalance = inventoryItem.quantity;
-        const newBalance = currentBalance + transactionData.quantity; // quantity can be negative for outward
+        const newBalance = currentBalance + signedQty;
 
         if (newBalance < 0) {
           throw new APIError("Insufficient stock available", 400, "INSUFFICIENT_STOCK");
         }
 
-        // Create transaction
-        const transaction = await prisma.inventoryTransaction.create({
+        let unitPrice = transactionData.unitPrice ?? null;
+        if (transactionData.type === 'INWARD_PO') {
+          unitPrice = await resolveBilledPoUnitPrice(
+            tx,
+            transactionData.purchaseOrderId || inventoryItem.purchaseOrderId,
+            Math.abs(signedQty)
+          );
+        } else if (transactionData.type === 'INWARD_DIRECT' && unitPrice == null) {
+          unitPrice = inventoryItem.costPrice ?? null;
+        }
+
+        const isSourceType = transactionData.type === 'INWARD_PO' || transactionData.type === 'INWARD_DIRECT';
+        const transactionNo = await this.generateTransactionNumber(tx);
+        const transaction = await tx.inventoryTransaction.create({
           data: {
-            ...transactionData,
+            type: transactionData.type,
+            inventoryItemId: transactionData.inventoryItemId,
+            quantity: signedQty,
+            unitPrice,
+            fromLocationId: transactionData.fromLocationId ?? null,
+            fromTrayId: transactionData.fromTrayId ?? null,
+            toLocationId: transactionData.toLocationId ?? null,
+            toTrayId: transactionData.toTrayId ?? null,
+            purchaseOrderId: transactionData.purchaseOrderId ?? null,
+            saleOrderId: transactionData.saleOrderId ?? null,
+            vendorId: transactionData.vendorId ?? null,
+            reason: transactionData.reason ?? null,
+            notes: transactionData.notes ?? null,
+            batchNo: transactionData.batchNo ?? null,
+            transactionDate: transactionData.transactionDate || new Date(),
+            createdBy: transactionData.createdBy,
             transactionNo,
             balanceAfter: newBalance,
-            totalValue: transactionData.unitPrice ? Math.abs(transactionData.quantity) * transactionData.unitPrice : null
+            totalValue: unitPrice != null ? Math.abs(signedQty) * unitPrice : null,
+            ...(isSourceType ? sourceLedgerFields(Math.abs(signedQty)) : nonSourceLedgerFields()),
           }
         });
 
-        // Update inventory item quantity
-        await prisma.inventoryItem.update({
+        await tx.inventoryItem.update({
           where: { id: transactionData.inventoryItemId },
           data: {
             quantity: newBalance,
@@ -1433,12 +1611,11 @@ export class InventoryService {
           }
         });
 
-        // Update stock summary
         await this.updateInventoryStock(
           inventoryItem,
-          transactionData.quantity,
-          transactionData.type === 'DAMAGE' ? 'DAMAGE' : (transactionData.quantity > 0 ? 'ADD' : 'SUBTRACT'),
-          prisma
+          signedQty,
+          signedQty > 0 ? 'ADD' : 'SUBTRACT',
+          tx
         );
 
         return transaction;
@@ -1452,6 +1629,196 @@ export class InventoryService {
         "CREATE_INVENTORY_TRANSACTION_ERROR"
       );
     }
+  }
+
+  async _createConsumingUnitTransactions(tx, inventoryItem, transactionData) {
+    const units = Math.max(1, Math.round(Math.abs(transactionData.quantity)));
+    if (transactionData.type === 'TRANSFER') {
+      if (units > inventoryItem.quantity) {
+        throw new APIError(
+          `Transfer quantity (${units}) cannot exceed available quantity (${inventoryItem.quantity})`,
+          400,
+          "INSUFFICIENT_STOCK"
+        );
+      }
+    } else {
+      const newBalance = inventoryItem.quantity - units;
+      if (newBalance < 0) {
+        throw new APIError("Insufficient stock available", 400, "INSUFFICIENT_STOCK");
+      }
+    }
+
+    const picks = await pickOpenSourceUnits(
+      tx,
+      inventoryItem.id,
+      units,
+      transactionData.parentTransactionId,
+      { required: true }
+    );
+
+    if (transactionData.type === 'TRANSFER') {
+      const isFullTransfer = Math.abs(units - inventoryItem.quantity) < 0.001;
+      let destItemId = inventoryItem.id;
+
+      if (isFullTransfer) {
+        await tx.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: {
+            location_id: transactionData.toLocationId,
+            tray_id: transactionData.toTrayId,
+            updatedAt: new Date(),
+            updatedBy: transactionData.createdBy,
+          },
+        });
+      } else {
+        await tx.inventoryItem.update({
+          where: { id: inventoryItem.id },
+          data: {
+            quantity: inventoryItem.quantity - units,
+            updatedAt: new Date(),
+            updatedBy: transactionData.createdBy,
+          },
+        });
+        const destItem = await tx.inventoryItem.create({
+          data: {
+            batchNo: inventoryItem.batchNo,
+            serialNo: inventoryItem.serialNo,
+            lens_id: inventoryItem.lens_id,
+            category_id: inventoryItem.category_id,
+            Type_id: inventoryItem.Type_id,
+            coating_id: inventoryItem.coating_id,
+            dia_id: inventoryItem.dia_id,
+            fitting_id: inventoryItem.fitting_id,
+            tinting_id: inventoryItem.tinting_id,
+            location_id: transactionData.toLocationId,
+            tray_id: transactionData.toTrayId,
+            quantity: units,
+            costPrice: inventoryItem.costPrice,
+            sellingPrice: inventoryItem.sellingPrice,
+            rightEye: inventoryItem.rightEye,
+            leftEye: inventoryItem.leftEye,
+            rightSpherical: inventoryItem.rightSpherical,
+            rightCylindrical: inventoryItem.rightCylindrical,
+            rightAxis: inventoryItem.rightAxis,
+            rightAdd: inventoryItem.rightAdd,
+            leftSpherical: inventoryItem.leftSpherical,
+            leftCylindrical: inventoryItem.leftCylindrical,
+            leftAxis: inventoryItem.leftAxis,
+            leftAdd: inventoryItem.leftAdd,
+            status: inventoryItem.status,
+            expiryDate: inventoryItem.expiryDate,
+            manufactureDate: inventoryItem.manufactureDate,
+            inwardDate: inventoryItem.inwardDate,
+            purchaseOrderId: inventoryItem.purchaseOrderId,
+            purchaseReceiptId: inventoryItem.purchaseReceiptId,
+            vendorId: inventoryItem.vendorId,
+            qualityGrade: inventoryItem.qualityGrade,
+            notes: inventoryItem.notes,
+            createdBy: transactionData.createdBy,
+          },
+        });
+        destItemId = destItem.id;
+      }
+
+      const created = [];
+      let sourceBalance = inventoryItem.quantity;
+      for (let i = 0; i < units; i += 1) {
+        const source = picks[i];
+        await decrementSourceUnit(tx, source);
+        sourceBalance -= 1;
+        const unitPrice = source.unitPrice ?? inventoryItem.costPrice ?? null;
+        const transactionNo = await this.generateTransactionNumber(tx);
+        const row = await tx.inventoryTransaction.create({
+          data: {
+            transactionNo,
+            type: 'TRANSFER',
+            inventoryItemId: destItemId,
+            quantity: 1,
+            balanceAfter: isFullTransfer ? sourceBalance : units - i,
+            unitPrice,
+            totalValue: unitPrice,
+            fromLocationId: transactionData.fromLocationId ?? inventoryItem.location_id,
+            fromTrayId: transactionData.fromTrayId ?? inventoryItem.tray_id,
+            toLocationId: transactionData.toLocationId,
+            toTrayId: transactionData.toTrayId,
+            purchaseOrderId: transactionData.purchaseOrderId ?? inventoryItem.purchaseOrderId,
+            saleOrderId: transactionData.saleOrderId ?? null,
+            vendorId: transactionData.vendorId ?? inventoryItem.vendorId,
+            reason: transactionData.reason ?? null,
+            notes: transactionData.notes ?? null,
+            batchNo: transactionData.batchNo ?? null,
+            parentTransactionId: source.id,
+            createdBy: transactionData.createdBy,
+            ...sourceLedgerFields(1),
+          },
+        });
+        created.push(row);
+      }
+
+      await this.updateInventoryStock(inventoryItem, units, 'SUBTRACT', tx);
+      await this.updateInventoryStock(
+        { ...inventoryItem, location_id: transactionData.toLocationId, tray_id: transactionData.toTrayId },
+        units,
+        'ADD',
+        tx
+      );
+
+      return created.length === 1 ? created[0] : created;
+    }
+
+    const signedUnit = -1;
+    const created = [];
+    let runningBalance = inventoryItem.quantity;
+    for (let i = 0; i < units; i += 1) {
+      const source = picks[i];
+      await decrementSourceUnit(tx, source);
+      runningBalance += signedUnit;
+      const unitPrice = source.unitPrice ?? inventoryItem.costPrice ?? null;
+      const transactionNo = await this.generateTransactionNumber(tx);
+      const row = await tx.inventoryTransaction.create({
+        data: {
+          transactionNo,
+          type: transactionData.type,
+          inventoryItemId: inventoryItem.id,
+          quantity: signedUnit,
+          balanceAfter: runningBalance,
+          unitPrice,
+          totalValue: unitPrice != null ? Math.abs(signedUnit) * unitPrice : null,
+          fromLocationId: transactionData.fromLocationId ?? inventoryItem.location_id,
+          fromTrayId: transactionData.fromTrayId ?? inventoryItem.tray_id,
+          toLocationId: transactionData.toLocationId ?? null,
+          toTrayId: transactionData.toTrayId ?? null,
+          purchaseOrderId: transactionData.purchaseOrderId ?? null,
+          saleOrderId: transactionData.saleOrderId ?? null,
+          vendorId: transactionData.vendorId ?? null,
+          reason: transactionData.reason ?? null,
+          notes: transactionData.notes ?? null,
+          batchNo: transactionData.batchNo ?? null,
+          parentTransactionId: source.id,
+          createdBy: transactionData.createdBy,
+          ...nonSourceLedgerFields(),
+        },
+      });
+      created.push(row);
+    }
+
+    await tx.inventoryItem.update({
+      where: { id: inventoryItem.id },
+      data: {
+        quantity: runningBalance,
+        updatedAt: new Date(),
+        updatedBy: transactionData.createdBy,
+      },
+    });
+
+    await this.updateInventoryStock(
+      inventoryItem,
+      -units,
+      transactionData.type === 'DAMAGE' ? 'DAMAGE' : 'SUBTRACT',
+      tx
+    );
+
+    return created.length === 1 ? created[0] : created;
   }
 
   /**
@@ -1569,6 +1936,36 @@ export class InventoryService {
         // and creates SO-linked RESERVED child unit row(s).
         const remainingQty = inventoryItem.quantity - quantity;
         const fullyConsumed = remainingQty <= 0.001;
+        const units = Math.max(1, Math.round(quantity));
+        const sourcePicks = await pickOpenSourceUnits(
+          client,
+          inventoryItemId,
+          units,
+          null,
+          { required: false }
+        );
+
+        const writeOutwardSale = async (targetItemId, source, balanceAfter) => {
+          if (source) await decrementSourceUnit(client, source);
+          const unitPrice = source?.unitPrice ?? inventoryItem.costPrice ?? null;
+          const transactionNo = await this.generateTransactionNumber(client);
+          await client.inventoryTransaction.create({
+            data: {
+              transactionNo,
+              type: 'OUTWARD_SALE',
+              inventoryItemId: targetItemId,
+              quantity: -1,
+              balanceAfter,
+              unitPrice,
+              totalValue: unitPrice != null ? unitPrice : null,
+              saleOrderId,
+              parentTransactionId: source?.id ?? null,
+              reason: 'Reserved for sale order',
+              createdBy: userId,
+              ...nonSourceLedgerFields(),
+            }
+          });
+        };
 
         // Full consume: flip source to RESERVED (no split child).
         if (fullyConsumed) {
@@ -1591,19 +1988,11 @@ export class InventoryService {
 
           await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
 
-          const transactionNo = await this.generateTransactionNumber(client);
-          await client.inventoryTransaction.create({
-            data: {
-              transactionNo,
-              type: 'OUTWARD_SALE',
-              inventoryItemId,
-              quantity: -quantity,
-              balanceAfter: 0,
-              saleOrderId,
-              reason: 'Reserved for sale order',
-              createdBy: userId
-            }
-          });
+          let running = inventoryItem.quantity;
+          for (let i = 0; i < units; i += 1) {
+            running -= 1;
+            await writeOutwardSale(inventoryItemId, sourcePicks[i] || null, Math.max(0, running));
+          }
 
           return updatedItem;
         }
@@ -1615,16 +2004,13 @@ export class InventoryService {
           data: {
             status: 'AVAILABLE',
             quantity: Math.max(0, remainingQty),
-            // Explicitly leave saleOrderId / reservedDate / issuedEye unset on source
             updatedBy: userId,
             updatedAt: new Date()
           }
         });
 
-        // Single bucket RESERVE against source identity (do not double-count on children).
         await this.updateInventoryStock(inventoryItem, quantity, 'RESERVE', client);
 
-        const units = Math.round(quantity);
         const reservedChildren = [];
         const eyeStamp =
           issuedEye === 'RIGHT' || issuedEye === 'LEFT' ? issuedEye : null;
@@ -1643,7 +2029,7 @@ export class InventoryService {
               tinting_id: inventoryItem.tinting_id,
               location_id: inventoryItem.location_id,
               tray_id: inventoryItem.tray_id,
-              quantity: 0, // KB-021: RESERVED rows hold remaining unreserved amount (~0)
+              quantity: 0,
               costPrice: inventoryItem.costPrice,
               sellingPrice: inventoryItem.sellingPrice,
               rightEye: inventoryItem.rightEye,
@@ -1674,24 +2060,10 @@ export class InventoryService {
             }
           });
 
-          const transactionNo = await this.generateTransactionNumber(client);
-          await client.inventoryTransaction.create({
-            data: {
-              transactionNo,
-              type: 'OUTWARD_SALE',
-              inventoryItemId: child.id,
-              quantity: -1,
-              balanceAfter: 0,
-              saleOrderId,
-              reason: 'Reserved for sale order',
-              createdBy: userId
-            }
-          });
-
+          await writeOutwardSale(child.id, sourcePicks[i] || null, 0);
           reservedChildren.push(child);
         }
 
-        // Partial return: single child when Q === 1; array of children when Q > 1.
         return units === 1 ? reservedChildren[0] : reservedChildren;
       };
 
@@ -1934,6 +2306,8 @@ export class InventoryService {
             quantity: true,
             costPrice: true,
             location_id: true,
+            tray_id: true,
+            status: true,
             lensProduct: {
               select: {
                 id: true,
@@ -2400,13 +2774,7 @@ export class InventoryService {
       },
     });
 
-    const map = new Map();
-    for (const item of items) {
-      const { sph, cyl, add } = coalescePower(item);
-      const key = `${item.lens_id}|${sph}|${cyl}|${add}`;
-      map.set(key, (map.get(key) || 0) + (item.quantity || 0));
-    }
-    return map;
+    return specQtyMapFromItems(items);
   }
 
   /** Classify a spec row against threshold bounds. Returns 'low'|'out'|'over'|null */
@@ -2446,7 +2814,15 @@ export class InventoryService {
         where: thresholdWhere,
         include: {
           lensProduct: {
-            select: { id: true, lens_name: true, product_code: true },
+            select: {
+              id: true,
+              lens_name: true,
+              product_code: true,
+              category_id: true,
+              type_id: true,
+              category: { select: { id: true, name: true } },
+              type: { select: { id: true, name: true } },
+            },
           },
         },
         orderBy: [{ lens_id: 'asc' }, { sph: 'asc' }, { cyl: 'asc' }, { add: 'asc' }],
@@ -2471,6 +2847,9 @@ export class InventoryService {
         id: th.id,
         lens_id: th.lens_id,
         lensProduct: th.lensProduct,
+        category_id: th.lensProduct?.category_id ?? null,
+        Type_id: th.lensProduct?.type_id ?? null,
+        categoryName: th.lensProduct?.category?.name ?? null,
         godownType: th.godownType,
         sph,
         cyl,
@@ -2820,23 +3199,32 @@ export class InventoryService {
         activeStatus: true,
         status: { in: ['AVAILABLE', 'RESERVED', 'RETURNED'] },
       });
-      const stockWhere = inventoryStockGodownWhere(gt);
+      const { start: monthStart, end: monthEnd } = calendarMonthWindow();
+      const txnGodown = transactionGodownWhere(gt);
+      const soWhere = {
+        deleteStatus: false,
+        status: { in: INVENTORY_QUEUE_STATUSES },
+        ...(gt ? { procurementType: gt } : {}),
+      };
 
       const [
         productCountResult,
         specQtyMap,
-        allStock,
+        stockItems,
         alertCounts,
         pendingReceipts,
+        monthTxns,
+        soQueueCount,
+        soQueueOldest,
       ] = await Promise.all([
         prisma.inventoryItem.groupBy({
           by: ['lens_id'],
           where: itemWhere,
         }),
         this.buildSpecQtyMap(gt),
-        prisma.inventoryStock.findMany({
-          where: stockWhere,
-          select: { totalStock: true, avgCostPrice: true },
+        prisma.inventoryItem.findMany({
+          where: itemWhere,
+          select: DASHBOARD_STOCK_ITEM_SELECT,
         }),
         this.getSpecAlertCounts(gt),
         prisma.purchaseOrderReceipt.findMany({
@@ -2845,39 +3233,96 @@ export class InventoryService {
             purchaseOrder: pendingPoWhere,
           },
           include: {
-            purchaseOrder: { select: { id: true, poNumber: true, vendor: true } },
+            purchaseOrder: {
+              select: {
+                id: true,
+                poNumber: true,
+                vendor: { select: { id: true, name: true, code: true } },
+                lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
+        }),
+        prisma.inventoryTransaction.findMany({
+          where: {
+            transactionDate: { gte: monthStart, lte: monthEnd },
+            type: { in: [...MONTH_INWARD_TYPES, ...MONTH_OUTWARD_TYPES] },
+            ...txnGodown,
+          },
+          select: { type: true, quantity: true, totalValue: true },
+        }),
+        prisma.saleOrder.count({ where: soWhere }),
+        prisma.saleOrder.findMany({
+          where: soWhere,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: DASHBOARD_FIFO_LIMIT,
+          select: {
+            id: true,
+            orderNo: true,
+            customerRefNo: true,
+            status: true,
+            createdAt: true,
+            procurementType: true,
+            customer: { select: { id: true, name: true, code: true } },
+            lensProduct: { select: { id: true, lens_name: true, product_code: true } },
+          },
         }),
       ]);
 
       const productCount = productCountResult.length;
-      let totalStockUnits = 0;
-      for (const qty of specQtyMap.values()) {
-        totalStockUnits += qty;
-      }
-
-      const totalValue = allStock.reduce(
-        (sum, s) => sum + (s.totalStock || 0) * (s.avgCostPrice || 0),
-        0
-      );
+      const totalStockUnits = sumSpecQtyMap(specQtyMap);
+      const { totalValue } = aggregateStockSummaryTotals(stockItems);
+      const locationCount = countDistinctNonNullIds(stockItems, "location_id");
+      const trayCount = countDistinctNonNullIds(stockItems, "tray_id");
 
       const pendingFiltered = pendingReceipts.filter(
         (r) => (r.totalReceivedQty || 0) > (r.inwardedQty || 0)
       );
       const pendingCount = pendingFiltered.length;
       const pendingInwardsList = pendingFiltered;
+      const monthAgg = aggregateMonthInOut(monthTxns);
 
       return {
         productCount,
         totalItems: productCount,
         totalStockUnits,
+        specQty: totalStockUnits,
         totalValue,
+        locationCount,
+        trayCount,
         lowStockCount: alertCounts.lowStockCount,
         outOfStockCount: alertCounts.outOfStockCount,
         overStockCount: alertCounts.overStockCount,
         pendingInwardsCount: pendingCount,
         pendingInwardsList: pendingInwardsList || [],
+        pendingInwardsFifo: fifoPendingInwards(pendingFiltered, DASHBOARD_FIFO_LIMIT),
+        soQueueCount,
+        soQueueFifo: fifoSaleOrders(soQueueOldest, DASHBOARD_FIFO_LIMIT),
+        ...monthAgg,
+        cycleCount: await (async () => {
+          try {
+            const { getCycleCountDashboardKpis } = await import("./inventoryCycleCount.service.js");
+            return await getCycleCountDashboardKpis(gt);
+          } catch (kpiErr) {
+            console.error("Error getting cycle count dashboard KPIs:", kpiErr);
+            return {
+              sessionId: null,
+              sessionNo: null,
+              status: null,
+              traysInScope: 0,
+              traysCounted: 0,
+              completionPct: 0,
+              accuracyPct: null,
+              matched: 0,
+              variance: 0,
+              pendingRecount: 0,
+              shortage: 0,
+              overage: 0,
+              lineCount: 0,
+            };
+          }
+        })(),
       };
     } catch (error) {
       console.error("Error getting inventory dashboard:", error);
@@ -3283,13 +3728,15 @@ export class InventoryService {
   }
 
   /**
-   * Top 10 and Low 10 selling products by OUTWARD_SALE transaction volume.
-   * @param {Object} params - { days: 30 | 90 }
+   * Top 10 and Low 10 selling specs by OUTWARD_SALE volume.
+   * Grain: lens_id + coalescePower(sph, cyl, add).
+   * @param {Object} params - { days: 30 | 60 | 90, godownType }
    */
   async getTopLowSellingProducts({ days = 30, godownType } = {}) {
     try {
+      const parsedDays = parseTopLowSellingDays(days);
       const since = new Date();
-      since.setDate(since.getDate() - parseInt(days, 10));
+      since.setDate(since.getDate() - parsedDays);
 
       const txnGodown = transactionGodownWhere(godownType);
 
@@ -3304,33 +3751,24 @@ export class InventoryService {
           inventoryItem: {
             select: {
               lens_id: true,
+              rightEye: true,
+              leftEye: true,
+              rightSpherical: true,
+              rightCylindrical: true,
+              rightAdd: true,
+              leftSpherical: true,
+              leftCylindrical: true,
+              leftAdd: true,
               lensProduct: { select: { id: true, lens_name: true, product_code: true } },
             },
           },
         },
       });
 
-      // Aggregate by lens_id
-      const byProduct = {};
-      for (const txn of txns) {
-        const id = txn.inventoryItem?.lens_id;
-        if (!id) continue;
-        if (!byProduct[id]) {
-          byProduct[id] = {
-            lens_id: id,
-            lens_name: txn.inventoryItem.lensProduct?.lens_name ?? `Lens #${id}`,
-            product_code: txn.inventoryItem.lensProduct?.product_code ?? '',
-            unitsSold: 0,
-          };
-        }
-        byProduct[id].unitsSold += Math.abs(txn.quantity || 0);
-      }
+      const bySpec = aggregateSpecSales(txns);
+      const { top10, low10 } = rankTopLowSelling(bySpec, 10);
 
-      const sorted = Object.values(byProduct).sort((a, b) => b.unitsSold - a.unitsSold);
-      const top10 = sorted.slice(0, 10);
-      const low10 = [...sorted].sort((a, b) => a.unitsSold - b.unitsSold).slice(0, 10);
-
-      return { top10, low10, days };
+      return { top10, low10, days: parsedDays };
     } catch (error) {
       console.error('Error getting top/low selling products:', error);
       throw new APIError('Failed to get top/low selling products', 500, 'TOP_LOW_SELLING_ERROR');

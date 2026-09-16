@@ -138,7 +138,7 @@ export class AuthService {
   }
 
   /**
-   * Store refresh token in database
+   * Insert a refresh-token row for this device. Never upsert/replace by userId.
    * @param {number} userId - User ID
    * @param {string} refreshToken - Refresh token
    */
@@ -156,19 +156,11 @@ export class AuthService {
         expiresAt = addDuration(new Date(), '7d');
       }
 
-      await prisma.refreshToken.upsert({
-        where: { userId },
-        update: {
-          token: refreshToken,
-          expiresAt,
-          updatedAt: new Date()
-        },
-        create: {
+      await prisma.refreshToken.create({
+        data: {
           userId,
           token: refreshToken,
-          expiresAt,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          expiresAt
         }
       });
     } catch (error) {
@@ -188,12 +180,16 @@ export class AuthService {
         throw new APIError('Refresh token is required', 401);
       }
 
-      // Verify refresh token
+      // Verify refresh token JWT (rejects expired/invalid signatures)
       const decoded = jwt.verify(refreshToken, this.REFRESH_TOKEN_SECRET);
 
-      // Check if refresh token exists in database and is not expired
+      if (!decoded?.userId) {
+        throw new APIError('Invalid or expired refresh token', 401);
+      }
+
+      // Look up by presented token — not by userId unique
       const storedToken = await prisma.refreshToken.findUnique({
-        where: { userId: decoded.userId },
+        where: { token: refreshToken },
         include: {
           user: {
             include: {
@@ -208,7 +204,11 @@ export class AuthService {
         }
       });
 
-      if (!storedToken || storedToken.token !== refreshToken || new Date() > storedToken.expiresAt) {
+      if (
+        !storedToken ||
+        storedToken.userId !== decoded.userId ||
+        new Date() > storedToken.expiresAt
+      ) {
         throw new APIError('Invalid or expired refresh token', 401);
       }
 
@@ -250,18 +250,25 @@ export class AuthService {
   }
 
   /**
-   * Logout user and invalidate refresh token
+   * Normal logout is token-scoped. Do not wipe sibling sessions for this user.
+   * @param {number} _userId - User ID (unused; revoke via logoutByRefreshToken)
+   */
+  async logout(_userId) {
+    return { message: 'Logged out successfully' };
+  }
+
+  /**
+   * Admin / credential-change: revoke every refresh row for a user.
    * @param {number} userId - User ID
    */
-  async logout(userId) {
+  async revokeAllUserSessions(userId) {
     try {
-      await prisma.refreshToken.delete({
+      await prisma.refreshToken.deleteMany({
         where: { userId }
       });
       return { message: 'Logged out successfully' };
     } catch (error) {
-      console.error('Logout error:', error);
-      // Don't throw error as logout should always succeed
+      console.error('Revoke all user sessions error:', error);
       return { message: 'Logged out successfully' };
     }
   }
@@ -289,15 +296,12 @@ export class AuthService {
         return { message: 'Logged out successfully' };
       }
 
-      const storedToken = await prisma.refreshToken.findUnique({
-        where: { userId: decoded.userId }
+      await prisma.refreshToken.deleteMany({
+        where: {
+          token: refreshToken,
+          userId: decoded.userId
+        }
       });
-
-      if (storedToken && storedToken.token === refreshToken) {
-        await prisma.refreshToken.delete({
-          where: { userId: decoded.userId }
-        });
-      }
 
       return { message: 'Logged out successfully' };
     } catch (error) {
@@ -433,8 +437,8 @@ export class AuthService {
         }
       });
 
-      // Invalidate refresh token to force re-login
-      await this.logout(userId);
+      // Password change: revoke every device session so all must re-login
+      await this.revokeAllUserSessions(userId);
 
       return { message: 'Password changed successfully' };
     } catch (error) {

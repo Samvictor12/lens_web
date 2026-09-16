@@ -158,6 +158,42 @@ export class LedgerService {
     });
   }
 
+  async getPostingLedgersByGroups(groupCodes, fallbackCodes = []) {
+    return prisma.ledger.findMany({
+      where: {
+        delete_status: false,
+        active_status: true,
+        allowsDirectPosting: true,
+        isGroupLedger: false,
+        OR: [
+          { accountGroup: { groupCode: { in: groupCodes } } },
+          ...(fallbackCodes.length
+            ? [{ ledgerCode: { in: fallbackCodes }, accountGroupId: null }]
+            : []),
+        ],
+      },
+      select: {
+        id: true,
+        ledgerCode: true,
+        ledgerName: true,
+        bankDetails: true,
+        currentBalance: true,
+        accountGroup: { select: { groupCode: true, groupName: true } },
+      },
+      orderBy: { ledgerCode: 'asc' },
+    });
+  }
+
+  /** Income From: active GRP-CAPITAL posting ledgers (LIABILITY). */
+  async getCapitalPostingLedgers() {
+    return this.getPostingLedgersByGroups(['GRP-CAPITAL'], ['AC-5001', 'AC-5002']);
+  }
+
+  /** Loan From: active GRP-LOANS posting ledgers. */
+  async getLoansPostingLedgers() {
+    return this.getPostingLedgersByGroups(['GRP-LOANS'], ['AC-2004']);
+  }
+
   /** Active LIABILITY posting ledgers for indirect expense "Expense for" picker. */
   async getLiabilityPostingLedgers() {
     return prisma.ledger.findMany({

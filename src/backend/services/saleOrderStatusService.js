@@ -8,6 +8,7 @@ import {
   STATUS_LABELS,
 } from '../constants/saleOrderStatus.js';
 import { InventoryService } from './inventory.service.js';
+import { restoreSourceUnits } from './inventoryUnitCostLedger.js';
 
 const inventoryService = new InventoryService();
 
@@ -503,6 +504,15 @@ export class SaleOrderStatusService {
 
         // Soft-delete OUTWARD_SALE only for released/scrapped eyes
         if (processedItemIds.length > 0) {
+          const outwardTxs = await tx.inventoryTransaction.findMany({
+            where: {
+              saleOrderId,
+              type: 'OUTWARD_SALE',
+              inventoryItemId: { in: processedItemIds },
+            },
+            select: { id: true, parentTransactionId: true },
+          });
+          await restoreSourceUnits(tx, outwardTxs);
           await tx.inventoryTransaction.deleteMany({
             where: {
               saleOrderId,

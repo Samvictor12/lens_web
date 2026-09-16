@@ -10,6 +10,8 @@ import {
 } from '../utils/poPayable.js';
 import { UPLOADS_PUBLIC_PREFIX } from '../middleware/upload.js';
 import { postVendorInvoice, postReversingTransaction } from './accountingService.js';
+import { syncInwardPoPricesFromVendorBill } from './inventoryUnitCostLedger.js';
+import { parseInvoiceCalendarDate, todayLocalNoon } from '../utils/calendarDate.js';
 
 const ELIGIBLE_PO_STATUSES = PO_VENDOR_INVOICE_ELIGIBLE_STATUSES;
 
@@ -52,6 +54,15 @@ async function generateInvoiceNumber() {
   });
   const next = last ? parseInt(last.invoiceNumber.split('-').pop(), 10) + 1 : 1;
   return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
+function resolveVendorInvoiceDate(invoiceDate, fallback = todayLocalNoon()) {
+  if (invoiceDate === undefined || invoiceDate === null || String(invoiceDate).trim() === '') {
+    return fallback;
+  }
+  const parsed = parseInvoiceCalendarDate(invoiceDate);
+  if (!parsed) throw new APIError('Invalid invoice date', 400, 'VALIDATION_ERROR');
+  return parsed;
 }
 
 function resolveVendorInvoiceDueDate(invoiceDate, vendorCreditDays, overrideDueDate) {
@@ -517,8 +528,7 @@ export class VendorInvoiceService {
 
     const invoiceNumber = await generateInvoiceNumber();
     const invoiceCopyPath = `${UPLOADS_PUBLIC_PREFIX}/${invoiceFile.filename}`;
-    const now = new Date();
-    const invDate = invoiceDate ? new Date(invoiceDate) : now;
+    const invDate = resolveVendorInvoiceDate(invoiceDate);
     const dueDate = resolveVendorInvoiceDueDate(invDate, vendor?.credit_days, payload.dueDate);
 
     return prisma.$transaction(async (tx) => {
@@ -567,7 +577,12 @@ export class VendorInvoiceService {
           taxAmount,
           totalAmount,
           vendor,
+          transactionDate: invDate,
         }, userId);
+      }
+
+      for (const item of normalizedItems) {
+        await syncInwardPoPricesFromVendorBill(tx, item.purchaseOrderId, item.subtotalAmount);
       }
 
       return invoice;
@@ -691,6 +706,9 @@ export class VendorInvoiceService {
       || round2(parseFloat(invoice.totalAmount)) !== totalAmount
       || round2(parseFloat(invoice.courierCharges) || 0) !== courierCharges;
 
+    const resolvedInvoiceDate = resolveVendorInvoiceDate(invoiceDate, invoice.invoiceDate);
+    const dateChanged = resolvedInvoiceDate.getTime() !== new Date(invoice.invoiceDate).getTime();
+
     const removedPos = invoice.items
       .filter((i) => removedPoIds.includes(i.purchaseOrderId))
       .map((i) => i.purchaseOrder);
@@ -753,7 +771,7 @@ export class VendorInvoiceService {
         where: { id: invoiceId },
         data: {
           supplierInvoiceNo: supplierNo,
-          invoiceDate: invoiceDate ? new Date(invoiceDate) : invoice.invoiceDate,
+          invoiceDate: resolvedInvoiceDate,
           subtotalAmount,
           taxAmount,
           totalAmount,
@@ -768,7 +786,7 @@ export class VendorInvoiceService {
         },
       });
 
-      if (amountsChanged) {
+      if (amountsChanged || dateChanged) {
         const originalTxn = await findVendorInvoiceAccrual(tx, invoiceId);
         if (originalTxn) {
           await postReversingTransaction(
@@ -790,8 +808,13 @@ export class VendorInvoiceService {
             taxAmount,
             totalAmount,
             vendor: vendorForGl,
+            transactionDate: resolvedInvoiceDate,
           }, userId);
         }
+      }
+
+      for (const item of normalizedItems) {
+        await syncInwardPoPricesFromVendorBill(tx, item.purchaseOrderId, item.subtotalAmount);
       }
 
       return updated;

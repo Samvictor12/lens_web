@@ -209,8 +209,10 @@ export const validateCreateInventoryTransaction = (data) => {
   });
 
   // Validate transaction type
-  const validTypes = ['INWARD_PO', 'INWARD_DIRECT', 'OUTWARD_SALE', 'OUTWARD_RETURN', 'TRANSFER', 'ADJUSTMENT', 'DAMAGE'];
-  if (data.type && !validTypes.includes(data.type)) {
+  const validTypes = ['INWARD_PO', 'INWARD_DIRECT', 'OUTWARD_SALE', 'OUTWARD_RETURN', 'TRANSFER', 'DAMAGE'];
+  if (data.type === 'ADJUSTMENT') {
+    errors.push({ field: 'type', message: 'ADJUSTMENT is not allowed for new transactions' });
+  } else if (data.type && !validTypes.includes(data.type)) {
     errors.push({ field: 'type', message: `Type must be one of: ${validTypes.join(', ')}` });
   }
 
@@ -226,6 +228,13 @@ export const validateCreateInventoryTransaction = (data) => {
     const validation = isValidNumber(Math.abs(data.quantity), 'quantity', 0.1);
     if (!validation.valid) {
       errors.push({ field: 'quantity', message: 'Quantity must be a valid number > 0' });
+    }
+  }
+
+  if (data.parentTransactionId != null && data.parentTransactionId !== '') {
+    const pid = parseInt(data.parentTransactionId, 10);
+    if (isNaN(pid) || pid < 1) {
+      errors.push({ field: 'parentTransactionId', message: 'parentTransactionId must be a positive integer' });
     }
   }
 
@@ -245,6 +254,7 @@ export const validateCreateInventoryTransaction = (data) => {
       purchaseOrderId: data.purchaseOrderId ? parseInt(data.purchaseOrderId) : null,
       saleOrderId: data.saleOrderId ? parseInt(data.saleOrderId) : null,
       vendorId: data.vendorId ? parseInt(data.vendorId) : null,
+      parentTransactionId: data.parentTransactionId ? parseInt(data.parentTransactionId) : null,
       reason: data.reason || null,
       notes: data.notes || null,
       batchNo: data.batchNo || null,

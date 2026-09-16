@@ -80,7 +80,6 @@ import ExpenseCategories from "./pages/ExpenseCategory/ExpenseCategoryMain";
 import ExpenseCategoryForm from "./pages/ExpenseCategory/ExpenseCategoryForm";
 import ExpensesMain from "./pages/Accounting/Expenses/ExpensesMain";
 import IncomeMain from "./pages/Accounting/Income/IncomeMain";
-import BankAccountsMain from "./pages/Accounting/BankAccounts/BankAccountsMain";
 import IncomeCategoryMain from "./pages/IncomeCategory/IncomeCategoryMain";
 import VendorPayments from "./pages/Accounting/VendorPayments/VendorPaymentsMain";
 import BillingAndInvoicingMain from "./pages/Accounting/BillingAndInvoicing/BillingAndInvoicingMain";
@@ -282,7 +281,7 @@ const AppRoutes = () => (
 
       <Route path="/accounts/expenses" element={<ProtectedRoute><ExpensesMain /></ProtectedRoute>} />
       <Route path="/accounts/income" element={<ProtectedRoute><IncomeMain /></ProtectedRoute>} />
-      <Route path="/accounts/bank-accounts" element={<ProtectedRoute><BankAccountsMain /></ProtectedRoute>} />
+      <Route path="/accounts/bank-accounts" element={<ProtectedRoute><Navigate to="/accounts/finance-dashboard?tab=cash-bank" replace /></ProtectedRoute>} />
       <Route
         path="/accounts/customer-payments"
         element={<ProtectedRoute><LegacyCustomerPaymentsRedirect /></ProtectedRoute>}

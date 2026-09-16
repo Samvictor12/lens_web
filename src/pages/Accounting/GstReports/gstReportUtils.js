@@ -11,6 +11,12 @@ export function firstDayOfMonth() {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), "01"].join("-");
 }
 
+export function lastDayOfMonth() {
+  const d = new Date();
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return [last.getFullYear(), String(last.getMonth() + 1).padStart(2, "0"), String(last.getDate()).padStart(2, "0")].join("-");
+}
+
 export function printReport(title, html) {
   const win = window.open("", "_blank", "noopener,noreferrer");
   if (!win) return;

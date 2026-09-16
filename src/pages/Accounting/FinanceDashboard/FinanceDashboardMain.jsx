@@ -1,29 +1,33 @@
 import { useState, useEffect, useCallback } from "react";
 import { LayoutDashboard } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { getDashboard } from "@/services/financialReport";
+import { getDashboard, unwrapDashboardPayload } from "@/services/financialReport";
 import FinanceDashboardKpis from "./FinanceDashboardKpis";
 import FyTrendChart from "./FyTrendChart";
 import ReceivablesRiskTable from "./ReceivablesRiskTable";
 import ExpenseBreakupChart from "./ExpenseBreakupChart";
-import EmbeddedPnLSnapshot from "./EmbeddedPnLSnapshot";
+import CollectionByCustomerTable from "./CollectionByCustomerTable";
 import FinanceDashboardReportsTabs from "./FinanceDashboardReportsTabs";
 import { todayInputDate } from "../FinancialReports/reportUtils";
 
 export default function FinanceDashboardMain() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "cash-bank" ? "cash-bank" : "trial";
   const [asOf, setAsOf] = useState(todayInputDate());
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reportsTab, setReportsTab] = useState(initialTab);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getDashboard({ asOf: asOf || undefined });
-      setDashboard(res.data);
+      if (res.success) setDashboard(unwrapDashboardPayload(res));
     } catch {
       toast({ variant: "destructive", title: "Failed to load finance dashboard" });
     } finally {
@@ -34,6 +38,23 @@ export default function FinanceDashboardMain() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "cash-bank") {
+      setReportsTab("cash-bank");
+      requestAnimationFrame(() => {
+        document.getElementById("cash-bank")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [searchParams]);
+
+  const scrollToCashBank = () => {
+    setReportsTab("cash-bank");
+    setSearchParams({ tab: "cash-bank" }, { replace: true });
+    setTimeout(() => {
+      document.getElementById("cash-bank")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
 
   return (
     <div className="p-2 sm:p-4 space-y-3">
@@ -66,7 +87,7 @@ export default function FinanceDashboardMain() {
         </div>
       </div>
 
-      <FinanceDashboardKpis dashboard={dashboard} loading={loading} />
+      <FinanceDashboardKpis dashboard={dashboard} loading={loading} onCashBankClick={scrollToCashBank} />
 
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         <FyTrendChart
@@ -82,13 +103,17 @@ export default function FinanceDashboardMain() {
           <ExpenseBreakupChart expenseBreakup={dashboard?.expenseBreakup} loading={loading} />
         </div>
         <div className="lg:col-span-3">
-          <EmbeddedPnLSnapshot snapshot={dashboard?.profitLossSnapshot} loading={loading} />
+          <CollectionByCustomerTable rows={dashboard?.collectionByCustomer} loading={loading} />
         </div>
       </div>
 
       <div>
         <h2 className="text-sm font-semibold text-muted-foreground mb-2">Reports</h2>
-        <FinanceDashboardReportsTabs asOf={dashboard?.asOf || asOf} />
+        <FinanceDashboardReportsTabs
+          asOf={dashboard?.asOf || asOf}
+          tab={reportsTab}
+          onTabChange={setReportsTab}
+        />
       </div>
     </div>
   );

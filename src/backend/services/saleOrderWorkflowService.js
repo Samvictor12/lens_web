@@ -12,6 +12,7 @@ import {
 import { assertFreeLensApprovedForFulfillment } from '../utils/freeLensApproval.js';
 import { buildSaleOrderTextSearchOr } from '../utils/saleOrderSearch.js';
 import { resolveAutoInwardLocationAndBin } from '../utils/autoInwardBin.js';
+import { resolveBilledPoUnitPrice, sourceLedgerFields } from './inventoryUnitCostLedger.js';
 
 const inventoryService = new InventoryService();
 const saleOrderService = new SaleOrderService();
@@ -876,6 +877,11 @@ export class SaleOrderWorkflowService {
                   leftAdd: so.leftAdd,
                 };
               }
+              const billedPrice = await resolveBilledPoUnitPrice(
+                tx,
+                receipt.purchaseOrderId,
+                1
+              );
               const itemData = {
                 lens_id: so.lens_id,
                 category_id: so.category_id,
@@ -887,7 +893,7 @@ export class SaleOrderWorkflowService {
                 location_id: location.id,
                 tray_id: tray?.id ?? null,
                 quantity: 1, // we only issue 1 unit per eye
-                costPrice: receipt.unitPrice || 0,
+                costPrice: billedPrice ?? 0,
                 batchNo: receipt.receiptNumber,
                 purchaseOrderId: receipt.purchaseOrderId,
                 purchaseReceiptId: receipt.id,
@@ -907,8 +913,8 @@ export class SaleOrderWorkflowService {
                   inventoryItemId: item.id,
                   quantity: itemData.quantity,
                   balanceAfter: itemData.quantity,
-                  unitPrice: itemData.costPrice,
-                  totalValue: itemData.quantity * itemData.costPrice,
+                  unitPrice: billedPrice,
+                  totalValue: billedPrice != null ? itemData.quantity * billedPrice : null,
                   toLocationId: itemData.location_id,
                   toTrayId: itemData.tray_id,
                   purchaseOrderId: itemData.purchaseOrderId,
@@ -916,6 +922,7 @@ export class SaleOrderWorkflowService {
                   batchNo: itemData.batchNo,
                   reason: 'Auto-inward from Inward Queue for Pre-QC issue',
                   createdBy: userId,
+                  ...sourceLedgerFields(itemData.quantity),
                 },
               });
               await inventoryService.updateInventoryStock(item, itemData.quantity, 'ADD', tx);

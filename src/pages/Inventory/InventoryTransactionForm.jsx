@@ -56,9 +56,6 @@ export default function InventoryTransactionForm({
       case 'TRANSFER':
         updates.quantity = formData.quantity || 0;
         break;
-      case 'ADJUSTMENT':
-        updates.quantity = formData.quantity || 0;
-        break;
       default:
         break;
     }
@@ -81,7 +78,7 @@ export default function InventoryTransactionForm({
   const isInwardTransaction = ['INWARD_PO', 'INWARD_DIRECT'].includes(formData.type);
   const isOutwardTransaction = ['OUTWARD_SALE', 'OUTWARD_RETURN', 'DAMAGE'].includes(formData.type);
   const isTransferTransaction = formData.type === 'TRANSFER';
-  const isAdjustmentTransaction = formData.type === 'ADJUSTMENT';
+  const isConsumingTransaction = isOutwardTransaction || isTransferTransaction;
 
   const getFilteredItems = () => {
     if (!availableItems) return [];
@@ -98,8 +95,6 @@ export default function InventoryTransactionForm({
           );
         }
         return availableItems.filter((item) => item.quantity > 0);
-      case 'ADJUSTMENT':
-        return availableItems;
       default:
         return availableItems;
     }
@@ -185,13 +180,6 @@ export default function InventoryTransactionForm({
       }
     }
 
-    if (formData.type === 'ADJUSTMENT') {
-      const item = availableItems.find((availableItem) => availableItem.id === formData.inventoryItemId);
-      if (item && formData.quantity < 0 && Math.abs(formData.quantity) > item.quantity) {
-        newErrors.quantity = `Negative adjustment cannot exceed available quantity (${item.quantity})`;
-      }
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -235,15 +223,15 @@ export default function InventoryTransactionForm({
               name="quantity"
               type="number"
               step="0.1"
-              value={formData.type === 'ADJUSTMENT' ? (formData.quantity || '') : (Math.abs(formData.quantity) || '')}
+              value={Math.abs(formData.quantity) || ''}
               onChange={(e) => {
                 const value = parseFloat(e.target.value) || 0;
-                const adjustedValue = formData.type === 'ADJUSTMENT' ? value : (isOutwardTransaction ? -Math.abs(value) : Math.abs(value));
+                const adjustedValue = isOutwardTransaction ? -Math.abs(value) : Math.abs(value);
                 handleChange('quantity', adjustedValue);
               }}
               required
               error={errors.quantity}
-              helperText={selectedItem && (isOutwardTransaction || formData.type === 'ADJUSTMENT') ? `Available: ${selectedItem.quantity}` : undefined}
+              helperText={selectedItem && isOutwardTransaction ? `Available: ${selectedItem.quantity}` : undefined}
             />
           </div>
 
@@ -402,6 +390,19 @@ export default function InventoryTransactionForm({
                 onChange={(value) => handleChange('vendorId', value ? parseInt(value) : null)}
                 placeholder="Select vendor"
                 isClearable
+              />
+            )}
+
+            {isConsumingTransaction && (
+              <FormInput
+                label="Source Transaction ID"
+                name="parentTransactionId"
+                type="number"
+                min="1"
+                value={formData.parentTransactionId || ''}
+                onChange={(e) => handleChange('parentTransactionId', e.target.value ? parseInt(e.target.value, 10) : null)}
+                placeholder="FIFO if empty"
+                helperText="Optional OPEN source row to tag; leave blank to consume FIFO"
               />
             )}
 

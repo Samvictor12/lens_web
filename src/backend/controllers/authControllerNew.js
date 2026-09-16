@@ -298,8 +298,8 @@ export class AuthController {
         });
       }
 
-      // Revoke session
-      await this.authService.logout(targetUserId);
+      // Admin revoke: drop every refresh row for this user
+      await this.authService.revokeAllUserSessions(targetUserId);
 
       res.json({
         success: true,

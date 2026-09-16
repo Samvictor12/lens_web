@@ -15,6 +15,30 @@ const categoryInclude = {
   _count: { select: { expenses: { where: { delete_status: false } } } },
 };
 
+/** YYYY-MM-DD calendar key for date-only comparisons (expense vs due). */
+export function calendarDateKey(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string') {
+    const m = value.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+
+export function assertExpenseDateOnOrBeforeDue(expenseDate, dueDate) {
+  if (!expenseDate || !dueDate) return;
+  const expKey = calendarDateKey(expenseDate);
+  const dueKey = calendarDateKey(dueDate);
+  if (expKey && dueKey && expKey > dueKey) {
+    throw new APIError('Expense date cannot be after due date', 400, 'EXPENSE_DATE_AFTER_DUE');
+  }
+}
+
 /**
  * Expense Category is the master list for expense types. Auto-create a posting
  * ledger when missing so users do not configure COA links separately.
@@ -221,6 +245,9 @@ export class ExpenseService {
     if (!category) throw new APIError('Expense category not found', 404, 'CATEGORY_NOT_FOUND');
 
     const expenseNumber = await generateExpenseNumber();
+    const resolvedExpenseDate = expenseDate ? new Date(expenseDate) : new Date();
+    const resolvedDue = dueDate ? new Date(dueDate) : null;
+    assertExpenseDateOnOrBeforeDue(resolvedExpenseDate, resolvedDue);
 
     return prisma.$transaction(async (tx) => {
       const categoryLedgerId = await ensureExpenseCategoryLedger(tx, category, userId);
@@ -232,8 +259,8 @@ export class ExpenseService {
           amount: parseFloat(amount),
           paymentMethod,
           bankLedgerId: parseInt(bankLedgerId),
-          expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
-          dueDate: dueDate ? new Date(dueDate) : null,
+          expenseDate: resolvedExpenseDate,
+          dueDate: resolvedDue,
           description,
           referenceNo: referenceNo || null,
           paidTo: paidTo || null,
@@ -249,6 +276,7 @@ export class ExpenseService {
         categoryLedgerId,
         bankLedgerId: parseInt(bankLedgerId),
         description,
+        transactionDate: resolvedExpenseDate,
       }, userId);
 
       return expense;
@@ -267,6 +295,11 @@ export class ExpenseService {
     const newAmount = body.amount !== undefined ? parseFloat(body.amount) : parseFloat(existing.amount);
     const newBankLedgerId = body.bankLedgerId !== undefined ? parseInt(body.bankLedgerId) : existing.bankLedgerId;
     const newCategoryId = body.categoryId !== undefined ? parseInt(body.categoryId) : existing.categoryId;
+    const resolvedExpenseDate = body.expenseDate ? new Date(body.expenseDate) : existing.expenseDate;
+    const resolvedDue = body.dueDate !== undefined
+      ? (body.dueDate ? new Date(body.dueDate) : null)
+      : existing.dueDate;
+    assertExpenseDateOnOrBeforeDue(resolvedExpenseDate, resolvedDue);
 
     const category = await prisma.expenseCategory.findFirst({
       where: { id: newCategoryId, delete_status: false },
@@ -319,6 +352,7 @@ export class ExpenseService {
         categoryLedgerId,
         bankLedgerId: newBankLedgerId,
         description: body.description || existing.description,
+        transactionDate: resolvedExpenseDate,
       }, userId);
 
       return updated;

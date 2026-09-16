@@ -7,5 +7,6 @@ const guard = [authenticateToken, requireRole(['Accounts', 'Admin'])];
 
 router.get('/monthly-sales', ...guard, gstReportController.getMonthlySales.bind(gstReportController));
 router.get('/gst-collection', ...guard, gstReportController.getGstCollection.bind(gstReportController));
+router.get('/register', ...guard, gstReportController.getGstInvoiceRegister.bind(gstReportController));
 
 export default router;

@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Refresh } from "@/components/ui/Refresh";
 import { getIncomes, getIncomeSummary, getIncomeCategories, deleteIncome } from "@/services/income";
-import { getCashBankCapitalLedgers } from "@/services/ledger";
+import { getCashBankLedgers, getCapitalPostingLedgers, getLoansPostingLedgers } from "@/services/ledger";
 import { useIncomeColumns } from "./useIncomeColumns";
 import AddIncomeDialog from "./AddIncomeDialog";
 
@@ -36,7 +36,8 @@ export default function IncomeMain() {
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [transferLedgers, setTransferLedgers] = useState([]);
+  const [fromLedgers, setFromLedgers] = useState([]);
+  const [toLedgers, setToLedgers] = useState([]);
 
   const loanCategory = useMemo(
     () => (categories || []).find((c) => c.name === LOAN_CATEGORY_NAME && c.delete_status !== true),
@@ -119,15 +120,19 @@ export default function IncomeMain() {
   const fetchDialogData = useCallback(async () => {
     await fetchCategories();
     try {
-      const ledgers = await getCashBankCapitalLedgers();
-      setTransferLedgers(Array.isArray(ledgers) ? ledgers : []);
+      const [cashBank, fromList] = await Promise.all([
+        getCashBankLedgers(),
+        activeTab === "loans" ? getLoansPostingLedgers() : getCapitalPostingLedgers(),
+      ]);
+      setToLedgers(Array.isArray(cashBank) ? cashBank : []);
+      setFromLedgers(Array.isArray(fromList) ? fromList : []);
     } catch (e) {
       toast({
         variant: "destructive",
         title: e?.response?.data?.message || "Failed to load transfer accounts",
       });
     }
-  }, [toast, fetchCategories]);
+  }, [toast, fetchCategories, activeTab]);
 
   useEffect(() => {
     fetchCategories();
@@ -250,7 +255,8 @@ export default function IncomeMain() {
         mode={isLoans ? "loans" : "income"}
         loanCategory={loanCategory}
         defaultIncomeCategory={defaultIncomeCategory}
-        transferLedgers={transferLedgers}
+        fromLedgers={fromLedgers}
+        toLedgers={toLedgers}
         onCreated={() => setRefreshKey((k) => k + 1)}
       />
     </div>

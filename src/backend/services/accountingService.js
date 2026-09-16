@@ -222,7 +222,7 @@ export async function postPurchaseReceipt(tx, { purchaseOrderId, poNumber, subto
  * Dr Inventory (AC-1004) for totalAmount − taxAmount (subtotal + courier),
  * Dr GST Input (AC-1005 if tax > 0), Cr vendor's AP ledger (child of AC-2001)
  */
-export async function postVendorInvoice(tx, { vendorInvoiceId, invoiceNumber, subtotal, taxAmount, totalAmount, vendor }, userId) {
+export async function postVendorInvoice(tx, { vendorInvoiceId, invoiceNumber, subtotal, taxAmount, totalAmount, vendor, transactionDate }, userId) {
   const [inventoryLedger, apLedger] = await Promise.all([
     getLedger(tx, 'AC-1004'),
     getOwnedLedger(tx, vendor, 'Vendor'),
@@ -248,14 +248,58 @@ export async function postVendorInvoice(tx, { vendorInvoiceId, invoiceNumber, su
     referenceId: vendorInvoiceId,
     referenceNumber: invoiceNumber,
     description: `Vendor invoice — ${invoiceNumber}`,
+    transactionDate,
   }, entries, userId);
 }
 
 /**
- * Auto-post on Invoice creation.
- * Dr customer's AR ledger (child of AC-1003), Cr Sales Revenue (AC-3001), Cr GST Output (AC-2003 if tax > 0)
+ * Sum OUTWARD_SALE unit costs for sale orders linked to an invoice.
+ * Null unitPrice counts as 0.
  */
-export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer }, userId) {
+async function sumLinkedOutwardSaleCost(tx, invoiceId) {
+  const orders = await tx.saleOrder.findMany({
+    where: { invoiceId, deleteStatus: false },
+    select: { id: true },
+  });
+  const saleOrderIds = orders.map((o) => o.id);
+  if (!saleOrderIds.length) return 0;
+
+  const rows = await tx.inventoryTransaction.findMany({
+    where: { type: 'OUTWARD_SALE', saleOrderId: { in: saleOrderIds } },
+    select: { unitPrice: true },
+  });
+  return rows.reduce((sum, row) => sum + (parseFloat(row.unitPrice) || 0), 0);
+}
+
+async function appendInventoryCogsEntries(tx, entries, { invoiceId, invoiceNo, reverse = false }) {
+  const cost = await sumLinkedOutwardSaleCost(tx, invoiceId);
+  if (cost < 0.01) return entries;
+
+  const [cogsLedger, inventoryLedger] = await Promise.all([
+    getLedger(tx, 'AC-4001'),
+    getLedger(tx, 'AC-1004'),
+  ]);
+  const amount = Math.round(cost * 100) / 100;
+  if (reverse) {
+    entries.push(
+      { ledgerId: inventoryLedger.id, entryType: 'DEBIT', amount, description: `Inventory restoration — ${invoiceNo}` },
+      { ledgerId: cogsLedger.id, entryType: 'CREDIT', amount, description: `COGS reversal — ${invoiceNo}` },
+    );
+  } else {
+    entries.push(
+      { ledgerId: cogsLedger.id, entryType: 'DEBIT', amount, description: `COGS — ${invoiceNo}` },
+      { ledgerId: inventoryLedger.id, entryType: 'CREDIT', amount, description: `Inventory issued — ${invoiceNo}` },
+    );
+  }
+  return entries;
+}
+
+/**
+ * Auto-post on Invoice issue.
+ * Dr customer's AR ledger (child of AC-1003), Cr Sales Revenue (AC-3001), Cr GST Output (AC-2003 if tax > 0).
+ * If linked OUTWARD_SALE cost >= 0.01: Dr AC-4001 Purchase/COGS, Cr AC-1004 Inventory/Stock.
+ */
+export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer, transactionDate }, userId) {
   const [arLedger, salesLedger] = await Promise.all([
     getOwnedLedger(tx, customer, 'Customer'),
     getLedger(tx, 'AC-3001'),
@@ -274,20 +318,24 @@ export async function postInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAm
     entries.push({ ledgerId: gstOutputLedger.id, entryType: 'CREDIT', amount: tax, description: 'GST Output Collected' });
   }
 
+  await appendInventoryCogsEntries(tx, entries, { invoiceId, invoiceNo, reverse: false });
+
   return postTransaction(tx, {
     transactionType: 'SALE',
     referenceType: 'INVOICE',
     referenceId: invoiceId,
     referenceNumber: invoiceNo,
     description: `Invoice — ${invoiceNo}`,
+    transactionDate,
   }, entries, userId);
 }
 
 /**
  * Reverse a previously posted invoice (on cancel).
- * Dr Sales Revenue (AC-3001), Dr GST Output (AC-2003 if tax > 0), Cr customer's AR ledger
+ * Dr Sales Revenue (AC-3001), Dr GST Output (AC-2003 if tax > 0), Cr customer's AR ledger.
+ * Reverses COGS+Inventory when those lines were posted (same OUTWARD_SALE cost rule).
  */
-export async function reverseInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer }, userId) {
+export async function reverseInvoice(tx, { invoiceId, invoiceNo, totalAmount, taxAmount, customer, transactionDate }, userId) {
   const [arLedger, salesLedger] = await Promise.all([
     getOwnedLedger(tx, customer, 'Customer'),
     getLedger(tx, 'AC-3001'),
@@ -306,12 +354,15 @@ export async function reverseInvoice(tx, { invoiceId, invoiceNo, totalAmount, ta
     entries.splice(1, 0, { ledgerId: gstOutputLedger.id, entryType: 'DEBIT', amount: tax, description: 'GST Output reversal' });
   }
 
+  await appendInventoryCogsEntries(tx, entries, { invoiceId, invoiceNo, reverse: true });
+
   return postTransaction(tx, {
     transactionType: 'JOURNAL',
     referenceType: 'INVOICE',
     referenceId: invoiceId,
     referenceNumber: invoiceNo,
     description: `Invoice reversal — ${invoiceNo}`,
+    transactionDate,
   }, entries, userId);
 }
 
@@ -342,7 +393,7 @@ export async function postClientPayment(tx, { invoiceId, invoiceNo, amount, bank
  * Auto-post on customer payment receipt voucher.
  * Dr Cash/Bank (bankLedgerId), Cr customer's AR ledger (child of AC-1003)
  */
-export async function postCustomerPaymentReceipt(tx, { voucherId, receiptNumber, totalAmount, bankLedgerId, customer }, userId) {
+export async function postCustomerPaymentReceipt(tx, { voucherId, receiptNumber, totalAmount, bankLedgerId, customer, transactionDate }, userId) {
   const [bankLedger, arLedger] = await Promise.all([
     tx.ledger.findUnique({ where: { id: bankLedgerId } }),
     getOwnedLedger(tx, customer, 'Customer'),
@@ -355,6 +406,7 @@ export async function postCustomerPaymentReceipt(tx, { voucherId, receiptNumber,
     referenceId: voucherId,
     referenceNumber: receiptNumber,
     description: `Customer payment receipt — ${receiptNumber}`,
+    transactionDate,
   }, [
     { ledgerId: bankLedger.id, entryType: 'DEBIT', amount: totalAmount, description: `Receipt — ${receiptNumber}` },
     { ledgerId: arLedger.id, entryType: 'CREDIT', amount: totalAmount, description: `AR cleared — ${receiptNumber}` },
@@ -365,7 +417,7 @@ export async function postCustomerPaymentReceipt(tx, { voucherId, receiptNumber,
  * Auto-post on vendor payment voucher.
  * Dr vendor's AP ledger (child of AC-2001), Cr Cash/Bank (bankLedgerId)
  */
-export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmount, bankLedgerId, vendor }, userId) {
+export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmount, bankLedgerId, vendor, transactionDate }, userId) {
   const [apLedger, bankLedger] = await Promise.all([
     getOwnedLedger(tx, vendor, 'Vendor'),
     tx.ledger.findUnique({ where: { id: bankLedgerId } }),
@@ -378,6 +430,7 @@ export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmo
     referenceId: voucherId,
     referenceNumber: voucherNumber,
     description: `Vendor payment — ${voucherNumber}`,
+    transactionDate,
   }, [
     { ledgerId: apLedger.id, entryType: 'DEBIT', amount: totalAmount, description: `AP reduced — ${voucherNumber}` },
     { ledgerId: bankLedger.id, entryType: 'CREDIT', amount: totalAmount, description: `Payment from ${bankLedger.ledgerName}` },
@@ -390,7 +443,7 @@ export async function postVendorPayment(tx, { voucherId, voucherNumber, totalAmo
  */
 export async function postIndirectExpenseAccrual(
   tx,
-  { expenseId, expenseNumber, amount, categoryLedgerId, liabilityLedgerId, description },
+  { expenseId, expenseNumber, amount, categoryLedgerId, liabilityLedgerId, description, transactionDate },
   userId
 ) {
   const [expLedger, liabilityLedger] = await Promise.all([
@@ -417,6 +470,7 @@ export async function postIndirectExpenseAccrual(
       referenceId: expenseId,
       referenceNumber: expenseNumber,
       description: description || `Indirect expense accrual — ${expenseNumber}`,
+      transactionDate,
     },
     [
       { ledgerId: expLedger.id, entryType: 'DEBIT', amount, description: `Expense — ${description}` },
@@ -431,7 +485,7 @@ export async function postIndirectExpenseAccrual(
  */
 export async function postIndirectExpensePayment(
   tx,
-  { voucherId, voucherNumber, totalAmount, bankLedgerId, liabilityLedgerId },
+  { voucherId, voucherNumber, totalAmount, bankLedgerId, liabilityLedgerId, transactionDate },
   userId
 ) {
   const [liabilityLedger, bankLedger] = await Promise.all([
@@ -449,6 +503,7 @@ export async function postIndirectExpensePayment(
       referenceId: voucherId,
       referenceNumber: voucherNumber,
       description: `Indirect expense payment — ${voucherNumber}`,
+      transactionDate,
     },
     [
       { ledgerId: liabilityLedger.id, entryType: 'DEBIT', amount: totalAmount, description: `Liability reduced — ${voucherNumber}` },
@@ -495,7 +550,7 @@ export async function postVendorExpenseAccrual(
  * Auto-post on expense creation.
  * Dr [category ledger], Cr Cash/Bank (bankLedgerId)
  */
-export async function postExpense(tx, { expenseId, expenseNumber, amount, categoryLedgerId, bankLedgerId, description }, userId) {
+export async function postExpense(tx, { expenseId, expenseNumber, amount, categoryLedgerId, bankLedgerId, description, transactionDate }, userId) {
   const [expLedger, bankLedger] = await Promise.all([
     tx.ledger.findUnique({ where: { id: categoryLedgerId } }),
     tx.ledger.findUnique({ where: { id: bankLedgerId } }),
@@ -509,6 +564,7 @@ export async function postExpense(tx, { expenseId, expenseNumber, amount, catego
     referenceId: expenseId,
     referenceNumber: expenseNumber,
     description: description || `Expense — ${expenseNumber}`,
+    transactionDate,
   }, [
     { ledgerId: expLedger.id, entryType: 'DEBIT', amount, description: `Expense — ${description}` },
     { ledgerId: bankLedger.id, entryType: 'CREDIT', amount, description: `Paid from ${bankLedger.ledgerName}` },
@@ -516,10 +572,10 @@ export async function postExpense(tx, { expenseId, expenseNumber, amount, catego
 }
 
 /**
- * Auto-post on income creation (M2 From/To).
- * Dr To ledger, Cr From ledger (Cash / Bank / Capital transfer-style for all categories).
+ * Auto-post on income creation.
+ * Dr To (Cash/Bank), Cr From (Capital for Income, Loans for Loan).
  */
-export async function postIncome(tx, { incomeId, incomeNumber, amount, fromLedgerId, toLedgerId, description }, userId) {
+export async function postIncome(tx, { incomeId, incomeNumber, amount, fromLedgerId, toLedgerId, description, transactionDate, fromKind }, userId) {
   if (!fromLedgerId || !toLedgerId) {
     throw new APIError('fromLedgerId and toLedgerId are required', 400, 'VALIDATION_ERROR');
   }
@@ -527,8 +583,11 @@ export async function postIncome(tx, { incomeId, incomeNumber, amount, fromLedge
     throw new APIError('From and To ledgers must be different', 400, 'SAME_LEDGER');
   }
 
-  const TRANSFER_GROUPS = ['GRP-CASH', 'GRP-BANK', 'GRP-CAPITAL'];
-  const FALLBACK_CODES = ['AC-1001', 'AC-1002', 'AC-5001'];
+  const CASH_BANK_GROUPS = ['GRP-CASH', 'GRP-BANK'];
+  const CASH_BANK_CODES = ['AC-1001', 'AC-1002'];
+  const FROM_GROUPS = fromKind === 'LOANS'
+    ? { groups: ['GRP-LOANS'], codes: ['AC-2004'], label: 'Loans' }
+    : { groups: ['GRP-CAPITAL'], codes: ['AC-5001', 'AC-5002'], label: 'Capital' };
 
   const [fromLedger, toLedger] = await Promise.all([
     tx.ledger.findUnique({
@@ -550,17 +609,26 @@ export async function postIncome(tx, { incomeId, incomeNumber, amount, fromLedge
     if (!ledger.allowsDirectPosting || ledger.isGroupLedger) {
       throw new APIError(`${label} ledger does not allow direct posting`, 400, 'LEDGER_NOT_POSTABLE');
     }
-    const groupCode = ledger.accountGroup?.groupCode;
-    const ok =
-      (groupCode && TRANSFER_GROUPS.includes(groupCode)) ||
-      (!groupCode && FALLBACK_CODES.includes(ledger.ledgerCode));
-    if (!ok) {
-      throw new APIError(
-        `${label} ledger must be under Cash, Bank, or Capital`,
-        400,
-        'LEDGER_GROUP_INVALID'
-      );
-    }
+  }
+
+  const toGroup = toLedger.accountGroup?.groupCode;
+  const toOk =
+    (toGroup && CASH_BANK_GROUPS.includes(toGroup)) ||
+    (!toGroup && CASH_BANK_CODES.includes(toLedger.ledgerCode));
+  if (!toOk) {
+    throw new APIError('To ledger must be under Cash or Bank', 400, 'LEDGER_GROUP_INVALID');
+  }
+
+  const fromGroup = fromLedger.accountGroup?.groupCode;
+  const fromOk =
+    (fromGroup && FROM_GROUPS.groups.includes(fromGroup)) ||
+    (!fromGroup && FROM_GROUPS.codes.includes(fromLedger.ledgerCode));
+  if (!fromOk) {
+    throw new APIError(
+      `From ledger must be under ${FROM_GROUPS.label}`,
+      400,
+      'LEDGER_GROUP_INVALID'
+    );
   }
 
   return postTransaction(tx, {
@@ -569,6 +637,7 @@ export async function postIncome(tx, { incomeId, incomeNumber, amount, fromLedge
     referenceId: incomeId,
     referenceNumber: incomeNumber,
     description: description || `Income — ${incomeNumber}`,
+    transactionDate,
   }, [
     { ledgerId: toLedger.id, entryType: 'DEBIT', amount, description: `To ${toLedger.ledgerName}` },
     { ledgerId: fromLedger.id, entryType: 'CREDIT', amount, description: `From ${fromLedger.ledgerName}` },
