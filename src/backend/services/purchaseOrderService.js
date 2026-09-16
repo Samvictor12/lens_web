@@ -65,24 +65,24 @@ class PurchaseOrderService {
    */
   async generatePONumber() {
     try {
+      // Match SO/INV style: PO-YYYY-NNN (avoids colliding with legacy Bulk numbers like PO-2027)
+      const year = new Date().getFullYear();
+      const prefix = `PO-${year}-`;
+
       const lastPO = await prisma.purchaseOrder.findFirst({
         where: {
-          poNumber: {
-            startsWith: "PO-",
-          },
+          poNumber: { startsWith: prefix },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { poNumber: "desc" },
       });
 
       if (!lastPO) {
-        return "PO-0001";
+        return `${prefix}001`;
       }
 
-      const lastNumber = parseInt(lastPO.poNumber.split("-")[1]);
-      const nextNumber = lastNumber + 1;
-      return `PO-${String(nextNumber).padStart(4, "0")}`;
+      const parts = lastPO.poNumber.split("-");
+      const lastNumber = parseInt(parts[parts.length - 1], 10) || 0;
+      return `${prefix}${String(lastNumber + 1).padStart(3, "0")}`;
     } catch (error) {
       console.error("Error generating PO number:", error);
       throw new APIError(
