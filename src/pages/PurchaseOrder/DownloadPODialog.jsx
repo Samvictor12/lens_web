@@ -185,7 +185,7 @@ export default function DownloadPODialog({
                 </p>
               ) : (
                 <div className="border rounded-md divide-y text-xs">
-                  <div className="sticky top-0 z-[1] grid grid-cols-[2rem_1fr_5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                  <div className="sticky top-0 z-[2] grid grid-cols-[2rem_1fr_5rem] gap-2 px-3 py-2 bg-muted font-medium text-muted-foreground border-b shadow-[0_1px_0_0_hsl(var(--border))]">
                     <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={allSelected ? true : someSelected ? "indeterminate" : false}

@@ -620,7 +620,7 @@ export default function CreateVendorInvoiceDialog({
               ) : (
                 <>
                   <div className="border rounded-md divide-y text-xs">
-                    <div className="sticky top-0 z-[1] grid grid-cols-[2rem_1fr_6.5rem] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground">
+                    <div className="sticky top-0 z-[2] grid grid-cols-[2rem_1fr_6.5rem] gap-2 px-3 py-2 bg-muted font-medium text-muted-foreground border-b shadow-[0_1px_0_0_hsl(var(--border))]">
                       <span />
                       <span>PO Number</span>
                       <span className="text-right">PO Total</span>
@@ -660,7 +660,7 @@ export default function CreateVendorInvoiceDialog({
 
                   {selectedPOs.length > 0 && (
                     <div className="border rounded-md divide-y text-xs overflow-x-auto">
-                      <div className="sticky top-0 z-[1] grid grid-cols-[1fr_repeat(4,minmax(4.5rem,6.5rem))] gap-2 px-3 py-2 bg-muted/40 font-medium text-muted-foreground min-w-[32rem]">
+                      <div className="sticky top-0 z-[2] grid grid-cols-[1fr_repeat(4,minmax(4.5rem,6.5rem))] gap-2 px-3 py-2 bg-muted font-medium text-muted-foreground min-w-[32rem] border-b shadow-[0_1px_0_0_hsl(var(--border))]">
                         <span>Selected PO — Invoice Amounts</span>
                         <span className="text-right">Subtotal</span>
                         <span className="text-right">GST %</span>

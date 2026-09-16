@@ -805,7 +805,7 @@ export default function PurchaseOrders() {
 
           {/* Table View */}
           {view === "table" && (
-            <div className="flex-1 min-h-0 [&_table]:text-[13px] [&_th]:text-[11px]">
+            <div className="flex-1 min-h-0 [&_table]:text-[13px] [&_th]:text-[11px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
               <Table
                 data={displayPurchaseOrders}
                 columns={columns}

@@ -86,67 +86,78 @@ export const usePurchaseOrderColumns = (
           href={`/masters/purchase-orders/view/${po.id}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 hover:underline cursor-pointer text-left"
+          className="flex items-center gap-1.5 hover:underline cursor-pointer text-left whitespace-nowrap"
         >
-          <div>
-            <div className="font-medium text-[11px] text-primary">{po.poNumber}</div>
-          </div>
+          <span className="font-medium text-[11px] text-primary">{po.poNumber}</span>
         </a>
       ),
     },
     {
       accessorKey: "reference_id",
-      header: "Customer Ref / Ref No",
+      header: "Ref No",
       sortable: true,
       cell: (po) => {
         const displayRef =
           po.orderType !== "Bulk" && po.saleOrder?.customerRefNo
             ? po.saleOrder.customerRefNo
             : (po.reference_id || "-");
-        return <span className="text-[11px]">{displayRef}</span>;
+        return (
+          <span className="text-[11px] whitespace-nowrap" title={displayRef}>
+            {displayRef}
+          </span>
+        );
       },
     },
     {
       accessorKey: "soCustomer",
       header: "SO Customer",
       sortable: false,
-      cell: (po) => (
-        <span className="text-[11px]">
-          {po.saleOrder?.customer?.name || "-"}
-        </span>
-      ),
+      cell: (po) => {
+        const name = po.saleOrder?.customer?.name || "-";
+        return (
+          <span className="text-[11px] whitespace-nowrap truncate max-w-[120px] block" title={name}>
+            {name}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "vendor",
       header: "Vendor",
       sortable: false,
-      cell: (po) => (
-        <div className="flex items-center gap-1.5">
-          <Building className="h-3 w-3 text-muted-foreground" />
-          <span className="text-[11px]">{po.vendor?.name || "-"}</span>
-        </div>
-      ),
+      cell: (po) => {
+        const name = po.vendor?.name || "-";
+        return (
+          <div className="flex items-center gap-1.5 whitespace-nowrap max-w-[140px]">
+            <Building className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className="text-[11px] truncate" title={name}>{name}</span>
+          </div>
+        );
+      },
     },
-    {
-      accessorKey: "orderType",
-      header: "Type",
-      sortable: false,
-      cell: (po) => (
-        <Badge variant="outline" className="text-3xs h-4 px-1">
-          {po.orderType || "Single"}
-        </Badge>
-      ),
-    },
+    // {
+    //   accessorKey: "orderType",
+    //   header: "Type",
+    //   sortable: false,
+    //   cell: (po) => (
+    //     <Badge variant="outline" className="text-3xs h-4 px-1">
+    //       {po.orderType || "Single"}
+    //     </Badge>
+    //   ),
+    // },
     {
       accessorKey: "lensProduct",
       header: "Lens Name",
       sortable: false,
       width: 220,
-      cell: (po) => (
-        <span className="text-[11px] block min-w-[180px]">
-          {formatLensNameWithIndex(po)}
-        </span>
-      ),
+      cell: (po) => {
+        const label = formatLensNameWithIndex(po);
+        return (
+          <span className="text-[11px] block whitespace-nowrap truncate max-w-[200px]" title={label}>
+            {label}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "status",
@@ -155,7 +166,7 @@ export const usePurchaseOrderColumns = (
       cell: (po) => {
         const statusColor = getStatusColor(po.status);
         return (
-          <Badge variant="outline" className={`${statusColor} text-3xs`}>
+          <Badge variant="outline" className={`${statusColor} text-3xs whitespace-nowrap`}>
             {getStatusLabel(po.status)}
           </Badge>
         );
@@ -163,28 +174,28 @@ export const usePurchaseOrderColumns = (
     },
     {
       accessorKey: "orderDate",
-      header: "Ordered Date",
+      header: "Ordered",
       sortable: true,
       cell: (po) => (
-        <span className="text-[11px]">{formatListDate(po.orderDate)}</span>
+        <span className="text-[11px] whitespace-nowrap">{formatListDate(po.orderDate)}</span>
       ),
     },
     {
       accessorKey: "expectedDeliveryDate",
-      header: "Expected Date",
+      header: "Expected",
       sortable: true,
       cell: (po) => (
-        <span className="text-[11px]">
+        <span className="text-[11px] whitespace-nowrap">
           {formatListDate(po.expectedDeliveryDate)}
         </span>
       ),
     },
     {
       accessorKey: "receivedDate",
-      header: "Received Date",
+      header: "Received",
       sortable: false,
       cell: (po) => (
-        <span className="text-[11px]">{formatListDate(po.receivedDate)}</span>
+        <span className="text-[11px] whitespace-nowrap">{formatListDate(po.receivedDate)}</span>
       ),
     },
     {
@@ -192,40 +203,9 @@ export const usePurchaseOrderColumns = (
       header: "TAT",
       sortable: false,
       cell: (po) => (
-        <span className="text-[11px]">
+        <span className="text-[11px] whitespace-nowrap">
           {po.tatDays == null ? "-" : `${po.tatDays}d`}
         </span>
-      ),
-    },
-    {
-      accessorKey: "activities",
-      header: "Activities",
-      sortable: false,
-      cell: (po) => (
-        <div className="flex gap-1">
-          {canReceive(po) && (
-            <Button
-              variant="outline"
-              size="xs"
-              className="h-7 px-2 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 hover:text-blue-700 gap-1"
-              onClick={() => onReceive && onReceive(po)}
-            >
-              <PackageCheck className="h-3.5 w-3.5" />
-              Receive
-            </Button>
-          )}
-          {po.status === "RECEIVED" && (
-            <Button
-              variant="outline"
-              size="xs"
-              className="h-7 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 gap-1"
-              onClick={() => onInward && onInward(po)}
-            >
-              <Warehouse className="h-3.5 w-3.5" />
-              Inward
-            </Button>
-          )}
-        </div>
       ),
     },
     {
@@ -234,12 +214,34 @@ export const usePurchaseOrderColumns = (
       sortable: false,
       cell: (po) => {
         return (
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center whitespace-nowrap">
+            {canReceive(po) && (
+              <Button
+                variant="outline"
+                size="xs"
+                className="h-7 px-2 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 hover:text-blue-700 gap-1 shrink-0"
+                onClick={() => onReceive && onReceive(po)}
+              >
+                <PackageCheck className="h-3.5 w-3.5" />
+                Receive
+              </Button>
+            )}
+            {po.status === "RECEIVED" && (
+              <Button
+                variant="outline"
+                size="xs"
+                className="h-7 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 gap-1 shrink-0"
+                onClick={() => onInward && onInward(po)}
+              >
+                <Warehouse className="h-3.5 w-3.5" />
+                Inward
+              </Button>
+            )}
             {po.status !== "RECEIVED" && po.status !== "PARTIALLY_RECEIVED" && (po.receivedQty || 0) === 0 && (
               <Button
                 variant="ghost"
                 size="xs"
-                className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
                 onClick={() => onDelete && onDelete(po)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
