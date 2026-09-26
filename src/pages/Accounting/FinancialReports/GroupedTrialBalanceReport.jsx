@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getTrialBalanceGrouped } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
+import { ReportExportButtons, downloadExcel } from "./reportExport";
 import TrialBalanceReport from "./TrialBalanceReport";
 
 export default function GroupedTrialBalanceReport({ defaultAsOf, compact = false }) {
@@ -78,13 +78,6 @@ export default function GroupedTrialBalanceReport({ defaultAsOf, compact = false
               headers: ["Code", "Name", "Debit", "Credit", "Balance"],
               rows,
             });
-          }}
-          onPdf={() => {
-            const rows = (data.groups || []).map((g) => [g.groupCode, g.groupName, g.totalDebit, g.totalCredit, g.netBalance]);
-            exportPdf(
-              "Trial Balance",
-              tableHtml(["Code", "Name", "Debit", "Credit", "Balance"], rows, `Trial Balance as of ${asOf}`)
-            );
           }}
         />
       </div>

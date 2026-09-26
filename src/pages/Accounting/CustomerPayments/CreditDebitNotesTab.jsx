@@ -64,7 +64,7 @@ export default function CreditDebitNotesTab({
 
   const handleCancel = async (note) => {
     const confirmMsg = isCredit
-      ? `Cancel ${label} ${note.noteNumber}? The note will be marked cancelled.`
+      ? `Cancel ${label} ${note.noteNumber}? This reverses ledger/outstanding${note.invoice ? " and invoice allocation" : ""}.`
       : `Cancel ${label} ${note.noteNumber}? This will reverse its balance effect.`;
     if (!window.confirm(confirmMsg)) return;
     try {
@@ -83,7 +83,7 @@ export default function CreditDebitNotesTab({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground">
           {isCredit
-            ? "Document-only credit note (printable/auditable). Does not change customer outstanding."
+            ? "Apply to an open invoice when available, or leave unlinked for pending CN on the customer (reduces outstanding)."
             : "Increases the customer's outstanding AR balance."}
         </p>
         <div className="flex items-center gap-1.5">
@@ -125,7 +125,9 @@ export default function CreditDebitNotesTab({
                     {new Date(n.noteDate).toLocaleDateString("en-IN")}
                   </TableCell>
                   <TableCell>{n.customer?.name || n.customer?.code || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{n.invoice?.invoiceNo || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {n.invoice?.invoiceNo || (n.status !== "CANCELLED" ? "Pending CN" : "—")}
+                  </TableCell>
                   <TableCell className="text-right font-mono">{fmt(n.amount)}</TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground">{fmt(n.taxAmount)}</TableCell>
                   <TableCell className="text-muted-foreground truncate max-w-[200px]">{n.reason || "—"}</TableCell>

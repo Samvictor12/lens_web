@@ -1,18 +1,12 @@
 ---
 v: 1
 sections:
-  - id: FD-1.1
-    title: Primary operator journey
-  - id: FD-2.1
-    title: Billing and invoicing operator flow
-  - id: FD-2.2
-    title: Income and loans operator flow
-  - id: FD-2.3
-    title: Customer 360 operator flow
-  - id: FD-2.4
-    title: Finance dashboard operator flow
-  - id: FD-2.5
-    title: Inventory Audit and dashboard operator flow
+  - {id: FD-1.1, title: "Primary operator journey", line: 14, end: 17}
+  - {id: FD-2.1, title: "Billing and invoicing operator flow", line: 18, end: 29}
+  - {id: FD-2.2, title: "Income and loans operator flow", line: 30, end: 39}
+  - {id: FD-2.3, title: "Customer 360 operator flow", line: 40, end: 47}
+  - {id: FD-2.4, title: "Finance dashboard operator flow", line: 48, end: 58}
+  - {id: FD-2.5, title: "Inventory Audit and dashboard operator flow", line: 59, end: 67}
 ---
 
 # Flow Document
@@ -25,11 +19,11 @@ Lab ERP path: Sale Order → Production/QC → Dispatch → Billing → Customer
 
 1. Open **Billing and invoicing** (Accounting sidebar).
 2. Set filters (default current month; optional customer / product).
-3. Review KPI cards (billing, outstanding, awaiting, target/total/today collection).
+3. Review KPI cards (billing, outstanding, awaiting, drafted invoice count, target/total/today collection).
 4. **Awaiting Invoices:** select delivered unbilled SOs → Create Invoice. Set **Bill Date** (default today); Due Date defaults to bill date + customer credit days. GL posts on Issue using bill date; inventory cost credits AC-1004 when Sale Outward unit cost exists.
-5. **Invoices:** customer-grouped outstanding → select invoices → Record Payment.
+5. **Invoices:** Group by + Status filter → select invoices → Record Payment.
 6. **Record Payment page:** choose customer → review dues → enter payment (+ optional advance apply) → FIFO allocate → confirm summary → save voucher.
-7. **Payments / Credit Notes / Collection / Customer Ledger** tabs for history and analysis.
+7. **Payments / Credit Notes / Collection** (Customer, Target, Actual, Balance to collect for the filter month) **/ Customer Ledger** tabs for history and analysis.
 
 Legacy deep-link `/accounts/customer-payments?...` should redirect or open the merged Record Payment flow.
 
@@ -49,7 +43,7 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 
 1. Open **Customer 360** (Accounting sidebar → `/accounts/customer-360`).
 2. Select customer.
-3. Review Section 1 two-column details (identity left, financial right); click Section 2 KPI cards to load inline 5-row lists below; review spec-grouped top lens chart (Section 3); scroll to Section 4 tabs for invoices/payments/CN/ledger.
+3. Review Section 1 two-column details (identity left, financial right); click Section 2 KPI cards to load inline 5-row lists below; review spec-grouped top lens chart (Section 3); scroll to Section 4 tabs for invoices/payments/CN/ledger. Use **Export Excel** on the active Documents & ledger tab for the currently loaded rows.
 
 ## FD-2.4 Finance dashboard operator flow
 
@@ -59,7 +53,7 @@ Legacy deep-link `/accounts/customer-payments?...` should redirect or open the m
 2. Review Row 1 period KPIs (**1st of As-of month → As of**) and Row 2 position KPIs (snapshot). Sales / Purchases include documents **created or dated** in that month window. FY chart is still Apr–Mar. Click **Cash & Bank Total** to scroll to Reports Cash & Bank (`#cash-bank`). Inventory Value should match Inventory Stock Summary total value (spec qty × cost).
 3. Scan FY income vs expense trend and receivables >90d risk table; drill to Customer 360 or invoice from risk rows.
 4. Review month expense breakup and **Collection — Target vs Actual** (Customer, Target, Actual, Balance).
-5. Use report sub-tabs: Trial Balance, two-column Balance Sheet, MTD Profit & Loss, Day Book, General Ledger, Cash & Bank (list + Add account), GST invoice register. Export Excel or PDF on each tab.
+5. Use report sub-tabs: Trial Balance, two-column Balance Sheet, MTD Profit & Loss, Day Book, General Ledger, Cash & Bank (list + Add account), GST invoice register. Export Excel on each tab (no PDF).
 6. Bookmarks to `/accounts/reports` and `/accounts/bank-accounts` redirect to Finance Dashboard (Cash & Bank hash for the latter). Sidebar has no Bank Accounts item.
 
 ## FD-2.5 Inventory Audit and dashboard operator flow

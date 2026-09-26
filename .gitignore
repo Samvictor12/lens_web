@@ -13,6 +13,7 @@ postgres_data
 dist
 dist-ssr
 *.local
+Plan
 
 # Editor directories and files
 .vscode/*

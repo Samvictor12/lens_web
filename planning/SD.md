@@ -1,12 +1,9 @@
 ﻿---
 v: 1
 sections:
-  - id: SD-1.1
-    title: Database ERD
-  - id: SD-2.1
-    title: Invoice and customer payment models
-  - id: SD-2.2
-    title: Income and loan records
+  - {id: SD-1.1, title: "Database ERD", line: 13, end: 172}
+  - {id: SD-2.1, title: "Invoice and customer payment models", line: 173, end: 179}
+  - {id: SD-2.2, title: "Income and loan records", line: 180, end: 184}
 ---
 
 # Lens Web — Database ERD

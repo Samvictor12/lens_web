@@ -127,6 +127,27 @@ function dateRange(from, to) {
   };
 }
 
+function applyLedgerEntryBalance(running, entryType, amt, isDebitNormal) {
+  if (entryType === 'DEBIT') return isDebitNormal ? running + amt : running - amt;
+  return isDebitNormal ? running - amt : running + amt;
+}
+
+function ledgerStatementTxnDateFilter(from, to) {
+  if (!from && !to) return { fromStart: null, txnDate: undefined };
+  const fromParsed = from ? parseInvoiceCalendarDate(from) : null;
+  const toParsed = to ? parseInvoiceCalendarDate(to) : null;
+  const fromStart = fromParsed ? localDayBounds(fromParsed).start : null;
+  const toEnd = toParsed ? localDayBounds(toParsed).end : null;
+  const txnDate = {
+    ...(fromStart && { gte: fromStart }),
+    ...(toEnd && { lte: toEnd }),
+  };
+  return {
+    fromStart,
+    txnDate: Object.keys(txnDate).length ? txnDate : undefined,
+  };
+}
+
 async function sumEntriesByLedgerType(types, entryType, txnDateFilter) {
   return prisma.transactionEntry.groupBy({
     by: ['ledgerId'],
@@ -251,9 +272,34 @@ export class FinancialReportService {
     const ledger = await prisma.ledger.findFirst({ where: { id: lid, delete_status: false } });
     if (!ledger) throw new APIError('Ledger not found', 404, 'NOT_FOUND');
 
-    const filter = dateRange(from, to);
+    const { fromStart, txnDate } = ledgerStatementTxnDateFilter(from, to);
+    const isDebitNormal = ['ASSET', 'EXPENSE'].includes(ledger.ledgerType);
+
+    let openingBalance = parseFloat(ledger.openingBalance);
+    if (fromStart) {
+      const priorEntries = await prisma.transactionEntry.findMany({
+        where: {
+          ledgerId: lid,
+          transaction: { transactionDate: { lt: fromStart }, isPosted: true },
+        },
+        select: { entryType: true, amount: true },
+        orderBy: [{ transaction: { transactionDate: 'asc' } }, { id: 'asc' }],
+      });
+      for (const e of priorEntries) {
+        openingBalance = applyLedgerEntryBalance(
+          openingBalance,
+          e.entryType,
+          parseFloat(e.amount),
+          isDebitNormal
+        );
+      }
+    }
+
     const entries = await prisma.transactionEntry.findMany({
-      where: { ledgerId: lid, ...(filter && { transaction: { transactionDate: filter, isPosted: true } }) },
+      where: {
+        ledgerId: lid,
+        ...(txnDate && { transaction: { transactionDate: txnDate, isPosted: true } }),
+      },
       include: {
         transaction: {
           select: {
@@ -331,14 +377,12 @@ export class FinancialReportService {
       }
     }
 
-    const isDebitNormal = ['ASSET', 'EXPENSE'].includes(ledger.ledgerType);
-    let running = parseFloat(ledger.openingBalance);
+    let running = openingBalance;
 
     const rows = entries.map(e => {
       const txn = e.transaction;
       const amt = parseFloat(e.amount);
-      if (e.entryType === 'DEBIT') running = isDebitNormal ? running + amt : running - amt;
-      else running = isDebitNormal ? running - amt : running + amt;
+      running = applyLedgerEntryBalance(running, e.entryType, amt, isDebitNormal);
 
       let breakdown = null;
       if (txn.transactionType === 'RECEIPT' && txn.referenceType === 'RECEIPT' && txn.referenceId) {
@@ -386,7 +430,7 @@ export class FinancialReportService {
 
     return {
       ledger: { id: ledger.id, ledgerCode: ledger.ledgerCode, ledgerName: ledger.ledgerName, ledgerType: ledger.ledgerType },
-      openingBalance: parseFloat(ledger.openingBalance).toFixed(2),
+      openingBalance: openingBalance.toFixed(2),
       closingBalance: running.toFixed(2),
       entries: rows,
     };

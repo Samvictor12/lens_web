@@ -1,10 +1,8 @@
 ﻿---
 v: 1
 sections:
-  - id: DD-1.1
-    title: Architecture overview
-  - id: DD-2.1
-    title: Financial accounting surfaces
+  - {id: DD-1.1, title: "Architecture overview", line: 12, end: 104}
+  - {id: DD-2.1, title: "Financial accounting surfaces", line: 105, end: 125}
 ---
 
 # Lens Web — System Architecture
@@ -107,7 +105,7 @@ To prevent race conditions and inventory mismatches:
 ## DD-2.1 Financial accounting surfaces
 
 Primary UI paths:
-- **Billing and invoicing (shipped 2026-08-27):** `src/pages/Accounting/BillingAndInvoicing/` → `/accounts/billing-and-invoicing`; tab-aware header CTAs (Awaiting→Create Invoice, Invoices→Record Payment, Credit Notes→New Credit Note); Record Payment in-page dialog; legacy `/record-payment` redirects to hub
+- **Billing and invoicing (shipped 2026-08-27; PRD-4.16 2026-09-16):** `src/pages/Accounting/BillingAndInvoicing/` → `/accounts/billing-and-invoicing`; tab-aware header CTAs (Awaiting→Create Invoice, Invoices→Record Payment, Credit Notes→New Credit Note); Record Payment in-page dialog; legacy `/record-payment` redirects to hub. Stats `draftedInvoiceCount`; outstanding optional `status`; Collection tab Target/Actual/Balance table.
 - Legacy redirects: `/billing`, `/accounts/customer-payments` → merged workspace
 - Income: `src/pages/Accounting/Income/` → `/accounts/income` (nav label **Income and loans**; Loan via category filter)
 - **Vendor & payments (shipped 2026-08-30):** `src/pages/Accounting/VendorPayments/` → `/accounts/vendor-payments`; Record Payment in-page dialog (header on Vendor Bills tab); legacy `/record-payment` redirects to hub; nav **Vendor & payments**
@@ -115,10 +113,11 @@ Primary UI paths:
 - **Finance Dashboard (shipped 2026-08-31; PRD-4.15 2026-09-14; KPI bind + local dates + Row-1 month-start 2026-09-15):** `src/pages/Accounting/FinanceDashboard/` → `/accounts/finance-dashboard`. Row-1 `today.*` = calendar month start → asOf EOD (`monthStart`); labels Sales/Collection/Purchases/Expenses. FY trend still Apr–Mar. Row-2 `position.*` snapshots. Bind via `unwrapDashboardPayload`.
 - Financial Reports: `/accounts/reports` redirects to Finance Dashboard
 - Bank Accounts: `/accounts/bank-accounts` redirects to dashboard `#cash-bank`; sidebar item removed
-- **Customer 360 (shipped 2026-08-30):** `src/pages/Accounting/Customer360/` → `/accounts/customer-360`
+- **Customer 360 (shipped 2026-08-30; Documents & ledger Excel 2026-09-16):** `src/pages/Accounting/Customer360/` → `/accounts/customer-360`. Section 4 exports loaded rows via `downloadExcel` (`reportExport.jsx`); no export API.
+- Finance Dashboard statutory report tabs: Excel only (`ReportExportButtons` without `onPdf`).
 - Nav: `src/components/layout/AppSidebar.jsx` — Accounting › Finance Dashboard (finance_dashboard key) first, then Billing, Customer 360, Vendor & payments (no Bank Accounts)
 
-Key APIs: `/api/invoices` (+ filter-scoped stats), `/api/customer-payments` (+ `applyAdvanceAmount`), `/api/incomes`, `/api/expenses`, `/api/vendor-payments` (+ `/stats`, `/outstanding-invoices` filters), `/api/vendor-indirect-expenses` (+ `/pay`), `/api/accounting/vendor-invoices/awaiting-bills`, `/api/financial-reports/*` (+ `/dashboard` `collectionByCustomer`, `/trial-balance-grouped`, `/profit-loss`, `/balance-sheet`), `/api/bank-accounts`, `/api/accounting/gst-reports/register`, `/api/ledgers/cash-bank`, `/api/ledgers/capital-posting`, `/api/ledgers/loans-posting`, `/api/ledgers/liability-posting`, `/api/customer-360/:customerId/overview`, `/api/customer-360/:customerId/cards/:cardKey`.
+Key APIs: `/api/invoices` (+ filter-scoped stats including `draftedInvoiceCount`), `/api/customer-payments` (+ `outstanding` optional `status`, `applyAdvanceAmount`), `/api/incomes`, `/api/expenses`, `/api/vendor-payments` (+ `/stats`, `/outstanding-invoices` filters), `/api/vendor-indirect-expenses` (+ `/pay`), `/api/accounting/vendor-invoices/awaiting-bills`, `/api/financial-reports/*` (+ `/dashboard` `collectionByCustomer`, `/trial-balance-grouped`, `/profit-loss`, `/balance-sheet`), `/api/bank-accounts`, `/api/accounting/gst-reports/register`, `/api/ledgers/cash-bank`, `/api/ledgers/capital-posting`, `/api/ledgers/loans-posting`, `/api/ledgers/liability-posting`, `/api/customer-360/:customerId/overview`, `/api/customer-360/:customerId/cards/:cardKey`.
 
 Allocation: `src/backend/utils/paymentAllocation.js`. Posting: `src/backend/services/accountingService.js` (+ `postIndirectExpenseAccrual`, `postIndirectExpensePayment`). Indirect expense pay UI: `PayExpenseBillDialog.jsx` (liability account + FIFO). Customer 360 aggregation: `src/backend/services/customer360Service.js` (read-only; reuses invoice/payment/SO/CN/ledger data).
 

@@ -10,10 +10,17 @@ import { getInvoices } from "@/services/invoice";
 import { getCustomerPayments } from "@/services/customerPayment";
 import { getCreditDebitNotes } from "@/services/creditDebitNote";
 import { getLedgerStatement } from "@/services/financialReport";
+import { getCustomer360Card } from "@/services/customer360";
 import { currentMonthRange } from "@/constants/accountingPaths";
+import { ReportExportButtons, downloadExcel } from "../FinancialReports/reportExport";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+}
+
+function excelNum(n) {
+  const v = parseFloat(n);
+  return Number.isFinite(v) ? v : 0;
 }
 
 function fmtDate(d) {
@@ -25,7 +32,12 @@ function fmtDate(d) {
  * Section 4 — outstanding invoices, payments, credit notes, customer ledger.
  * Reuses existing list APIs (contract).
  */
-export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }) {
+export default function Customer360Tabs({
+  customerId,
+  ledgerId,
+  refreshKey = 0,
+  activeCardKey = "ordersMonth",
+}) {
   const { toast } = useToast();
   const [tab, setTab] = useState("invoices");
   const month = currentMonthRange();
@@ -58,6 +70,23 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
     }
   }, [customerId, toast]);
 
+  const loadCollectionTargetInvoices = useCallback(async () => {
+    if (!customerId) return;
+    setLoading(true);
+    try {
+      const res = await getCustomer360Card(customerId, "collectionTarget", {
+        page: 1,
+        limit: 50,
+      });
+      setInvoices(res.data || []);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to load collection target" });
+      setInvoices([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [customerId, toast]);
+
   const loadPayments = useCallback(async () => {
     if (!customerId) return;
     setLoading(true);
@@ -70,6 +99,23 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
       setPayments(res.data || []);
     } catch {
       toast({ variant: "destructive", title: "Failed to load payments" });
+      setPayments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [customerId, toast]);
+
+  const loadCollectionActualPayments = useCallback(async () => {
+    if (!customerId) return;
+    setLoading(true);
+    try {
+      const res = await getCustomer360Card(customerId, "collectionActual", {
+        page: 1,
+        limit: 50,
+      });
+      setPayments(res.data || []);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to load collection actual" });
       setPayments([]);
     } finally {
       setLoading(false);
@@ -126,11 +172,33 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
   }, [ledgerFrom, ledgerTo, loadLedgerForRange]);
 
   useEffect(() => {
+    if (activeCardKey === "collectionTarget") setTab("invoices");
+    else if (activeCardKey === "collectionActual") setTab("payments");
+  }, [activeCardKey]);
+
+  useEffect(() => {
     if (!customerId) return;
-    if (tab === "invoices") loadInvoices();
-    else if (tab === "payments") loadPayments();
-    else if (tab === "notes") loadNotes();
-  }, [customerId, tab, refreshKey, loadInvoices, loadPayments, loadNotes]);
+    if (tab === "invoices") {
+      if (activeCardKey === "collectionTarget") loadCollectionTargetInvoices();
+      else loadInvoices();
+    } else if (tab === "payments") {
+      if (activeCardKey === "collectionActual") loadCollectionActualPayments();
+      else loadPayments();
+    } else if (tab === "notes") loadNotes();
+  }, [
+    customerId,
+    tab,
+    activeCardKey,
+    refreshKey,
+    loadInvoices,
+    loadCollectionTargetInvoices,
+    loadPayments,
+    loadCollectionActualPayments,
+    loadNotes,
+  ]);
+
+  const collectionTargetMode = activeCardKey === "collectionTarget" && tab === "invoices";
+  const collectionActualMode = activeCardKey === "collectionActual" && tab === "payments";
 
   useEffect(() => {
     if (!customerId || tab !== "ledger") return;
@@ -151,6 +219,79 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
     setTab("invoices");
   }, [customerId]);
 
+  const exportInvoices = () => {
+    const headers = collectionTargetMode
+      ? ["Invoice", "Status", "Total", "Paid", "Due", "Target"]
+      : ["Invoice", "Status", "Total", "Paid", "Due"];
+    downloadExcel({
+      filename: collectionTargetMode ? "customer-collection-target" : "customer-invoices",
+      sheetName: collectionTargetMode ? "Collection target" : "Invoices",
+      headers,
+      rows: invoices.map((inv) => {
+        const base = [
+          inv.invoiceNo,
+          inv.status,
+          excelNum(inv.totalAmount),
+          excelNum(inv.paidAmount),
+          fmtDate(inv.dueDate),
+        ];
+        if (collectionTargetMode) base.push(excelNum(inv.balance));
+        return base;
+      }),
+    });
+  };
+
+  const exportPayments = () => {
+    downloadExcel({
+      filename: collectionActualMode ? "customer-collection-actual" : "customer-payments",
+      sheetName: collectionActualMode ? "Collection actual" : "Payments",
+      headers: ["Receipt", "Date", "Method", collectionActualMode ? "Actual" : "Amount"],
+      rows: payments.map((p) => [
+        p.receiptNumber,
+        fmtDate(p.paymentDate),
+        p.paymentMethod,
+        excelNum(p.totalAmount),
+      ]),
+    });
+  };
+
+  const exportNotes = () => {
+    downloadExcel({
+      filename: "customer-credit-notes",
+      sheetName: "Credit Notes",
+      headers: ["Note", "Date", "Status", "Amount"],
+      rows: notes.map((n) => [
+        n.noteNumber,
+        fmtDate(n.noteDate),
+        n.status,
+        excelNum(n.amount),
+      ]),
+    });
+  };
+
+  const exportLedger = () => {
+    if (!ledger) return;
+    const rows = [
+      ["Opening", "", "", "", "", "", excelNum(ledger.openingBalance)],
+      ...(ledger.entries || []).map((e) => [
+        fmtDate(e.date),
+        e.transactionNumber,
+        e.referenceNumber || "",
+        e.narration,
+        excelNum(e.debit),
+        excelNum(e.credit),
+        excelNum(e.balance),
+      ]),
+      ["Closing", "", "", "", "", "", excelNum(ledger.closingBalance)],
+    ];
+    downloadExcel({
+      filename: `customer-ledger_${ledgerFrom}_${ledgerTo}`,
+      sheetName: "Customer Ledger",
+      headers: ["Date", "Txn No", "Ref", "Narration", "Debit", "Credit", "Balance"],
+      rows,
+    });
+  };
+
   return (
     <div className="space-y-2 pb-4 min-h-[360px]">
       <h2 className="text-sm font-semibold text-muted-foreground">Documents & ledger</h2>
@@ -162,12 +303,22 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           <TabsTrigger value="ledger" className="text-xs">Customer ledger</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="invoices" className="mt-2 min-h-[280px]">
+        <TabsContent value="invoices" className="mt-2 min-h-[280px] space-y-2">
+          {collectionTargetMode && (
+            <p className="text-xs text-muted-foreground">
+              Collection target — invoices due this month (outstanding balance per row).
+            </p>
+          )}
+          <div className="flex justify-end">
+            <ReportExportButtons disabled={invoices.length === 0} onExcel={exportInvoices} />
+          </div>
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
           ) : invoices.length === 0 ? (
             <Card className="p-6 text-center text-sm text-muted-foreground">
-              No outstanding invoices
+              {collectionTargetMode
+                ? "No collection target invoices this month"
+                : "No outstanding invoices"}
             </Card>
           ) : (
             <div className="overflow-x-auto rounded-md border">
@@ -179,6 +330,9 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
                     <th className="p-2 text-right">Total</th>
                     <th className="p-2 text-right">Paid</th>
                     <th className="p-2 text-left">Due</th>
+                    {collectionTargetMode && (
+                      <th className="p-2 text-right">Target</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -189,6 +343,9 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
                       <td className="p-2 text-right">{fmt(inv.totalAmount)}</td>
                       <td className="p-2 text-right">{fmt(inv.paidAmount)}</td>
                       <td className="p-2 text-xs">{fmtDate(inv.dueDate)}</td>
+                      {collectionTargetMode && (
+                        <td className="p-2 text-right font-medium">{fmt(inv.balance)}</td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -197,11 +354,21 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           )}
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-2 min-h-[280px]">
+        <TabsContent value="payments" className="mt-2 min-h-[280px] space-y-2">
+          {collectionActualMode && (
+            <p className="text-xs text-muted-foreground">
+              Collection actual — receipts recorded this month.
+            </p>
+          )}
+          <div className="flex justify-end">
+            <ReportExportButtons disabled={payments.length === 0} onExcel={exportPayments} />
+          </div>
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
           ) : payments.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-muted-foreground">No payments</Card>
+            <Card className="p-6 text-center text-sm text-muted-foreground">
+              {collectionActualMode ? "No collection receipts this month" : "No payments"}
+            </Card>
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
@@ -210,7 +377,9 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
                     <th className="p-2 text-left">Receipt</th>
                     <th className="p-2 text-left">Date</th>
                     <th className="p-2 text-left">Method</th>
-                    <th className="p-2 text-right">Amount</th>
+                    <th className="p-2 text-right">
+                      {collectionActualMode ? "Actual" : "Amount"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -228,7 +397,10 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
           )}
         </TabsContent>
 
-        <TabsContent value="notes" className="mt-2 min-h-[280px]">
+        <TabsContent value="notes" className="mt-2 min-h-[280px] space-y-2">
+          <div className="flex justify-end">
+            <ReportExportButtons disabled={notes.length === 0} onExcel={exportNotes} />
+          </div>
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
           ) : notes.length === 0 ? (
@@ -283,6 +455,7 @@ export default function Customer360Tabs({ customerId, ledgerId, refreshKey = 0 }
               <Button size="sm" className="h-8" onClick={loadLedger} disabled={loading || !customerId}>
                 {loading ? "Loading…" : "Generate"}
               </Button>
+              <ReportExportButtons disabled={!ledger} onExcel={exportLedger} />
             </div>
           </Card>
           <div>

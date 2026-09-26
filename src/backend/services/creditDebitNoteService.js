@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 import { APIError } from '../middleware/errorHandler.js';
-import { postDebitNote } from './accountingService.js';
+import { postDebitNote, postCreditNote, postReversingTransaction } from './accountingService.js';
 
 function round2(n) {
   return Math.round(parseFloat(n) * 100) / 100;
@@ -19,8 +19,8 @@ async function generateNoteNumber(model, prefix) {
 
 /**
  * Customer Credit Note / Debit Note service (M4).
- * CN reduces customer AR balance (outstanding_credit); DN increases it.
- * Both post a FinancialTransaction via accountingService for ledger consistency.
+ * CN: applied to an invoice when invoiceId is set; otherwise customer-level pending CN.
+ * Reduces outstanding_credit and posts GL. DN increases AR (legacy).
  */
 export class CreditDebitNoteService {
   async list({ type, customerId, from, to, page = 1, limit = 20 } = {}) {
@@ -99,6 +99,13 @@ export class CreditDebitNoteService {
       if (invoice.customerId !== cid) {
         throw new APIError('Invoice does not belong to this customer', 400, 'INVOICE_CUSTOMER_MISMATCH');
       }
+      if (kind === 'credit' && !['ISSUED', 'PARTIALLY_PAID'].includes(invoice.status)) {
+        throw new APIError(
+          'Credit note can only be applied to issued or partially paid invoices',
+          400,
+          'INVALID_INVOICE_STATUS'
+        );
+      }
     }
 
     const isCredit = kind === 'credit';
@@ -123,9 +130,35 @@ export class CreditDebitNoteService {
         },
       });
 
-      // M7: Customer Credit Note is document-only — no outstanding_credit / ledger posting.
-      // Customer Debit Note keeps existing AR posting behavior.
-      if (!isCredit) {
+      if (isCredit) {
+        if (invoice) {
+          const outstanding = round2(invoice.totalAmount - invoice.paidAmount);
+          if (amt > outstanding + 0.01) {
+            throw new APIError(
+              `Credit note amount exceeds invoice ${invoice.invoiceNo} outstanding (₹${outstanding.toFixed(2)})`,
+              400,
+              'OVER_ALLOCATION'
+            );
+          }
+          const newPaidAmount = round2(invoice.paidAmount + amt);
+          const isFullyPaid = newPaidAmount >= invoice.totalAmount - 0.01;
+          const newStatus = isFullyPaid ? 'PAID' : 'PARTIALLY_PAID';
+          await tx.invoice.update({
+            where: { id: invoice.id },
+            data: { paidAmount: newPaidAmount, status: newStatus, updatedBy: userId },
+          });
+        }
+
+        await tx.customer.update({
+          where: { id: cid },
+          data: { outstanding_credit: { decrement: Math.round(amt) } },
+        });
+        await postCreditNote(
+          tx,
+          { creditNoteId: note.id, noteNumber, amount: amt, taxAmount: tax, customer },
+          userId
+        );
+      } else {
         await tx.customer.update({
           where: { id: cid },
           data: { outstanding_credit: { increment: Math.round(amt) } },
@@ -153,16 +186,30 @@ export class CreditDebitNoteService {
       const isCredit = model === 'creditNote';
 
       if (isCredit) {
-        // M7: only reverse outstanding if a historical CREDIT_NOTE FT exists.
         const postedTxn = await tx.financialTransaction.findFirst({
           where: { referenceType: 'CREDIT_NOTE', referenceId: note.id },
           orderBy: { createdAt: 'asc' },
         });
         if (postedTxn) {
+          await postReversingTransaction(tx, postedTxn.id, userId, `Cancel ${note.noteNumber}`);
           await tx.customer.update({
             where: { id: note.customerId },
             data: { outstanding_credit: { increment: Math.round(note.amount) } },
           });
+          if (note.invoiceId) {
+            const inv = await tx.invoice.findUnique({ where: { id: note.invoiceId } });
+            if (inv && inv.deleteStatus === false) {
+              const cnAmt = round2(note.amount);
+              const newPaid = round2(Math.max(0, inv.paidAmount - cnAmt));
+              let newStatus = 'ISSUED';
+              if (newPaid >= inv.totalAmount - 0.01) newStatus = 'PAID';
+              else if (newPaid > 0.01) newStatus = 'PARTIALLY_PAID';
+              await tx.invoice.update({
+                where: { id: inv.id },
+                data: { paidAmount: newPaid, status: newStatus, updatedBy: userId },
+              });
+            }
+          }
         }
       } else {
         // Debit notes always posted AR — reverse on cancel.

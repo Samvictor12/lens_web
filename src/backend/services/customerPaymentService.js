@@ -22,11 +22,21 @@ function normalizePaymentMethod(method) {
 
 export class CustomerPaymentService {
 
-  async list({ customerId, from, to, paymentMethod, page = 1, limit = 20 }) {
+  async list({ customerId, from, to, paymentMethod, page = 1, limit = 20, productId, cancelledStatus } = {}) {
+    const pid = productId ? parseInt(productId) : null;
+    const excludeCancelled = cancelledStatus === false || cancelledStatus === 'false';
     const where = {
       delete_status: false,
+      ...(excludeCancelled && { cancelledStatus: false }),
       ...(customerId && { customerId: parseInt(customerId) }),
       ...(paymentMethod && { paymentMethod }),
+      ...(pid && {
+        items: {
+          some: {
+            invoice: { saleOrders: { some: { lens_id: pid } } },
+          },
+        },
+      }),
       ...((from || to) && {
         paymentDate: {
           ...(from && { gte: new Date(from) }),
@@ -96,10 +106,12 @@ export class CustomerPaymentService {
     groupBy = 'customer',
     customerId,
     productId,
-    startDate,
     endDate,
+    status,
     collectible = false,
   } = {}) {
+    // Collectible: dueDate <= LEAST(today, endDate); never startDate (KB-004).
+    // Invoices tab: ignore month dates (PRD-4.1 / KB-009).
     const dueDate = {};
     if (collectible) {
       const cap = new Date();
@@ -110,24 +122,35 @@ export class CustomerPaymentService {
         if (filterEnd < cap) cap.setTime(filterEnd.getTime());
       }
       dueDate.lte = cap;
-    } else {
-      if (startDate) {
-        const from = new Date(startDate);
-        from.setHours(0, 0, 0, 0);
-        dueDate.gte = from;
-      }
-      if (endDate) {
-        const to = new Date(endDate);
-        to.setHours(23, 59, 59, 999);
-        dueDate.lte = to;
-      }
     }
+
+    const allInvoiceStatuses = ['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'];
+    const openReceivableStatuses = ['ISSUED', 'PARTIALLY_PAID'];
+    const legacyDefaultStatuses = ['DRAFT', 'ISSUED', 'PARTIALLY_PAID'];
+    const statusKey = String(status || '').trim().toUpperCase();
+    const statusFilter = collectible
+      ? { in: openReceivableStatuses }
+      : statusKey === 'OPEN'
+        ? { in: openReceivableStatuses }
+        : statusKey === 'ALL'
+          ? { in: allInvoiceStatuses }
+          : allInvoiceStatuses.includes(statusKey)
+            ? statusKey
+            : { in: legacyDefaultStatuses };
+
+    const filterByOutstandingBalance =
+      collectible ||
+      (statusKey !== 'ALL' &&
+        statusKey !== 'PAID' &&
+        statusKey !== 'CANCELLED' &&
+        (statusKey === 'OPEN' ||
+          statusKey === '' ||
+          openReceivableStatuses.includes(statusKey) ||
+          legacyDefaultStatuses.includes(statusKey)));
 
     const invoices = await prisma.invoice.findMany({
       where: {
-        status: collectible
-          ? { in: ['ISSUED', 'PARTIALLY_PAID'] }
-          : { in: ['DRAFT', 'ISSUED', 'PARTIALLY_PAID'] },
+        status: statusFilter,
         deleteStatus: false,
         ...(customerId && { customerId: parseInt(customerId) }),
         ...(productId && {
@@ -172,7 +195,7 @@ export class CustomerPaymentService {
           status: inv.status,
         };
       })
-      .filter((r) => r.outstanding > 0.01);
+      .filter((r) => !filterByOutstandingBalance || r.outstanding > 0.01);
 
     if (groupBy === 'customer') {
       const groupMap = new Map();

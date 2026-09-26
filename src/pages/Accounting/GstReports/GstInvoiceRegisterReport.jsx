@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getGstInvoiceRegister } from "@/services/gstReport";
 import { firstDayOfMonth, lastDayOfMonth } from "./gstReportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "../FinancialReports/reportExport";
+import { ReportExportButtons, downloadExcel } from "../FinancialReports/reportExport";
 
 export const GST_REGISTER_HEADERS = [
   "SlNo",
@@ -93,9 +93,6 @@ export default function GstInvoiceRegisterReport() {
       rows: excelRows,
     });
 
-  const handlePdf = () =>
-    exportPdf("GST Report", tableHtml(headers, excelRows, `GST Report (${from} to ${to})`));
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-end">
@@ -110,7 +107,7 @@ export default function GstInvoiceRegisterReport() {
         <Button size="sm" onClick={load} disabled={loading}>
           {loading ? "Loading..." : "Generate"}
         </Button>
-        <ReportExportButtons disabled={!data} onExcel={handleExcel} onPdf={handlePdf} />
+        <ReportExportButtons disabled={!data} onExcel={handleExcel} />
       </div>
 
       {data && (

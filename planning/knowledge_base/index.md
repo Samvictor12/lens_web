@@ -31,4 +31,7 @@
 | KB-027 | Finance dashboard local calendar-day sales/purchases | PRD-4.6, PRD-4.10, DD-2.1, FD-2.4, req-002 |
 | KB-028 | Finance dashboard FYTD Row-1 KPIs | PRD-4.6, DD-2.1, FD-2.4, req-003 |
 | KB-029 | Finance dashboard month-start Row-1 KPIs | PRD-4.6, DD-2.1, FD-2.4, req-004 |
+| KB-030 | Customer 360 Excel and dashboard Excel-only reports | PRD-4.3, PRD-4.15, DD-2.1, FD-2.3, FD-2.4, req-001 |
+| KB-031 | Billing draft KPI, invoice status, collection list | PRD-4.16, PRD-4.1, DD-2.1, FD-2.1, req-031 |
+| KB-032 | Memory-first orchestrator loads | index line/end slices; approve-only agents |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

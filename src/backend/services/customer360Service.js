@@ -406,7 +406,7 @@ export class Customer360Service {
     if (!customer) throw new APIError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(5, Math.max(1, parseInt(limit, 10) || 5));
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 5));
     const skip = (pageNum - 1) * pageSize;
     const bounds = monthBounds();
     const { type, where } = cardWhere(cardKey, id, bounds);

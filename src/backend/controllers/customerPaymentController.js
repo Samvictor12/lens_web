@@ -11,7 +11,7 @@ export class CustomerPaymentController {
   }
   async getOutstanding(req, res, next) {
     try {
-      const { groupBy = 'customer', customerId, productId, startDate, endDate, collectible } =
+      const { groupBy = 'customer', customerId, productId, startDate, endDate, collectible, status } =
         req.query;
       res.json({
         success: true,
@@ -21,6 +21,7 @@ export class CustomerPaymentController {
           productId,
           startDate,
           endDate,
+          status,
           collectible: collectible === 'true' || collectible === true,
         }),
       });

@@ -54,9 +54,11 @@ export function ReportExportButtons({ disabled, onExcel, onPdf }) {
       <Button size="sm" variant="outline" className="gap-1.5" disabled={disabled} onClick={onExcel}>
         <Download className="h-3.5 w-3.5" /> Export Excel
       </Button>
-      <Button size="sm" variant="outline" className="gap-1.5" disabled={disabled} onClick={onPdf}>
-        <Printer className="h-3.5 w-3.5" /> Export PDF
-      </Button>
+      {onPdf ? (
+        <Button size="sm" variant="outline" className="gap-1.5" disabled={disabled} onClick={onPdf}>
+          <Printer className="h-3.5 w-3.5" /> Export PDF
+        </Button>
+      ) : null}
     </>
   );
 }
