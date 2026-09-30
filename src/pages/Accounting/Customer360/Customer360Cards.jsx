@@ -71,28 +71,103 @@ const CARD_DEFS = [
   },
 ];
 
-function rowPrimary(cardKey, row) {
-  if (cardKey === "collectionActual") return row.receiptNumber;
-  if (cardKey === "collectionTarget") return row.invoiceNo;
-  return row.orderNo;
-}
-
-function rowSecondary(cardKey, row) {
-  if (cardKey === "collectionActual") {
-    return `${fmtMoney(row.totalAmount)} · ${fmtDate(row.paymentDate)} · ${row.paymentMethod || ""}`;
-  }
-  if (cardKey === "collectionTarget") {
-    return `${fmtMoney(row.balance)} due ${fmtDate(row.dueDate)} · ${row.status}`;
-  }
-  const lens = row.lensProduct?.lens_name;
-  return [row.status, lens, fmtDate(row.orderDate || row.createdAt)].filter(Boolean).join(" · ");
+function SaleOrderTable({ rows }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-muted text-xs">
+            <th className="p-2 text-left">Order</th>
+            <th className="p-2 text-left">Status</th>
+            <th className="p-2 text-left">Lens</th>
+            <th className="p-2 text-left">Order date</th>
+            <th className="p-2 text-left">Customer ref</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="border-b">
+              <td className="p-2 font-mono text-xs">{row.orderNo}</td>
+              <td className="p-2 text-xs">{row.status}</td>
+              <td className="p-2 text-xs">{row.lensProduct?.lens_name || "—"}</td>
+              <td className="p-2 text-xs">{fmtDate(row.orderDate || row.createdAt)}</td>
+              <td className="p-2 text-xs text-muted-foreground">{row.customerRefNo || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /**
  * Section 2 — clickable KPI cards with inline paginated record list below.
  */
-export default function Customer360Cards({ customerId, cards, loading }) {
-  const [activeKey, setActiveKey] = useState("ordersMonth");
+function CollectionTargetTable({ rows }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-muted text-xs">
+            <th className="p-2 text-left">Invoice</th>
+            <th className="p-2 text-left">Status</th>
+            <th className="p-2 text-right">Total</th>
+            <th className="p-2 text-right">Paid</th>
+            <th className="p-2 text-left">Due</th>
+            <th className="p-2 text-right">Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((inv) => (
+            <tr key={inv.id} className="border-b">
+              <td className="p-2 font-mono text-xs">{inv.invoiceNo}</td>
+              <td className="p-2 text-xs">{inv.status}</td>
+              <td className="p-2 text-right">{fmtMoney(inv.totalAmount)}</td>
+              <td className="p-2 text-right">{fmtMoney(inv.paidAmount)}</td>
+              <td className="p-2 text-xs">{fmtDate(inv.dueDate)}</td>
+              <td className="p-2 text-right font-medium">{fmtMoney(inv.balance)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CollectionActualTable({ rows }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-muted text-xs">
+            <th className="p-2 text-left">Receipt</th>
+            <th className="p-2 text-left">Date</th>
+            <th className="p-2 text-left">Method</th>
+            <th className="p-2 text-right">Actual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr key={p.id} className="border-b">
+              <td className="p-2 font-mono text-xs">{p.receiptNumber}</td>
+              <td className="p-2 text-xs">{fmtDate(p.paymentDate)}</td>
+              <td className="p-2 text-xs">{p.paymentMethod || "—"}</td>
+              <td className="p-2 text-right font-medium">{fmtMoney(p.totalAmount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function Customer360Cards({
+  customerId,
+  cards,
+  loading,
+  activeKey = "ordersMonth",
+  onActiveKeyChange,
+}) {
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 5, total: 0, totalPages: 1 });
@@ -122,14 +197,13 @@ export default function Customer360Cards({ customerId, cards, loading }) {
   }, [activeKey, page, loadList]);
 
   useEffect(() => {
-    setActiveKey("ordersMonth");
     setPage(1);
     setRows([]);
   }, [customerId]);
 
   const selectCard = (key) => {
     if (activeKey === key) return;
-    setActiveKey(key);
+    onActiveKeyChange?.(key);
     setPage(1);
   };
 
@@ -182,25 +256,22 @@ export default function Customer360Cards({ customerId, cards, loading }) {
       </div>
 
       {activeKey && (
-        <Card className="shadow-none">
-          <CardHeader className="pb-2 pt-3 px-4">
+        <Card className="shadow-none mt-4">
+          <CardHeader className="pb-2 pt-3 px-4 space-y-0">
             <CardTitle className="text-sm font-medium">{activeDef?.label || "Details"}</CardTitle>
-            <p className="text-xs text-muted-foreground">Up to 5 rows per page</p>
+            <p className="text-xs text-muted-foreground mt-3">Up to 5 rows per page</p>
           </CardHeader>
-          <CardContent className="px-4 pb-4 pt-0 space-y-2">
+          <CardContent className="px-4 pb-4 pt-2 space-y-2">
             {listLoading ? (
               <p className="text-sm text-muted-foreground py-4 text-center">Loading…</p>
             ) : rows.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">No records</p>
+            ) : activeKey === "collectionTarget" ? (
+              <CollectionTargetTable rows={rows} />
+            ) : activeKey === "collectionActual" ? (
+              <CollectionActualTable rows={rows} />
             ) : (
-              rows.map((row) => (
-                <div key={row.id} className="rounded-md border p-2.5">
-                  <div className="text-sm font-medium font-mono">{rowPrimary(activeKey, row)}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {rowSecondary(activeKey, row)}
-                  </div>
-                </div>
-              ))
+              <SaleOrderTable rows={rows} />
             )}
             <div className="flex items-center justify-between pt-1">
               <Button

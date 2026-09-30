@@ -22,6 +22,7 @@ export default function Customer360Main() {
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeCardKey, setActiveCardKey] = useState("ordersMonth");
 
   useEffect(() => {
     (async () => {
@@ -57,6 +58,10 @@ export default function Customer360Main() {
   useEffect(() => {
     loadOverview();
   }, [loadOverview]);
+
+  useEffect(() => {
+    setActiveCardKey("ordersMonth");
+  }, [customerId]);
 
   return (
     <div className="flex flex-col gap-4 p-3 md:p-4 min-h-0 h-full overflow-y-auto">
@@ -97,6 +102,8 @@ export default function Customer360Main() {
             customerId={customerId}
             cards={overview?.cards}
             loading={loading}
+            activeKey={activeCardKey}
+            onActiveKeyChange={setActiveCardKey}
           />
           <Customer360Charts
             topLens={overview?.topLens}
@@ -107,6 +114,7 @@ export default function Customer360Main() {
             customerId={customerId}
             ledgerId={overview?.customer?.ledgerId}
             refreshKey={refreshKey}
+            activeCardKey={activeCardKey}
           />
         </div>
         </>

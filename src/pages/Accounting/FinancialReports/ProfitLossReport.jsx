@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getProfitLoss } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
+import { ReportExportButtons, downloadExcel } from "./reportExport";
 
 function monthStartFrom(dateStr) {
   if (!dateStr) return "";
@@ -90,11 +90,6 @@ export default function ProfitLossReport({ defaultAsOf, compact = false }) {
       rows: excelRows(),
     });
 
-  const handlePdf = () => {
-    const htmlRows = excelRows().map((r) => [r[0], r[1], r[2]]);
-    exportPdf("Profit & Loss", tableHtml(["Code", "Particulars", "Amount"], htmlRows, `Profit & Loss (${from} to ${to})`));
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-end">
@@ -109,7 +104,7 @@ export default function ProfitLossReport({ defaultAsOf, compact = false }) {
         <Button size="sm" onClick={load} disabled={loading}>
           {loading ? "Loading..." : "Generate"}
         </Button>
-        <ReportExportButtons disabled={!data} onExcel={handleExcel} onPdf={handlePdf} />
+        <ReportExportButtons disabled={!data} onExcel={handleExcel} />
       </div>
 
       {data && (

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormSelect } from "@/components/ui/form-select";
 import { useToast } from "@/hooks/use-toast";
 import { createCreditNote, createDebitNote } from "@/services/creditDebitNote";
+import { getOutstandingInvoices } from "@/services/customerPayment";
 
 const emptyForm = {
   customerId: "",
@@ -37,13 +38,49 @@ export default function CreateCreditDebitNoteDialog({
   const { toast } = useToast();
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [invoiceOptions, setInvoiceOptions] = useState([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   const isCredit = type === "credit";
   const label = isCredit ? "Credit Note" : "Debit Note";
 
   useEffect(() => {
-    if (open) setForm(emptyForm);
+    if (open) {
+      setForm(emptyForm);
+      setInvoiceOptions([]);
+    }
   }, [open, type]);
+
+  useEffect(() => {
+    if (!open || !isCredit || !form.customerId) {
+      setInvoiceOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingInvoices(true);
+    getOutstandingInvoices({ customerId: form.customerId, groupBy: "flat" })
+      .then((res) => {
+        if (cancelled || !res.success) return;
+        const rows = (res.data?.invoices || []).filter((inv) => inv.outstanding > 0.01);
+        setInvoiceOptions(
+          rows.map((inv) => ({
+            value: String(inv.id),
+            label: `${inv.invoiceNo} — outstanding ${inv.outstanding.toLocaleString("en-IN", {
+              minimumFractionDigits: 2,
+            })}`,
+          }))
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setInvoiceOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingInvoices(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isCredit, form.customerId]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -95,7 +132,7 @@ export default function CreateCreditDebitNoteDialog({
               name="customerId"
               options={customers}
               value={form.customerId}
-              onChange={(value) => set("customerId", value ?? "")}
+              onChange={(value) => setForm((f) => ({ ...f, customerId: value ?? "", invoiceId: "" }))}
               placeholder="Select customer"
               isSearchable
             />
@@ -134,15 +171,33 @@ export default function CreateCreditDebitNoteDialog({
               onChange={(e) => set("noteDate", e.target.value)}
             />
           </div>
-          <div className="space-y-1">
-            <Label>Originating Invoice ID (optional)</Label>
-            <Input
-              type="text"
-              value={form.invoiceId}
-              onChange={(e) => set("invoiceId", e.target.value)}
-              placeholder="Leave blank if not linked to an invoice"
-            />
-          </div>
+          {isCredit && (
+            <div className="space-y-1">
+              <Label>Apply to invoice (optional)</Label>
+              <FormSelect
+                name="invoiceId"
+                options={invoiceOptions}
+                value={form.invoiceId}
+                onChange={(value) => set("invoiceId", value ?? "")}
+                placeholder={
+                  loadingInvoices
+                    ? "Loading invoices…"
+                    : form.customerId
+                      ? invoiceOptions.length
+                        ? "Select invoice or leave as pending CN"
+                        : "No open invoices — pending CN on customer"
+                      : "Select customer first"
+                }
+                isSearchable
+                isDisabled={!form.customerId || loadingInvoices}
+                isClearable
+              />
+              <p className="text-[11px] text-muted-foreground">
+                With an invoice: credit is marked against that bill. Without: recorded as pending CN on the
+                customer (reduces outstanding).
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Reason</Label>
             <Textarea

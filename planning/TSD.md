@@ -1,12 +1,9 @@
 ---
 v: 1
 sections:
-  - id: TSD-1.1
-    title: Stack
-  - id: TSD-1.2
-    title: Environment
-  - id: TSD-1.3
-    title: Deploy
+  - {id: TSD-1.1, title: "Stack", line: 11, end: 20}
+  - {id: TSD-1.2, title: "Environment", line: 21, end: 24}
+  - {id: TSD-1.3, title: "Deploy", line: 25, end: 27}
 ---
 
 # Technical Specification Document

@@ -1,144 +1,24 @@
 ---
 v: 1
-modules:
-  - accounting
-  - billing
-  - sales
-  - crm
-  - inventory
-  - procurement
-  - quality
-  - admin
+modules: [accounting, billing, sales, crm, inventory, procurement, quality, admin]
 requirements:
-  - id: PRD-4.1
-    title: Billing and invoicing merge
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1, SD-2.1]
-    fd: [FD-2.1]
-  - id: PRD-4.2
-    title: Income and loans workspace
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1, SD-2.2]
-    fd: [FD-2.2]
-  - id: PRD-4.3
-    title: Customer 360 view
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1]
-    fd: [FD-2.3]
-  - id: PRD-4.4
-    title: Vendor and payments restructure
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1]
-    fd: [FD-2.1]
-  - id: PRD-4.5
-    title: Vendor indirect expenses accrual
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1]
-    fd: [FD-2.1]
-  - id: PRD-4.6
-    title: Finance dashboard
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1]
-    fd: [FD-2.4]
-  - id: PRD-4.7
-    title: Business intelligence Finance and Lab
-    status: draft
-    module: accounting
-    tsd: []
-    dd: []
-    sd: []
-    fd: []
-    note: HOLD — user briefs later (diagrams)
-  - id: PRD-4.8
-    title: Inventory Audit and dashboard overhaul
-    status: shipped
-    module: inventory
-    tsd: [TSD-1.1]
-    dd: [DD-1.1]
-    sd: [SD-1.1]
-    fd: [FD-2.5]
-  - id: PRD-4.9
-    title: Inventory unit-cost transaction ledger
-    status: shipped
-    module: inventory
-    tsd: [TSD-1.1]
-    dd: [DD-1.1]
-    sd: [SD-1.1]
-    fd: [FD-2.5]
-  - id: PRD-4.10
-    title: Document-dated GL and sale inventory credit
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1, SD-2.1]
-    fd: [FD-2.1]
-  - id: PRD-4.11
-    title: Capital Loans COA and expense dates
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-1.1, DD-2.1]
-    sd: [SD-1.1, SD-2.2]
-    fd: [FD-2.2]
-  - id: PRD-4.12
-    title: Inventory dashboard KPI and chart corrections
-    status: shipped
-    module: inventory
-    tsd: [TSD-1.1]
-    dd: [DD-1.1]
-    sd: [SD-1.1]
-    fd: [FD-2.5]
-  - id: PRD-4.13
-    title: Inventory dashboard layout and navigation polish
-    status: shipped
-    module: inventory
-    tsd: [TSD-1.1]
-    dd: [DD-1.1]
-    sd: [SD-1.1]
-    fd: [FD-2.5]
-  - id: PRD-4.14
-    title: Inventory tray transfer and cycle-count audit
-    status: shipped
-    module: inventory
-    tsd: [TSD-1.1]
-    dd: [DD-1.1]
-    sd: [SD-1.1]
-    fd: [FD-2.5]
-  - id: PRD-4.15
-    title: Finance dashboard collection report and statutory reports
-    status: shipped
-    module: accounting
-    tsd: [TSD-1.1]
-    dd: [DD-2.1]
-    sd: [SD-1.1, SD-2.1]
-    fd: [FD-2.4]
-  - id: PRD-5.1
-    title: Authentication session continuity
-    status: shipped
-    module: admin
-    tsd: [TSD-1.1]
-    dd: [DD-1.1]
-    sd: [SD-1.1]
-    fd: []
+  - {id: PRD-4.1, title: "Billing and invoicing merge", status: shipped, module: accounting, line: 45, end: 62, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1, SD-2.1], fd: [FD-2.1]}
+  - {id: PRD-4.2, title: "Income and loans workspace", status: shipped, module: accounting, line: 63, end: 73, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1, SD-2.2], fd: [FD-2.2]}
+  - {id: PRD-4.3, title: "Customer 360 view", status: shipped, module: accounting, line: 74, end: 84, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1], fd: [FD-2.3]}
+  - {id: PRD-4.4, title: "Vendor and payments restructure", status: shipped, module: accounting, line: 85, end: 99, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1], fd: [FD-2.1]}
+  - {id: PRD-4.5, title: "Vendor indirect expenses accrual", status: shipped, module: accounting, line: 100, end: 112, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1], fd: [FD-2.1]}
+  - {id: PRD-4.6, title: "Finance dashboard", status: shipped, module: accounting, line: 113, end: 126, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1], fd: [FD-2.4]}
+  - {id: PRD-4.7, title: "Business intelligence Finance and Lab", status: draft, module: accounting, line: 161, end: 168, tsd: [], dd: [], sd: [], fd: [], note: "HOLD"}
+  - {id: PRD-4.8, title: "Inventory Audit and dashboard overhaul", status: shipped, module: inventory, line: 169, end: 181, tsd: [TSD-1.1], dd: [DD-1.1], sd: [SD-1.1], fd: [FD-2.5]}
+  - {id: PRD-4.9, title: "Inventory unit-cost transaction ledger", status: shipped, module: inventory, line: 127, end: 138, tsd: [TSD-1.1], dd: [DD-1.1], sd: [SD-1.1], fd: [FD-2.5]}
+  - {id: PRD-4.10, title: "Document-dated GL and sale inventory credit", status: shipped, module: accounting, line: 139, end: 149, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1, SD-2.1], fd: [FD-2.1]}
+  - {id: PRD-4.11, title: "Capital Loans COA and expense dates", status: shipped, module: accounting, line: 150, end: 160, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [SD-1.1, SD-2.2], fd: [FD-2.2]}
+  - {id: PRD-4.12, title: "Inventory dashboard KPI and chart corrections", status: shipped, module: inventory, line: 182, end: 192, tsd: [TSD-1.1], dd: [DD-1.1], sd: [SD-1.1], fd: [FD-2.5]}
+  - {id: PRD-4.13, title: "Inventory dashboard layout and navigation polish", status: shipped, module: inventory, line: 193, end: 202, tsd: [TSD-1.1], dd: [DD-1.1], sd: [SD-1.1], fd: [FD-2.5]}
+  - {id: PRD-4.14, title: "Inventory tray transfer and cycle-count audit", status: shipped, module: inventory, line: 203, end: 210, tsd: [TSD-1.1], dd: [DD-1.1], sd: [SD-1.1], fd: [FD-2.5]}
+  - {id: PRD-4.15, title: "Finance dashboard collection report and statutory reports", status: shipped, module: accounting, line: 211, end: 222, tsd: [TSD-1.1], dd: [DD-2.1], sd: [SD-1.1, SD-2.1], fd: [FD-2.4]}
+  - {id: PRD-4.16, title: "Billing KPI draft count, invoice status filter, collection target list", status: shipped, module: accounting, line: 223, end: 233, tsd: [TSD-1.1], dd: [DD-1.1, DD-2.1], sd: [], fd: [FD-2.1]}
+  - {id: PRD-5.1, title: "Authentication session continuity", status: shipped, module: admin, line: 234, end: 239, tsd: [TSD-1.1], dd: [DD-1.1], sd: [SD-1.1], fd: []}
 ---
 
 # Project Requirements Document
@@ -147,9 +27,11 @@ requirements:
 
 | Class | Criteria | Route |
 |-------|----------|-------|
-| **Trivial** | ≤3 lines, one file, no SD/schema/API change | Orchestrator fixes directly |
-| **Standard bug** | Incorrect behaviour | `execution_state` request `type: bug` |
-| **New feature** | New capability | New request `type: feature` |
+| **Trivial** | ≤3 lines, one file, no SD/schema/API change | Main thread; no skill/agent load |
+| **Just answer** | Question / why / diagnose | Answer only; no state, no agents |
+| **No pipeline** | User said so | Direct work; no request |
+| **Standard bug** | Incorrect behaviour | `execution_state` request `type: bug`; agents only after `approve` |
+| **New feature** | New capability | New request `type: feature`; agents only after `approve` |
 | **Modification** | Extends shipped PRD section | New request; check `status: shipped` |
 
 ## PRD-0.1 Project summary
@@ -170,8 +52,8 @@ Merged top-level Billing and Accounting Customer Payments into **Billing and inv
 - Canonical UI: `/accounts/billing-and-invoicing`; Record Payment: `/accounts/billing-and-invoicing/record-payment`
 - Redirects: `/billing`, `/accounts/customer-payments` (incl. `openForm=1`)
 - Shared filters (default current month, customer, product) → KPIs + tabs
-- KPIs: Total Billing, Outstanding, Awaiting Bills, Target Collection (cumulative collectible: unpaid on `ISSUED`/`PARTIALLY_PAID` where `dueDate <= LEAST(today, filter.endDate)` — includes prior-month overdue; no `startDate` lower bound), Total/Today Collection
-- Tabs: Awaiting Invoices | Invoices (customer-grouped + multi-select) | Payments | Credit Notes | Collection (Balance to Collect + Collections Received) | Customer Ledger
+- KPIs: Total Billing, Outstanding, Awaiting Bills, Drafted Invoice count (PRD-4.16), Target Collection (cumulative collectible: unpaid on `ISSUED`/`PARTIALLY_PAID` where `dueDate <= LEAST(today, filter.endDate)` — includes prior-month overdue; no `startDate` lower bound), Total/Today Collection
+- Tabs: Awaiting Invoices | Invoices (customer-grouped + multi-select + Status filter) | Payments | Credit Notes | Collection (Customer / Target / Actual / Balance to collect) | Customer Ledger
 - Record Payment page: 5 sections; apply prior `advance_credit` + FIFO; POST `/api/customer-payments`
 - CN remains document-only
 
@@ -198,7 +80,7 @@ Invoices tab lists all outstanding (customer/product filtered); month filter emp
 - Section 1: Two columns — left: customer identity (name, shop, email, phone, sales person, delivery person, address); right: billing cycle, credit limit, outstanding, open credit notes (ISSUED), last payment, discount total (₹ sum).
 - Section 2: Clickable KPI cards with inline list below (5 rows + pagination, no side drawer): Orders this month, in Production, in Dispatch, Delivered, Collection target, Collection actual.
 - Section 3: Top lens orders by product + SPH/CYL/ADD spec; Credit Analysis (30/60/90 days due count + amount).
-- Section 4 tabs: Invoices (outstanding), Payments, Credit Notes, Customer Ledger.
+- Section 4 tabs: Invoices (outstanding), Payments, Credit Notes, Customer Ledger. Each tab exports the currently loaded rows/statement to Excel (client SpreadsheetML; no extra fetch).
 
 ## PRD-4.4 Vendor and payments restructure
 
@@ -330,13 +212,24 @@ Do not create active `execution_state` work for PRD-4.7 until briefed.
 
 **Status:** shipped (`req-001`, 2026-09-14). Extends PRD-4.6 / FD-2.4.
 
-Replace the MTD P&L snapshot with a customer Target vs Actual collection table (Customer, Target, Actual, Balance) for the current month. Cash & Bank KPI scrolls to an embedded Cash & Bank accounts list with current balances and Add; Accounting sidebar Bank Accounts removed (`/accounts/bank-accounts` redirects). Report tabs: Trial Balance, two-column detailed Balance Sheet, industrial MTD P&L, Day Book, General Ledger, Cash & Bank, GST invoice register (Excel template). Excel + PDF (print-to-PDF) on all report tabs.
+Replace the MTD P&L snapshot with a customer Target vs Actual collection table (Customer, Target, Actual, Balance) for the current month. Cash & Bank KPI scrolls to an embedded Cash & Bank accounts list with current balances and Add; Accounting sidebar Bank Accounts removed (`/accounts/bank-accounts` redirects). Report tabs: Trial Balance, two-column detailed Balance Sheet, industrial MTD P&L, Day Book, General Ledger, Cash & Bank, GST invoice register (Excel template). Export Excel on all report tabs (no Export PDF).
 
 ### Acceptance
 - Dashboard P&L Snapshot (MTD) is replaced by customer collection Target / Actual / Balance for the current month.
 - Cash & Bank Total is clickable and scrolls to Cash & Bank report; operators can add cash/bank ledgers there; sidebar Bank Accounts is removed.
 - Reports tab set: Trial Balance, Balance Sheet (assets left / liabilities right, detailed), Profit & Loss (current month, detailed), Day Book, General Ledger, Cash & Bank, GST Report (Excel template columns).
-- Every report tab exports Excel and PDF. GST Excel layout matches `GST Report Format.xlsx` (SlNo through Postage).
+- Every report tab exports Excel only (no PDF). GST Excel layout matches `GST Report Format.xlsx` (SlNo through Postage).
+
+## PRD-4.16 Billing KPI draft count, invoice status filter, collection target list
+
+**Status:** shipped (`req-031`, 2026-09-16). Extends PRD-4.1.
+
+On `/accounts/billing-and-invoicing`: Drafted Invoice count KPI; Invoices-tab Status dropdown next to Group by; Collection tab current-month list of collection target vs actual (Customer, Target, Actual, Balance to collect).
+
+### Acceptance
+- KPI row includes Drafted Invoice count (number of `DRAFT` invoices in filter scope).
+- Invoices tab has a Status dropdown beside Group by.
+- Collection tab is a list (Customer, Target, Actual, Balance to collect) for the current month.
 
 ## PRD-5.1 Authentication session continuity
 

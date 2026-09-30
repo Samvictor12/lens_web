@@ -93,6 +93,17 @@ const UNBILLED_SO_INVOICE_OR = [
   { invoice: { status: 'CANCELLED' } },
 ];
 
+/** Prisma where for invoices billed in a calendar window (billDate, else createdAt). */
+function invoiceBillDateRangeFilter(dateWindow) {
+  if (!dateWindow || !Object.keys(dateWindow).length) return {};
+  return {
+    OR: [
+      { billDate: dateWindow },
+      { AND: [{ billDate: null }, { createdAt: dateWindow }] },
+    ],
+  };
+}
+
 /**
  * Invoice Service
  * Handles business logic for combining delivered sale orders into invoices/bills.
@@ -797,7 +808,7 @@ export class InvoiceService {
     const billedWhere = {
       ...invoiceBase,
       status: { not: 'CANCELLED' },
-      ...(Object.keys(createdAt).length ? { createdAt } : {}),
+      ...invoiceBillDateRangeFilter(createdAt),
     };
 
     const outstandingWhere = {
@@ -926,6 +937,7 @@ export class InvoiceService {
     const totalBilling = billingAgg._sum.totalAmount || 0;
     const totalCollection = parseFloat(collectionAgg._sum.totalAmount || 0);
     const todayCollection = parseFloat(todayCollectionAgg._sum.totalAmount || 0);
+    const draftedInvoiceCount = byStatus['DRAFT'] || 0;
 
     return {
       total,
@@ -933,6 +945,7 @@ export class InvoiceService {
       paid,
       outstanding: Math.round(outstanding * 100) / 100,
       byStatus,
+      draftedInvoiceCount,
       totalBilling: Math.round(totalBilling * 100) / 100,
       awaitingBills,
       targetCollection: Math.round(targetCollection * 100) / 100,

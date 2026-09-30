@@ -31,7 +31,10 @@ import {
 import { getCustomerDropdown } from "@/services/customer";
 import { getCashBankLedgers } from "@/services/ledger";
 import { getLensProductsDropdown } from "@/services/saleOrder";
-import { canRecordPayment } from "@/pages/Billing/Billing.constants";
+import {
+  canRecordPayment,
+  INVOICE_LIST_STATUS_FILTER_OPTIONS,
+} from "@/pages/Billing/Billing.constants";
 import CreateInvoiceDialog from "@/pages/Billing/CreateInvoiceDialog";
 import InvoiceDetailDialog from "@/pages/Billing/InvoiceDetailDialog";
 import InvoicePreviewDialog from "@/pages/Billing/InvoicePreviewDialog";
@@ -103,6 +106,7 @@ export default function BillingAndInvoicingMain() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
   const [outstandingSearch, setOutstandingSearch] = useState("");
   const [groupBy, setGroupBy] = useState("customer");
+  const [invoiceStatus, setInvoiceStatus] = useState("OPEN");
 
   const [payments, setPayments] = useState([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
@@ -207,6 +211,7 @@ export default function BillingAndInvoicingMain() {
       const params = {
         ...(filters.customerId && { customerId: filters.customerId }),
         ...(filters.productId && { productId: filters.productId }),
+        status: invoiceStatus,
       };
       const [groupedRes, flatRes] = await Promise.all([
         getOutstandingInvoices({ groupBy: "customer", ...params }),
@@ -219,7 +224,7 @@ export default function BillingAndInvoicingMain() {
     } finally {
       setLoadingOutstanding(false);
     }
-  }, [filters.customerId, filters.productId, refreshKey, toast]);
+  }, [filters.customerId, filters.productId, invoiceStatus, refreshKey, toast]);
 
   const fetchPayments = useCallback(async () => {
     setIsLoadingPayments(true);
@@ -396,6 +401,37 @@ export default function BillingAndInvoicingMain() {
     toast({ title: "Refreshed" });
   };
 
+  const handleKpiNavigate = useCallback((key) => {
+    if (key === "awaitingBills") {
+      setActiveTab("awaiting");
+      return;
+    }
+    if (key === "outstanding") {
+      setInvoiceStatus("OPEN");
+      setActiveTab("invoices");
+      return;
+    }
+    if (key === "draftedInvoiceCount") {
+      setInvoiceStatus("DRAFT");
+      setActiveTab("invoices");
+      return;
+    }
+    if (key === "totalCollection") {
+      setActiveTab("collection");
+      return;
+    }
+    if (key === "todayCollection") {
+      setActiveTab("payments");
+    }
+  }, []);
+
+  const handleTabChange = useCallback((tab) => {
+    if (tab === "invoices") {
+      setInvoiceStatus("OPEN");
+    }
+    setActiveTab(tab);
+  }, []);
+
   const productOptions = useMemo(
     () => products.map((p) => ({ id: p.id, name: p.name })),
     [products]
@@ -489,11 +525,15 @@ export default function BillingAndInvoicingMain() {
         </div>
       </Card>
 
-      <BillingAndInvoicingKpis stats={stats} loading={statsLoading} />
+      <BillingAndInvoicingKpis
+        stats={stats}
+        loading={statsLoading}
+        onKpiNavigate={handleKpiNavigate}
+      />
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 mb-2 flex-shrink-0 h-auto gap-1">
@@ -558,6 +598,20 @@ export default function BillingAndInvoicingMain() {
                     value={groupBy}
                     onChange={(value) => setGroupBy(value ?? null)}
                     placeholder="None"
+                    isSearchable={false}
+                    isClearable={false}
+                  />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Status:
+                </span>
+                <div className="w-40">
+                  <FormSelect
+                    name="invoiceStatus"
+                    options={INVOICE_LIST_STATUS_FILTER_OPTIONS}
+                    value={invoiceStatus}
+                    onChange={(value) => setInvoiceStatus(value ?? "OPEN")}
+                    placeholder="Status"
                     isSearchable={false}
                     isClearable={false}
                   />

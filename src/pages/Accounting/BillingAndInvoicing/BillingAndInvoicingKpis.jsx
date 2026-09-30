@@ -5,6 +5,7 @@ import {
   Target,
   Wallet,
   CalendarCheck,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,7 +14,7 @@ function fmtMoney(n) {
   return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
-export default function BillingAndInvoicingKpis({ stats, loading }) {
+export default function BillingAndInvoicingKpis({ stats, loading, onKpiNavigate }) {
   const cards = [
     {
       key: "totalBilling",
@@ -29,6 +30,7 @@ export default function BillingAndInvoicingKpis({ stats, loading }) {
       icon: AlertCircle,
       iconColor: "text-orange-500",
       valueColor: "text-orange-600",
+      navigateKey: "outstanding",
     },
     {
       key: "awaitingBills",
@@ -37,6 +39,16 @@ export default function BillingAndInvoicingKpis({ stats, loading }) {
       icon: PackageCheck,
       iconColor: "text-yellow-500",
       valueColor: "text-yellow-600",
+      navigateKey: "awaitingBills",
+    },
+    {
+      key: "draftedInvoiceCount",
+      label: "Drafted Invoice",
+      value: stats?.draftedInvoiceCount ?? 0,
+      icon: FileText,
+      iconColor: "text-slate-500",
+      valueColor: "text-slate-700",
+      navigateKey: "draftedInvoiceCount",
     },
     {
       key: "targetCollection",
@@ -52,6 +64,7 @@ export default function BillingAndInvoicingKpis({ stats, loading }) {
       icon: Wallet,
       iconColor: "text-green-500",
       valueColor: "text-green-600",
+      navigateKey: "totalCollection",
     },
     {
       key: "todayCollection",
@@ -60,15 +73,37 @@ export default function BillingAndInvoicingKpis({ stats, loading }) {
       icon: CalendarCheck,
       iconColor: "text-emerald-500",
       valueColor: "text-emerald-600",
+      navigateKey: "todayCollection",
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6 flex-shrink-0">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 flex-shrink-0">
       {cards.map((s) => {
         const Icon = s.icon;
+        const clickable = s.navigateKey && onKpiNavigate;
         return (
-          <Card key={s.key} className="shadow-none">
+          <Card
+            key={s.key}
+            className={`shadow-none${clickable ? " cursor-pointer transition-colors hover:bg-muted/50" : ""}`}
+            role={clickable ? "button" : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onClick={
+              clickable
+                ? () => onKpiNavigate(s.navigateKey)
+                : undefined
+            }
+            onKeyDown={
+              clickable
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onKpiNavigate(s.navigateKey);
+                    }
+                  }
+                : undefined
+            }
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardTitle className="text-xs font-medium text-muted-foreground">
                 {s.label}

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getBalanceSheet } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf } from "./reportExport";
+import { ReportExportButtons, downloadExcel } from "./reportExport";
 
 function flattenSection(section, depth = 0, lines = []) {
   const indent = "  ".repeat(depth);
@@ -131,31 +131,6 @@ export default function BalanceSheetReport({ defaultAsOf, compact = false }) {
     });
   };
 
-  const handlePdf = () => {
-    const renderCol = (section) =>
-      flattenSection(section || {})
-        .map(
-          (l) =>
-            `<tr><td>${l.name}</td><td class="text-right">${fmt(l.amount)}</td></tr>`
-        )
-        .join("");
-    exportPdf(
-      "Balance Sheet",
-      `<h1>Balance Sheet as of ${asOf}</h1>
-      <table><thead><tr><th colspan="2">Assets</th><th colspan="2">Liabilities</th></tr></thead>
-      <tbody>
-        <tr>
-          <td colspan="2"><table>${renderCol(assets)}</table></td>
-          <td colspan="2"><table>${renderCol(liabilities)}</table></td>
-        </tr>
-        <tr style="font-weight:bold">
-          <td>Total Assets</td><td class="text-right">${fmt(data.totalAssets)}</td>
-          <td>Liabilities + Capital</td><td class="text-right">${fmt(data.totalLiabilitiesAndCapital)}</td>
-        </tr>
-      </tbody></table>`
-    );
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-end">
@@ -171,7 +146,7 @@ export default function BalanceSheetReport({ defaultAsOf, compact = false }) {
             {data.isBalanced ? "Balanced" : "Out of balance"}
           </Badge>
         )}
-        <ReportExportButtons disabled={!data} onExcel={handleExcel} onPdf={handlePdf} />
+        <ReportExportButtons disabled={!data} onExcel={handleExcel} />
       </div>
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

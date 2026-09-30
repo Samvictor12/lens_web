@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Table } from "@/components/ui/table";
 import { getCustomerPayments, getOutstandingInvoices } from "@/services/customerPayment";
 
 function fmt(n) {
@@ -7,7 +8,7 @@ function fmt(n) {
 }
 
 /**
- * Collection tab — per-customer balance to collect (target) and receipts received in period.
+ * Collection tab — current-month list of Target, Actual, and Balance to collect per customer.
  */
 export default function CollectionTab({ filters, collectibleParams, refreshKey = 0 }) {
   const [payments, setPayments] = useState([]);
@@ -59,7 +60,9 @@ export default function CollectionTab({ filters, collectibleParams, refreshKey =
         const params = {
           page: 1,
           limit: 500,
+          cancelledStatus: false,
           ...(filters.customerId && { customerId: filters.customerId }),
+          ...(filters.productId && { productId: filters.productId }),
           ...(filters.startDate && { from: filters.startDate }),
           ...(filters.endDate && { to: filters.endDate }),
         };
@@ -74,12 +77,12 @@ export default function CollectionTab({ filters, collectibleParams, refreshKey =
     return () => {
       cancelled = true;
     };
-  }, [filters.customerId, filters.startDate, filters.endDate, refreshKey]);
+  }, [filters.customerId, filters.productId, filters.startDate, filters.endDate, refreshKey]);
 
-  const balanceRows = useMemo(() => {
+  const remainingByCustomer = useMemo(() => {
     return collectGroups
       .map((g) => {
-        const total = (g.invoices || []).reduce(
+        const remaining = (g.invoices || []).reduce(
           (s, inv) => s + parseFloat(inv.outstanding || 0),
           0
         );
@@ -87,15 +90,13 @@ export default function CollectionTab({ filters, collectibleParams, refreshKey =
           customerId: g.customerId,
           name: g.customerName || g.shopname || `Customer #${g.customerId}`,
           code: g.customerCode || "",
-          total,
-          count: (g.invoices || []).length,
+          remaining,
         };
       })
-      .filter((r) => r.total > 0.01)
-      .sort((a, b) => b.total - a.total);
+      .filter((r) => r.remaining > 0.01);
   }, [collectGroups]);
 
-  const receiptRows = useMemo(() => {
+  const actualByCustomer = useMemo(() => {
     const map = new Map();
     for (const p of payments) {
       if (p.cancelledStatus) continue;
@@ -105,83 +106,109 @@ export default function CollectionTab({ filters, collectibleParams, refreshKey =
           customerId: key,
           name: p.customer?.name || p.customer?.shopname || `Customer #${key}`,
           code: p.customer?.code || "",
-          total: 0,
-          count: 0,
+          actual: 0,
         });
       }
-      const row = map.get(key);
-      row.total += parseFloat(p.totalAmount || 0);
-      row.count += 1;
+      map.get(key).actual += parseFloat(p.totalAmount || 0);
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return map;
   }, [payments]);
+
+  const rows = useMemo(() => {
+    const map = new Map();
+    for (const r of remainingByCustomer) {
+      map.set(r.customerId, {
+        customerId: r.customerId,
+        name: r.name,
+        code: r.code,
+        remaining: r.remaining,
+        actual: 0,
+      });
+    }
+    for (const r of actualByCustomer.values()) {
+      if (!map.has(r.customerId)) {
+        map.set(r.customerId, {
+          customerId: r.customerId,
+          name: r.name,
+          code: r.code,
+          remaining: 0,
+          actual: 0,
+        });
+      }
+      map.get(r.customerId).actual += r.actual;
+    }
+    return Array.from(map.values())
+      .map((r) => ({
+        ...r,
+        id: r.customerId,
+        target: r.remaining + r.actual,
+        balance: r.remaining,
+      }))
+      .sort((a, b) => b.balance - a.balance);
+  }, [remainingByCustomer, actualByCustomer]);
 
   const loading = loadingCollect || loadingPayments;
 
-  if (loading && !balanceRows.length && !receiptRows.length) {
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Customer",
+        cell: (row) => (
+          <div>
+            <div className="font-medium truncate">{row.name}</div>
+            {row.code ? (
+              <div className="text-xs text-muted-foreground">{row.code}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "target",
+        header: "Target",
+        align: "right",
+        cell: (row) => <span className="font-mono">{fmt(row.target)}</span>,
+      },
+      {
+        accessorKey: "actual",
+        header: "Actual",
+        align: "right",
+        cell: (row) => (
+          <span className="font-mono text-green-600">{fmt(row.actual)}</span>
+        ),
+      },
+      {
+        accessorKey: "balance",
+        header: "Balance to collect",
+        align: "right",
+        cell: (row) => (
+          <span className="font-mono font-semibold text-violet-600">{fmt(row.balance)}</span>
+        ),
+      },
+    ],
+    []
+  );
+
+  if (loading && !rows.length) {
     return <p className="text-sm text-muted-foreground text-center py-8">Loading collection…</p>;
   }
 
-  return (
-    <div className="space-y-6 pb-4">
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Balance to Collect</h3>
-        <p className="text-xs text-muted-foreground mb-3">
-          Cumulative collectible balance per customer (invoices due on or before today or filter end
-          date).
-        </p>
-        {loadingCollect ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Loading balances…</p>
-        ) : !balanceRows.length ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            No balance to collect for the selected filters.
-          </Card>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {balanceRows.map((r) => (
-              <Card key={r.customerId} className="p-3">
-                <div className="font-medium text-sm truncate">{r.name}</div>
-                {r.code && (
-                  <div className="text-xs text-muted-foreground">{r.code}</div>
-                )}
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-lg font-bold text-violet-600">{fmt(r.total)}</span>
-                  <span className="text-xs text-muted-foreground">{r.count} invoice(s)</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+  if (!loading && !rows.length) {
+    return (
+      <Card className="p-6 text-center text-sm text-muted-foreground">
+        No collection targets for the selected period.
+      </Card>
+    );
+  }
 
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Collections Received</h3>
-        <p className="text-xs text-muted-foreground mb-3">
-          Payment receipts recorded in the selected period.
-        </p>
-        {loadingPayments ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Loading receipts…</p>
-        ) : !receiptRows.length ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            No collections in the selected period.
-          </Card>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {receiptRows.map((r) => (
-              <Card key={r.customerId} className="p-3">
-                <div className="font-medium text-sm truncate">{r.name}</div>
-                {r.code && (
-                  <div className="text-xs text-muted-foreground">{r.code}</div>
-                )}
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-lg font-bold text-green-600">{fmt(r.total)}</span>
-                  <span className="text-xs text-muted-foreground">{r.count} receipt(s)</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+  return (
+    <div className="min-h-0 flex-1 pb-4">
+      <Table
+        data={rows}
+        columns={columns}
+        loading={loading}
+        emptyMessage="No collection targets for the selected period."
+      />
     </div>
   );
 }

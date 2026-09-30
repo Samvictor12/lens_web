@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getBankAccounts, createBankAccount } from "@/services/bankAccount";
 import { fmt } from "../FinancialReports/reportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "../FinancialReports/reportExport";
+import { ReportExportButtons, downloadExcel } from "../FinancialReports/reportExport";
 
 const emptyForm = {
   ledgerName: "",
@@ -122,16 +122,6 @@ export default function CashBankAccountsTab() {
                 headers: ["Code", "Name", "Balance", "Account No", "IFSC"],
                 rows: excelRows,
               })
-            }
-            onPdf={() =>
-              exportPdf(
-                "Cash & Bank",
-                tableHtml(
-                  ["Code", "Name", "Balance", "Account No", "IFSC"],
-                  excelRows,
-                  "Cash & Bank Accounts"
-                )
-              )
             }
           />
         </div>

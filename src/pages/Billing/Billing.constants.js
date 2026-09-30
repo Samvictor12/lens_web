@@ -47,6 +47,17 @@ export function canRecordPayment(status) {
   return PAYABLE_INVOICE_STATUSES.includes(status);
 }
 
+/** Invoices tab status filter (Billing and invoicing). */
+export const INVOICE_LIST_STATUS_FILTER_OPTIONS = [
+  { id: "OPEN", name: "Issued & partially paid" },
+  { id: "ALL", name: "All statuses" },
+  { id: "DRAFT", name: STATUS_CONFIG.DRAFT.label },
+  { id: "ISSUED", name: STATUS_CONFIG.ISSUED.label },
+  { id: "PARTIALLY_PAID", name: STATUS_CONFIG.PARTIALLY_PAID.label },
+  { id: "PAID", name: STATUS_CONFIG.PAID.label },
+  { id: "CANCELLED", name: STATUS_CONFIG.CANCELLED.label },
+];
+
 export const PAYMENT_METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER", "CHECK"];
 export const PAGE_SIZE = 20;
 

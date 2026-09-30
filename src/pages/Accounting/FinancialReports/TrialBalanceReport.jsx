@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getTrialBalance } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
+import { ReportExportButtons, downloadExcel } from "./reportExport";
 
 export default function TrialBalanceReport({ defaultAsOf, compact = false }) {
   const { toast } = useToast();
@@ -62,24 +62,6 @@ export default function TrialBalanceReport({ defaultAsOf, compact = false }) {
               headers: ["Code", "Ledger", "Type", "Debit", "Credit", "Balance"],
               rows,
             });
-          }}
-          onPdf={() => {
-            const rows = (data.ledgers || []).map((l) => [
-              l.ledgerCode,
-              l.ledgerName,
-              l.ledgerType,
-              l.totalDebit,
-              l.totalCredit,
-              l.netBalance,
-            ]);
-            exportPdf(
-              "Trial Balance",
-              tableHtml(
-                ["Code", "Ledger", "Type", "Debit", "Credit", "Balance"],
-                rows,
-                `Trial Balance as of ${asOf}`
-              )
-            );
           }}
         />
       </div>

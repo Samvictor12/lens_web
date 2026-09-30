@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getDayBook } from "@/services/financialReport";
 import { fmt, todayInputDate } from "./reportUtils";
-import { ReportExportButtons, downloadExcel, exportPdf, tableHtml } from "./reportExport";
+import { ReportExportButtons, downloadExcel } from "./reportExport";
 
 export default function DayBookReport({ defaultDate, compact = false }) {
   const { toast } = useToast();
@@ -64,15 +64,6 @@ export default function DayBookReport({ defaultDate, compact = false }) {
               headers: ["Txn", "Type / Ledger", "Description", "Debit / Amount", "Credit"],
               rows,
             });
-          }}
-          onPdf={() => {
-            const rows = (data.transactions || []).map((t) => [
-              t.transactionNumber,
-              t.transactionType,
-              t.description || "",
-              t.totalAmount,
-            ]);
-            exportPdf("Day Book", tableHtml(["Txn", "Type", "Description", "Amount"], rows, `Day Book ${date}`));
           }}
         />
         {data && (

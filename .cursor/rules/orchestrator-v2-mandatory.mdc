@@ -1,34 +1,33 @@
 ---
-description: Mandatory orchestrator v2 — planning/ six docs + execution_state; approve gate
+description: Orchestrator v2 — memory-first; skills/agents only on approve/continue
 alwaysApply: true
 ---
 
 # Orchestrator v2 (mandatory)
 
-This repo uses **orchestrator v2**: `planning/` contains **only** PRD, TSD, DD, SD, FD, `execution_state.json`, and `knowledge_base/`.
+`planning/` only: PRD, TSD, DD, SD, FD, `execution_state.json`, `knowledge_base/`.
 
-**Skill:** `~/.cursor/skills/project-orchestrator-v2/SKILL.md`  
-**Migrate:** `~/.cursor/skills/orchestrator-migrate/SKILL.md`
+**Memory:** follow this rule from context. Do **not** read orchestrator/planner/implementer/reviewer skills, spawn those agents, or open full planning bodies on every turn.
 
-**Do not use** vault/`@vault`, lean `project_state.json`, or `planning/features/`.
+**Disk load (once per pipeline, then remember):** `~/.cursor/skills/project-orchestrator-v2/SKILL.md` only on `approve` / `continue`. Subagent skills only inside that Task.
 
-## Every user message
+## Decisions (not approve)
 
-1. Read `planning/execution_state.json` + PRD YAML index (front-matter only).
-2. Classify (PRD Triage table): trivial vs pipeline.
-3. **Trivial** → fix in main thread (≤3 lines, one file, no SD change).
-4. **Default** → draft `requirement` in focused/new request → **STOP for `approve`** → planner → implementer → reviewer.
-5. Never implement non-trivial work in main thread.
+| User / class | Load | Action |
+|--------------|------|--------|
+| `trivial` / ≤3 lines, one file, no SD/API | nothing | Fix in main thread |
+| `just answer` / question / diagnose | nothing | Answer; no state, no agents |
+| `no pipeline` | nothing | Direct work; no request, no agents |
+| `status` | `execution_state.json` only | id, phase, tag, last_agent |
+| `focus` / `park` / `abandon` | `execution_state.json` only | Mutate focus/tag |
+| New feature/bug (unnamed) | `execution_state.json` + **PRD YAML index only** | Draft `requirement`, **stop** (no agents until `approve`) |
+| `approve [id]` / `continue [id]` | skill once + mapped **slices** | Planner → implementer → reviewer |
 
-## Commands
+## Slice reads (never full PRD/TSD/DD/SD/FD)
 
-| User says | Action |
-|-----------|--------|
-| `approve [req-id]` | `human_approved: true`, delegate planner |
-| `continue [req-id]` | Resume from phase |
-| `focus req-id` | Set active request |
-| `status` | Summarize requests array |
+1. Read that file’s YAML front-matter (stop at the second `---`).
+2. Use the row’s `line` and `end`.
+3. `Read` `offset: line`, `limit: end - line + 1`.
+4. If `line` is `0` or stale: `Grep` `^## ` / the id, then fix `line`/`end`.
 
-## On DONE
-
-Remove request from array; sync PRD/DD/SD/FD/TSD sections if changed; append KB file; `human_approved: false` on close.
+KB: `knowledge_base/index.md` then **one** `KB-NNN-*.md`. Never glob the folder.

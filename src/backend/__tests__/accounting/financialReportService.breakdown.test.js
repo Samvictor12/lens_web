@@ -146,6 +146,30 @@ describe('FinancialReportService.getLedgerStatement() breakdown', () => {
 
     expect(result.entries[0].breakdown).toBeNull();
   });
+
+  it('opening balance includes postings before from; closing is balance through to', async () => {
+    prisma.ledger.findFirst.mockResolvedValue({ ...LEDGER, openingBalance: 100 });
+    prisma.transactionEntry.findMany
+      .mockResolvedValueOnce([
+        { entryType: 'DEBIT', amount: 50 },
+      ])
+      .mockResolvedValueOnce([
+        makeEntry({ amount: 200, entryType: 'DEBIT', txnNumber: 'TXN-PERIOD' }),
+      ]);
+    prisma.customerPaymentVoucherItem.findMany.mockResolvedValue([]);
+    prisma.vendorPaymentVoucherItem.findMany.mockResolvedValue([]);
+    prisma.customerPaymentVoucher.findMany.mockResolvedValue([]);
+
+    const result = await service.getLedgerStatement({
+      ledgerId: 5,
+      from: '2026-07-01',
+      to: '2026-07-31',
+    });
+
+    expect(result.openingBalance).toBe('150.00');
+    expect(result.closingBalance).toBe('350.00');
+    expect(result.entries).toHaveLength(1);
+  });
 });
 
 describe('accountingPaths', () => {

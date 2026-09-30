@@ -107,7 +107,7 @@ export default function FinanceDashboardMain() {
         </div>
       </div>
 
-      <div>
+      <div id="cash-bank">
         <h2 className="text-sm font-semibold text-muted-foreground mb-2">Reports</h2>
         <FinanceDashboardReportsTabs
           asOf={dashboard?.asOf || asOf}
