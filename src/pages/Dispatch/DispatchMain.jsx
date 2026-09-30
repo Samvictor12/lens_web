@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import DispatchDashboard from "./components/DispatchDashboard";
 import ReadyForDispatch from "./components/ReadyForDispatch";
 import DispatchList from "./components/DispatchList";
+import DeviceHealthSignal from "@/components/LensPrint/DeviceHealthSignal";
 
 export default function DispatchMain() {
     const { toast } = useToast();
@@ -35,14 +36,17 @@ export default function DispatchMain() {
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2 pb-1">
                 <div>
                     <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Dispatch Management</h1>
                     <p className="text-xs text-muted-foreground mt-0.5">
                         Track and manage all orders and deliveries
                     </p>
                 </div>
-                <Refresh onClick={handleRefresh} />
+                <div className="flex items-center gap-3">
+                    <DeviceHealthSignal />
+                    <Refresh onClick={handleRefresh} />
+                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">

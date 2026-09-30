@@ -1,0 +1,6 @@
+printed/
+logs/
+printer-settings.json
+dist/
+node_modules/
+*.log

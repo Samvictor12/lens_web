@@ -1,0 +1,36 @@
+{
+  "name": "lens-print-service",
+  "version": "1.0.0",
+  "description": "Local Lens Print Service (silent print on localhost:9333).",
+  "main": "src/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "reset": "node scripts/reset.js",
+    "build:printer-exe": "pkg src/index.js --targets node18-win-x64 --output dist/LensPrintService.exe",
+    "build:reset-exe": "pkg scripts/reset.js --targets node18-win-x64 --output dist/LensPrintService-Reset.exe",
+    "bundle:zip": "node scripts/bundle-zip.js",
+    "build": "npm run build:printer-exe && npm run build:reset-exe && npm run bundle:zip"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bwip-js": "^4.11.4",
+    "pngjs": "^7.0.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "scripts": [
+      "src/**/*.js"
+    ],
+    "assets": [
+      "node_modules/qrcode/**/*",
+      "node_modules/pngjs/**/*",
+      "node_modules/bwip-js/**/*"
+    ]
+  }
+}

@@ -5,13 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FormSelect } from "@/components/ui/form-select";
-import { Calendar, User, Truck, MapPin, Phone, Package, Clock, Eye, Printer } from "lucide-react";
+import { Calendar, User, Truck, MapPin, Phone, Package, Clock, Eye, Printer, Tag } from "lucide-react";
 import { updateDispatch, getDispatchById } from "@/services/dispatch";
 import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { printDispatch } from "../Dispatch.constants";
 import DispatchPreviewDialog from "./DispatchPreviewDialog";
+import {
+    buildDispatchPrintPlan,
+    executeDispatchPrintPlan,
+} from "@/utils/dispatchLabelPrint";
+import DispatchLabelsPreviewModal from "@/components/LensPrint/DispatchLabelsPreviewModal";
 
 const STATUS_CONFIG = {
     PENDING:     { label: "Ready for Pickup", className: "bg-amber-50 text-amber-800 border-amber-300" },
@@ -33,6 +38,9 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
     const [deliveryPersons, setDeliveryPersons] = useState([]);
     const [detail, setDetail] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [isReprintBusy, setIsReprintBusy] = useState(false);
+    const [labelPreviewPlan, setLabelPreviewPlan] = useState(null);
+    const [isLabelPreviewSubmitting, setIsLabelPreviewSubmitting] = useState(false);
 
     // Editable fields
     const [expectedDate, setExpectedDate] = useState("");
@@ -112,6 +120,70 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
     const saleOrders = record.saleOrders || [];
     const orderCount = saleOrders.length;
     const companyForPrint = record.company || company;
+
+    const handleReprintLabels = async ({ printCard, printBarcode }) => {
+        const orders = record?.saleOrders || [];
+        if (!orders.length) {
+            toast({ title: "No orders", description: "This DC has no sale orders to print.", variant: "destructive" });
+            return;
+        }
+        setIsReprintBusy(true);
+        try {
+            const plan = await buildDispatchPrintPlan(orders, { printCard, printBarcode });
+            if (plan.needsExePreview) {
+                setLabelPreviewPlan(plan);
+                return;
+            }
+            const result = await executeDispatchPrintPlan(plan);
+            toast({
+                title: "Reprint queued",
+                description: `${result.printed} job(s) sent`,
+            });
+            if (result.errors?.length) {
+                toast({
+                    title: "Some prints failed",
+                    description: result.errors[0],
+                    variant: "destructive",
+                });
+            }
+        } catch (err) {
+            toast({
+                title: "Reprint failed",
+                description: err.message || "Could not print",
+                variant: "destructive",
+            });
+        } finally {
+            setIsReprintBusy(false);
+        }
+    };
+
+    const handleLabelPreviewConfirm = async () => {
+        if (!labelPreviewPlan) return;
+        setIsLabelPreviewSubmitting(true);
+        try {
+            const result = await executeDispatchPrintPlan(labelPreviewPlan);
+            toast({
+                title: "Reprint queued",
+                description: `${result.printed} job(s) sent`,
+            });
+            if (result.errors?.length) {
+                toast({
+                    title: "Some prints failed",
+                    description: result.errors[0],
+                    variant: "destructive",
+                });
+            }
+            setLabelPreviewPlan(null);
+        } catch (err) {
+            toast({
+                title: "Reprint failed",
+                description: err.message || "Could not print",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLabelPreviewSubmitting(false);
+        }
+    };
 
     const handleSave = async () => {
         if (!deliveryPersonId) {
@@ -375,7 +447,26 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                                     disabled={isLoadingDetail && !detail}
                                 >
                                     <Printer className="h-3.5 w-3.5" />
-                                    Print
+                                    Print DC
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="gap-1.5"
+                                    disabled={isReprintBusy || (isLoadingDetail && !detail)}
+                                    onClick={() => handleReprintLabels({ printCard: true, printBarcode: false })}
+                                    title="DC Customer Card"
+                                >
+                                    <Tag className="h-3.5 w-3.5" />
+                                    Reprint Card
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="gap-1.5"
+                                    disabled={isReprintBusy || (isLoadingDetail && !detail)}
+                                    onClick={() => handleReprintLabels({ printCard: false, printBarcode: true })}
+                                >
+                                    <Printer className="h-3.5 w-3.5" />
+                                    Reprint Barcode
                                 </Button>
                                 {record.status !== "DELIVERED" && (
                                     <Button onClick={() => setIsEditing(true)}>Edit</Button>
@@ -397,6 +488,14 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                 open={showPreview}
                 onClose={() => setShowPreview(false)}
                 dispatch={record}
+            />
+
+            <DispatchLabelsPreviewModal
+                open={!!labelPreviewPlan}
+                plan={labelPreviewPlan}
+                isSubmitting={isLabelPreviewSubmitting}
+                onCancel={() => setLabelPreviewPlan(null)}
+                onConfirm={handleLabelPreviewConfirm}
             />
         </>
     );

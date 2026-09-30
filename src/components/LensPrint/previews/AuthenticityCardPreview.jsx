@@ -1,92 +1,168 @@
+import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
+import { buildCustomerCardPayload } from "@/utils/customerCardPrint";
+
 /**
- * Authenticity / warranty card — 84 × 55 mm (Evolis Primacy 2)
+ * DC Customer Card — 84 × 55 mm (preview and print artwork both upright).
+ * User loads stock upside down in Evolis. Top 7 mm blank for thank line.
  */
-export default function AuthenticityCardPreview({ data }) {
+export default function AuthenticityCardPreview({ data, payload: payloadProp }) {
+  const payload = useMemo(() => {
+    if (payloadProp) return payloadProp;
+    if (data?.eyes && (data?.lensLine != null || data?.productLine != null)) return data;
+    return buildCustomerCardPayload(data || {});
+  }, [data, payloadProp]);
+
+  const [qr, setQr] = useState(null);
+  const orderNo = payload?.orderNo || "";
+
+  useEffect(() => {
+    if (!orderNo) {
+      setQr(null);
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(orderNo, { width: 160, margin: 0, errorCorrectionLevel: "M" })
+      .then((url) => {
+        if (!cancelled) setQr(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQr(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderNo]);
+
+  const showAdd = !!payload.showAdd;
+  const eyes = payload.eyes || [];
+  const lensLine = payload.lensLine || payload.productLine || "Lens name: -";
+  const category = payload.category || payload.categoryName || "-";
+
   return (
     <div
       className="bg-white text-black shadow-md border border-gray-300 overflow-hidden select-none"
       style={{
         width: "84mm",
         height: "55mm",
-        padding: "2.5mm 3mm",
-        fontFamily: "Arial, sans-serif",
-        fontSize: "7px",
-        lineHeight: 1.25,
         boxSizing: "border-box",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div style={{ display: "flex", gap: "2mm", height: "100%" }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: "9px", fontWeight: "bold", marginBottom: "1mm" }}>
-              {data.lensIndex}
+      <div style={{ height: "7mm", width: "100%", flexShrink: 0 }} />
+
+      <div
+        style={{
+          flex: 1,
+          padding: "1.5mm 2.2mm 2mm",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5mm",
+          minHeight: 0,
+        }}
+      >
+        <div style={{ display: "flex", gap: "2mm", alignItems: "flex-start" }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: "10px", lineHeight: 1.4 }}>
+            <div style={{ fontWeight: "bold", fontSize: "10.5px", marginBottom: "0.6mm" }}>
+              {lensLine}
             </div>
-            <div style={{ fontSize: "6.5px", fontWeight: 600, marginBottom: "1mm", lineHeight: 1.2 }}>
-              {data.lensProductName}
-            </div>
-            <div style={{ fontSize: "7px", marginBottom: "2mm" }}>{data.customerName}</div>
+            <div style={{ marginBottom: "0.6mm" }}>Coating: {payload.coating || "-"}</div>
+            <div style={{ marginBottom: "0.6mm" }}>Category: {category}</div>
+            <div style={{ marginBottom: "0.6mm" }}>Customer name: {payload.customerName || "-"}</div>
+            <div>Pt. Name: {payload.ptName || "-"}</div>
           </div>
-
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "6px" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#eee" }}>
-                <th style={{ border: "1px solid #999", padding: "0.8mm" }} />
-                <th style={{ border: "1px solid #999", padding: "0.8mm" }}>SPH</th>
-                <th style={{ border: "1px solid #999", padding: "0.8mm" }}>CYL</th>
-                <th style={{ border: "1px solid #999", padding: "0.8mm" }}>AXIS</th>
-                <th style={{ border: "1px solid #999", padding: "0.8mm" }}>ADD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rightEye && (
-                <tr>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", fontWeight: "bold" }}>RE</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.right.sph}</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.right.cyl}</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.right.axis}</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.right.add}</td>
-                </tr>
-              )}
-              {data.leftEye && (
-                <tr>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", fontWeight: "bold" }}>LE</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.left.sph}</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.left.cyl}</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.left.axis}</td>
-                  <td style={{ border: "1px solid #999", padding: "0.8mm", textAlign: "center" }}>{data.left.add}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          <div style={{ fontSize: "6px", color: "#444", marginTop: "1mm" }}>{data.orderDate}</div>
+          <div style={{ width: "14mm", height: "14mm", flexShrink: 0 }}>
+            {qr ? (
+              <img src={qr} alt="QR" style={{ width: "14mm", height: "14mm", display: "block" }} />
+            ) : (
+              <div
+                style={{
+                  width: "14mm",
+                  height: "14mm",
+                  background: "#eee",
+                  border: "1px solid #ccc",
+                }}
+              />
+            )}
+          </div>
         </div>
+
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "9.5px",
+            tableLayout: "fixed",
+            flex: 1,
+          }}
+        >
+          <thead>
+            <tr>
+              <th style={thStyle} />
+              <th style={thStyle}>sph</th>
+              <th style={thStyle}>cyl</th>
+              <th style={thStyle}>Ax</th>
+              {showAdd && <th style={thStyle}>Add</th>}
+              <th style={thStyle}>FH</th>
+            </tr>
+          </thead>
+          <tbody>
+            {eyes.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={showAdd ? 6 : 5}
+                  style={{ ...tdStyle, textAlign: "left", color: "#666" }}
+                >
+                  No eye selected
+                </td>
+              </tr>
+            ) : (
+              eyes.map((row) => (
+                <tr key={row.eye}>
+                  <td style={{ ...tdStyle, fontWeight: "bold", width: "7mm" }}>{row.eye}</td>
+                  <td style={tdStyle}>{row.sph}</td>
+                  <td style={tdStyle}>{row.cyl}</td>
+                  <td style={tdStyle}>{row.axis}</td>
+                  {showAdd && (
+                    <td style={tdStyle}>{row.add && row.add !== "-" ? row.add : "-"}</td>
+                  )}
+                  <td style={tdStyle}>{row.fh}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
 
         <div
           style={{
-            width: "22mm",
+            marginTop: "auto",
             display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            borderLeft: "1px dashed #ccc",
-            paddingLeft: "2mm",
+            justifyContent: "space-between",
+            fontSize: "9.5px",
+            flexShrink: 0,
           }}
         >
-          <div
-            style={{
-              fontFamily: "monospace",
-              fontSize: "8px",
-              letterSpacing: "1px",
-              fontWeight: "bold",
-              marginBottom: "2mm",
-            }}
-          >
-            {data.barcodeText}
-          </div>
-          <div style={{ fontSize: "5px", color: "#666", textAlign: "center" }}>{data.orderNo}</div>
+          <span>cust Ref: {payload.customerRefNo || "-"}</span>
+          <span>Date: {payload.orderDate || "-"}</span>
         </div>
       </div>
     </div>
   );
 }
+
+const thStyle = {
+  border: "0.4px solid #333",
+  padding: "1.2mm 0.8mm",
+  textAlign: "center",
+  fontWeight: "bold",
+  background: "#f3f3f3",
+  fontSize: "9px",
+};
+
+const tdStyle = {
+  border: "0.4px solid #333",
+  padding: "1.2mm 0.8mm",
+  textAlign: "center",
+};

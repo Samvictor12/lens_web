@@ -1,33 +1,65 @@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarClock, MapPin, Package, User } from "lucide-react";
+import { CalendarClock, User } from "lucide-react";
 
 const DISPATCH_STATUS_BADGE = {
-    "Pending":    { variant: "outline",   label: "Pending" },
+    Pending: { variant: "outline", label: "Pending" },
     "Ready for Pickup": { variant: "outline", label: "Ready for Pickup" },
-    "Assigned":   { variant: "secondary", label: "Assigned" },
-    "In Transit": { variant: "default",   label: "In Transit" },
-    "Delivered":  { variant: "success",   label: "Delivered" },
+    Assigned: { variant: "secondary", label: "Assigned" },
+    "In Transit": { variant: "default", label: "In Transit" },
+    Delivered: { variant: "success", label: "Delivered" },
 };
+
+function dash(value) {
+    if (value == null || value === "") return "—";
+    return String(value);
+}
+
+function formatSoDate(value) {
+    if (!value) return "—";
+    return new Date(value).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    });
+}
 
 /**
  * Card displaying a single sale order in the dispatch view.
  *
  * Props:
- *   order         — the sale order object (with customer, lensProduct, coating, assignedPerson)
- *   selectable    — show checkbox (pickup mode)
+ *   order         — sale order (customer, category, lensProduct, assignedPerson, …)
+ *   selectable    — show checkbox (pickup / ready mode)
  *   selected      — controlled checkbox state
- *   onToggle      — (id) => void — called when checkbox changes
- *   compact       — thinner card for list-view style
+ *   onToggle      — (id) => void
+ *   compact       — thinner padding
  */
 export default function DispatchOrderCard({ order, selectable, selected, onToggle, compact }) {
-    const badge = DISPATCH_STATUS_BADGE[order.dispatchStatus] ?? { variant: "outline", label: order.dispatchStatus ?? "—" };
+    const badge = DISPATCH_STATUS_BADGE[order.dispatchStatus] ?? {
+        variant: "outline",
+        label: order.dispatchStatus ?? "—",
+    };
+
+    const lensCategory =
+        order.category?.name || order.lensProduct?.category?.name || null;
+    const lensName = order.lensProduct?.lens_name || null;
 
     const estimatedDateStr = order.estimatedDate
-        ? new Date(order.estimatedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })
+        ? new Date(order.estimatedDate).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "2-digit",
+          })
         : null;
 
-    const productLabel = [order.lensProduct?.name, order.coating?.name].filter(Boolean).join(" · ");
+    const fields = [
+        { label: "SO", value: dash(order.orderNo) },
+        { label: "SO date", value: formatSoDate(order.orderDate) },
+        { label: "Customer ref", value: dash(order.customerRefNo) },
+        { label: "Patient ref", value: dash(order.itemRefNo) },
+        { label: "Lens category", value: dash(lensCategory) },
+        { label: "Lens name", value: dash(lensName) },
+    ];
 
     return (
         <div
@@ -51,48 +83,53 @@ export default function DispatchOrderCard({ order, selectable, selected, onToggl
                         onClick={(e) => e.stopPropagation()}
                     />
                 )}
-                <div className="flex-1 min-w-0">
-                    {/* Row 1: Order no + status badge */}
+                <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-sm font-semibold">{order.orderNo}</span>
+                        <span className="text-sm font-semibold">{dash(order.orderNo)}</span>
                         <Badge variant={badge.variant} className="text-[10px] h-4 px-1.5 py-0">
                             {badge.label}
                         </Badge>
                     </div>
 
-                    {order.customerRefNo && (
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                            Ref: <span className="font-medium text-foreground">{order.customerRefNo}</span>
-                        </div>
-                    )}
-
-                    {/* Row 2: Customer */}
-                    <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                        <User className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{order.customer?.shopname || order.customer?.name || "—"}</span>
-                        {order.customer?.city && (
-                            <>
-                                <MapPin className="h-3 w-3 shrink-0 ml-1" />
-                                <span className="truncate">{order.customer.city}</span>
-                            </>
-                        )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1.5">
+                        {fields.map((f) => (
+                            <div key={f.label} className="min-w-0">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                    {f.label}
+                                </div>
+                                <div className="text-xs font-medium text-foreground truncate" title={f.value}>
+                                    {f.value}
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
-                    {/* Row 3: Product */}
-                    {productLabel && (
-                        <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                            <Package className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{productLabel}</span>
+                    {(order.customer?.name || order.customer?.shopname) && (
+                        <div className="flex items-start gap-1 text-[11px] text-muted-foreground">
+                            <User className="h-3 w-3 shrink-0 mt-0.5" />
+                            <div className="min-w-0 truncate">
+                                {order.customer?.name && (
+                                    <span className="font-medium text-foreground">
+                                        {order.customer.name}
+                                    </span>
+                                )}
+                                {order.customer?.shopname && (
+                                    <span>
+                                        {order.customer?.name ? " · " : ""}
+                                        {order.customer.shopname}
+                                    </span>
+                                )}
+                                {order.customer?.city ? ` · ${order.customer.city}` : ""}
+                            </div>
                         </div>
                     )}
 
-                    {/* Row 4: Estimated date + assigned person */}
                     {(estimatedDateStr || order.assignedPerson) && (
-                        <div className="flex items-center justify-between gap-2 mt-1 text-[11px] text-muted-foreground flex-wrap">
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground flex-wrap">
                             {estimatedDateStr && (
                                 <span className="flex items-center gap-1">
                                     <CalendarClock className="h-3 w-3" />
-                                    {estimatedDateStr}
+                                    Est. {estimatedDateStr}
                                 </span>
                             )}
                             {order.assignedPerson && (

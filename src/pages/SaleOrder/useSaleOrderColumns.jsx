@@ -1,11 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil, Trash2 } from "lucide-react";
-import { statusColors } from "./SaleOrder.constants";
+import { Trash2, Printer } from "lucide-react";
+import { statusColors, formatOrderDateTimeCompact } from "./SaleOrder.constants";
 
 import { STATUS_LABELS, procurementBadgeStyles } from "@/constants/saleOrderStatus";
 
-export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) => {
+export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick, onPrintJobCard) => {
   return [
     {
       accessorKey: "orderNo",
@@ -65,11 +65,11 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
     },
     {
       accessorKey: "orderDate",
-      header: "Order Date",
+      header: "Date / Time",
       sortable: true,
       cell: (row) => (
-        <span className="text-[11px]">
-          {row.orderDate ? new Date(row.orderDate).toLocaleDateString() : "N/A"}
+        <span className="text-[10px] text-muted-foreground whitespace-nowrap tabular-nums leading-tight">
+          {formatOrderDateTimeCompact(row.orderDate)}
         </span>
       ),
     },
@@ -164,6 +164,18 @@ export const useSaleOrderColumns = (navigate, handleDeleteClick, onStatusClick) 
       align: "right",
       cell: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 w-7 p-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPrintJobCard?.(row);
+            }}
+            title="Print Job Card"
+          >
+            <Printer className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="xs"

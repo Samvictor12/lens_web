@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getApplicableOffers } from "@/services/lensOffers";
 import { apiClient } from "@/services/apiClient";
 import { printBarcodeLabels, getPrinterConfigs, checkPrintServiceHealth } from "@/services/printerConfig";
+import { printJobCard } from "@/utils/jobCardPrint";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
@@ -66,6 +67,9 @@ import {
     getDefaultDeliveryLeadDays,
     buildDefaultDeliverySchedule,
     toDateInputValue,
+    toDateTimeLocalValue,
+    nowDateTimeLocalValue,
+    formatOrderDateTimeCompact,
     cylRequiresAxis,
     hasAxisEntry,
     FREE_LENS_APPROVAL,
@@ -154,6 +158,15 @@ export default function SaleOrderForm() {
             setIsEditing(true);
         }
     }, [isCreditBlocked, mode, formData.status]);
+
+    // Add mode: stamp current local date+time into orderDate when form opens
+    useEffect(() => {
+        if (mode !== "add") return;
+        setFormData((prev) => ({
+            ...prev,
+            orderDate: nowDateTimeLocalValue(),
+        }));
+    }, [mode]);
     const [priceBreakdown, setPriceBreakdown] = useState(null);
     // Holds the fetched price of the exchange coating (for EXCHANGE_COATING_PRICE offers)
     const [exchangeCoatingPrice, setExchangeCoatingPrice] = useState(null);
@@ -168,6 +181,8 @@ export default function SaleOrderForm() {
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [printActionMode, setPrintActionMode] = useState(null); // "create-and-print" or "print-existing"
+    const [printJobCardOnCreate, setPrintJobCardOnCreate] = useState(true);
+    const [isPrintingJobCard, setIsPrintingJobCard] = useState(false);
 
     // FIFO pick states
     const [isFifoModalOpen, setIsFifoModalOpen] = useState(false);
@@ -743,11 +758,11 @@ export default function SaleOrderForm() {
             newErrors.customerRefNo = customerRefStatus.message || "Already same ref is used against this customer";
         }
 
-        // Delivery schedule validation
+        // Delivery schedule validation (compare calendar dates only)
         if (formData.deliverySchedule && formData.orderDate) {
-            const orderDate = new Date(formData.orderDate);
-            const deliveryDate = new Date(formData.deliverySchedule);
-            if (deliveryDate < orderDate) {
+            const orderDay = toDateInputValue(formData.orderDate);
+            const deliveryDay = toDateInputValue(formData.deliverySchedule);
+            if (orderDay && deliveryDay && deliveryDay < orderDay) {
                 newErrors.deliverySchedule = "Delivery date cannot be before order date";
             }
         }
@@ -1734,6 +1749,23 @@ export default function SaleOrderForm() {
         }
     };
 
+    const runJobCardPrint = async (order) => {
+        if (!order?.orderNo) return;
+        try {
+            setIsPrintingJobCard(true);
+            await printJobCard(order);
+            toast({ title: "Job Card sent", description: order.orderNo });
+        } catch (err) {
+            toast({
+                title: "Job Card print failed",
+                description: err.message || "You can reprint from the order list or view page.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsPrintingJobCard(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -1787,30 +1819,19 @@ export default function SaleOrderForm() {
 
             // Build the payload: if a PERCENTAGE offer is applied, zero out the category discount;
             // for exchange offers, use the effective (exchange) lensPrice and discount
-            const selectedOffer = formData.offer_id
-                ? activeOffers.find((o) => o.id === formData.offer_id)
-                : null;
-            let submitData = {
-                ...formData,
-                discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
-            };
-            if (selectedOffer &&
-                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" ||
-                    selectedOffer.offerType === "EXCHANGE_PRODUCT" ||
-                    selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") &&
-                effectiveBreakdown) {
-                submitData = {
-                    ...submitData,
-                    lensPrice: effectiveBreakdown.lensPrice,
-                    discount: effectiveBreakdown.discountPercentage,
-                };
-            }
+            const submitData = buildSubmitData();
 
             if (mode === "add") {
                 const response = await createSaleOrder(submitData);
                 if (response.success) {
-                    window.alert(`Sale Order created successfully!\nOrder Number: ${response.data?.orderNo}`);
-                    window.close();
+                    if (printJobCardOnCreate) {
+                        await runJobCardPrint(response.data);
+                    }
+                    toast({
+                        title: "Sale Order created",
+                        description: response.data?.orderNo || "Created successfully",
+                    });
+                    navigate("/sales/orders", { replace: true });
                 }
             } else if (mode === "edit" || isEditing) {
                 const response = await updateSaleOrder(parseInt(id), submitData);
@@ -2093,11 +2114,21 @@ export default function SaleOrderForm() {
         const selectedOffer = formData.offer_id
             ? activeOffers.find((o) => o.id === formData.offer_id)
             : null;
+        const orderDateIso = formData.orderDate
+            ? new Date(formData.orderDate).toISOString()
+            : null;
         let submitData = {
             ...formData,
+            orderDate: orderDateIso,
             discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
         };
-        if (selectedOffer?.offerType === "EXCHANGE_COATING_PRICE" && effectiveBreakdown) {
+        if (
+            selectedOffer &&
+            (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" ||
+                selectedOffer.offerType === "EXCHANGE_PRODUCT" ||
+                selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") &&
+            effectiveBreakdown
+        ) {
             submitData = {
                 ...submitData,
                 lensPrice: effectiveBreakdown.lensPrice,
@@ -2244,6 +2275,9 @@ export default function SaleOrderForm() {
                     throw new Error(response.message || "Failed to create sale order");
                 }
                 soId = response.data.id;
+                if (printJobCardOnCreate) {
+                    await runJobCardPrint(response.data);
+                }
                 // Free Lens creates as PENDING — cannot raise PO until Admin approves
                 if (formData.freeLens) {
                     setIsRaisePoModalOpen(false);
@@ -2321,6 +2355,9 @@ export default function SaleOrderForm() {
                 if (!response.success) {
                     throw new Error(response.message || "Failed to create sale order");
                 }
+                if (printJobCardOnCreate) {
+                    await runJobCardPrint(response.data);
+                }
                 toast({
                     title: "Sale order created",
                     description: "Free Lens is pending Admin approval. Raise PO after approval.",
@@ -2380,24 +2417,7 @@ export default function SaleOrderForm() {
             setIsSaving(true);
 
             // Build the payload
-            const selectedOffer = formData.offer_id
-                ? activeOffers.find((o) => o.id === formData.offer_id)
-                : null;
-            let submitData = {
-                ...formData,
-                discount: selectedOffer?.offerType === "PERCENTAGE" ? 0 : formData.discount,
-            };
-            if (selectedOffer &&
-                (selectedOffer.offerType === "EXCHANGE_COATING_PRICE" ||
-                    selectedOffer.offerType === "EXCHANGE_PRODUCT" ||
-                    selectedOffer.offerType === "EXCHANGE_BRAND_PRICE") &&
-                effectiveBreakdown) {
-                submitData = {
-                    ...submitData,
-                    lensPrice: effectiveBreakdown.lensPrice,
-                    discount: effectiveBreakdown.discountPercentage,
-                };
-            }
+            const submitData = buildSubmitData();
 
             let savedOrder = null;
 
@@ -2780,20 +2800,28 @@ export default function SaleOrderForm() {
                         </Button>
                     )}
 
-                    {/* Add mode: Create Order + Create & Raise PO + Create & Print (no dropdown) */}
+                    {/* Add mode: Job Card checkbox + Create Order + Create & Raise PO */}
                     {mode === "add" && !isCreditBlocked && (
                         <>
+                            <label className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 cursor-pointer select-none">
+                                <Checkbox
+                                    checked={printJobCardOnCreate}
+                                    onCheckedChange={(v) => setPrintJobCardOnCreate(!!v)}
+                                    disabled={isSaving || isPrintingJobCard}
+                                />
+                                Job Card
+                            </label>
                             <Button
                                 type="submit"
                                 size="xs"
                                 className="h-8 gap-1.5"
                                 onClick={handleSubmit}
-                                disabled={isSaving}
+                                disabled={isSaving || isPrintingJobCard}
                             >
-                                {isSaving ? (
+                                {isSaving || isPrintingJobCard ? (
                                     <>
                                         <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        Saving...
+                                        {isPrintingJobCard ? "Printing…" : "Saving..."}
                                     </>
                                 ) : (
                                     <>
@@ -2808,7 +2836,7 @@ export default function SaleOrderForm() {
                                 variant="outline"
                                 className="h-8 gap-1.5"
                                 onClick={handleCreateAndRaisePO}
-                                disabled={isSaving || formData.freeLens}
+                                disabled={isSaving || isPrintingJobCard || formData.freeLens}
                                 title={
                                     formData.freeLens
                                         ? "Free Lens requires Admin approval before Raise PO. Use Create Order, then approve."
@@ -2817,17 +2845,6 @@ export default function SaleOrderForm() {
                             >
                                 <Package className="h-3.5 w-3.5 text-green-600" />
                                 Create &amp; Raise PO
-                            </Button>
-                            <Button
-                                type="button"
-                                size="xs"
-                                variant="outline"
-                                className="h-8 gap-1.5"
-                                onClick={handleCreateAndPrint}
-                                disabled={isSaving}
-                            >
-                                <Printer className="h-3.5 w-3.5 text-blue-600" />
-                                Create &amp; Print
                             </Button>
                         </>
                     )}
@@ -2854,6 +2871,26 @@ export default function SaleOrderForm() {
                                     Update Order
                                 </>
                             )}
+                        </Button>
+                    )}
+
+                    {/* View mode: Job Card reprint */}
+                    {mode === "view" && formData.orderNo && !isEditing && (
+                        <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            className="h-8 gap-1.5"
+                            disabled={isPrintingJobCard || isSaving}
+                            onClick={() => runJobCardPrint(formData)}
+                            title="Reprint Job Card"
+                        >
+                            {isPrintingJobCard ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                                <Printer className="h-3.5 w-3.5" />
+                            )}
+                            Job Card
                         </Button>
                     )}
 
@@ -3037,11 +3074,21 @@ export default function SaleOrderForm() {
                         />
 
                         <FormInput
-                            singleLine={true} label="Order Date"
-                            type="date"
+                            singleLine={true} label="Order Date & Time"
+                            type="datetime-local"
                             name="orderDate"
-                            value={new Date(formData.orderDate).toISOString().split("T")[0]}
+                            step="60"
+                            value={toDateTimeLocalValue(formData.orderDate)}
                             onChange={handleChange}
+                            onFocus={(e) => {
+                                if (!e.target.value && mode === "add") {
+                                    const now = nowDateTimeLocalValue();
+                                    e.target.value = now;
+                                    handleChange({
+                                        target: { name: "orderDate", value: now, type: "datetime-local" },
+                                    });
+                                }
+                            }}
                             disabled={(mode !== "add" && formData.status !== "DRAFT") || isCreditBlocked}
                             required
                             error={errors.orderDate}
@@ -4061,7 +4108,7 @@ export default function SaleOrderForm() {
                                                     <th className="px-3 py-2 font-medium whitespace-nowrap">Category</th>
                                                     <th className="px-3 py-2 font-medium whitespace-nowrap">Coating</th>
                                                     {/* <th className="px-3 py-2 font-medium whitespace-nowrap">Lens Spec</th> */}
-                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Date</th>
+                                                    <th className="px-3 py-2 font-medium whitespace-nowrap">Date / Time</th>
                                                     <th className="px-3 py-2 font-medium whitespace-nowrap">Status</th>
                                                 </tr>
                                             </thead>
@@ -4105,10 +4152,8 @@ export default function SaleOrderForm() {
                                                         {/* <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap font-mono">
                                                             {formatRecentOrderLensSpec(order)}
                                                         </td> */}
-                                                        <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">
-                                                            {order.orderDate
-                                                                ? new Date(order.orderDate).toLocaleDateString("en-IN")
-                                                                : "—"}
+                                                        <td className="px-3 py-1.5 whitespace-nowrap text-[10px] text-muted-foreground tabular-nums">
+                                                            {formatOrderDateTimeCompact(order.orderDate)}
                                                         </td>
                                                         <td className="px-3 py-1.5">
                                                             <Badge

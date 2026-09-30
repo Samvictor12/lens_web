@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 
-const CONFIG_TYPES = ['AUTHENTICITY_CARD', 'BARCODE_LABEL', 'SALE_ORDER', 'DISPATCH_NOTE'];
+const CONFIG_TYPES = ['AUTHENTICITY_CARD', 'BARCODE_LABEL', 'JOB_CARD', 'SALE_ORDER', 'DISPATCH_NOTE'];
 const LEGACY_TYPE_MAP = { LENS_SPECIFICATION: 'AUTHENTICITY_CARD' };
 
 export class PrinterConfigService {
@@ -18,6 +18,10 @@ export class PrinterConfigService {
   }
 
   async upsert(data, userId) {
+    if (!data || typeof data !== 'object') {
+      const { APIError } = await import('../middleware/errorHandler.js');
+      throw new APIError('Request body is required', 400, 'INVALID_BODY');
+    }
     let { config_type, printer_name, paper_size, label_width, label_height, extra_config } = data;
     if (LEGACY_TYPE_MAP[config_type]) config_type = LEGACY_TYPE_MAP[config_type];
     if (!CONFIG_TYPES.includes(config_type)) {

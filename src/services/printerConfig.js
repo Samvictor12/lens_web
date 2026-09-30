@@ -38,7 +38,10 @@ export async function printBarcodeLabels({ printerName, topLabel, barcodeSerials
       labelWidth:    labelWidth ?? 180,
     }),
   });
-  if (!res.ok) throw new Error('Print service returned an error');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Print service returned an error');
+  }
   return res.json();
 }
 
@@ -48,7 +51,24 @@ export async function testLocalPrinter({ printerName, printType }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ printerName, printType }),
   });
-  if (!res.ok) throw new Error('Test print failed: print service returned an error');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Test print failed: print service returned an error');
+  }
+  return res.json();
+}
+
+/** Generic document print via local LensPrintService (Job Card, barcode label, etc.) */
+export async function printRawToPrinter({ printerName, printType, payload }) {
+  const res = await fetch(`${PRINT_SERVICE_URL}/api/print/document`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ printerName, printType, payload }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Print service document print failed');
+  }
   return res.json();
 }
 
@@ -58,4 +78,4 @@ export const getPrinterConfigs = () =>
   apiClient('get', '/printer-config');
 
 export const savePrinterConfig = (data) =>
-  apiClient('put', '/printer-config', data);
+  apiClient('put', '/printer-config', { data });

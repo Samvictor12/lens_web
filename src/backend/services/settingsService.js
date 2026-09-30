@@ -21,7 +21,8 @@ function normalizeGstRates(rates) {
   return normalized.length > 0 ? normalized : DEFAULT_GST_RATES;
 }
 
-const MAX_LOGO_BYTES = 600 * 1024; // ~500 KB raw, ~600KB after base64 overhead
+// 1 MB binary → ~1.37 MB base64 + data-URL prefix; allow headroom for the full string
+const MAX_LOGO_BYTES = Math.ceil(1024 * 1024 * (4 / 3)) + 256;
 
 /**
  * Settings Service
@@ -44,7 +45,7 @@ export class SettingsService {
       const byteLength = Buffer.byteLength(data.logo, 'utf8');
       if (byteLength > MAX_LOGO_BYTES) {
         throw new APIError(
-          'Logo is too large. Please use an image smaller than 500 KB.',
+          'Logo is too large. Please use an image smaller than 1 MB (or let the app optimize a larger pick).',
           400,
           'LOGO_TOO_LARGE'
         );

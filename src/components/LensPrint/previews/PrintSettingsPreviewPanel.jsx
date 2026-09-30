@@ -3,9 +3,12 @@ import { Eye } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PREVIEW_TEMPLATE_TABS } from "@/constants/printPreviewFixtures";
 import { buildPrintPreviewData, getPreviewOrderForTemplate } from "@/utils/printPreviewData";
+import { buildCustomerCardPayload } from "@/utils/customerCardPrint";
+import { buildSingleEyeBarcodePayload } from "@/utils/dispatchLabelPrint";
 import { cn } from "@/lib/utils";
 import AuthenticityCardPreview from "./AuthenticityCardPreview";
 import BarcodeLabelPreview from "./BarcodeLabelPreview";
+import JobCardPreview from "./JobCardPreview";
 import InvoiceBillPreview from "./InvoiceBillPreview";
 import DispatchNotePreview from "./DispatchNotePreview";
 
@@ -19,7 +22,8 @@ function getPreviewScale(templateId, zoomId) {
   const manual = ZOOM_OPTIONS.find((z) => z.id === zoomId)?.scale;
   if (manual) return manual;
   if (templateId === "SALE_ORDER" || templateId === "DISPATCH_NOTE") return 0.42;
-  if (templateId.startsWith("BARCODE")) return 1.1;
+  if (templateId === "BARCODE_LABEL") return 1.1;
+  if (templateId === "JOB_CARD") return 2.8;
   return 1.15;
 }
 
@@ -27,10 +31,19 @@ export default function PrintSettingsPreviewPanel({ activeTemplate, onTemplateCh
   const { company } = useCompany();
   const [zoom, setZoom] = useState("fit");
 
-  const templateId = activeTemplate || "AUTHENTICITY_CARD";
+  const templateId = activeTemplate || "JOB_CARD";
 
   const previewData = useMemo(() => {
     const order = getPreviewOrderForTemplate(templateId);
+    if (templateId === "AUTHENTICITY_CARD") {
+      return buildCustomerCardPayload(order);
+    }
+    if (templateId === "BARCODE_LABEL") {
+      return {
+        R: buildSingleEyeBarcodePayload(order, "R"),
+        L: buildSingleEyeBarcodePayload(order, "L"),
+      };
+    }
     return buildPrintPreviewData(order, company);
   }, [templateId, company]);
 
@@ -40,11 +53,16 @@ export default function PrintSettingsPreviewPanel({ activeTemplate, onTemplateCh
   const renderPreview = () => {
     switch (templateId) {
       case "AUTHENTICITY_CARD":
-        return <AuthenticityCardPreview data={previewData} />;
-      case "BARCODE_LABEL_L":
-        return <BarcodeLabelPreview data={previewData} eye="L" />;
-      case "BARCODE_LABEL_R":
-        return <BarcodeLabelPreview data={previewData} eye="R" />;
+        return <AuthenticityCardPreview payload={previewData} />;
+      case "BARCODE_LABEL":
+        return (
+          <div className="flex flex-col items-center gap-3">
+            <BarcodeLabelPreview data={previewData.R} eye="R" />
+            <BarcodeLabelPreview data={previewData.L} eye="L" />
+          </div>
+        );
+      case "JOB_CARD":
+        return <JobCardPreview data={previewData} />;
       case "SALE_ORDER":
         return <InvoiceBillPreview data={previewData} />;
       case "DISPATCH_NOTE":
@@ -62,7 +80,11 @@ export default function PrintSettingsPreviewPanel({ activeTemplate, onTemplateCh
           <div className="min-w-0">
             <p className="text-sm font-semibold truncate">Template Preview</p>
             <p className="text-[11px] text-muted-foreground truncate">
-              Sample order {previewData.orderNo} · {tabMeta?.media}
+              Sample{" "}
+              {previewData?.orderNo ||
+                previewData?.R?.orderNo ||
+                "—"}{" "}
+              · {tabMeta?.media}
             </p>
           </div>
         </div>
@@ -107,34 +129,26 @@ export default function PrintSettingsPreviewPanel({ activeTemplate, onTemplateCh
         className="overflow-auto flex justify-center items-start p-4"
         style={{ minHeight: "220px", maxHeight: "340px", backgroundColor: "hsl(var(--muted) / 0.35)" }}
       >
-        <div
-          style={{
-            transform: `scale(${scale})`,
-            transformOrigin: "top center",
-          }}
-        >
+        <div style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
           {renderPreview()}
         </div>
       </div>
 
       <div className="px-4 py-2 border-t bg-background text-[11px] text-muted-foreground">
-        Dummy preview for layout testing. Contact line uses Company Details email &amp; phone.
-        Actual print may differ slightly on Evolis / TSC / Canon hardware.
+        Dummy preview for layout testing. Job Card QR = orderNo only (Post-QC scan compatible).
+        {templateId === "BARCODE_LABEL"
+          ? " Barcode prints 2 labels per SO when both eyes selected (R then L)."
+          : ""}
       </div>
     </div>
   );
 }
 
-/** Map printer config card type → preview tab id */
 export function configTypeToPreviewTab(configType) {
-  if (configType === "BARCODE_LABEL") return "BARCODE_LABEL_L";
   if (configType === "LENS_SPECIFICATION") return "AUTHENTICITY_CARD";
   return configType;
 }
 
-/** Map preview tab → printer config card type (for highlight) */
 export function previewTabToConfigType(tabId) {
-  if (tabId.startsWith("BARCODE")) return "BARCODE_LABEL";
-  if (tabId === "AUTHENTICITY_CARD") return "AUTHENTICITY_CARD";
   return tabId;
 }

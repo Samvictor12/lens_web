@@ -1,7 +1,7 @@
 export const defaultSaleOrder = {
   customerId: null,
   customerRefNo: "",
-  orderDate: new Date().toISOString().split('T')[0],
+  orderDate: "", // set to local now on add form mount (datetime-local)
   type: "",
   deliverySchedule: null,
   status: "DRAFT",
@@ -221,6 +221,50 @@ export function toDateInputValue(value) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * Normalize to datetime-local value: YYYY-MM-DDTHH:mm (local timezone).
+ * @param {string|Date|null|undefined} value
+ * @returns {string}
+ */
+export function toDateTimeLocalValue(value) {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+    return value.slice(0, 16);
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+/** Current local datetime for datetime-local inputs. */
+export function nowDateTimeLocalValue() {
+  return toDateTimeLocalValue(new Date());
+}
+
+/**
+ * Compact date+time for dense tables (en-IN).
+ * @param {string|Date|null|undefined} value
+ * @returns {string}
+ */
+export function formatOrderDateTimeCompact(value) {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 /**

@@ -31,4 +31,10 @@
 | KB-027 | Finance dashboard local calendar-day sales/purchases | PRD-4.6, PRD-4.10, DD-2.1, FD-2.4, req-002 |
 | KB-028 | Finance dashboard FYTD Row-1 KPIs | PRD-4.6, DD-2.1, FD-2.4, req-003 |
 | KB-029 | Finance dashboard month-start Row-1 KPIs | PRD-4.6, DD-2.1, FD-2.4, req-004 |
+| KB-030 | Company logo any-image upload (1 MB) | req-company-logo-any-image |
+| KB-031 | Ready for Dispatch order card fields | req-ready-dispatch-order-fields |
+| KB-032 | Dispatch label batch preview (EXE) | req-dispatch-label-batch-preview |
+| KB-033 | DC Customer Card layout (84×55) | req-dc-customer-card-layout |
+| KB-034 | DC Customer Barcode layout (card-like) | req-dispatch-barcode-card-design |
+| KB-035 | Progressive R/L in Initialize Stock and Stock Summary | req-progressive-init-stock-eyes |
 | — | Legacy lessons: `docs/planning-archive/lessons_learned.md` | |

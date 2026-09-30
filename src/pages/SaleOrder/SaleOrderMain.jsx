@@ -33,6 +33,7 @@ import {
 } from "./SaleOrder.constants";
 import { SALE_ORDER_SEARCH_PLACEHOLDER } from "@/constants/saleOrderSearch";
 import { useSaleOrderColumns } from "./useSaleOrderColumns";
+import { printJobCard } from "@/utils/jobCardPrint";
 import SaleOrderFilter from "./SaleOrderFilter";
 import { Refresh } from "@/components/ui/Refresh";
 import SaleOrderStatusLogDialog from "@/components/sale-order/SaleOrderStatusLogDialog";
@@ -111,7 +112,19 @@ export default function SaleOrderMain() {
     setOrderToDelete(order);
     setDeleteDialogOpen(true);
   };
-  const columns = useSaleOrderColumns(navigate, handleDeleteClick, handleStatusClick);
+  const handlePrintJobCard = async (order) => {
+    try {
+      await printJobCard(order);
+      toast({ title: "Job Card sent", description: order.orderNo });
+    } catch (err) {
+      toast({
+        title: "Job Card print failed",
+        description: err.message || "Print failed",
+        variant: "destructive",
+      });
+    }
+  };
+  const columns = useSaleOrderColumns(navigate, handleDeleteClick, handleStatusClick, handlePrintJobCard);
 
   const listFilters = useMemo(
     () => buildListFilters(filters, activeCard),

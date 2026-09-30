@@ -1899,12 +1899,12 @@ model CheckSheetItem {
 
 model PrinterConfig {
   id            Int      @id @default(autoincrement())
-  config_type   String   @unique // "BARCODE_LABEL" | "SALE_ORDER" | "DISPATCH_NOTE"
+  config_type   String   @unique // AUTHENTICITY_CARD | BARCODE_LABEL | JOB_CARD | SALE_ORDER | DISPATCH_NOTE
   printer_name  String?
-  paper_size    String? // "A4" | "A5" | "Thermal80" | "Label_4x2"
-  label_width   Int? // dots (for ZPL label printers)
+  paper_size    String? // Card_84x55 | Label_75x50 | Label_25x10 | A4
+  label_width   Int? // dots (for label printers)
   label_height  Int? // dots
-  extra_config  String? // JSON blob for extra type-specific settings
+  extra_config  String? // JSON: { printMode: "chrome" | "exe" }
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   updatedBy     Int?

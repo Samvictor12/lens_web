@@ -119,6 +119,17 @@ export function coalescePower(item) {
   };
 }
 
+/**
+ * Eye bucket for Stock Summary. Only Progressive stock is per-eye; Single/Bifocal
+ * are stored on the right slot by convention, so they stay unlabeled ('').
+ */
+export function stockEyeSide(item, categoryName) {
+  if (!String(categoryName || "").toLowerCase().includes("prog")) return "";
+  if (item.rightEye && !item.leftEye) return "R";
+  if (item.leftEye && !item.rightEye) return "L";
+  return "";
+}
+
 /** Calendar month start 00:00 through `now` (inclusive). */
 export function calendarMonthWindow(now = new Date()) {
   const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -2265,7 +2276,9 @@ export class InventoryService {
             cyl_max: true,
             add_min: true,
             add_max: true,
+            category_id: true,
             type: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true } },
           },
           orderBy: { lens_name: 'asc' }
         }),
@@ -2359,6 +2372,7 @@ export class InventoryService {
           name: p.lens_name,
           Type_id: p.type_id,
           lensTypeName: p.type?.name || null,
+          categoryName: p.category?.name || null,
         })),
         categories,
         lensTypes,
@@ -2547,7 +2561,7 @@ export class InventoryService {
         // Expose flat sph/cyl/add (eye-aware coalesce) so list UI shows compact power text
         const data = items.map((item) => {
           const power = coalescePower(item);
-          return { ...item, ...power };
+          return { ...item, ...power, eye: stockEyeSide(item, item.category?.name) };
         });
 
         return {
@@ -2584,6 +2598,7 @@ export class InventoryService {
           leftAdd: true,
           lens_id: true,
           category_id: true,
+          category: { select: { name: true } },
           Type_id: true,
           coating_id: true,
           location_id: true,
@@ -2591,12 +2606,13 @@ export class InventoryService {
         },
       });
 
-      // Bucket by lens + coating + location + tray + normalized SPH/CYL/ADD.
+      // Bucket by lens + coating + location + tray + normalized SPH/CYL/ADD + eye (Progressive only).
       // category_id / Type_id are display-only (first-seen representative), not identity.
       // availableStock = total - reserved (same semantics as InventoryStock schema comment).
       const buckets = {};
       for (const item of items) {
         const power = coalescePower(item);
+        const eye = stockEyeSide(item, item.category?.name);
         const key = [
           item.lens_id,
           item.coating_id,
@@ -2605,6 +2621,7 @@ export class InventoryService {
           power.sph,
           power.cyl,
           power.add,
+          eye,
         ].join("|");
 
         if (!buckets[key]) {
@@ -2618,6 +2635,7 @@ export class InventoryService {
             sph: power.sph,
             cyl: power.cyl,
             add: power.add,
+            eye,
             totalStock: 0,
             reservedStock: 0,
             damagedStock: 0,
@@ -2718,6 +2736,7 @@ export class InventoryService {
           sph: g.sph,
           cyl: g.cyl,
           add: g.add,
+          eye: g.eye,
           totalStock,
           availableStock,
           reservedStock,
@@ -3901,9 +3920,10 @@ export class InventoryService {
         }
 
         const { sph: sphVal, cyl: cylVal, add: addVal } = coalescePower(item);
+        const eye = stockEyeSide(item, item.category?.name);
 
-        // Identity: lens + coating + normalized power (lensType is display-only).
-        const prodKey = `${item.lens_id}|${item.coating_id ?? '0'}|${sphVal}|${cylVal}|${addVal}`;
+        // Identity: lens + coating + normalized power + eye (Progressive only; lensType is display-only).
+        const prodKey = `${item.lens_id}|${item.coating_id ?? '0'}|${sphVal}|${cylVal}|${addVal}|${eye}`;
 
         if (!productMap[prodKey]) {
           productMap[prodKey] = {
@@ -3914,6 +3934,7 @@ export class InventoryService {
             sph: sphVal,
             cyl: cylVal,
             add: addVal,
+            eye,
             trays: {},
             totalQty: 0
           };
@@ -3936,7 +3957,11 @@ export class InventoryService {
         const nameB = b.lensProduct?.lens_name || '';
         const comp = nameA.localeCompare(nameB);
         if (comp !== 0) return comp;
-        return parseFloat(a.sph) - parseFloat(b.sph);
+        return (
+          parseFloat(a.sph) - parseFloat(b.sph) ||
+          parseFloat(a.add) - parseFloat(b.add) ||
+          a.eye.localeCompare(b.eye)
+        );
       });
 
       return {

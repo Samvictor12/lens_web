@@ -192,8 +192,8 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
     d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : d;
 
   const handleExportExcel = () => {
-    const row1 = ["", "", "", "", ""];
-    const row2 = ["Product Name", "Coating", "SPH", "CYL", "ADD"];
+    const row1 = ["", "", "", "", "", ""];
+    const row2 = ["Product Name", "Coating", "SPH", "CYL", "ADD", "Eye"];
 
     pivotData.locations.forEach((loc) => {
       loc.trays.forEach((tray) => {
@@ -216,6 +216,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
         prod.sph,
         prod.cyl,
         prod.add,
+        prod.eye || "",
       ];
       pivotData.locations.forEach((loc) => {
         loc.trays.forEach((tray) => {
@@ -241,13 +242,14 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    let locHeadersHTML = `<th colspan="5" class="border-r">Product Details</th>`;
+    let locHeadersHTML = `<th colspan="6" class="border-r">Product Details</th>`;
     let trayHeadersHTML = `
       <th class="border-r">Product Name</th>
       <th class="border-r">Coating</th>
       <th class="border-r text-center">SPH</th>
       <th class="border-r text-center">CYL</th>
       <th class="border-r text-center">ADD</th>
+      <th class="border-r text-center">Eye</th>
     `;
     pivotData.locations.forEach((loc) => {
       locHeadersHTML += `<th colspan="${loc.trays.length}" class="border-r text-center">${loc.name}</th>`;
@@ -265,6 +267,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
         <td class="text-center">${prod.sph}</td>
         <td class="text-center">${prod.cyl}</td>
         <td class="text-center">${prod.add}</td>
+        <td class="text-center">${prod.eye || "—"}</td>
       `;
       pivotData.locations.forEach((loc) => {
         loc.trays.forEach((tray) => {
@@ -393,6 +396,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
             {powerRange ? (
               <span className="text-[11px] text-muted-foreground font-mono">
                 {powerRange}
+                {item.eye ? ` · Eye ${item.eye}` : ""}
               </span>
             ) : null}
           </div>
@@ -770,7 +774,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
                 <thead className="sticky top-0 z-30">
                   {/* Row 1: Location Headers */}
                   <tr className="bg-slate-100 text-slate-700 font-bold border-b text-[11px]">
-                    <th colSpan={5} className="p-2.5 border-r text-left bg-slate-100 sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <th colSpan={6} className="p-2.5 border-r text-left bg-slate-100 sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       Product Details
                     </th>
                     {pivotData.locations.map((loc) => (
@@ -789,6 +793,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
                     <th className="p-2 border-r text-center min-w-[50px] bg-slate-50">SPH</th>
                     <th className="p-2 border-r text-center min-w-[50px] bg-slate-50">CYL</th>
                     <th className="p-2 border-r text-center min-w-[50px] bg-slate-50">ADD</th>
+                    <th className="p-2 border-r text-center min-w-[40px] bg-slate-50">Eye</th>
                     {pivotData.locations.map((loc) =>
                       loc.trays.map((tray) => (
                         <th key={tray.id} className="p-2 border-r text-center font-normal min-w-[80px]">
@@ -810,6 +815,7 @@ export default function InventoryStockTab({ refreshKey = 0, godownType = "STOCK"
                       <td className="p-2 border-r text-center font-mono">{prod.sph}</td>
                       <td className="p-2 border-r text-center font-mono">{prod.cyl}</td>
                       <td className="p-2 border-r text-center font-mono">{prod.add}</td>
+                      <td className="p-2 border-r text-center font-semibold">{prod.eye || "—"}</td>
                       
                       {/* Tray Stock Quantity Cells */}
                       {pivotData.locations.map((loc) =>

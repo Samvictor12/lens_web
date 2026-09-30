@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { formatCustomerRefMrd } from "@/utils/formatCustomerRefMrd";
+import { printHtmlDocument } from "@/utils/printHtmlDocument";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 export const fmt = (n) => {
@@ -652,28 +653,10 @@ export function buildInvoiceHtml(invoice, companyOverride) {
 export function printInvoice(invoice, company) {
   if (!invoice) return;
   const html = buildInvoiceHtml(invoice, company);
-
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) {
-    toast.error("Please allow popups to print");
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  // Let A4 sheet layout settle, then open system print (choose A4 / Save as PDF)
-  const triggerPrint = () => {
-    try {
-      win.focus();
-      win.print();
-    } catch (_) {
-      /* ignore */
-    }
-  };
-  if (win.document.fonts?.ready) {
-    win.document.fonts.ready.then(() => setTimeout(triggerPrint, 150));
-  } else {
-    setTimeout(triggerPrint, 350);
+  try {
+    printHtmlDocument(html, { title: `Invoice ${invoice.invoiceNo || ""}`, delayMs: 400 });
+  } catch (err) {
+    toast.error(err?.message || "Please allow printing to continue");
   }
 }
 

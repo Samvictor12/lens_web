@@ -15,7 +15,15 @@ const SALE_ORDER_INCLUDE = {
       phone: true, delivery_person_id: true,
     },
   },
-  lensProduct: { select: { id: true, lens_name: true } },
+  category: { select: { id: true, name: true } },
+  lensProduct: {
+    select: {
+      id: true,
+      lens_name: true,
+      category: { select: { id: true, name: true } },
+      index: { select: { id: true, index_name: true } },
+    },
+  },
   coating: { select: { id: true, name: true } },
   fitting: { select: { id: true, name: true } },
   assignedPerson: { select: { id: true, name: true, phonenumber: true, vehicleNumber: true } },
@@ -135,6 +143,7 @@ export const getReadyForDispatch = async (user, filters = {}) => {
     where.OR = [
       { orderNo: { contains: search, mode: 'insensitive' } },
       { customerRefNo: { contains: search, mode: 'insensitive' } },
+      { itemRefNo: { contains: search, mode: 'insensitive' } },
       { customer: { name: { contains: search, mode: 'insensitive' } } },
       { customer: { shopname: { contains: search, mode: 'insensitive' } } },
     ];
@@ -325,6 +334,7 @@ const DISPATCH_PRINT_INCLUDE = {
         select: {
           id: true, lens_name: true, product_code: true, range_text: true,
           brand: { select: { name: true } },
+          index: { select: { id: true, index_name: true } },
         },
       },
       coating: { select: { id: true, name: true } },

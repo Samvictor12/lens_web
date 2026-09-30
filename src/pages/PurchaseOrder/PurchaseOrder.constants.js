@@ -58,7 +58,7 @@ export const statusOptions = [
   { value: "DRAFT", label: "Pending" },
   { value: "PO_PARTIAL_RECEIVED", label: "Partial Received" },
   { value: "RECEIVED", label: "Full Received" },
-  { value: "INVOICE_RECEIVED", label: "Invoice Received" },
+  { value: "INVOICE_RECEIVED", label: "INVOICED" },
   { value: "PAID", label: "Paid" },
   { value: "CLOSED", label: "Closed" },
   { value: "CANCELLED", label: "Cancelled" },

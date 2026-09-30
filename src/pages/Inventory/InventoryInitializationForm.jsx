@@ -16,6 +16,10 @@ const fmtPower = (v) => {
   return n > 0 ? `+${n.toFixed(2)}` : n.toFixed(2);
 };
 
+// Progressive is the only per-eye category (matches BulkLensSelection / PO inward).
+const isProgressiveProduct = (product) =>
+  String(product?.categoryName || "").toLowerCase().includes("prog");
+
 export default function InventoryInitializationForm({ isOpen, onClose, onSuccess, godownType }) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -252,23 +256,29 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
       const sphRange = generateRange(sphFrom, sphTo, 0);
       const cylRange = generateRange(cylFrom, cylTo, 0);
       const addRange = generateRange(addFrom, addTo, 0);
+      const product = lensProducts.find((p) => String(p.id) === String(lens_id));
+      const eyes = isProgressiveProduct(product) ? ["R", "L"] : [null];
 
       const rows = [];
       sphRange.forEach((sph) => {
         cylRange.forEach((cyl) => {
           addRange.forEach((add) => {
-            const specLabel = `Sph=${fmtPower(sph)} | Cyl=${fmtPower(cyl)} | Add=${fmtPower(add)}`;
-            const key = `sph_${sph}_cyl_${cyl}_add_${add}`;
-            rows.push({
-              key,
-              spherical: String(sph),
-              cylindrical: String(cyl),
-              add: String(add),
-              specLabel,
-              location_id: "",
-              tray_id: "",
-              qty: "",
-              costPrice: "",
+            const baseLabel = `Sph=${fmtPower(sph)} | Cyl=${fmtPower(cyl)} | Add=${fmtPower(add)}`;
+            const baseKey = `sph_${sph}_cyl_${cyl}_add_${add}`;
+            eyes.forEach((eye) => {
+              rows.push({
+                key: eye ? `${baseKey}_${eye}` : baseKey,
+                pairKey: baseKey,
+                eye,
+                spherical: String(sph),
+                cylindrical: String(cyl),
+                add: String(add),
+                specLabel: eye ? `${baseLabel} | Eye=${eye}` : baseLabel,
+                location_id: "",
+                tray_id: "",
+                qty: "",
+                costPrice: "",
+              });
             });
           });
         });
@@ -283,6 +293,34 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
     if (step > 1) setStep(step - 1);
   };
 
+  /** Fill each unallocated L row with its R row's location / bin / qty / price. */
+  const handleCopyRightToLeft = () => {
+    let copied = 0;
+    const rightByPair = Object.fromEntries(
+      gridRows.filter((r) => r.eye === "R").map((r) => [r.pairKey, r])
+    );
+    const next = gridRows.map((row) => {
+      if (row.eye !== "L" || row.tray_id) return row;
+      const right = rightByPair[row.pairKey];
+      if (!right?.tray_id) return row;
+      copied += 1;
+      return {
+        ...row,
+        location_id: right.location_id,
+        tray_id: right.tray_id,
+        qty: right.qty,
+        costPrice: right.costPrice,
+      };
+    });
+    setGridRows(next);
+    toast({
+      title: copied ? "Copied R to L" : "Nothing to copy",
+      description: copied
+        ? `${copied} L row(s) filled from R. Check bin capacity before saving.`
+        : "Allocate R rows first; L rows that already have a bin are left untouched.",
+    });
+  };
+
   const handleSubmit = async () => {
     setShowSubmitWarnings(true);
     if (!validateStep2()) return;
@@ -293,7 +331,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
         spherical: row.spherical,
         cylindrical: row.cylindrical,
         add: row.add === "0" ? null : row.add,
-        eye: null,
+        eye: row.eye || null,
         splits: [
           {
             location_id: parseInt(row.location_id, 10),
@@ -334,6 +372,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
   if (!isOpen) return null;
 
   const selectedProduct = lensProducts.find((p) => String(p.id) === String(lens_id));
+  const isProgressive = isProgressiveProduct(selectedProduct);
   const selectedCoatingName = coatings.find((c) => String(c.id) === String(coating_id))?.name || coatings.find((c) => String(c.id) === String(coating_id))?.label;
 
   return (
@@ -400,6 +439,15 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                   clearZeroOnFocus
                 />
               </div>
+
+              {isProgressive && (
+                <Alert>
+                  <AlertDescription className="text-xs">
+                    Progressive lens: each power gets separate <span className="font-semibold">R</span> and{" "}
+                    <span className="font-semibold">L</span> rows in the next step, each with its own bin, qty and price.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <Card className="border border-muted p-4">
                 <h3 className="text-sm font-semibold mb-3">Power Ranges (0.25 steps)</h3>
@@ -481,9 +529,17 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
                 <AlertDescription className="text-sm space-y-1">
                   <div>Product: <span className="font-semibold">{selectedProduct?.label || selectedProduct?.lens_name}</span></div>
                   <div>Coating: <span className="font-semibold text-primary">{selectedCoatingName || "No Coating"}</span></div>
-                  <div>Generated combinations: <span className="font-semibold text-primary">{gridRows.length} specs</span></div>
+                  <div>Generated combinations: <span className="font-semibold text-primary">{gridRows.length} specs</span>{isProgressive ? " (R and L per power)" : ""}</div>
                 </AlertDescription>
               </Alert>
+
+              {isProgressive && (
+                <div className="flex justify-end">
+                  <Button type="button" variant="outline" size="sm" onClick={handleCopyRightToLeft} disabled={isSaving}>
+                    Copy R → L
+                  </Button>
+                </div>
+              )}
 
               <Card>
                 <CardHeader className="p-4 flex flex-row items-center justify-between cursor-pointer select-none" onClick={() => setCoatingExpanded(!coatingExpanded)}>

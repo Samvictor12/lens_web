@@ -1,10 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { QrScanButton } from '@/components/ui/QrScanButton';
+import { parseSaleOrderScanPayload } from '@/utils/parseSaleOrderScanPayload';
+import {
+  getSaleOrders,
+  getInventorySoQueue,
+  issueSoToPreQc,
+} from '@/services/saleOrder';
+import { STATUS_LABELS } from '@/constants/saleOrderStatus';
+import { isFreeLensFulfillmentAllowed } from '@/pages/SaleOrder/SaleOrder.constants';
 
 import InventoryDashboard from './InventoryDashboard';
 import InventoryInwardQueueTab from './InventoryInwardQueueTab';
@@ -12,6 +29,7 @@ import InventoryRequestQueueTab from './InventoryRequestQueueTab';
 import InventoryTransactionsTab from './InventoryTransactionsTab';
 import InventoryStockTab from './InventoryStockTab';
 import InventoryAuditTab from './InventoryAuditTab';
+import StockPickModal from './StockPickModal';
 import { inventoryService } from '@/services/inventory';
 import {
   parseInventoryPath,
@@ -29,6 +47,24 @@ const FEATURE_TAB_LABELS = {
   audit: 'Audit',
 };
 
+/** Same statuses as SO Request Queue "Issue & Pre-QC" */
+const STOCK_PICK_STATUSES = ['DRAFT', 'PO_RECEIVED', 'PO_CANCELLED'];
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] || String(status || '').replace(/_/g, ' ') || '—';
+}
+
+function isAlreadyFullyIssued(order) {
+  const readiness = order?.issueReadiness;
+  if (!readiness) return false;
+  const wantsRight = Boolean(order.rightEye);
+  const wantsLeft = Boolean(order.leftEye);
+  if (!wantsRight && !wantsLeft) return false;
+  const rightDone = !wantsRight || Boolean(readiness.right?.alreadyHasLens);
+  const leftDone = !wantsLeft || Boolean(readiness.left?.alreadyHasLens);
+  return rightDone && leftDone;
+}
+
 const InventoryMain = () => {
   const { toast } = useToast();
   const location = useLocation();
@@ -42,6 +78,11 @@ const InventoryMain = () => {
   const [dashboardStats, setDashboardStats] = useState({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const [scanBusy, setScanBusy] = useState(false);
+  const [pickModalOrder, setPickModalOrder] = useState(null);
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [scanError, setScanError] = useState(null);
 
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
@@ -78,6 +119,125 @@ const InventoryMain = () => {
     navigate(inventoryTabPath(nextSlug, activeTab));
   };
 
+  const openScanError = (title, description) => {
+    setScanError({ title, description });
+  };
+
+  const handleInventoryScan = useCallback(
+    async (scannedRaw) => {
+      const { orderNo, customerRefNo } = parseSaleOrderScanPayload(scannedRaw);
+      const searchTerm = orderNo || customerRefNo || String(scannedRaw || '').trim();
+      if (!searchTerm) return;
+
+      setScanBusy(true);
+      setScanError(null);
+      try {
+        const response = await getSaleOrders(1, 20, searchTerm, {}, 'updatedAt', 'desc');
+        const results = response?.data || [];
+        const exact =
+          results.find(
+            (o) => orderNo && o.orderNo?.toLowerCase() === orderNo.toLowerCase()
+          ) ||
+          results.find(
+            (o) =>
+              customerRefNo &&
+              o.customerRefNo?.toLowerCase() === customerRefNo.toLowerCase()
+          ) ||
+          (results.length === 1 ? results[0] : null);
+
+        if (!response?.success || !exact) {
+          openScanError(
+            'Sale order not found',
+            `No sale order matched “${searchTerm}”. Check the barcode and try again.`
+          );
+          return;
+        }
+
+        if (!STOCK_PICK_STATUSES.includes(exact.status)) {
+          openScanError(
+            'Cannot open Stock Pick',
+            `Cannot open Stock Pick for ${exact.orderNo} (status: ${statusLabel(exact.status)}). Issue is only allowed for Draft / PO Received / PO Cancelled.`
+          );
+          return;
+        }
+
+        if (!isFreeLensFulfillmentAllowed(exact)) {
+          openScanError(
+            'Free lens blocked',
+            `${exact.orderNo} is a free-lens order and is not approved yet. Stock Pick is blocked until free lens is approved.`
+          );
+          return;
+        }
+
+        // Enrich with issueReadiness from inventory queue (same as Request Query cards)
+        let enriched = exact;
+        try {
+          const queueRes = await getInventorySoQueue({
+            orderNo: exact.orderNo,
+            limit: 10,
+          });
+          const queueHit = (queueRes?.data || []).find((o) => o.id === exact.id);
+          if (queueHit) enriched = queueHit;
+        } catch {
+          // proceed with list payload if queue enrich fails
+        }
+
+        if (isAlreadyFullyIssued(enriched)) {
+          openScanError(
+            'Already issued',
+            `${enriched.orderNo} already has lens stock issued for all required eyes. Stock Pick is not available.`
+          );
+          return;
+        }
+
+        setPickModalOrder(enriched);
+      } catch (err) {
+        openScanError(
+          'Scan failed',
+          err?.message || 'Could not look up the sale order from this scan.'
+        );
+      } finally {
+        setScanBusy(false);
+      }
+    },
+    []
+  );
+
+  const handleConfirmIssue = async (pick) => {
+    if (!pickModalOrder) return;
+    const itemIds = Array.isArray(pick) ? pick : pick?.itemIds || [];
+    const rightItemId = Array.isArray(pick) ? null : pick?.rightItemId ?? null;
+    const leftItemId = Array.isArray(pick) ? null : pick?.leftItemId ?? null;
+    const locationTrayId = Array.isArray(pick) ? null : pick?.locationTrayId ?? null;
+    if (!locationTrayId) {
+      toast({
+        title: 'Tray required',
+        description: 'Select a destination Tray before issuing to Pre-QC.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIssueBusy(true);
+    try {
+      const res = await issueSoToPreQc(
+        pickModalOrder.id,
+        itemIds,
+        false,
+        { rightItemId, leftItemId },
+        locationTrayId
+      );
+      if (res.success) {
+        toast({ title: 'Issued to Pre-QC', description: pickModalOrder.orderNo });
+        setPickModalOrder(null);
+        bumpRefreshKey();
+      }
+    } catch (e) {
+      toast({ title: 'Issue failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setIssueBusy(false);
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-1 sm:p-1 md:p-3 gap-2 sm:gap-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -87,7 +247,12 @@ const InventoryMain = () => {
             Manage inward queue, SO Request Query, transactions, and stock levels for {godownLabel}
           </p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
+          <QrScanButton
+            onScan={handleInventoryScan}
+            label={scanBusy ? 'Scanning…' : 'Scan'}
+            className="h-8"
+          />
           <Button
             variant="outline"
             size="xs"
@@ -192,6 +357,43 @@ const InventoryMain = () => {
           <InventoryAuditTab key={`audit-${godownType}`} godownType={godownType} onRefresh={handleRefresh} />
         </TabsContent>
       </Tabs>
+
+      {pickModalOrder && (
+        <StockPickModal
+          saleOrderId={pickModalOrder.id}
+          requiredEyes={{
+            rightEye: pickModalOrder.rightEye,
+            leftEye: pickModalOrder.leftEye,
+          }}
+          issueReadiness={pickModalOrder.issueReadiness || null}
+          isAlternate={false}
+          onConfirm={handleConfirmIssue}
+          onCancel={() => {
+            if (!issueBusy) setPickModalOrder(null);
+          }}
+        />
+      )}
+
+      <Dialog
+        open={Boolean(scanError)}
+        onOpenChange={(open) => {
+          if (!open) setScanError(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{scanError?.title || 'Scan error'}</DialogTitle>
+            <DialogDescription className="text-sm text-foreground/90 pt-1">
+              {scanError?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setScanError(null)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

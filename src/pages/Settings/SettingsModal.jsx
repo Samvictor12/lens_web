@@ -34,11 +34,26 @@ import {
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_GST_RATES } from "@/utils/gstRates";
+import { prepareCompanyLogo } from "@/utils/companyLogo";
+import { PRINT_CONFIG_META } from "@/constants/printPreviewFixtures";
 import PrintSettingsPreviewPanel, {
   configTypeToPreviewTab,
   previewTabToConfigType,
 } from "@/components/LensPrint/previews/PrintSettingsPreviewPanel";
 
+function parseExtra(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function buildExtra(printMode) {
+  return JSON.stringify({ printMode: printMode || "exe" });
+}
 // ─────────────────────────────────────────────
 // Tab config
 // ─────────────────────────────────────────────
@@ -373,20 +388,21 @@ function CompanyTab() {
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  const handleLogoChange = (e) => {
-    const file = e.target.files[0];
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) {
-      toast({ title: "Logo too large", description: "Please use an image under 500 KB.", variant: "destructive" });
-      return;
+    try {
+      const dataUrl = await prepareCompanyLogo(file);
+      setForm((p) => ({ ...p, logo: dataUrl }));
+    } catch (err) {
+      toast({
+        title: "Logo not accepted",
+        description: err?.message || "Could not use that image.",
+        variant: "destructive",
+      });
+    } finally {
+      if (logoInputRef.current) logoInputRef.current.value = "";
     }
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Invalid file", description: "Only image files are allowed.", variant: "destructive" });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => setForm((p) => ({ ...p, logo: ev.target.result }));
-    reader.readAsDataURL(file);
   };
 
   const handleRemoveLogo = () => {
@@ -460,7 +476,7 @@ function CompanyTab() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              PNG, JPG or SVG · Max 500 KB · Used in reports, invoices & favicon
+              Any image · Max 1 MB (larger files auto-optimized) · PNG transparency kept · Used in reports, invoices & favicon
             </p>
           </div>
         </div>
@@ -672,39 +688,31 @@ function CompanyTab() {
 // ─────────────────────────────────────────────
 // Print Service Tab
 // ─────────────────────────────────────────────
-const PRINT_SERVICE_DOWNLOAD_URL = "/LensPrintService.exe"; // update to your CDN/static URL
+const PRINT_SERVICE_DOWNLOAD_URL = "/LensPrintService.zip"; // packaged zip with exe, reset & vbs
 
-const CONFIG_LABELS = {
-  AUTHENTICITY_CARD: { label: "Authenticity Card", desc: "Evolis Primacy 2 · 84 × 55 mm card", usesService: true },
-  BARCODE_LABEL:     { label: "Barcode Label",     desc: "TSC TTP-244 · 75 × 50 mm label",     usesService: true },
-  SALE_ORDER:        { label: "Invoice / Bill",    desc: "Canon LBP6030 · A4 sale invoice",    usesService: false },
-  DISPATCH_NOTE:     { label: "Dispatch Challan",  desc: "Canon LBP6030 · A4 delivery note",   usesService: false },
-};
-const PAPER_SIZES = {
-  AUTHENTICITY_CARD: ["Card_84x55"],
-  BARCODE_LABEL:     ["Label_75x50"],
-  SALE_ORDER:        ["A4"],
-  DISPATCH_NOTE:     ["A4"],
-};
-const DEFAULT_PAPER = {
-  AUTHENTICITY_CARD: "Card_84x55",
-  BARCODE_LABEL:     "Label_75x50",
-  SALE_ORDER:        "A4",
-  DISPATCH_NOTE:     "A4",
-};
+function emptyConfig(type) {
+  const meta = PRINT_CONFIG_META[type];
+  return {
+    printer_name: "",
+    paper_size: meta?.defaultPaper || "A4",
+    label_width: type === "BARCODE_LABEL" ? 600 : type === "JOB_CARD" ? 200 : null,
+    label_height: type === "BARCODE_LABEL" ? 400 : type === "JOB_CARD" ? 80 : null,
+    printMode: meta?.chromeOnly ? "chrome" : meta?.defaultMode || "exe",
+    extra_config: buildExtra(meta?.chromeOnly ? "chrome" : meta?.defaultMode || "exe"),
+  };
+}
 
 function PrintServiceTab() {
   const { toast } = useToast();
   const [serviceStatus, setServiceStatus] = useState(null); // null=checking, true=ok, false=down
   const [checking, setChecking]           = useState(false);
   const [localPrinters, setLocalPrinters] = useState([]); // [{ name, status_code, status }]
-  const [previewTemplate, setPreviewTemplate] = useState("AUTHENTICITY_CARD");
+  const [previewTemplate, setPreviewTemplate] = useState("JOB_CARD");
   const [highlightConfig, setHighlightConfig] = useState(null);
-  const [configs, setConfigs]             = useState({
-    AUTHENTICITY_CARD: { printer_name: "", paper_size: "Card_84x55", label_width: null, label_height: null, extra_config: "" },
-    BARCODE_LABEL:     { printer_name: "", paper_size: "Label_75x50", label_width: 600, label_height: 400, extra_config: "" },
-    SALE_ORDER:        { printer_name: "", paper_size: "A4", label_width: null, label_height: null, extra_config: "" },
-    DISPATCH_NOTE:     { printer_name: "", paper_size: "A4", label_width: null, label_height: null, extra_config: "" },
+  const [configs, setConfigs]             = useState(() => {
+    const init = {};
+    Object.keys(PRINT_CONFIG_META).forEach((t) => { init[t] = emptyConfig(t); });
+    return init;
   });
   const [saving, setSaving] = useState({});
   const [testing, setTesting] = useState({});
@@ -730,13 +738,19 @@ function PrintServiceTab() {
           const map = {};
           res.data.forEach((c) => {
             const type = c.config_type === "LENS_SPECIFICATION" ? "AUTHENTICITY_CARD" : c.config_type;
-            if (!CONFIG_LABELS[type]) return;
+            if (!PRINT_CONFIG_META[type]) return;
+            const meta = PRINT_CONFIG_META[type];
+            const extra = parseExtra(c.extra_config);
+            const printMode = meta.chromeOnly
+              ? "chrome"
+              : (extra.printMode === "chrome" ? "chrome" : "exe");
             map[type] = {
               printer_name:  c.printer_name  || "",
-              paper_size:    c.paper_size    || DEFAULT_PAPER[type] || "",
-              label_width:   c.label_width   ?? (type === "BARCODE_LABEL" ? 600 : null),
-              label_height:  c.label_height  ?? (type === "BARCODE_LABEL" ? 400 : null),
-              extra_config:  c.extra_config  || "",
+              paper_size:    c.paper_size    || meta.defaultPaper || "",
+              label_width:   c.label_width   ?? (type === "BARCODE_LABEL" ? 600 : type === "JOB_CARD" ? 200 : null),
+              label_height:  c.label_height  ?? (type === "BARCODE_LABEL" ? 400 : type === "JOB_CARD" ? 80 : null),
+              printMode,
+              extra_config:  buildExtra(printMode),
             };
           });
           setConfigs((prev) => ({ ...prev, ...map }));
@@ -750,9 +764,18 @@ function PrintServiceTab() {
     setSaving((s) => ({ ...s, [configType]: true }));
     try {
       const cfg = configs[configType];
-      const res = await savePrinterConfig({ config_type: configType, ...cfg });
+      const meta = PRINT_CONFIG_META[configType];
+      const printMode = meta.chromeOnly ? "chrome" : (cfg.printMode || "exe");
+      const res = await savePrinterConfig({
+        config_type: configType,
+        printer_name: cfg.printer_name,
+        paper_size: cfg.paper_size,
+        label_width: cfg.label_width,
+        label_height: cfg.label_height,
+        extra_config: buildExtra(printMode),
+      });
       if (res.success) {
-        toast({ title: "Saved", description: `${CONFIG_LABELS[configType].label} config saved.` });
+        toast({ title: "Saved", description: `${meta.label} config saved.` });
       }
     } catch (err) {
       toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
@@ -834,14 +857,14 @@ function PrintServiceTab() {
           <div className="flex items-center gap-3 pt-1 border-t">
             <div className="flex-1">
               <p className="text-xs text-muted-foreground">
-                Download and run <strong>LensPrintService.exe</strong> on this Windows PC.
-                It installs itself silently and starts automatically with Windows.
+                Download and extract <strong>LensPrintService.zip</strong> on this Windows PC.
+                Double-click <strong>run_silent.vbs</strong> to start the printer service silently in the background.
               </p>
             </div>
             <a href={PRINT_SERVICE_DOWNLOAD_URL} download>
               <Button size="xs" className="h-8 gap-1.5 flex-shrink-0">
                 <Download className="h-3.5 w-3.5" />
-                Download .exe
+                Download Service (.zip)
               </Button>
             </a>
           </div>
@@ -849,7 +872,10 @@ function PrintServiceTab() {
       </div>
 
       {/* ── Config Cards ── */}
-      {Object.entries(CONFIG_LABELS).map(([type, meta]) => (
+      {Object.entries(PRINT_CONFIG_META).map(([type, meta]) => {
+        const cfg = configs[type] || emptyConfig(type);
+        const printMode = meta.chromeOnly ? "chrome" : (cfg.printMode || "exe");
+        return (
         <div
           key={type}
           className={cn(
@@ -867,7 +893,7 @@ function PrintServiceTab() {
               <p className="text-xs text-muted-foreground">{meta.desc}</p>
             </div>
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              {configs[type].printer_name && (
+              {cfg.printer_name && !meta.chromeOnly && (
                 <Button
                   type="button"
                   size="xs"
@@ -900,13 +926,48 @@ function PrintServiceTab() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Printer name */}
+            <FieldRow label="Print mode">
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={meta.chromeOnly}
+                  onClick={() => !meta.chromeOnly && setField(type, "printMode", "chrome")}
+                  className={cn(
+                    "flex-1 h-9 text-xs rounded-md border transition-colors",
+                    printMode === "chrome"
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-background border-input text-muted-foreground",
+                    meta.chromeOnly && "opacity-90 cursor-not-allowed"
+                  )}
+                  title={meta.chromeOnly ? "Chrome only" : "Browser print dialog"}
+                >
+                  Chrome{meta.chromeOnly ? " only" : ""}
+                </button>
+                <button
+                  type="button"
+                  disabled={meta.chromeOnly}
+                  onClick={() => !meta.chromeOnly && setField(type, "printMode", "exe")}
+                  className={cn(
+                    "flex-1 h-9 text-xs rounded-md border transition-colors",
+                    printMode === "exe" && !meta.chromeOnly
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-background border-input text-muted-foreground",
+                    meta.chromeOnly && "opacity-40 cursor-not-allowed"
+                  )}
+                  title={meta.chromeOnly ? "Not available for Invoice / DC" : "LensPrintService.exe"}
+                >
+                  EXE
+                </button>
+              </div>
+            </FieldRow>
+
             <FieldRow label="Printer Name">
               {meta.usesService && serviceStatus && localPrinters.length > 0 ? (
                 <select
-                  value={configs[type].printer_name}
+                  value={cfg.printer_name}
                   onChange={(e) => setField(type, "printer_name", e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <option value="">— Select printer —</option>
                   {localPrinters.map((p) => (
@@ -917,48 +978,60 @@ function PrintServiceTab() {
                 </select>
               ) : (
                 <Input
-                  value={configs[type].printer_name}
+                  value={cfg.printer_name}
                   onChange={(e) => setField(type, "printer_name", e.target.value)}
-                  placeholder={meta.usesService ? "Start service to auto-detect printers" : "e.g. HP LaserJet M1005"}
+                  placeholder={meta.chromeOnly ? "Optional (Chrome print)" : "Start service to auto-detect printers"}
+                  onClick={(e) => e.stopPropagation()}
                 />
               )}
             </FieldRow>
 
-            {/* Paper size */}
             <FieldRow label="Paper / Label Size">
               <select
-                value={configs[type].paper_size}
+                value={cfg.paper_size}
                 onChange={(e) => setField(type, "paper_size", e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                onClick={(e) => e.stopPropagation()}
               >
-                {(PAPER_SIZES[type] || ["A4"]).map((s) => <option key={s} value={s}>{s}</option>)}
+                {(meta.paperSizes || ["A4"]).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </FieldRow>
 
-            {/* Label dimensions (barcode only — 75×50 mm @ 203 dpi) */}
             {type === "BARCODE_LABEL" && (
               <>
+                <p className="text-[11px] text-muted-foreground col-span-full px-0.5">
+                  Physical label 75 × 50 mm (W×H). Preview = print. R then L = 2 labels.
+                  Prefer EXE + TSC for production.
+                  Chrome: Headers &amp; footers OFF, Margins None, Scale 100%, paper 75×50 mm.
+                </p>
                 <FieldRow label="Label Width (dots)" hint="75 mm ≈ 600 dots @ 203 dpi">
                   <Input
                     type="number"
-                    value={configs[type].label_width ?? ""}
-                    onChange={(e) => setField(type, "label_width", e.target.value ? parseInt(e.target.value) : null)}
+                    value={cfg.label_width ?? ""}
+                    onChange={(e) =>
+                      setField(type, "label_width", e.target.value ? parseInt(e.target.value, 10) : null)
+                    }
                     placeholder="600"
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </FieldRow>
                 <FieldRow label="Label Height (dots)" hint="50 mm ≈ 400 dots @ 203 dpi">
                   <Input
                     type="number"
-                    value={configs[type].label_height ?? ""}
-                    onChange={(e) => setField(type, "label_height", e.target.value ? parseInt(e.target.value) : null)}
+                    value={cfg.label_height ?? ""}
+                    onChange={(e) =>
+                      setField(type, "label_height", e.target.value ? parseInt(e.target.value, 10) : null)
+                    }
                     placeholder="400"
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </FieldRow>
               </>
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

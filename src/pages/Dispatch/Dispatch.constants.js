@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { formatGoodsDescription } from "@/pages/Billing/Billing.constants";
+import { printHtmlDocument } from "@/utils/printHtmlDocument";
 
 function dash(v) {
   if (v === null || v === undefined || v === "") return "—";
@@ -291,26 +292,9 @@ export function buildDispatchHtml(dispatch, companyOverride) {
 export function printDispatch(dispatch, company) {
   if (!dispatch) return;
   const html = buildDispatchHtml(dispatch, company);
-
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) {
-    toast.error("Please allow popups to print");
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  const triggerPrint = () => {
-    try {
-      win.focus();
-      win.print();
-    } catch (_) {
-      /* ignore */
-    }
-  };
-  if (win.document.fonts?.ready) {
-    win.document.fonts.ready.then(() => setTimeout(triggerPrint, 150));
-  } else {
-    setTimeout(triggerPrint, 350);
+  try {
+    printHtmlDocument(html, { title: `DC ${dispatch.dcNumber || ""}`, delayMs: 400 });
+  } catch (err) {
+    toast.error(err?.message || "Please allow printing to continue");
   }
 }

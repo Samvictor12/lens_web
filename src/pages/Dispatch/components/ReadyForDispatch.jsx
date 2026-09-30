@@ -6,12 +6,18 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/ui/form-select";
 import { Refresh } from "@/components/ui/Refresh";
-import { Search, Package2, Truck, X, MapPin } from "lucide-react";
+import { Search, Package2, Truck, X, MapPin, Printer } from "lucide-react";
 import { getReadyForDispatch } from "@/services/dispatch";
 import { useToast } from "@/hooks/use-toast";
 import DispatchGroupSection from "./DispatchGroupSection";
 import DispatchOrderCard from "./DispatchOrderCard";
 import CreateDispatchModal from "./CreateDispatchModal";
+import {
+    buildDispatchPrintPlan,
+    executeDispatchPrintPlan,
+    BARCODE_CHROME_PRINT_HINT,
+} from "@/utils/dispatchLabelPrint";
+import DispatchLabelsPreviewModal from "@/components/LensPrint/DispatchLabelsPreviewModal";
 
 const GROUP_BY_OPTIONS = [
     { value: "customer",       label: "Customer" },
@@ -27,7 +33,9 @@ function groupOrders(orders, groupBy) {
         let key;
         switch (groupBy) {
             case "customer":
-                key = order.customer?.shopname || order.customer?.name || "Unknown Customer";
+                key = order.customer?.id != null
+                    ? `cust:${order.customer.id}`
+                    : (order.customer?.name || order.customer?.shopname || "Unknown Customer");
                 break;
             case "date":
                 key = order.estimatedDate
@@ -60,6 +68,11 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
     const [groupBy, setGroupBy] = useState("customer");
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [printCard, setPrintCard] = useState(false);
+    const [printBarcode, setPrintBarcode] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
+    const [previewPlan, setPreviewPlan] = useState(null);
+    const [isPreviewSubmitting, setIsPreviewSubmitting] = useState(false);
 
     const fetchOrders = useCallback(async () => {
         try {
@@ -114,16 +127,113 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
         onDispatchCreated?.();
     };
 
+    const canPrintNow =
+        selectedIds.size > 0 && (printCard || printBarcode) && !isPrinting;
+
+    const runPrintPlan = async (plan) => {
+        if (plan?.printBarcode && plan?.barcodeMode === "chrome") {
+            toast({ title: "Barcode print (Chrome)", description: BARCODE_CHROME_PRINT_HINT });
+        }
+        const result = await executeDispatchPrintPlan(plan);
+        toast({
+            title: "Print queued",
+            description: `${result.printed} job(s) sent${result.errors?.length ? ` · ${result.errors.length} skipped` : ""}`,
+        });
+        if (result.errors?.length) {
+            toast({
+                title: "Some prints failed",
+                description: result.errors[0],
+                variant: "destructive",
+            });
+        }
+        return result;
+    };
+
+    const handlePrintSelected = async () => {
+        if (!canPrintNow) return;
+        setIsPrinting(true);
+        try {
+            const plan = await buildDispatchPrintPlan(selectedOrders, {
+                printCard,
+                printBarcode,
+            });
+            if (plan.needsExePreview) {
+                setPreviewPlan(plan);
+                return;
+            }
+            await runPrintPlan(plan);
+        } catch (err) {
+            toast({
+                title: "Print failed",
+                description: err.message || "Could not print labels",
+                variant: "destructive",
+            });
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
+    const handlePreviewConfirm = async () => {
+        if (!previewPlan) return;
+        setIsPreviewSubmitting(true);
+        try {
+            await runPrintPlan(previewPlan);
+            setPreviewPlan(null);
+        } catch (err) {
+            toast({
+                title: "Print failed",
+                description: err.message || "Could not print labels",
+                variant: "destructive",
+            });
+        } finally {
+            setIsPreviewSubmitting(false);
+        }
+    };
+
     return (
         <div className="flex flex-col gap-3 pb-6">
             {/* Controls row — Card-wrapped like PO */}
             <Card className="p-1 sm:p-1 flex-shrink-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-3 px-1 shrink-0">
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                            <Checkbox
+                                checked={printCard}
+                                onCheckedChange={(v) => setPrintCard(!!v)}
+                            />
+                            DC Card
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                            <Checkbox
+                                checked={printBarcode}
+                                onCheckedChange={(v) => setPrintBarcode(!!v)}
+                            />
+                            Barcode
+                        </label>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 text-xs"
+                            disabled={!canPrintNow}
+                            onClick={handlePrintSelected}
+                            title={
+                                !selectedIds.size
+                                    ? "Select orders first"
+                                    : !(printCard || printBarcode)
+                                      ? "Check Card and/or Barcode"
+                                      : "Print for selected orders"
+                            }
+                        >
+                            <Printer className="h-3.5 w-3.5" />
+                            {isPrinting ? "Printing…" : "Print"}
+                        </Button>
+                    </div>
                     <div className="relative flex-1 min-w-0">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
                             className="pl-9 h-8 text-sm"
-                            placeholder="Search order, customer, customer ref..."
+                            placeholder="Search order, customer, customer ref, patient ref..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -222,6 +332,16 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
                 selectedOrders={selectedOrders}
                 customer={singleCustomer}
                 onSuccess={handleDispatchCreated}
+                initialPrintCard={printCard}
+                initialPrintBarcode={printBarcode}
+            />
+
+            <DispatchLabelsPreviewModal
+                open={!!previewPlan}
+                plan={previewPlan}
+                isSubmitting={isPreviewSubmitting}
+                onCancel={() => setPreviewPlan(null)}
+                onConfirm={handlePreviewConfirm}
             />
         </div>
     );
@@ -231,10 +351,15 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
 
 function SelectableGroupSection({ label, customer, orders, selectedIds, onToggleOrder, onToggleGroup, allSelected, someSelected }) {
     const [open, setOpen] = useState(true);
+    const customerName = customer?.name?.trim() || null;
+    const shopName = customer?.shopname?.trim() || null;
     const address = customer
         ? [customer.address, customer.city, customer.state].filter(Boolean).join(", ")
         : null;
     const phone = customer?.phone;
+    const heading = customer
+        ? (customerName || shopName || "Unknown Customer")
+        : label;
 
     return (
         <div className="rounded-lg border border-border overflow-hidden">
@@ -247,7 +372,7 @@ function SelectableGroupSection({ label, customer, orders, selectedIds, onToggle
                 <div className="flex items-start gap-2 min-w-0 text-left">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-foreground">{label}</span>
+                            <span className="text-sm font-semibold text-foreground">{heading}</span>
                             <Badge variant="secondary" className="text-[10px] h-4 px-1.5 py-0">
                                 {orders.length}
                             </Badge>
@@ -258,6 +383,12 @@ function SelectableGroupSection({ label, customer, orders, selectedIds, onToggle
                                 </span>
                             )}
                         </div>
+                        {customerName && shopName && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                                <span className="text-muted-foreground/80">Shop: </span>
+                                <span className="font-medium text-foreground">{shopName}</span>
+                            </p>
+                        )}
                         {address && (
                             <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{address}</p>
                         )}
@@ -279,7 +410,7 @@ function SelectableGroupSection({ label, customer, orders, selectedIds, onToggle
                 </div>
             </button>
 
-            {/* Body — SO #, customer ref, etc. on each card */}
+            {/* Body — SO details on each card */}
             {open && (
                 <div className="bg-background p-2 flex flex-col gap-2">
                     {orders.map((order) => (

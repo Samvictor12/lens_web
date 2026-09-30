@@ -14,6 +14,12 @@ import { FormSelect } from "@/components/ui/form-select";
 import { createDispatch } from "@/services/dispatch";
 import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+    buildDispatchPrintPlan,
+    executeDispatchPrintPlan,
+} from "@/utils/dispatchLabelPrint";
+import DispatchLabelsPreviewModal from "@/components/LensPrint/DispatchLabelsPreviewModal";
 
 function todayDateInputValue() {
     const d = new Date();
@@ -23,10 +29,23 @@ function todayDateInputValue() {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-export default function CreateDispatchModal({ open, onClose, selectedOrders = [], customer, onSuccess }) {
+export default function CreateDispatchModal({
+    open,
+    onClose,
+    selectedOrders = [],
+    customer,
+    onSuccess,
+    initialPrintCard = false,
+    initialPrintBarcode = false,
+}) {
     const { toast } = useToast();
     const [users, setUsers] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [printCard, setPrintCard] = useState(initialPrintCard);
+    const [printBarcode, setPrintBarcode] = useState(initialPrintBarcode);
+    const [previewPlan, setPreviewPlan] = useState(null);
+    const [isPreviewSubmitting, setIsPreviewSubmitting] = useState(false);
+    const [pendingSuccess, setPendingSuccess] = useState(false);
 
     const [form, setForm] = useState({
         deliveryPersonId: "",
@@ -41,6 +60,8 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
     // Reset form and pre-fill delivery person + phone from customer's default
     useEffect(() => {
         if (!open) return;
+        setPrintCard(initialPrintCard);
+        setPrintBarcode(initialPrintBarcode);
         const defaultPersonId = customer?.delivery_person_id
             ? String(customer.delivery_person_id)
             : "";
@@ -77,7 +98,7 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
             .catch(() => {
                 toast({ title: "Error", description: "Failed to load delivery persons", variant: "destructive" });
             });
-    }, [open, customer]);
+    }, [open, customer, initialPrintCard, initialPrintBarcode]);
 
     const handleChange = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -118,11 +139,70 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
                 deliveryNotes: form.deliveryNotes || undefined,
             });
             toast({ title: "Dispatch created", description: `${selectedOrders.length} order(s) added to dispatch` });
+
+            if (printCard || printBarcode) {
+                try {
+                    const plan = await buildDispatchPrintPlan(selectedOrders, {
+                        printCard,
+                        printBarcode,
+                    });
+                    if (plan.needsExePreview) {
+                        setPendingSuccess(true);
+                        setPreviewPlan(plan);
+                        return;
+                    }
+                    const result = await executeDispatchPrintPlan(plan);
+                    toast({
+                        title: "Print queued",
+                        description: `${result.printed} label job(s) sent`,
+                    });
+                } catch (printErr) {
+                    toast({
+                        title: "Dispatch created — print failed",
+                        description: printErr.message || "Reprint from DC modal",
+                        variant: "destructive",
+                    });
+                }
+            }
+
             onSuccess?.();
         } catch (err) {
             toast({ title: "Error", description: err?.message || String(err) || "Failed to create dispatch", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handlePreviewConfirm = async () => {
+        if (!previewPlan) return;
+        setIsPreviewSubmitting(true);
+        try {
+            const result = await executeDispatchPrintPlan(previewPlan);
+            toast({
+                title: "Print queued",
+                description: `${result.printed} label job(s) sent`,
+            });
+            setPreviewPlan(null);
+            if (pendingSuccess) {
+                setPendingSuccess(false);
+                onSuccess?.();
+            }
+        } catch (printErr) {
+            toast({
+                title: "Dispatch created — print failed",
+                description: printErr.message || "Reprint from DC modal",
+                variant: "destructive",
+            });
+        } finally {
+            setIsPreviewSubmitting(false);
+        }
+    };
+
+    const handlePreviewCancel = () => {
+        setPreviewPlan(null);
+        if (pendingSuccess) {
+            setPendingSuccess(false);
+            onSuccess?.();
         }
     };
 
@@ -132,22 +212,27 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
     const canCreate = selectedOrders.length > 0 && !!form.deliveryPersonId && !isSubmitting;
 
     return (
+        <>
         <Dialog open={open} onOpenChange={(v) => { if (!v && !isSubmitting) onClose(); }}>
-            <DialogContent className="sm:max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+            <DialogContent className="!flex w-full max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+                <DialogHeader className="shrink-0 space-y-0 border-b px-6 py-4 pr-12 text-left">
                     <DialogTitle className="flex items-center gap-2">
                         <Truck className="h-4 w-4" />
                         Create Dispatch
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="flex flex-col gap-4 py-1">
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                    <div className="flex flex-col gap-4">
                     {/* Customer info (read-only) */}
                     <div className="rounded-lg border bg-muted/30 p-3">
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Customer</p>
                         <div className="flex items-center gap-1 text-sm font-medium">
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            {customer?.shopname || customer?.name || "—"}
+                            {customer?.name || customer?.shopname || "—"}
+                            {customer?.name && customer?.shopname ? (
+                                <span className="font-normal text-muted-foreground"> · {customer.shopname}</span>
+                            ) : null}
                         </div>
                         {customerAddress && (
                             <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
@@ -236,9 +321,37 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
                             onChange={(e) => handleChange("deliveryNotes", e.target.value)}
                         />
                     </div>
+
+                    {/* Print preferences */}
+                    <div className="rounded-lg border p-3 space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            Print after create (optional)
+                        </p>
+                        <div className="flex flex-wrap gap-4">
+                            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                                <Checkbox
+                                    checked={printCard}
+                                    onCheckedChange={(v) => setPrintCard(!!v)}
+                                />
+                                DC Customer Card
+                            </label>
+                            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                                <Checkbox
+                                    checked={printBarcode}
+                                    onCheckedChange={(v) => setPrintBarcode(!!v)}
+                                />
+                                DC Customer Barcode
+                            </label>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                            Barcode: R then L. Card: 1 per SO (10 mm top blank for thank line). EXE
+                            types show preview before printing.
+                        </p>
+                    </div>
+                    </div>
                 </div>
 
-                <DialogFooter className="gap-2 pt-2">
+                <DialogFooter className="shrink-0 gap-2 border-t px-6 py-3 sm:space-x-2">
                     <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="h-8">
                         Cancel
                     </Button>
@@ -258,5 +371,14 @@ export default function CreateDispatchModal({ open, onClose, selectedOrders = []
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+        <DispatchLabelsPreviewModal
+            open={!!previewPlan}
+            plan={previewPlan}
+            isSubmitting={isPreviewSubmitting}
+            onCancel={handlePreviewCancel}
+            onConfirm={handlePreviewConfirm}
+        />
+        </>
     );
 }
