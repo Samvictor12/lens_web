@@ -191,7 +191,7 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
     };
 
     return (
-        <div className="flex flex-col gap-3 pb-6">
+        <div className="flex flex-col gap-2.5 pb-2 min-h-0 flex-1 overflow-hidden">
             {/* Controls row — Card-wrapped like PO */}
             <Card className="p-1 sm:p-1 flex-shrink-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -254,7 +254,7 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
 
             {/* Selection bar */}
             {selectedIds.size > 0 && (
-                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 flex-shrink-0">
                     <div className="flex items-center gap-2 text-sm">
                         <Badge variant="default" className="h-5 px-2 text-[11px]">{selectedIds.size}</Badge>
                         <span className="text-xs text-muted-foreground">
@@ -285,45 +285,47 @@ export default function ReadyForDispatch({ refreshKey, onDispatchCreated }) {
                 </div>
             )}
 
-            {/* Content */}
-            {isLoading && orders.length === 0 ? (
-                <div className="flex flex-col gap-3">
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
-                    ))}
-                </div>
-            ) : orders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-                    <Package2 className="h-12 w-12 opacity-30" />
-                    <p className="text-sm font-medium">No orders ready for dispatch</p>
-                    <p className="text-xs text-center px-4">
-                        Orders with status "Ready for Dispatch" will appear here.
-                    </p>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-3">
-                    {grouped.map(([label, groupOrds]) => {
-                        const groupIds = groupOrds.map((o) => o.id);
-                        const allSelected = groupIds.every((id) => selectedIds.has(id));
-                        const someSelected = groupIds.some((id) => selectedIds.has(id));
-                        const customer = groupOrds[0]?.customer;
+            {/* Scrollable Content Container */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                {isLoading && orders.length === 0 ? (
+                    <div className="flex flex-col gap-3">
+                        {[...Array(3)].map((_, i) => (
+                            <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
+                        ))}
+                    </div>
+                ) : orders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+                        <Package2 className="h-12 w-12 opacity-30" />
+                        <p className="text-sm font-medium">No orders ready for dispatch</p>
+                        <p className="text-xs text-center px-4">
+                            Orders with status "Ready for Dispatch" will appear here.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {grouped.map(([label, groupOrds]) => {
+                            const groupIds = groupOrds.map((o) => o.id);
+                            const allSelected = groupIds.every((id) => selectedIds.has(id));
+                            const someSelected = groupIds.some((id) => selectedIds.has(id));
+                            const customer = groupOrds[0]?.customer;
 
-                        return (
-                            <SelectableGroupSection
-                                key={label}
-                                label={label}
-                                customer={groupBy === "customer" ? customer : null}
-                                orders={groupOrds}
-                                selectedIds={selectedIds}
-                                onToggleOrder={toggleOrder}
-                                onToggleGroup={() => toggleGroup(groupOrds)}
-                                allSelected={allSelected}
-                                someSelected={someSelected}
-                            />
-                        );
-                    })}
-                </div>
-            )}
+                            return (
+                                <SelectableGroupSection
+                                    key={label}
+                                    label={label}
+                                    customer={groupBy === "customer" ? customer : null}
+                                    orders={groupOrds}
+                                    selectedIds={selectedIds}
+                                    onToggleOrder={toggleOrder}
+                                    onToggleGroup={() => toggleGroup(groupOrds)}
+                                    allSelected={allSelected}
+                                    someSelected={someSelected}
+                                />
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
 
             {/* Create Dispatch Modal */}
             <CreateDispatchModal

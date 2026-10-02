@@ -214,156 +214,167 @@ export default function CreateDispatchModal({
     return (
         <>
         <Dialog open={open} onOpenChange={(v) => { if (!v && !isSubmitting) onClose(); }}>
-            <DialogContent className="!flex w-full max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+            <DialogContent className="!w-[96vw] !max-w-[1650px] sm:!max-w-[1650px] max-h-[85vh] !flex flex-col gap-0 overflow-hidden p-0">
                 <DialogHeader className="shrink-0 space-y-0 border-b px-6 py-4 pr-12 text-left">
                     <DialogTitle className="flex items-center gap-2">
-                        <Truck className="h-4 w-4" />
+                        <Truck className="h-4 w-4 text-primary" />
                         Create Dispatch
                     </DialogTitle>
                 </DialogHeader>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                     <div className="flex flex-col gap-4">
-                    {/* Customer info (read-only) */}
-                    <div className="rounded-lg border bg-muted/30 p-3">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Customer</p>
-                        <div className="flex items-center gap-1 text-sm font-medium">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            {customer?.name || customer?.shopname || "—"}
-                            {customer?.name && customer?.shopname ? (
-                                <span className="font-normal text-muted-foreground"> · {customer.shopname}</span>
-                            ) : null}
-                        </div>
-                        {customerAddress && (
-                            <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
-                                <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span>{customerAddress}</span>
-                            </div>
-                        )}
-                        {customer?.phone && (
-                            <p className="text-xs text-muted-foreground mt-0.5 ml-4">{customer.phone}</p>
-                        )}
-                    </div>
-
-                    {/* Selected orders summary */}
-                    <div className="rounded-lg border bg-muted/30 p-3">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
-                            <Package className="h-3.5 w-3.5" />
-                            Orders ({selectedOrders.length})
-                        </p>
-                        <div className="flex flex-col gap-1 max-h-28 overflow-y-auto">
-                            {selectedOrders.map((o) => (
-                                <div key={o.id} className="flex items-center justify-between text-xs">
-                                    <span className="font-medium">{o.orderNo}</span>
-                                    <span className="text-muted-foreground truncate ml-2">
-                                        {o.lensProduct?.lens_name}{o.coating?.name ? ` · ${o.coating.name}` : ""}
-                                    </span>
+                        {/* Top: Customer info & Orders summary side-by-side */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Customer info (read-only) */}
+                            <div className="rounded-lg border bg-muted/20 p-3">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Customer Information</p>
+                                <div className="flex items-center gap-1.5 text-sm font-medium">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    {customer?.name || customer?.shopname || "—"}
+                                    {customer?.name && customer?.shopname ? (
+                                        <span className="font-normal text-muted-foreground"> · {customer.shopname}</span>
+                                    ) : null}
                                 </div>
-                            ))}
+                                {customerAddress && (
+                                    <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
+                                        <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+                                        <span>{customerAddress}</span>
+                                    </div>
+                                )}
+                                {customer?.phone && (
+                                    <p className="text-xs text-muted-foreground mt-0.5 ml-4">{customer.phone}</p>
+                                )}
+                            </div>
+
+                            {/* Selected orders summary */}
+                            <div className="rounded-lg border bg-muted/20 p-3">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                    <Package className="h-4 w-4" />
+                                    Orders Selected ({selectedOrders.length})
+                                </p>
+                                <div className="flex flex-col gap-1 max-h-24 overflow-y-auto pr-1">
+                                    {selectedOrders.map((o) => (
+                                        <div key={o.id} className="flex items-center justify-between text-xs py-0.5 border-b last:border-0">
+                                            <span className="font-medium text-primary">{o.orderNo}</span>
+                                            <span className="text-muted-foreground truncate ml-2">
+                                                {o.lensProduct?.lens_name}{o.coating?.name ? ` · ${o.coating.name}` : ""}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Delivery person */}
-                    <div className="grid gap-1.5">
-                        <Label className="text-xs">
-                            Delivery Person <span className="text-red-500">*</span>
-                        </Label>
-                        <FormSelect
-                            options={users}
-                            value={form.deliveryPersonId}
-                            onChange={handleDeliveryPersonChange}
-                            placeholder="Select delivery person"
-                            isClearable={false}
-                            required
-                        />
-                    </div>
-
-                    {/* Expected delivery date */}
-                    <div className="grid gap-1.5">
-                        <Label className="text-xs">Expected Delivery Date</Label>
-                        <Input
-                            type="date"
-                            className="h-8 text-sm"
-                            value={form.expectedDeliveryDate}
-                            onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}
-                        />
-                    </div>
-
-                    {/* Vehicle & driver info */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs">Vehicle Number</Label>
-                            <Input
-                                className="h-8 text-sm"
-                                placeholder="e.g. MH12AB1234"
-                                value={form.vehicleNumber}
-                                onChange={(e) => handleChange("vehicleNumber", e.target.value)}
-                            />
-                        </div>
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs">Driver Contact</Label>
-                            <Input
-                                className="h-8 text-sm"
-                                placeholder="Phone number"
-                                value={form.driverContact}
-                                onChange={(e) => handleChange("driverContact", e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Notes */}
-                    <div className="grid gap-1.5">
-                        <Label className="text-xs">Delivery Notes</Label>
-                        <textarea
-                            className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                            placeholder="Any delivery instructions..."
-                            value={form.deliveryNotes}
-                            onChange={(e) => handleChange("deliveryNotes", e.target.value)}
-                        />
-                    </div>
-
-                    {/* Print preferences */}
-                    <div className="rounded-lg border p-3 space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                            Print after create (optional)
-                        </p>
-                        <div className="flex flex-wrap gap-4">
-                            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                                <Checkbox
-                                    checked={printCard}
-                                    onCheckedChange={(v) => setPrintCard(!!v)}
+                        {/* Middle: 4-column form fields */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* Delivery person */}
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs">
+                                    Delivery Person <span className="text-red-500">*</span>
+                                </Label>
+                                <FormSelect
+                                    options={users}
+                                    value={form.deliveryPersonId}
+                                    onChange={handleDeliveryPersonChange}
+                                    placeholder="Select delivery person"
+                                    isClearable={false}
+                                    required
                                 />
-                                DC Customer Card
-                            </label>
-                            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                                <Checkbox
-                                    checked={printBarcode}
-                                    onCheckedChange={(v) => setPrintBarcode(!!v)}
+                            </div>
+
+                            {/* Expected delivery date */}
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs">Expected Delivery Date</Label>
+                                <Input
+                                    type="date"
+                                    className="h-9 text-sm"
+                                    value={form.expectedDeliveryDate}
+                                    onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}
                                 />
-                                DC Customer Barcode
-                            </label>
+                            </div>
+
+                            {/* Vehicle Number */}
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs">Vehicle Number</Label>
+                                <Input
+                                    className="h-9 text-sm"
+                                    placeholder="e.g. MH12AB1234"
+                                    value={form.vehicleNumber}
+                                    onChange={(e) => handleChange("vehicleNumber", e.target.value)}
+                                />
+                            </div>
+
+                            {/* Driver Contact */}
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs">Driver Contact</Label>
+                                <Input
+                                    className="h-9 text-sm"
+                                    placeholder="Phone number"
+                                    value={form.driverContact}
+                                    onChange={(e) => handleChange("driverContact", e.target.value)}
+                                />
+                            </div>
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
-                            Barcode: R then L. Card: 1 per SO (10 mm top blank for thank line). EXE
-                            types show preview before printing.
-                        </p>
-                    </div>
+
+                        {/* Bottom: Notes & Print Preferences side-by-side */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Notes */}
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs">Delivery Notes</Label>
+                                <textarea
+                                    className="flex min-h-[58px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    placeholder="Any delivery instructions..."
+                                    rows={2}
+                                    value={form.deliveryNotes}
+                                    onChange={(e) => handleChange("deliveryNotes", e.target.value)}
+                                />
+                            </div>
+
+                            {/* Print preferences */}
+                            <div className="rounded-lg border p-3 flex flex-col justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                                        Print after create (optional)
+                                    </p>
+                                    <div className="flex flex-wrap gap-4">
+                                        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                                            <Checkbox
+                                                checked={printCard}
+                                                onCheckedChange={(v) => setPrintCard(!!v)}
+                                            />
+                                            DC Customer Card
+                                        </label>
+                                        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                                            <Checkbox
+                                                checked={printBarcode}
+                                                onCheckedChange={(v) => setPrintBarcode(!!v)}
+                                            />
+                                            DC Customer Barcode
+                                        </label>
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mt-1.5">
+                                    Barcode: R then L. Card: 1 per SO (10 mm top blank for thank line).
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <DialogFooter className="shrink-0 gap-2 border-t px-6 py-3 sm:space-x-2">
-                    <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="h-8">
+                <DialogFooter className="shrink-0 gap-1.5 border-t px-6 py-2.5 sm:space-x-0 sm:justify-end">
+                    <Button size="xs" variant="outline" onClick={onClose} disabled={isSubmitting} className="h-7 text-xs px-3">
                         Cancel
                     </Button>
-                    <Button onClick={handleSubmit} disabled={!canCreate} className="h-8 gap-1.5">
+                    <Button size="xs" onClick={handleSubmit} disabled={!canCreate} className="h-7 text-xs px-3 gap-1.5">
                         {isSubmitting ? (
                             <>
-                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                 Creating...
                             </>
                         ) : (
                             <>
-                                <Truck className="h-3.5 w-3.5" />
+                                <Truck className="h-3 w-3" />
                                 Create Dispatch
                             </>
                         )}

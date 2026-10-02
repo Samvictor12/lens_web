@@ -19,17 +19,17 @@ import {
 import DispatchLabelsPreviewModal from "@/components/LensPrint/DispatchLabelsPreviewModal";
 
 const STATUS_CONFIG = {
-    PENDING:     { label: "Ready for Pickup", className: "bg-amber-50 text-amber-800 border-amber-300" },
-    IN_TRANSIT:  { label: "In Transit",  className: "bg-blue-50 text-blue-800 border-blue-300" },
-    DELIVERED:   { label: "Delivered",   className: "bg-green-50 text-green-800 border-green-300" },
-    ON_HOLD:     { label: "On Hold",     className: "bg-red-50 text-red-800 border-red-300" },
+    PENDING: { label: "Ready for Pickup", className: "bg-amber-50 text-amber-800 border-amber-300" },
+    IN_TRANSIT: { label: "In Transit", className: "bg-blue-50 text-blue-800 border-blue-300" },
+    DELIVERED: { label: "Delivered", className: "bg-green-50 text-green-800 border-green-300" },
+    ON_HOLD: { label: "On Hold", className: "bg-red-50 text-red-800 border-red-300" },
 };
 
 /**
  * View/Edit Modal for DispatchCopy record
  * Shows products delivered + Preview/Print; allows editing expected date, delivery person, notes
  */
-export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }) {
+export default function ViewDispatchModal({ open, isOpen, onClose, dispatch, onUpdated }) {
     const { toast } = useToast();
     const { company } = useCompany();
     const [isEditing, setIsEditing] = useState(false);
@@ -50,10 +50,11 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
     const [deliveryNotes, setDeliveryNotes] = useState("");
     const [notes, setNotes] = useState("");
 
+    const isModalOpen = open ?? isOpen ?? false;
     const record = detail || dispatch;
 
     useEffect(() => {
-        if (!open || !dispatch?.id) {
+        if (!isModalOpen || !dispatch?.id) {
             setDetail(null);
             setShowPreview(false);
             return;
@@ -103,7 +104,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                         vehicleNumber: u.vehicleNumber || "",
                     })));
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [open]);
 
@@ -235,8 +236,8 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
 
     return (
         <>
-            <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose?.(); }}>
-                <DialogContent className="max-w-3xl max-h-[90vh] !flex flex-col gap-0 overflow-hidden p-0">
+            <Dialog open={isModalOpen} onOpenChange={(nextOpen) => { if (!nextOpen) onClose?.(); }}>
+                <DialogContent className="!w-[96vw] !max-w-[1650px] sm:!max-w-[1650px] max-h-[85vh] !flex flex-col gap-0 overflow-hidden p-0">
                     <DialogHeader className="flex-shrink-0 space-y-0 border-b px-6 py-4 pr-12">
                         <div className="flex items-center justify-between gap-3">
                             <DialogTitle className="flex items-center gap-2 text-left">
@@ -317,7 +318,7 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                         </div>
 
                         {/* Editable Fields */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                             <div className="grid gap-1.5">
                                 <Label className="text-xs flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
@@ -377,31 +378,33 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                             </div>
                         </div>
 
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                Delivery Notes
-                            </Label>
-                            <textarea
-                                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={deliveryNotes}
-                                onChange={(e) => setDeliveryNotes(e.target.value)}
-                                placeholder="Special delivery instructions..."
-                                rows={2}
-                                disabled={!isEditing}
-                            />
-                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    Delivery Notes
+                                </Label>
+                                <textarea
+                                    className="flex min-h-[52px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    value={deliveryNotes}
+                                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                                    placeholder="Special delivery instructions..."
+                                    rows={2}
+                                    disabled={!isEditing}
+                                />
+                            </div>
 
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs">Internal Notes</Label>
-                            <textarea
-                                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Internal remarks..."
-                                rows={2}
-                                disabled={!isEditing}
-                            />
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs">Internal Notes</Label>
+                                <textarea
+                                    className="flex min-h-[52px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Internal remarks..."
+                                    rows={2}
+                                    disabled={!isEditing}
+                                />
+                            </div>
                         </div>
 
                         {/* Delivery Info (read-only, if delivered) */}
@@ -427,55 +430,65 @@ export default function ViewDispatchModal({ open, onClose, dispatch, onUpdated }
                         )}
                     </div>
 
-                    <DialogFooter className="flex-shrink-0 border-t bg-background px-6 py-4 flex-wrap gap-2 sm:space-x-0">
+                    <DialogFooter className="flex-shrink-0 border-t bg-background px-4 py-2.5 flex-wrap gap-1.5 sm:space-x-0 sm:justify-end">
                         {!isEditing ? (
                             <>
-                                <Button variant="outline" onClick={onClose}>Close</Button>
+                                <Button size="xs" variant="outline" className="h-7 text-xs px-2.5" onClick={onClose}>
+                                    Close
+                                </Button>
                                 <Button
+                                    size="xs"
                                     variant="outline"
-                                    className="gap-1.5"
+                                    className="h-7 text-xs px-2.5 gap-1"
                                     onClick={() => setShowPreview(true)}
                                     disabled={isLoadingDetail && !detail}
                                 >
-                                    <Eye className="h-3.5 w-3.5" />
+                                    <Eye className="h-3 w-3" />
                                     Preview
                                 </Button>
                                 <Button
+                                    size="xs"
                                     variant="outline"
-                                    className="gap-1.5"
+                                    className="h-7 text-xs px-2.5 gap-1"
                                     onClick={() => printDispatch(record, companyForPrint)}
                                     disabled={isLoadingDetail && !detail}
                                 >
-                                    <Printer className="h-3.5 w-3.5" />
+                                    <Printer className="h-3 w-3" />
                                     Print DC
                                 </Button>
                                 <Button
+                                    size="xs"
                                     variant="outline"
-                                    className="gap-1.5"
+                                    className="h-7 text-xs px-2.5 gap-1"
                                     disabled={isReprintBusy || (isLoadingDetail && !detail)}
                                     onClick={() => handleReprintLabels({ printCard: true, printBarcode: false })}
                                     title="DC Customer Card"
                                 >
-                                    <Tag className="h-3.5 w-3.5" />
+                                    <Tag className="h-3 w-3" />
                                     Reprint Card
                                 </Button>
                                 <Button
+                                    size="xs"
                                     variant="outline"
-                                    className="gap-1.5"
+                                    className="h-7 text-xs px-2.5 gap-1"
                                     disabled={isReprintBusy || (isLoadingDetail && !detail)}
                                     onClick={() => handleReprintLabels({ printCard: false, printBarcode: true })}
                                 >
-                                    <Printer className="h-3.5 w-3.5" />
+                                    <Printer className="h-3 w-3" />
                                     Reprint Barcode
                                 </Button>
                                 {record.status !== "DELIVERED" && (
-                                    <Button onClick={() => setIsEditing(true)}>Edit</Button>
+                                    <Button size="xs" className="h-7 text-xs px-3" onClick={() => setIsEditing(true)}>
+                                        Edit
+                                    </Button>
                                 )}
                             </>
                         ) : (
                             <>
-                                <Button variant="outline" onClick={handleCancel} disabled={isSaving}>Cancel</Button>
-                                <Button onClick={handleSave} disabled={isSaving}>
+                                <Button size="xs" variant="outline" className="h-7 text-xs px-2.5" onClick={handleCancel} disabled={isSaving}>
+                                    Cancel
+                                </Button>
+                                <Button size="xs" className="h-7 text-xs px-3" onClick={handleSave} disabled={isSaving}>
                                     {isSaving ? "Saving..." : "Save Changes"}
                                 </Button>
                             </>

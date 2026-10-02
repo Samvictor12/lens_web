@@ -3,7 +3,6 @@ import { useLiveWebSocket } from "@/hooks/useLiveWebSocket";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Refresh } from "@/components/ui/Refresh";
 import { useToast } from "@/hooks/use-toast";
-import DispatchDashboard from "./components/DispatchDashboard";
 import ReadyForDispatch from "./components/ReadyForDispatch";
 import DispatchList from "./components/DispatchList";
 import DeviceHealthSignal from "@/components/LensPrint/DeviceHealthSignal";
@@ -11,20 +10,17 @@ import DeviceHealthSignal from "@/components/LensPrint/DeviceHealthSignal";
 export default function DispatchMain() {
     const { toast } = useToast();
 
-    const [activeTab, setActiveTab] = useState("dashboard");
+    const [activeTab, setActiveTab] = useState("ready");
     const [readyRefreshKey, setReadyRefreshKey] = useState(0);
     const [listRefreshKey, setListRefreshKey] = useState(0);
-    const [dashRefreshKey, setDashRefreshKey] = useState(0);
 
     const refreshAll = () => {
         setReadyRefreshKey((k) => k + 1);
         setListRefreshKey((k) => k + 1);
-        setDashRefreshKey((k) => k + 1);
     };
 
     const handleRefresh = () => {
-        if (activeTab === "dashboard") setDashRefreshKey((k) => k + 1);
-        else if (activeTab === "ready") setReadyRefreshKey((k) => k + 1);
+        if (activeTab === "ready") setReadyRefreshKey((k) => k + 1);
         else if (activeTab === "list") setListRefreshKey((k) => k + 1);
         toast({
             title: "Refreshed",
@@ -50,18 +46,10 @@ export default function DispatchMain() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <TabsList className="grid grid-cols-3 mb-4 flex-shrink-0">
-                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsList className="grid grid-cols-2 mb-3 flex-shrink-0">
                     <TabsTrigger value="ready">Ready for Dispatch</TabsTrigger>
                     <TabsTrigger value="list">Dispatch List</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="dashboard" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <DispatchDashboard
-                        refreshKey={dashRefreshKey}
-                        onNavigate={setActiveTab}
-                    />
-                </TabsContent>
 
                 <TabsContent value="ready" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
                     <ReadyForDispatch

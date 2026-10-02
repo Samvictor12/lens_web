@@ -695,7 +695,7 @@ export default function PurchaseOrders() {
           <Button
             size="xs"
             variant="outline"
-            className="gap-1.5 h-8 border-blue-400 text-blue-700 hover:bg-blue-50 whitespace-nowrap shrink-0"
+            className="gap-1.5 h-8 border-blue-500 text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors whitespace-nowrap shrink-0 shadow-xs"
             onClick={handleOpenDownloadPO}
           >
             <Download className="h-3.5 w-3.5" />
@@ -705,7 +705,7 @@ export default function PurchaseOrders() {
           <Button
             size="xs"
             variant="outline"
-            className="gap-1.5 h-8 border-emerald-400 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap shrink-0"
+            className="gap-1.5 h-8 border-emerald-500 text-emerald-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors whitespace-nowrap shrink-0 shadow-xs"
             onClick={handleRaiseVendorBill}
           >
             <FileText className="h-3.5 w-3.5" />

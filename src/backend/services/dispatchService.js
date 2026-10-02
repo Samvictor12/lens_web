@@ -83,7 +83,7 @@ export const getDispatchDashboard = async (user, filters = {}) => {
   const deliveryPersonFilter = mine && userId ? { deliveryPersonId: userId } : {};
   const assignedFilter = mine && userId ? { assignedPerson_id: userId } : {};
 
-  const [readyCount, inTransitCount, deliveredCount, totalPending, recentDispatches] = await Promise.all([
+  const [readyCount, pendingCount, inTransitCount, deliveredCount, onHoldCount, totalCount, recentDispatches] = await Promise.all([
     prisma.saleOrder.count({
       where: {
         deleteStatus: false,
@@ -92,17 +92,19 @@ export const getDispatchDashboard = async (user, filters = {}) => {
       },
     }),
     prisma.dispatchCopy.count({
+      where: { status: 'PENDING', ...deliveryPersonFilter },
+    }),
+    prisma.dispatchCopy.count({
       where: { status: 'IN_TRANSIT', ...deliveryPersonFilter },
     }),
     prisma.dispatchCopy.count({
       where: { status: 'DELIVERED', ...deliveryPersonFilter },
     }),
-    prisma.saleOrder.count({
-      where: {
-        deleteStatus: false,
-        status: { in: DISPATCH_PIPELINE_STATUSES },
-        ...assignedFilter,
-      },
+    prisma.dispatchCopy.count({
+      where: { status: 'ON_HOLD', ...deliveryPersonFilter },
+    }),
+    prisma.dispatchCopy.count({
+      where: { ...deliveryPersonFilter },
     }),
     prisma.dispatchCopy.findMany({
       where: { ...deliveryPersonFilter },
@@ -112,7 +114,16 @@ export const getDispatchDashboard = async (user, filters = {}) => {
     }),
   ]);
 
-  return { readyCount, inTransitCount, deliveredCount, totalPending, recentDispatches };
+  return {
+    readyCount,
+    pendingCount,
+    inTransitCount,
+    deliveredCount,
+    onHoldCount,
+    totalCount,
+    totalPending: pendingCount,
+    recentDispatches,
+  };
 };
 
 // ─── Ready for Dispatch (Sale Orders) ────────────────────────────────────────

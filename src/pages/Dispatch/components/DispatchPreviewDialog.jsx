@@ -41,17 +41,18 @@ export default function DispatchPreviewDialog({ dispatch, open, onClose }) {
           />
         </div>
 
-        <DialogFooter className="shrink-0 gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
-            <X className="h-4 w-4 mr-2" />
+        <DialogFooter className="shrink-0 gap-1.5 sm:justify-end">
+          <Button type="button" size="xs" variant="outline" className="h-7 text-xs px-3" onClick={onClose}>
+            <X className="h-3.5 w-3.5 mr-1" />
             Close
           </Button>
           <Button
             type="button"
+            size="xs"
             onClick={() => printDispatch(dispatch, companyForPrint)}
-            className="gap-2"
+            className="h-7 text-xs px-3 gap-1.5"
           >
-            <Printer className="h-4 w-4" />
+            <Printer className="h-3.5 w-3.5" />
             Print
           </Button>
         </DialogFooter>

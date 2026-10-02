@@ -3,7 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Search, List, Filter, X } from "lucide-react";
+import {
+    Search,
+    Filter,
+    X,
+    Package,
+    Clock,
+    Truck,
+    CheckCircle2,
+    AlertCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
     Sheet,
@@ -14,7 +23,7 @@ import {
     SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
-import { getDispatchList, updateDispatchStatus } from "@/services/dispatch";
+import { getDispatchList, getDispatchDashboard, updateDispatchStatus } from "@/services/dispatch";
 import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 import DispatchRecordCard from "./DispatchRecordCard";
@@ -31,6 +40,7 @@ import { ViewToggle } from "@/components/ui/view-toggle";
 import { CardGrid } from "@/components/ui/card-grid";
 import { Table } from "@/components/ui/table";
 import { useDispatchColumns } from "./useDispatchColumns";
+import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS = [
     { value: "", label: "All Statuses" },
@@ -47,6 +57,16 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
     const [dispatches, setDispatches] = useState([]);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [statsLoading, setStatsLoading] = useState(false);
+    const [stats, setStats] = useState({
+        totalCount: 0,
+        pendingCount: 0,
+        inTransitCount: 0,
+        deliveredCount: 0,
+        onHoldCount: 0,
+    });
+    const [activeCard, setActiveCard] = useState(null);
+
     const [showFilterSheet, setShowFilterSheet] = useState(false);
     const [view, setView] = useState(
         () => localStorage.getItem("dispatchListView") || "card"
@@ -87,6 +107,26 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         localStorage.setItem("dispatchListView", newView);
     };
 
+    // ── Fetch Dashboard KPI Stats ─────────────────────────────────────────────
+    const fetchStats = useCallback(async () => {
+        try {
+            setStatsLoading(true);
+            const res = await getDispatchDashboard();
+            const data = res?.data || {};
+            setStats({
+                totalCount: data.totalCount ?? 0,
+                pendingCount: data.pendingCount ?? data.totalPending ?? 0,
+                inTransitCount: data.inTransitCount ?? 0,
+                deliveredCount: data.deliveredCount ?? 0,
+                onHoldCount: data.onHoldCount ?? 0,
+            });
+        } catch (_) {
+            // silent fallback
+        } finally {
+            setStatsLoading(false);
+        }
+    }, []);
+
     const fetchList = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -108,6 +148,10 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
             setIsLoading(false);
         }
     }, [toast, page, pageSize, search, statusFilter, deliveryAgentFilter, dateFrom, dateTo, isGrouped]);
+
+    useEffect(() => {
+        fetchStats();
+    }, [fetchStats, refreshKey]);
 
     useEffect(() => {
         const timeout = setTimeout(fetchList, search ? 400 : 0);
@@ -140,6 +184,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
             setSignatureDispatchId(null);
             onStatusUpdated?.();
             fetchList();
+            fetchStats();
         } catch (err) {
             toast({ title: "Error", description: err?.message || String(err), variant: "destructive" });
         } finally {
@@ -149,6 +194,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
 
     const handleStatusUpdated = () => {
         fetchList();
+        fetchStats();
         onStatusUpdated?.();
     };
 
@@ -165,7 +211,30 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         [dispatches, groupBy, isGrouped]
     );
 
-    const hasActiveFilters = !!(statusFilter || deliveryAgentFilter || dateFrom || dateTo);
+    const hasActiveFilters = !!(statusFilter || deliveryAgentFilter || dateFrom || dateTo || search || activeCard);
+
+    // ── Clickable Filter Cards ────────────────────────────────────────────────
+    const handleCardClick = (cardKey) => {
+        setPage(1);
+        if (activeCard === cardKey) {
+            setActiveCard(null);
+            setStatusFilter("");
+            return;
+        }
+
+        setActiveCard(cardKey);
+        if (cardKey === "total") {
+            setStatusFilter("");
+        } else if (cardKey === "pending") {
+            setStatusFilter("PENDING");
+        } else if (cardKey === "inTransit") {
+            setStatusFilter("IN_TRANSIT");
+        } else if (cardKey === "delivered") {
+            setStatusFilter("DELIVERED");
+        } else if (cardKey === "onHold") {
+            setStatusFilter("ON_HOLD");
+        }
+    };
 
     const handleApplyFilters = () => {
         setStatusFilter(tempStatus);
@@ -174,6 +243,13 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         setDateTo(tempDateTo);
         setPage(1);
         setShowFilterSheet(false);
+
+        // Sync activeCard with applied status
+        if (tempStatus === "PENDING") setActiveCard("pending");
+        else if (tempStatus === "IN_TRANSIT") setActiveCard("inTransit");
+        else if (tempStatus === "DELIVERED") setActiveCard("delivered");
+        else if (tempStatus === "ON_HOLD") setActiveCard("onHold");
+        else setActiveCard(null);
     };
 
     const handleClearFilters = () => {
@@ -185,6 +261,8 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         setDeliveryAgentFilter("");
         setDateFrom("");
         setDateTo("");
+        setSearch("");
+        setActiveCard(null);
         setPage(1);
         setShowFilterSheet(false);
     };
@@ -195,6 +273,75 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
     };
 
     const pageIndex = page - 1;
+
+    // Summary Cards Configuration (Sale Order Style)
+    const summaryCards = [
+        {
+            key: "total",
+            label: "Total Dispatches",
+            value: statsLoading ? "…" : stats.totalCount,
+            icon: Package,
+            theme: {
+                card: "bg-gradient-to-br from-blue-50 to-blue-100/80 border-blue-200/80 hover:border-blue-300 dark:from-blue-950/30 dark:to-blue-900/40 dark:border-blue-800",
+                selected: "ring-2 ring-blue-500 border-blue-400 shadow-md shadow-blue-100 dark:shadow-none",
+                iconWrap: "bg-blue-500 text-white shadow-xs shadow-blue-200",
+                label: "text-blue-700/80 dark:text-blue-300",
+                value: "text-blue-950 dark:text-blue-100",
+            },
+        },
+        {
+            key: "pending",
+            label: "Ready for Pickup",
+            value: statsLoading ? "…" : stats.pendingCount,
+            icon: Clock,
+            theme: {
+                card: "bg-gradient-to-br from-amber-50 to-orange-100/70 border-amber-200/80 hover:border-amber-300 dark:from-amber-950/30 dark:to-amber-900/40 dark:border-amber-800",
+                selected: "ring-2 ring-amber-500 border-amber-400 shadow-md shadow-amber-100 dark:shadow-none",
+                iconWrap: "bg-amber-500 text-white shadow-xs shadow-amber-200",
+                label: "text-amber-800/80 dark:text-amber-300",
+                value: "text-amber-950 dark:text-amber-100",
+            },
+        },
+        {
+            key: "inTransit",
+            label: "In Transit",
+            value: statsLoading ? "…" : stats.inTransitCount,
+            icon: Truck,
+            theme: {
+                card: "bg-gradient-to-br from-indigo-50 to-violet-100/60 border-indigo-200/80 hover:border-indigo-300 dark:from-indigo-950/30 dark:to-indigo-900/40 dark:border-indigo-800",
+                selected: "ring-2 ring-indigo-500 border-indigo-400 shadow-md shadow-indigo-100 dark:shadow-none",
+                iconWrap: "bg-indigo-500 text-white shadow-xs shadow-indigo-200",
+                label: "text-indigo-700/80 dark:text-indigo-300",
+                value: "text-indigo-950 dark:text-indigo-100",
+            },
+        },
+        {
+            key: "delivered",
+            label: "Delivered",
+            value: statsLoading ? "…" : stats.deliveredCount,
+            icon: CheckCircle2,
+            theme: {
+                card: "bg-gradient-to-br from-emerald-50 to-teal-100/70 border-emerald-200/80 hover:border-emerald-300 dark:from-emerald-950/30 dark:to-emerald-900/40 dark:border-emerald-800",
+                selected: "ring-2 ring-emerald-500 border-emerald-400 shadow-md shadow-emerald-100 dark:shadow-none",
+                iconWrap: "bg-emerald-500 text-white shadow-xs shadow-emerald-200",
+                label: "text-emerald-700/80 dark:text-emerald-300",
+                value: "text-emerald-950 dark:text-emerald-100",
+            },
+        },
+        {
+            key: "onHold",
+            label: "On Hold",
+            value: statsLoading ? "…" : stats.onHoldCount,
+            icon: AlertCircle,
+            theme: {
+                card: "bg-gradient-to-br from-rose-50 to-red-100/70 border-rose-200/80 hover:border-rose-300 dark:from-rose-950/30 dark:to-rose-900/40 dark:border-rose-800",
+                selected: "ring-2 ring-rose-500 border-rose-400 shadow-md shadow-rose-100 dark:shadow-none",
+                iconWrap: "bg-rose-500 text-white shadow-xs shadow-rose-200",
+                label: "text-rose-700/80 dark:text-rose-300",
+                value: "text-rose-950 dark:text-rose-100",
+            },
+        },
+    ];
 
     const renderDispatchCards = (items) => (
         <div className="space-y-2">
@@ -211,8 +358,42 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
     );
 
     return (
-        <div className="flex flex-col gap-3 pb-6 min-h-0 flex-1">
-            {/* Search + Filter toolbar */}
+        <div className="flex flex-col gap-2.5 pb-4 min-h-0 flex-1 overflow-hidden">
+            {/* ── Top Filterable KPI Summary Cards (Sale Order Style) ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 flex-shrink-0">
+                {summaryCards.map((c) => {
+                    const Icon = c.icon;
+                    const isSelected = activeCard === c.key || (c.key === "total" && activeCard === "total");
+                    return (
+                        <div
+                            key={c.key}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleCardClick(c.key)}
+                            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleCardClick(c.key)}
+                            className={cn(
+                                "flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-all duration-150 select-none shadow-xs",
+                                c.theme.card,
+                                isSelected ? c.theme.selected : "opacity-90 hover:opacity-100 hover:shadow-xs"
+                            )}
+                        >
+                            <div className={cn("p-1.5 rounded-md flex-shrink-0", c.theme.iconWrap)}>
+                                <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className={cn("text-[11px] font-medium truncate leading-tight", c.theme.label)}>
+                                    {c.label}
+                                </p>
+                                <p className={cn("text-base font-bold leading-tight mt-0.5", c.theme.value)}>
+                                    {c.value}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* ── Search + Filter Toolbar ── */}
             <Card className="p-1 sm:p-1 flex-shrink-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                     <div className="relative flex-1 min-w-[140px]">
@@ -225,7 +406,19 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
                         />
                     </div>
                     <DispatchGroupBySelect value={groupBy} onChange={handleGroupByChange} />
-                    <Refresh onClick={fetchList} />
+                    <Refresh onClick={() => { fetchList(); fetchStats(); }} />
+                    {hasActiveFilters && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs shrink-0"
+                            onClick={handleClearFilters}
+                        >
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            Clear
+                        </Button>
+                    )}
                     {!isGrouped && (
                         <ViewToggle view={view} onViewChange={handleViewChange} />
                     )}
@@ -250,170 +443,154 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
                                 )}
                             </Button>
                         </SheetTrigger>
-                            <SheetContent>
-                                <SheetHeader>
-                                    <SheetTitle>Filter Dispatches</SheetTitle>
-                                    <SheetDescription>
-                                        Apply filters to refine your dispatch list
-                                    </SheetDescription>
-                                </SheetHeader>
+                        <SheetContent>
+                            <SheetHeader>
+                                <SheetTitle>Filter Dispatches</SheetTitle>
+                                <SheetDescription>
+                                    Apply filters to refine your dispatch list
+                                </SheetDescription>
+                            </SheetHeader>
 
-                                <div className="space-y-4 py-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Status</Label>
-                                        <FormSelect
-                                            options={STATUS_OPTIONS}
-                                            value={tempStatus}
-                                            onChange={(v) => setTempStatus(v || "")}
-                                            placeholder="All statuses"
-                                            isClearable
-                                            isSearchable={false}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Delivery Agent</Label>
-                                        <FormSelect
-                                            options={deliveryAgents}
-                                            value={tempDeliveryAgent}
-                                            onChange={(v) => setTempDeliveryAgent(v || "")}
-                                            placeholder="All Delivery Agents"
-                                            isClearable
-                                            isSearchable={false}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Dispatch Date From</Label>
-                                        <Input
-                                            type="date"
-                                            className="h-8 text-sm"
-                                            value={tempDateFrom}
-                                            onChange={(e) => setTempDateFrom(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Dispatch Date To</Label>
-                                        <Input
-                                            type="date"
-                                            className="h-8 text-sm"
-                                            value={tempDateTo}
-                                            onChange={(e) => setTempDateTo(e.target.value)}
-                                        />
-                                    </div>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Status</Label>
+                                    <FormSelect
+                                        options={STATUS_OPTIONS}
+                                        value={tempStatus}
+                                        onChange={(v) => setTempStatus(v || "")}
+                                        placeholder="All statuses"
+                                        isClearable
+                                        isSearchable={false}
+                                    />
                                 </div>
 
-                                <SheetFooter className="flex gap-2 pt-4">
-                                    <Button variant="outline" className="flex-1" onClick={handleClearFilters}>
-                                        <X className="h-3.5 w-3.5 mr-1.5" />
-                                        Clear Filters
-                                    </Button>
-                                    <Button className="flex-1" onClick={handleApplyFilters}>
-                                        Apply Filters
-                                    </Button>
-                                </SheetFooter>
-                            </SheetContent>
-                        </Sheet>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Delivery Agent</Label>
+                                    <FormSelect
+                                        options={deliveryAgents}
+                                        value={tempDeliveryAgent}
+                                        onChange={(v) => setTempDeliveryAgent(v || "")}
+                                        placeholder="All Delivery Agents"
+                                        isClearable
+                                        isSearchable={false}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Dispatch Date From</Label>
+                                    <Input
+                                        type="date"
+                                        className="h-8 text-sm"
+                                        value={tempDateFrom}
+                                        onChange={(e) => setTempDateFrom(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Dispatch Date To</Label>
+                                    <Input
+                                        type="date"
+                                        className="h-8 text-sm"
+                                        value={tempDateTo}
+                                        onChange={(e) => setTempDateTo(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <SheetFooter className="flex flex-row gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={handleClearFilters}
+                                >
+                                    Clear All
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={handleApplyFilters}
+                                >
+                                    Apply Filters
+                                </Button>
+                            </SheetFooter>
+                        </SheetContent>
+                    </Sheet>
                 </div>
             </Card>
 
-            {isGrouped ? (
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                    {isLoading && dispatches.length === 0 ? (
-                        <div className="flex flex-col gap-3">
-                            {[...Array(4)].map((_, i) => (
-                                <div key={i} className="h-28 rounded-lg bg-muted animate-pulse" />
-                            ))}
-                        </div>
-                    ) : (
-                        <DispatchGroupedList
-                            groups={groups}
-                            renderItems={renderDispatchCards}
-                            emptyMessage="No dispatch records found"
-                        />
-                    )}
-                </div>
-            ) : view === "table" ? (
-                <div className="flex-1 min-h-0">
-                    <Table
-                        data={dispatches}
-                        columns={columns}
+            {/* ── Dispatches Data Listing ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+                {isGrouped ? (
+                    <DispatchGroupedList
+                        groups={groups}
+                        groupBy={groupBy}
+                        isLoading={isLoading}
+                        onStatusUpdated={handleStatusUpdated}
+                        onSignatureRequest={(id) => setSignatureDispatchId(id)}
+                        onView={openView}
+                    />
+                ) : view === "card" ? (
+                    <CardGrid
+                        items={dispatches}
+                        renderCard={(d) => (
+                            <DispatchRecordCard
+                                key={d.id}
+                                dispatch={d}
+                                onStatusUpdated={handleStatusUpdated}
+                                onSignatureRequest={(id) => setSignatureDispatchId(id)}
+                                onView={openView}
+                            />
+                        )}
+                        isLoading={isLoading}
+                        emptyMessage="No dispatch records found matching your filters."
+                        totalCount={total}
                         pageIndex={pageIndex}
                         pageSize={pageSize}
-                        totalCount={total}
-                        onPageChange={(idx) => setPage(idx + 1)}
-                        loading={isLoading}
-                        onPageSizeChange={(size) => {
-                            setPageSize(size);
+                        onPageChange={(newIdx) => setPage(newIdx + 1)}
+                        onPageSizeChange={(newSize) => {
+                            setPageSize(newSize);
                             setPage(1);
                         }}
-                        pagination={true}
-                        emptyMessage="No dispatch records found"
                     />
-                </div>
-            ) : (
-                <div className="flex-1 min-h-0">
-                    {isLoading && dispatches.length === 0 ? (
-                        <div className="flex flex-col gap-3">
-                            {[...Array(4)].map((_, i) => (
-                                <div key={i} className="h-28 rounded-lg bg-muted animate-pulse" />
-                            ))}
-                        </div>
-                    ) : dispatches.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-                            <List className="h-12 w-12 opacity-30" />
-                            <p className="text-sm font-medium">No dispatch records found</p>
-                            <p className="text-xs text-center px-4">
-                                Create a dispatch from the &quot;Ready for Dispatch&quot; tab.
-                            </p>
-                        </div>
-                    ) : (
-                        <CardGrid
-                            items={dispatches}
-                            renderCard={(d) => (
-                                <DispatchRecordCard
-                                    dispatch={d}
-                                    onStatusUpdated={handleStatusUpdated}
-                                    onSignatureRequest={(id) => setSignatureDispatchId(id)}
-                                    onView={openView}
-                                />
-                            )}
-                            isLoading={false}
-                            emptyMessage="No dispatch records found"
-                            pagination={true}
-                            pageIndex={pageIndex}
-                            pageSize={pageSize}
-                            totalCount={total}
-                            onPageChange={(idx) => setPage(idx + 1)}
-                            onPageSizeChange={(size) => {
-                                setPageSize(size);
-                                setPage(1);
-                            }}
-                        />
-                    )}
-                </div>
+                ) : (
+                    <Table
+                        columns={columns}
+                        data={dispatches}
+                        isLoading={isLoading}
+                        totalCount={total}
+                        pageIndex={pageIndex}
+                        pageSize={pageSize}
+                        onPageChange={(newIdx) => setPage(newIdx + 1)}
+                        onPageSizeChange={(newSize) => {
+                            setPageSize(newSize);
+                            setPage(1);
+                        }}
+                        emptyMessage="No dispatch records found."
+                    />
+                )}
+            </div>
+
+            {/* ── Signature Modal ── */}
+            {signatureDispatchId && (
+                <SignatureModal
+                    isOpen={!!signatureDispatchId}
+                    onClose={() => setSignatureDispatchId(null)}
+                    onConfirm={handleSignatureConfirm}
+                    isSubmitting={isDelivering}
+                />
             )}
 
-            <SignatureModal
-                open={!!signatureDispatchId}
-                onClose={() => { if (!isDelivering) setSignatureDispatchId(null); }}
-                onConfirm={handleSignatureConfirm}
-                customerName={dispatches.find((d) => d.id === signatureDispatchId)?.customer?.shopname || ""}
-                orderCount={dispatches.find((d) => d.id === signatureDispatchId)?.saleOrders?.length ?? 0}
-                isSaving={isDelivering}
-            />
-
-            <ViewDispatchModal
-                open={!!viewDispatch}
-                onClose={() => setViewDispatch(null)}
-                dispatch={viewDispatch}
-                onUpdated={(updated) => {
-                    if (updated) setViewDispatch(updated);
-                    fetchList();
-                    onStatusUpdated?.();
-                }}
-            />
+            {/* ── View Detail Modal ── */}
+            {viewDispatch && (
+                <ViewDispatchModal
+                    open={!!viewDispatch}
+                    isOpen={!!viewDispatch}
+                    onClose={() => setViewDispatch(null)}
+                    dispatch={viewDispatch}
+                    onUpdated={handleStatusUpdated}
+                />
+            )}
         </div>
     );
 }
