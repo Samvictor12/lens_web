@@ -1,5 +1,28 @@
 import { toast } from "sonner";
 
+export const VENDOR_INVOICE_STATUS_LABELS = {
+  OUTSTANDING: "Outstanding",
+  PARTIALLY_PAID: "Partially paid",
+  PAID: "Paid",
+  CANCELLED: "Cancelled",
+};
+
+/** Vendor Bills tab status filter (mirrors Billing and invoicing invoices tab). */
+export const VENDOR_INVOICE_LIST_STATUS_FILTER_OPTIONS = [
+  { id: "OPEN", name: "Outstanding & partially paid" },
+  { id: "ALL", name: "All statuses" },
+  { id: "OUTSTANDING", name: VENDOR_INVOICE_STATUS_LABELS.OUTSTANDING },
+  { id: "PARTIALLY_PAID", name: VENDOR_INVOICE_STATUS_LABELS.PARTIALLY_PAID },
+  { id: "PAID", name: VENDOR_INVOICE_STATUS_LABELS.PAID },
+  { id: "CANCELLED", name: VENDOR_INVOICE_STATUS_LABELS.CANCELLED },
+];
+
+export const INDIRECT_EXPENSE_STATUS_FILTER_OPTIONS = [
+  { id: "MARKED", name: "Marked" },
+  { id: "PARTIALLY_PAID", name: "Partially paid" },
+  { id: "PAID", name: "Paid" },
+];
+
 export const PAYMENT_METHODS = [
   "CASH",
   "UPI",

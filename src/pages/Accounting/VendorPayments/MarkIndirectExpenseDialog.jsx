@@ -98,17 +98,23 @@ export default function MarkIndirectExpenseDialog({
       });
       return;
     }
-    if (!form.liabilityLedgerId || !form.categoryId || !form.amount || !form.description) {
+    if (
+      !form.liabilityLedgerId ||
+      !form.categoryId ||
+      !form.amount ||
+      !form.description ||
+      !form.expenseDate
+    ) {
       toast({
         variant: "destructive",
-        title: "Expense for, expense category, amount, and description are required",
+        title: "Expense for, category, amount, bill date, and description are required",
       });
       return;
     }
     if (form.dueDate && form.expenseDate && form.expenseDate > form.dueDate) {
       toast({
         variant: "destructive",
-        title: "Expense date cannot be after due date",
+        title: "Bill date cannot be after due date",
       });
       return;
     }
@@ -188,11 +194,12 @@ export default function MarkIndirectExpenseDialog({
           </div>
           <div className="space-y-1">
             <Label className="text-xs">
-              Expense Date <span className="text-red-500">*</span>
+              Bill date <span className="text-red-500">*</span>
             </Label>
             <Input
               type="date"
               className="h-8"
+              required
               value={form.expenseDate}
               onChange={(e) => setForm((f) => ({ ...f, expenseDate: e.target.value }))}
             />

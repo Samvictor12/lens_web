@@ -47,6 +47,7 @@ import AwaitingVendorBillsTab from "./AwaitingVendorBillsTab";
 import TargetPaymentTab from "./TargetPaymentTab";
 import VendorLedgerTab from "./VendorLedgerTab";
 import IndirectExpensesTab from "./IndirectExpensesTab";
+import { VENDOR_INVOICE_LIST_STATUS_FILTER_OPTIONS } from "./VendorPayments.constants";
 
 function matchesInvoiceSearch(inv, q, group) {
   if (!q) return true;
@@ -97,6 +98,8 @@ export default function VendorPaymentsMain() {
   const [loadingOutstanding, setLoadingOutstanding] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
   const [outstandingSearch, setOutstandingSearch] = useState("");
+  const [billsTabVendorId, setBillsTabVendorId] = useState("");
+  const [billInvoiceStatus, setBillInvoiceStatus] = useState("OPEN");
 
   const [payments, setPayments] = useState([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
@@ -177,12 +180,15 @@ export default function VendorPaymentsMain() {
 
   const stats = statsRes?.data || {};
 
+  const effectiveBillsVendorId = billsTabVendorId || filters.vendorId;
+
   const fetchOutstanding = useCallback(async () => {
     setLoadingOutstanding(true);
     try {
       const params = {
-        ...(filters.vendorId && { vendorId: filters.vendorId }),
+        ...(effectiveBillsVendorId && { vendorId: effectiveBillsVendorId }),
         ...(filters.productId && { productId: filters.productId }),
+        status: billInvoiceStatus,
       };
       const [groupedRes, flatRes] = await Promise.all([
         getOutstandingVendorInvoices({ groupBy: "vendor", ...params }),
@@ -195,7 +201,13 @@ export default function VendorPaymentsMain() {
     } finally {
       setLoadingOutstanding(false);
     }
-  }, [filters.vendorId, filters.productId, refreshKey, toast]);
+  }, [
+    effectiveBillsVendorId,
+    filters.productId,
+    billInvoiceStatus,
+    refreshKey,
+    toast,
+  ]);
 
   const fetchPayments = useCallback(async () => {
     setIsLoadingPayments(true);
@@ -228,8 +240,8 @@ export default function VendorPaymentsMain() {
   ]);
 
   useEffect(() => {
-    if (activeTab === "bills") fetchOutstanding();
-  }, [activeTab, fetchOutstanding]);
+    fetchOutstanding();
+  }, [fetchOutstanding]);
 
   useEffect(() => {
     if (activeTab === "payments") fetchPayments();
@@ -377,6 +389,54 @@ export default function VendorPaymentsMain() {
     toast({ title: "Refreshed" });
   };
 
+  const syncActiveTab = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("tab", tab);
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
+
+  const handleKpiNavigate = useCallback(
+    (key) => {
+      if (key === "awaitingBills") {
+        syncActiveTab("awaiting");
+        return;
+      }
+      if (key === "outstanding") {
+        setBillInvoiceStatus("OPEN");
+        syncActiveTab("bills");
+        return;
+      }
+      if (key === "totalIndirectExpenses") {
+        syncActiveTab("indirect");
+        return;
+      }
+      if (key === "targetPayment") {
+        syncActiveTab("target");
+        return;
+      }
+      if (key === "totalPayment") {
+        syncActiveTab("payments");
+      }
+    },
+    [syncActiveTab]
+  );
+
+  const handleTabChange = useCallback(
+    (tab) => {
+      if (tab === "bills") {
+        setBillInvoiceStatus("OPEN");
+      }
+      syncActiveTab(tab);
+    },
+    [syncActiveTab]
+  );
+
   const productOptions = useMemo(
     () => products.map((p) => ({ id: p.id, name: p.name })),
     [products]
@@ -478,18 +538,15 @@ export default function VendorPaymentsMain() {
         </div>
       </Card>
 
-      <VendorPaymentsKpis stats={stats} loading={statsLoading} />
+      <VendorPaymentsKpis
+        stats={stats}
+        loading={statsLoading}
+        onKpiNavigate={handleKpiNavigate}
+      />
 
       <Tabs
         value={activeTab}
-        onValueChange={(v) => {
-          setActiveTab(v);
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev);
-            next.set("tab", v);
-            return next;
-          });
-        }}
+        onValueChange={handleTabChange}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7 mb-2 flex-shrink-0 h-auto gap-1">
@@ -531,15 +588,42 @@ export default function VendorPaymentsMain() {
 
         <TabsContent value="bills" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden gap-2">
           <Card className="p-1 flex-shrink-0">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="relative flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[12rem]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search invoice, vendor..."
+                  placeholder="Invoice number or supplier invoice no…"
                   value={outstandingSearch}
                   onChange={(e) => setOutstandingSearch(e.target.value)}
                   className="pl-9 h-8 text-sm"
                 />
+              </div>
+              <div className="space-y-1 w-full sm:w-48 shrink-0">
+                <Label className="text-xs sr-only">Vendor</Label>
+                <FormSelect
+                  options={vendors}
+                  value={billsTabVendorId || null}
+                  onChange={(v) => setBillsTabVendorId(v != null ? String(v) : "")}
+                  placeholder={filters.vendorId ? "Tab vendor (optional)" : "All vendors"}
+                  isSearchable
+                  isClearable
+                />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Status:
+                </span>
+                <div className="w-44">
+                  <FormSelect
+                    name="billInvoiceStatus"
+                    options={VENDOR_INVOICE_LIST_STATUS_FILTER_OPTIONS}
+                    value={billInvoiceStatus}
+                    onChange={(value) => setBillInvoiceStatus(value ?? "OPEN")}
+                    placeholder="Status"
+                    isSearchable={false}
+                    isClearable={false}
+                  />
+                </div>
               </div>
             </div>
           </Card>

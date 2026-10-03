@@ -11,6 +11,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { PoCountCell } from "@/components/accounting/PoCountCell";
+import { VENDOR_INVOICE_STATUS_LABELS } from "./VendorPayments.constants";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -68,7 +70,7 @@ function InvoicesTable({ invoices, selectedIds, selectedVendorId, getVendorId, o
                 {inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString("en-IN") : "—"}
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {(inv.items || []).map((i) => i.purchaseOrder?.poNumber).filter(Boolean).join(", ") || "—"}
+                <PoCountCell items={inv.items} className="text-xs" />
               </TableCell>
               <TableCell className="text-right font-mono">{fmt(inv.totalAmount)}</TableCell>
               <TableCell className="text-right font-mono text-green-600">{fmt(inv.paidAmount)}</TableCell>
@@ -80,10 +82,14 @@ function InvoicesTable({ invoices, selectedIds, selectedVendorId, getVendorId, o
                   className={
                     inv.status === "PARTIALLY_PAID"
                       ? "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100"
-                      : "bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100"
+                      : inv.status === "PAID"
+                        ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-100"
+                        : inv.status === "CANCELLED"
+                          ? "bg-red-100 text-red-800 border-red-200 hover:bg-red-100"
+                          : "bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100"
                   }
                 >
-                  {inv.status === "PARTIALLY_PAID" ? "Partially Paid" : "Outstanding"}
+                  {VENDOR_INVOICE_STATUS_LABELS[inv.status] || inv.status}
                 </Badge>
               </TableCell>
             </TableRow>
@@ -95,7 +101,7 @@ function InvoicesTable({ invoices, selectedIds, selectedVendorId, getVendorId, o
 }
 
 function VendorGroupCard({ group, selectedIds, selectedVendorId, onToggleGroup, onToggleInvoice }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const ids = group.invoices.map((i) => i.id);
   const allSelected = ids.length > 0 && ids.every((id) => selectedIds.includes(id));
   const someSelected = ids.some((id) => selectedIds.includes(id)) && !allSelected;
