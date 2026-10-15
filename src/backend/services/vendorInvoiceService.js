@@ -211,6 +211,7 @@ export class VendorInvoiceService {
     productId,
     startDate,
     endDate,
+    status,
   } = {}) {
     const dueDate = {};
     if (collectible) {
@@ -235,9 +236,31 @@ export class VendorInvoiceService {
       }
     }
 
+    const allStatuses = ['OUTSTANDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'];
+    const openPayableStatuses = ['OUTSTANDING', 'PARTIALLY_PAID'];
+    const statusKey = String(status || '').trim().toUpperCase();
+    const statusFilter = collectible
+      ? { in: openPayableStatuses }
+      : statusKey === 'OPEN'
+        ? { in: openPayableStatuses }
+        : statusKey === 'ALL'
+          ? { in: allStatuses }
+          : allStatuses.includes(statusKey)
+            ? statusKey
+            : { in: openPayableStatuses };
+
+    const filterByOutstandingBalance =
+      collectible ||
+      (statusKey !== 'ALL' &&
+        statusKey !== 'PAID' &&
+        statusKey !== 'CANCELLED' &&
+        (statusKey === 'OPEN' ||
+          statusKey === '' ||
+          openPayableStatuses.includes(statusKey)));
+
     const where = {
       deleteStatus: false,
-      status: { in: ['OUTSTANDING', 'PARTIALLY_PAID'] },
+      status: statusFilter,
       ...(vendorId && { vendorId: parseInt(vendorId, 10) }),
       ...productInvoiceFilter(productId),
       ...(Object.keys(dueDate).length ? { dueDate } : {}),
@@ -271,7 +294,7 @@ export class VendorInvoiceService {
         ...inv,
         outstanding: round2(parseFloat(inv.totalAmount) - parseFloat(inv.paidAmount)),
       }))
-      .filter((r) => r.outstanding > 0.01);
+      .filter((r) => !filterByOutstandingBalance || r.outstanding > 0.01);
 
     if (groupBy === 'flat') return { invoices: rows };
 

@@ -238,8 +238,8 @@ export class VendorPaymentService {
 
   /** Outstanding vendor invoices — supports groupBy, collectible, product filter. */
   async listOutstandingInvoices(query = {}) {
-    const { vendorId, groupBy, collectible, productId, startDate, endDate } = query;
-    if (vendorId && !groupBy && !collectible && !productId) {
+    const { vendorId, groupBy, collectible, productId, startDate, endDate, status } = query;
+    if (vendorId && !groupBy && !collectible && !productId && !status) {
       return vendorInvoiceService.listOutstanding({ vendorId, groupBy: 'flat' });
     }
     return vendorInvoiceService.listOutstanding({
@@ -249,6 +249,7 @@ export class VendorPaymentService {
       productId,
       startDate,
       endDate,
+      status,
     });
   }
 

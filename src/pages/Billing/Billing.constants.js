@@ -325,6 +325,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
     .map((o, idx) => {
       const discAmt = lineDiscountAmount(o);
       const additional = lineAdditionalCharges(o);
+      const billableAmount = lineLensAfterDiscount(o);
       const lensRate = o.lensPrice || 0;
       lensGrossSubtotal += lensRate;
       additionalSubtotal += additional;
@@ -338,6 +339,7 @@ export function buildInvoiceHtml(invoice, companyOverride) {
         <td class="r">${lensRate.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
         <td class="r">${additional > 0 ? additional.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
         <td class="r">${discAmt > 0 ? discAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</td>
+        <td class="r">${billableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
       </tr>`;
     })
     .join("");
@@ -433,10 +435,11 @@ export function buildInvoiceHtml(invoice, companyOverride) {
               <th class="r" style="width:12%">Rate</th>
               <th class="r" style="width:14%">Additional</th>
               <th class="r" style="width:12%">Discount</th>
+              <th class="r" style="width:12%">Billable Amount</th>
             </tr>
           </thead>
           <tbody>
-            ${orderRows || `<tr><td colspan="7" class="c muted">No sale orders</td></tr>`}
+            ${orderRows || `<tr><td colspan="8" class="c muted">No sale orders</td></tr>`}
           </tbody>
         </table>
 

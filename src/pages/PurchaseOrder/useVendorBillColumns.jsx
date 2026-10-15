@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, Pencil } from "lucide-react";
 import { vendorInvoiceCopyUrl } from "@/services/vendorPayment";
+import { PoCountCell } from "@/components/accounting/PoCountCell";
 
 const STATUS_STYLES = {
   OUTSTANDING: "bg-amber-50 text-amber-800 border-amber-200",
@@ -60,12 +61,7 @@ export function useVendorBillColumns({ onEdit } = {}) {
       accessorKey: "poNumbers",
       header: "PO(s)",
       sortable: false,
-      cell: (inv) => {
-        const pos = (inv.items || [])
-          .map((item) => item.purchaseOrder?.poNumber)
-          .filter(Boolean);
-        return <span className="text-[11px]">{pos.length ? pos.join(", ") : "—"}</span>;
-      },
+      cell: (inv) => <PoCountCell items={inv.items} />,
     },
     {
       accessorKey: "subtotalAmount",

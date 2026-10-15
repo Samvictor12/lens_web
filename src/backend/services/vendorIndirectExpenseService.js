@@ -27,12 +27,13 @@ function normalizePaymentMethod(method) {
 }
 
 export class VendorIndirectExpenseService {
-  async list({ liabilityLedgerId, status, from, to, page = 1, limit = 100 } = {}) {
+  async list({ liabilityLedgerId, categoryId, status, from, to, page = 1, limit = 100 } = {}) {
     const where = {
       delete_status: false,
       liabilityLedgerId: { not: null },
       vendorExpenseStatus: { not: null },
       ...(liabilityLedgerId && { liabilityLedgerId: parseInt(liabilityLedgerId, 10) }),
+      ...(categoryId && { categoryId: parseInt(categoryId, 10) }),
       ...(status && { vendorExpenseStatus: status }),
       ...((from || to) && {
         expenseDate: {

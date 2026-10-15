@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Table } from "@/components/ui/table";
 import { getVendorPayments, getOutstandingVendorInvoices } from "@/services/vendorPayment";
 
 function fmt(n) {
   return `₹${parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
 
-/** Target Payment tab — per-vendor balance due (cumulative cap) vs payments in period. */
+/**
+ * Target Payment tab — per-vendor target, paid in period, and balance to pay (like Collection tab).
+ */
 export default function TargetPaymentTab({ filters, collectibleParams, refreshKey = 0 }) {
   const [payments, setPayments] = useState([]);
   const [collectGroups, setCollectGroups] = useState([]);
@@ -52,6 +55,7 @@ export default function TargetPaymentTab({ filters, collectibleParams, refreshKe
         const params = {
           page: 1,
           limit: 500,
+          cancelledStatus: false,
           ...(filters.vendorId && { vendorId: filters.vendorId }),
           ...(filters.startDate && { from: filters.startDate }),
           ...(filters.endDate && { to: filters.endDate }),
@@ -69,26 +73,24 @@ export default function TargetPaymentTab({ filters, collectibleParams, refreshKe
     };
   }, [filters.vendorId, filters.startDate, filters.endDate, refreshKey]);
 
-  const balanceRows = useMemo(() => {
+  const remainingByVendor = useMemo(() => {
     return collectGroups
       .map((g) => {
-        const total = (g.invoices || []).reduce(
+        const remaining = (g.invoices || []).reduce(
           (s, inv) => s + parseFloat(inv.outstanding || 0),
           0
         );
         return {
           vendorId: g.vendorId,
-          name: g.vendorName || `Vendor #${g.vendorId}`,
+          name: g.vendorName || g.shopname || `Vendor #${g.vendorId}`,
           code: g.vendorCode || "",
-          total,
-          count: (g.invoices || []).length,
+          remaining,
         };
       })
-      .filter((r) => r.total > 0.01)
-      .sort((a, b) => b.total - a.total);
+      .filter((r) => r.remaining > 0.01);
   }, [collectGroups]);
 
-  const receiptRows = useMemo(() => {
+  const paidByVendor = useMemo(() => {
     const map = new Map();
     for (const p of payments) {
       if (p.cancelledStatus) continue;
@@ -98,78 +100,109 @@ export default function TargetPaymentTab({ filters, collectibleParams, refreshKe
           vendorId: key,
           name: p.vendor?.name || p.vendor?.shopname || `Vendor #${key}`,
           code: p.vendor?.code || "",
-          total: 0,
-          count: 0,
+          paid: 0,
         });
       }
-      const row = map.get(key);
-      row.total += parseFloat(p.totalAmount || 0);
-      row.count += 1;
+      map.get(key).paid += parseFloat(p.totalAmount || 0);
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return map;
   }, [payments]);
+
+  const rows = useMemo(() => {
+    const map = new Map();
+    for (const r of remainingByVendor) {
+      map.set(r.vendorId, {
+        vendorId: r.vendorId,
+        name: r.name,
+        code: r.code,
+        remaining: r.remaining,
+        paid: 0,
+      });
+    }
+    for (const r of paidByVendor.values()) {
+      if (!map.has(r.vendorId)) {
+        map.set(r.vendorId, {
+          vendorId: r.vendorId,
+          name: r.name,
+          code: r.code,
+          remaining: 0,
+          paid: 0,
+        });
+      }
+      map.get(r.vendorId).paid += r.paid;
+    }
+    return Array.from(map.values())
+      .map((r) => ({
+        ...r,
+        id: r.vendorId,
+        target: r.remaining + r.paid,
+        balance: r.remaining,
+      }))
+      .sort((a, b) => b.balance - a.balance);
+  }, [remainingByVendor, paidByVendor]);
 
   const loading = loadingCollect || loadingPayments;
 
-  if (loading && !balanceRows.length && !receiptRows.length) {
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Vendor",
+        cell: (row) => (
+          <div>
+            <div className="font-medium truncate">{row.name}</div>
+            {row.code ? (
+              <div className="text-xs text-muted-foreground">{row.code}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "target",
+        header: "Target",
+        align: "right",
+        cell: (row) => <span className="font-mono">{fmt(row.target)}</span>,
+      },
+      {
+        accessorKey: "paid",
+        header: "Paid",
+        align: "right",
+        cell: (row) => (
+          <span className="font-mono text-green-600">{fmt(row.paid)}</span>
+        ),
+      },
+      {
+        accessorKey: "balance",
+        header: "Balance",
+        align: "right",
+        cell: (row) => (
+          <span className="font-mono font-semibold text-violet-600">{fmt(row.balance)}</span>
+        ),
+      },
+    ],
+    []
+  );
+
+  if (loading && !rows.length) {
     return <p className="text-sm text-muted-foreground text-center py-8">Loading target payment…</p>;
   }
 
-  return (
-    <div className="space-y-6 pb-4">
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Balance to Pay</h3>
-        <p className="text-xs text-muted-foreground mb-3">
-          Cumulative payable balance per vendor (bills due on or before today or filter end date).
-        </p>
-        {loadingCollect ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Loading balances…</p>
-        ) : !balanceRows.length ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            No balance to pay for the selected filters.
-          </Card>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {balanceRows.map((r) => (
-              <Card key={r.vendorId} className="p-3">
-                <div className="font-medium text-sm truncate">{r.name}</div>
-                {r.code && <div className="text-xs text-muted-foreground">{r.code}</div>}
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-lg font-bold text-violet-600">{fmt(r.total)}</span>
-                  <span className="text-xs text-muted-foreground">{r.count} bill(s)</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+  if (!loading && !rows.length) {
+    return (
+      <Card className="p-6 text-center text-sm text-muted-foreground">
+        No target payment rows for the selected period.
+      </Card>
+    );
+  }
 
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Payments Made</h3>
-        <p className="text-xs text-muted-foreground mb-3">
-          Vendor payment vouchers recorded in the selected period.
-        </p>
-        {loadingPayments ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Loading payments…</p>
-        ) : !receiptRows.length ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            No payments in the selected period.
-          </Card>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {receiptRows.map((r) => (
-              <Card key={r.vendorId} className="p-3">
-                <div className="font-medium text-sm truncate">{r.name}</div>
-                {r.code && <div className="text-xs text-muted-foreground">{r.code}</div>}
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-lg font-bold text-green-600">{fmt(r.total)}</span>
-                  <span className="text-xs text-muted-foreground">{r.count} voucher(s)</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+  return (
+    <div className="min-h-0 flex-1 pb-4">
+      <Table
+        data={rows}
+        columns={columns}
+        loading={loading}
+        emptyMessage="No target payment rows for the selected period."
+      />
     </div>
   );
 }
