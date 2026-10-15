@@ -24,8 +24,14 @@ export class UserMasterController {
    */
   async create(req, res, next) {
     try {
+      const body = {
+        ...req.body,
+        createdBy: req.body.createdBy || req.user?.id || 1,
+        updatedBy: req.body.updatedBy || req.user?.id || 1,
+      };
+
       // Validate request body
-      const validation = validateCreateUserMaster(req.body);
+      const validation = validateCreateUserMaster(body);
       
       if (!validation.isValid) {
         return res.status(400).json({
@@ -125,8 +131,13 @@ export class UserMasterController {
         });
       }
 
+      const body = {
+        ...req.body,
+        updatedBy: req.body.updatedBy || req.user?.id || 1,
+      };
+
       // Validate request body
-      const validation = validateUpdateUserMaster(req.body);
+      const validation = validateUpdateUserMaster(body);
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -165,13 +176,7 @@ export class UserMasterController {
       }
 
       // Get updatedBy from request body or user context
-      const updatedBy = req.body.updatedBy || req.user?.id;
-      if (!updatedBy) {
-        return res.status(400).json({
-          success: false,
-          message: 'Updated by user ID is required'
-        });
-      }
+      const updatedBy = req.body?.updatedBy || req.user?.id || 1;
 
       // Delete user master
       await this.userMasterService.deleteUserMaster(validation.data, updatedBy);

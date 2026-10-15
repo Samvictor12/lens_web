@@ -64,6 +64,21 @@ export const useUserColumns = (navigate, onDelete, onLoginClick) => {
       ),
     },
     {
+      accessorKey: "is_login",
+      header: "Login",
+      sortable: true,
+      cell: (user) => (
+        <Badge
+          variant={user.is_login ? "success" : "outline"}
+          className={`text-xs ${
+            user.is_login ? "" : "text-muted-foreground border-muted-foreground/30"
+          }`}
+        >
+          {user.is_login ? "Configured" : "Not Set"}
+        </Badge>
+      ),
+    },
+    {
       accessorKey: "active_status",
       header: "Status",
       sortable: true,
@@ -87,7 +102,7 @@ export const useUserColumns = (navigate, onDelete, onLoginClick) => {
             size="xs"
             className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
             onClick={() => onLoginClick(user)}
-            title="Login Settings"
+            title={user.is_login ? "Update Login Settings" : "Enable Login"}
           >
             <Key className="h-3.5 w-3.5" />
           </Button>

@@ -125,14 +125,14 @@ async function paintBarcodeLabel(ctx, width, height, payload, qrDataUrl) {
   const row = resolveBarcodeRow(p);
   const showAdd = !!p.showAdd;
   const scale = height / LABEL_H;
-  const pad = Math.round(14 * scale);
-  const qrSize = Math.round(96 * scale);
-  const metaMaxW = width - pad * 3 - qrSize;
-  const lensSize = Math.round(22 * scale);
-  const metaSize = Math.round(19 * scale);
-  const metaLine = Math.round(23 * scale);
-  const footSize = Math.round(18 * scale);
-  const rowH = Math.round(36 * scale);
+  const pad = Math.round(26 * scale);
+  const qrSize = Math.round(86 * scale);
+  const metaMaxW = width - pad * 2 - qrSize - Math.round(10 * scale);
+  const lensSize = Math.round(20 * scale);
+  const metaSize = Math.round(17 * scale);
+  const metaLine = Math.round(21 * scale);
+  const footSize = Math.round(16 * scale);
+  const rowH = Math.round(32 * scale);
 
   if (qrDataUrl) {
     await drawImage(ctx, qrDataUrl, width - pad - qrSize, pad, qrSize, qrSize);
@@ -145,7 +145,7 @@ async function paintBarcodeLabel(ctx, width, height, payload, qrDataUrl) {
     pad,
     pad,
     metaMaxW,
-    Math.round(26 * scale),
+    Math.round(24 * scale),
     2
   );
   ctx.font = `${metaSize}px ${FONT}`;
@@ -158,8 +158,8 @@ async function paintBarcodeLabel(ctx, width, height, payload, qrDataUrl) {
     y += metaLine;
   }
 
-  const tableTop = Math.max(y + Math.round(8 * scale), pad + qrSize + Math.round(8 * scale));
-  const footY = Math.max(tableTop + rowH * 2 + Math.round(6 * scale), height - pad - footSize);
+  const tableTop = Math.max(y + Math.round(6 * scale), pad + qrSize + Math.round(6 * scale));
+  const footY = Math.max(tableTop + rowH * 2 + Math.round(4 * scale), height - pad - footSize);
 
   const headers = ["", "sph", "cyl", "Ax", ...(showAdd ? ["Add"] : []), "FH"];
   const vals = [
@@ -171,9 +171,9 @@ async function paintBarcodeLabel(ctx, width, height, payload, qrDataUrl) {
     String(row.fh || row.dia || "-"),
   ];
   const colW = (width - pad * 2) / headers.length;
-  const headSize = Math.round(20 * scale);
-  const valSize = Math.round(26 * scale);
-  const eyeSize = Math.round(28 * scale);
+  const headSize = Math.round(18 * scale);
+  const valSize = Math.round(22 * scale);
+  const eyeSize = Math.round(24 * scale);
 
   headers.forEach((h, c) => {
     drawCellText(ctx, h, pad + c * colW, tableTop, colW, rowH, headSize, true);

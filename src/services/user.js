@@ -43,7 +43,7 @@ const mapFromBackend = (backendData) => {
     city: backendData.city || "",
     state: backendData.state || "",
     pincode: backendData.pincode || "",
-    role_id: backendData.role_id || null,
+    role_id: backendData.role_id ?? backendData.role?.id ?? null,
     department_id: backendData.department_id || null,
     salary: backendData.salary || 0,
     active_status:
@@ -53,9 +53,10 @@ const mapFromBackend = (backendData) => {
     createdAt: backendData.createdAt,
     departmentDetails: backendData.departmentDetails || null,
     role: backendData.role || null,
-    // Login fields (will be added to Prisma)
-    user_name: backendData.user_name || "",
-    is_login: backendData.is_login || false,
+    // Login fields
+    username: backendData.username || backendData.user_name || "",
+    user_name: backendData.username || backendData.user_name || "",
+    is_login: Boolean(backendData.is_login),
   };
 };
 

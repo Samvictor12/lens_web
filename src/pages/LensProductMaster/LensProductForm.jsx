@@ -281,9 +281,13 @@ export default function LensProductForm() {
       navigate("/masters/lens-product");
     } catch (error) {
       console.error("Error saving product:", error);
+      const errorMessage =
+        error.errors?.map((e) => e.message).join(", ") ||
+        error.message ||
+        (typeof error === "string" ? error : "Failed to save lens product");
       toast({
         title: "Error",
-        description: error.message || "Failed to save lens product",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

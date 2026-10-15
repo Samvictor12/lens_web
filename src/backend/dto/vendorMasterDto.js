@@ -186,8 +186,6 @@ export const validateUpdateVendorMaster = (data) => {
         } else if (!isValidLength(data.city, 1, 100)) {
             errors.push({ field: 'city', message: 'City must not exceed 100 characters' });
         }
-    } else {
-        errors.push({ field: 'city', message: 'City is required' });
     }
 
     if (data.state !== undefined) {
@@ -196,8 +194,6 @@ export const validateUpdateVendorMaster = (data) => {
         } else if (!isValidLength(data.state, 1, 100)) {
             errors.push({ field: 'state', message: 'State must not exceed 100 characters' });
         }
-    } else {
-        errors.push({ field: 'state', message: 'State is required' });
     }
 
     if (data.pincode !== undefined) {
@@ -206,8 +202,6 @@ export const validateUpdateVendorMaster = (data) => {
         } else if (!isValidLength(data.pincode, 1, 10)) {
             errors.push({ field: 'pincode', message: 'Pincode must not exceed 10 characters' });
         }
-    } else {
-        errors.push({ field: 'pincode', message: 'Pincode is required' });
     }
 
     if (data.businessCategory_id !== undefined && data.businessCategory_id !== null) {

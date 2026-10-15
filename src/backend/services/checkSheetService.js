@@ -65,25 +65,35 @@ export class CheckSheetService {
   }
 
   async create(data, userId) {
+    if (!data.name || typeof data.name !== 'string' || !data.name.trim()) {
+      throw new APIError('Check sheet name is required', 400, 'VALIDATION_ERROR');
+    }
+    if (!data.check_key || typeof data.check_key !== 'string' || !data.check_key.trim()) {
+      throw new APIError('Check sheet key is required', 400, 'VALIDATION_ERROR');
+    }
+
+    const trimmedName = data.name.trim();
+    const trimmedKey = data.check_key.trim().toUpperCase();
+
     // Duplicate check on name and check_key
     const existing = await prisma.checkSheetMaster.findFirst({
       where: {
         deleteStatus: false,
         OR: [
-          { name: { equals: data.name, mode: 'insensitive' } },
-          { check_key: { equals: data.check_key, mode: 'insensitive' } },
+          { name: { equals: trimmedName, mode: 'insensitive' } },
+          { check_key: { equals: trimmedKey, mode: 'insensitive' } },
         ],
       },
     });
     if (existing) {
-      const field = existing.name.toLowerCase() === data.name.toLowerCase() ? 'name' : 'check_key';
+      const field = existing.name.toLowerCase() === trimmedName.toLowerCase() ? 'name' : 'check_key';
       throw new APIError(`A check sheet with this ${field} already exists`, 409, 'DUPLICATE');
     }
 
     return prisma.checkSheetMaster.create({
       data: {
-        name: data.name.trim(),
-        check_key: data.check_key.trim().toUpperCase(),
+        name: trimmedName,
+        check_key: trimmedKey,
         description: data.description || null,
         primary_colour: data.primary_colour || null,
         class: data.class || 'General',
@@ -96,7 +106,10 @@ export class CheckSheetService {
   }
 
   async update(id, data, userId) {
-    await this.getById(id); // throws 404 if not found
+    const current = await this.getById(id); // throws 404 if not found
+
+    const updatedName = data.name !== undefined ? (typeof data.name === 'string' ? data.name.trim() : current.name) : current.name;
+    const updatedKey = data.check_key !== undefined ? (typeof data.check_key === 'string' ? data.check_key.trim().toUpperCase() : current.check_key) : current.check_key;
 
     // Duplicate check — exclude self
     const existing = await prisma.checkSheetMaster.findFirst({
@@ -104,26 +117,26 @@ export class CheckSheetService {
         deleteStatus: false,
         id: { not: id },
         OR: [
-          { name: { equals: data.name, mode: 'insensitive' } },
-          { check_key: { equals: data.check_key, mode: 'insensitive' } },
+          { name: { equals: updatedName, mode: 'insensitive' } },
+          { check_key: { equals: updatedKey, mode: 'insensitive' } },
         ],
       },
     });
     if (existing) {
-      const field = existing.name.toLowerCase() === data.name.toLowerCase() ? 'name' : 'check_key';
+      const field = existing.name.toLowerCase() === updatedName.toLowerCase() ? 'name' : 'check_key';
       throw new APIError(`A check sheet with this ${field} already exists`, 409, 'DUPLICATE');
     }
 
     return prisma.checkSheetMaster.update({
       where: { id },
       data: {
-        name: data.name.trim(),
-        check_key: data.check_key.trim().toUpperCase(),
-        description: data.description || null,
-        primary_colour: data.primary_colour || null,
-        class: data.class || 'General',
-        type: data.type || null,
-        activeStatus: data.activeStatus ?? true,
+        name: updatedName,
+        check_key: updatedKey,
+        description: data.description !== undefined ? (data.description || null) : current.description,
+        primary_colour: data.primary_colour !== undefined ? (data.primary_colour || null) : current.primary_colour,
+        class: data.class !== undefined ? (data.class || 'General') : current.class,
+        type: data.type !== undefined ? (data.type || null) : current.type,
+        activeStatus: data.activeStatus !== undefined ? (data.activeStatus ?? true) : current.activeStatus,
         updatedBy: userId,
       },
     });

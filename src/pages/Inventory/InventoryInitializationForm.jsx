@@ -377,8 +377,8 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-5xl max-h-[95vh] overflow-y-auto">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+      <Card className="w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 border-b flex-shrink-0">
           <div>
             <CardTitle>
               Initialize Stock (Grid)
@@ -393,7 +393,7 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
           </Button>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 min-h-0">
           <div className="flex gap-2">
             {[1, 2].map((s) => (
               <div key={s} className={`flex-1 h-2 rounded-full ${s <= step ? "bg-primary" : "bg-gray-300"}`} />
@@ -647,25 +647,25 @@ export default function InventoryInitializationForm({ isOpen, onClose, onSuccess
               </Card>
             </div>
           )}
-
-          <div className="flex gap-2 justify-end pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-            {step > 1 && (
-              <Button type="button" variant="outline" onClick={handleBack} disabled={isSaving} className="gap-1">
-                <ChevronLeft className="h-4 w-4" /> Back
-              </Button>
-            )}
-            {step < 2 ? (
-              <Button onClick={handleNext} disabled={isSaving} className="gap-1">
-                Next <ChevronRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button onClick={handleSubmit} disabled={isSaving || gridRows.length === 0}>
-                {isSaving ? "Saving..." : "Create Stock Items"}
-              </Button>
-            )}
-          </div>
         </CardContent>
+
+        <div className="flex gap-2 justify-end p-4 sm:p-5 border-t bg-background flex-shrink-0">
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          {step > 1 && (
+            <Button type="button" variant="outline" onClick={handleBack} disabled={isSaving} className="gap-1">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+          )}
+          {step < 2 ? (
+            <Button onClick={handleNext} disabled={isSaving} className="gap-1">
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={isSaving || gridRows.length === 0}>
+              {isSaving ? "Saving..." : "Create Stock Items"}
+            </Button>
+          )}
+        </div>
       </Card>
     </div>
   );

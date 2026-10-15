@@ -440,43 +440,107 @@ class LensProductMasterService {
         }
       }
 
-      const updated = await prisma.lensProductMaster.update({
-        where: { id },
-        data: {
-          brand_id: updateData.brand_id,
-          category_id: updateData.category_id,
-          material_id: updateData.material_id,
-          type_id: updateData.type_id,
-          product_code: updateData.product_code,
-          lens_name: updateData.lens_name,
-          index_id: updateData.index_id !== undefined ? updateData.index_id : undefined,
-          add_extra_charge: updateData.add_extra_charge !== undefined ? updateData.add_extra_charge : undefined,
-          sphere_min: updateData.sphere_min,
-          sphere_max: updateData.sphere_max,
-          sphere_extra_charge: updateData.sphere_extra_charge !== undefined ? updateData.sphere_extra_charge : undefined,
-          cyl_min: updateData.cyl_min,
-          cyl_max: updateData.cyl_max,
-          cylinder_extra_charge: updateData.cylinder_extra_charge !== undefined ? updateData.cylinder_extra_charge : undefined,
-          add_min: updateData.add_min,
-          add_max: updateData.add_max,
-          range_text: updateData.range_text,
-          minThresholdQty: updateData.minThresholdQty !== undefined ? (updateData.minThresholdQty != null ? parseInt(updateData.minThresholdQty) : null) : undefined,
-          maxThresholdQty: updateData.maxThresholdQty !== undefined ? (updateData.maxThresholdQty != null ? parseInt(updateData.maxThresholdQty) : null) : undefined,
-          activeStatus: updateData.activeStatus,
-          updatedBy: updateData.updatedBy,
-        },
-        include: {
-          brand: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
-          material: { select: { id: true, name: true } },
-          type: { select: { id: true, name: true } },
-          lensPriceMasters: {
-            where: { deleteStatus: false },
-            include: {
-              coating: { select: { id: true, name: true, short_name: true } },
+      const updated = await prisma.$transaction(async (tx) => {
+        // 1. Update product master fields
+        await tx.lensProductMaster.update({
+          where: { id },
+          data: {
+            brand_id: updateData.brand_id !== undefined ? updateData.brand_id : undefined,
+            category_id: updateData.category_id !== undefined ? updateData.category_id : undefined,
+            material_id: updateData.material_id !== undefined ? updateData.material_id : undefined,
+            type_id: updateData.type_id !== undefined ? updateData.type_id : undefined,
+            product_code: updateData.product_code !== undefined ? updateData.product_code : undefined,
+            lens_name: updateData.lens_name !== undefined ? updateData.lens_name : undefined,
+            index_id: updateData.index_id !== undefined ? updateData.index_id : undefined,
+            add_extra_charge: updateData.add_extra_charge !== undefined ? updateData.add_extra_charge : undefined,
+            sphere_min: updateData.sphere_min !== undefined ? updateData.sphere_min : undefined,
+            sphere_max: updateData.sphere_max !== undefined ? updateData.sphere_max : undefined,
+            sphere_extra_charge: updateData.sphere_extra_charge !== undefined ? updateData.sphere_extra_charge : undefined,
+            cyl_min: updateData.cyl_min !== undefined ? updateData.cyl_min : undefined,
+            cyl_max: updateData.cyl_max !== undefined ? updateData.cyl_max : undefined,
+            cylinder_extra_charge: updateData.cylinder_extra_charge !== undefined ? updateData.cylinder_extra_charge : undefined,
+            add_min: updateData.add_min !== undefined ? updateData.add_min : undefined,
+            add_max: updateData.add_max !== undefined ? updateData.add_max : undefined,
+            range_text: updateData.range_text !== undefined ? updateData.range_text : undefined,
+            minThresholdQty: updateData.minThresholdQty !== undefined ? (updateData.minThresholdQty != null ? parseInt(updateData.minThresholdQty) : null) : undefined,
+            maxThresholdQty: updateData.maxThresholdQty !== undefined ? (updateData.maxThresholdQty != null ? parseInt(updateData.maxThresholdQty) : null) : undefined,
+            activeStatus: updateData.activeStatus !== undefined ? updateData.activeStatus : undefined,
+            updatedBy: updateData.updatedBy,
+          },
+        });
+
+        // 2. Synchronize prices if prices array is provided
+        if (updateData.prices !== undefined) {
+          const newPrices = updateData.prices || [];
+          const newCoatingIds = newPrices.map((p) => p.coating_id);
+
+          // Get all existing prices for this lens (including soft-deleted)
+          const allExistingPrices = await tx.lensPriceMaster.findMany({
+            where: { lens_id: id },
+          });
+          const existingPriceMap = new Map(
+            allExistingPrices.map((p) => [p.coating_id, p])
+          );
+
+          // Soft delete coatings that are not in the new list
+          await tx.lensPriceMaster.updateMany({
+            where: {
+              lens_id: id,
+              coating_id: { notIn: newCoatingIds },
+              deleteStatus: false,
+            },
+            data: {
+              deleteStatus: true,
+              updatedBy: updateData.updatedBy,
+            },
+          });
+
+          // Upsert / update coatings that are in the new list
+          for (const priceData of newPrices) {
+            const existingPrice = existingPriceMap.get(priceData.coating_id);
+            if (existingPrice) {
+              await tx.lensPriceMaster.update({
+                where: { id: existingPrice.id },
+                data: {
+                  price: priceData.price,
+                  deleteStatus: false,
+                  activeStatus: true,
+                  updatedBy: updateData.updatedBy,
+                },
+              });
+            } else {
+              await tx.lensPriceMaster.create({
+                data: {
+                  lens_id: id,
+                  coating_id: priceData.coating_id,
+                  price: priceData.price,
+                  activeStatus: true,
+                  deleteStatus: false,
+                  createdBy: updateData.updatedBy,
+                  updatedBy: updateData.updatedBy,
+                },
+              });
+            }
+          }
+        }
+
+        // 3. Return updated product with relations and fresh prices
+        return await tx.lensProductMaster.findUnique({
+          where: { id },
+          include: {
+            brand: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true } },
+            material: { select: { id: true, name: true } },
+            type: { select: { id: true, name: true } },
+            index: { select: { id: true, index_name: true } },
+            lensPriceMasters: {
+              where: { deleteStatus: false },
+              include: {
+                coating: { select: { id: true, name: true, short_name: true } },
+              },
             },
           },
-        },
+        });
       });
 
       return updated;
@@ -495,25 +559,43 @@ class LensProductMasterService {
     try {
       const existing = await prisma.lensProductMaster.findUnique({
         where: { id },
-        include: { _count: { select: { lensPriceMasters: true } } },
+        include: {
+          _count: {
+            select: {
+              saleOrders: true,
+              purchaseOrders: true,
+              inventoryItems: true,
+            },
+          },
+        },
       });
 
       if (!existing || existing.deleteStatus) {
         throw new APIError("Lens product not found", 404, "PRODUCT_NOT_FOUND");
       }
 
-      if (existing._count.lensPriceMasters > 0) {
+      if (
+        existing._count.saleOrders > 0 ||
+        existing._count.purchaseOrders > 0 ||
+        existing._count.inventoryItems > 0
+      ) {
         throw new APIError(
-          "Cannot delete product with existing price records",
+          "Cannot delete product with existing orders or inventory",
           400,
-          "PRODUCT_HAS_PRICES"
+          "PRODUCT_IN_USE"
         );
       }
 
-      await prisma.lensProductMaster.update({
-        where: { id },
-        data: { deleteStatus: true, activeStatus: false, updatedBy },
-      });
+      await prisma.$transaction([
+        prisma.lensPriceMaster.updateMany({
+          where: { lens_id: id },
+          data: { deleteStatus: true, activeStatus: false, updatedBy },
+        }),
+        prisma.lensProductMaster.update({
+          where: { id },
+          data: { deleteStatus: true, activeStatus: false, updatedBy },
+        }),
+      ]);
 
       return true;
     } catch (error) {

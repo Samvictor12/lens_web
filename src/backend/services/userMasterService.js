@@ -188,6 +188,9 @@ export class UserMasterService {
           name: true,
           usercode: true,
           email: true,
+          username: true,
+          role_id: true,
+          is_login: true,
           phonenumber: true,
           alternatenumber: true,
           vehicleNumber: true,
@@ -248,6 +251,9 @@ export class UserMasterService {
           name: true,
           usercode: true,
           email: true,
+          username: true,
+          role_id: true,
+          is_login: true,
           phonenumber: true,
           alternatenumber: true,
           vehicleNumber: true,
@@ -636,17 +642,17 @@ export class UserMasterService {
         throw new APIError("User not found", 404, "USER_NOT_FOUND");
       }
 
-      // Check if login credentials already exist (username is set and not a temp one)
-      const hasLoginCredentials = existingUser.username && 
-                                  existingUser.username.trim() !== '' &&
-                                  !existingUser.username.startsWith('user_');
+      // Check if login credentials already exist
+      const hasLoginCredentials = Boolean(
+        existingUser.is_login ||
+        (existingUser.username &&
+         existingUser.username.trim() !== '' &&
+         !existingUser.username.startsWith('user_'))
+      );
       
       if (hasLoginCredentials) {
-        throw new APIError(
-          "Login credentials already exist for this user. Use update-login endpoint instead.",
-          400,
-          "LOGIN_ALREADY_ENABLED"
-        );
+        // Gracefully update existing login credentials instead of throwing an error
+        return await this.updateLogin(id, loginData);
       }
 
       // Check if username already exists

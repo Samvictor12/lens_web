@@ -102,7 +102,7 @@ export default function UserCard({
           size="xs"
           className="h-7 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
           onClick={() => onLoginSettings && onLoginSettings(user)}
-          title="Login Settings"
+          title={user.is_login ? "Update Login Settings" : "Enable Login"}
         >
           <UserCog className="h-3.5 w-3.5" />
         </Button>

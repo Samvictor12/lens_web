@@ -31,15 +31,23 @@ export default function UserLoginDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [isLoginEnabled, setIsLoginEnabled] = useState(false);
+  const isExistingLogin = (u) => {
+    if (!u) return false;
+    return Boolean(
+      u.is_login ||
+      (u.username && u.username.trim() !== "" && !u.username.startsWith("user_"))
+    );
+  };
+
+  const [isLoginEnabled, setIsLoginEnabled] = useState(() => isExistingLogin(user));
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [roles, setRoles] = useState([]);
-  const [loginData, setLoginData] = useState({
-    username: "",
+  const [loginData, setLoginData] = useState(() => ({
+    username: (user?.username && !user.username.startsWith("user_")) ? user.username : "",
     password: "",
-    role_id: null,
-    is_login: false,
-  });
+    role_id: user?.role_id || user?.role?.id || null,
+    is_login: user?.is_login !== undefined ? Boolean(user.is_login) : false,
+  }));
 
   // Fetch roles when dialog opens
   useEffect(() => {
@@ -67,35 +75,57 @@ export default function UserLoginDialog({
   useEffect(() => {
     const fetchLoginCredentials = async () => {
       if (user && open) {
+        // Pre-initialize state from user prop immediately to prevent modal flickering
+        const initiallyEnabled = isExistingLogin(user);
+        setIsLoginEnabled(initiallyEnabled);
+        setShowPasswordChange(false);
+        setLoginData({
+          username: (user.username && !user.username.startsWith("user_")) ? user.username : "",
+          password: "",
+          role_id: user.role_id || user.role?.id || null,
+          is_login: user.is_login !== undefined ? Boolean(user.is_login) : initiallyEnabled,
+        });
+
         try {
           setIsLoading(true);
           const response = await getLoginCredentials(user.id);
 
           if (response.success) {
             const credentials = response.data;
-            // Check if login credentials exist based on whether role_id is present
-            const hasLoginCredentials =
-              credentials.role_id !== null &&
-              credentials.role_id !== undefined;
+            // Login credentials exist if is_login is true or username is not a temporary user_ username
+            const hasLoginCredentials = Boolean(
+              credentials.is_login ||
+              (credentials.username &&
+               credentials.username.trim() !== "" &&
+               !credentials.username.startsWith("user_"))
+            );
             setIsLoginEnabled(hasLoginCredentials);
             setShowPasswordChange(false);
             setLoginData({
-              username: credentials.username || "",
+              username:
+                credentials.username && !credentials.username.startsWith("user_")
+                  ? credentials.username
+                  : "",
               password: "",
-              role_id: credentials.role_id || null,
-              is_login: credentials.is_login || false,
+              role_id: credentials.role_id || user.role_id || user.role?.id || null,
+              is_login: credentials.is_login !== undefined ? Boolean(credentials.is_login) : hasLoginCredentials,
             });
           }
         } catch (error) {
           console.error("Error fetching login credentials:", error);
-          // If error, assume login not enabled
-          setIsLoginEnabled(false);
+          toast({
+            title: "Warning",
+            description: error.message || "Failed to load latest login credentials",
+            variant: "destructive",
+          });
+          const fallbackEnabled = isExistingLogin(user);
+          setIsLoginEnabled(fallbackEnabled);
           setShowPasswordChange(false);
           setLoginData({
-            username: "",
+            username: (user.username && !user.username.startsWith("user_")) ? user.username : "",
             password: "",
-            role_id: null,
-            is_login: false,
+            role_id: user.role_id || user.role?.id || null,
+            is_login: fallbackEnabled,
           });
         } finally {
           setIsLoading(false);

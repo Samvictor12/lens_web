@@ -10,7 +10,9 @@ const isValidLength = (str, min = 0, max = Number.MAX_SAFE_INTEGER) => {
 };
 
 const isValidNumber = (num) => {
-  return typeof num === 'number' && !isNaN(num);
+  if (typeof num === 'number') return !isNaN(num);
+  if (typeof num === 'string' && num.trim() !== '') return !isNaN(Number(num));
+  return false;
 };
 
 /**
@@ -307,43 +309,56 @@ export const validateCreateLensProduct = (data) => {
  */
 export const validateUpdateLensProduct = (data) => {
   const errors = [];
+  const parsedData = { ...data };
 
-  if (data.brand_id !== undefined && !isValidNumber(data.brand_id)) {
+  if (parsedData.brand_id !== undefined && !isValidNumber(parsedData.brand_id)) {
     errors.push({ field: 'brand_id', message: 'Brand ID must be a valid number' });
+  } else if (parsedData.brand_id !== undefined && parsedData.brand_id !== null) {
+    parsedData.brand_id = parseInt(parsedData.brand_id);
   }
 
-  if (data.category_id !== undefined && !isValidNumber(data.category_id)) {
+  if (parsedData.category_id !== undefined && !isValidNumber(parsedData.category_id)) {
     errors.push({ field: 'category_id', message: 'Category ID must be a valid number' });
+  } else if (parsedData.category_id !== undefined && parsedData.category_id !== null) {
+    parsedData.category_id = parseInt(parsedData.category_id);
   }
 
-  if (data.material_id !== undefined && !isValidNumber(data.material_id)) {
+  if (parsedData.material_id !== undefined && !isValidNumber(parsedData.material_id)) {
     errors.push({ field: 'material_id', message: 'Material ID must be a valid number' });
+  } else if (parsedData.material_id !== undefined && parsedData.material_id !== null) {
+    parsedData.material_id = parseInt(parsedData.material_id);
   }
 
-  if (data.type_id !== undefined && !isValidNumber(data.type_id)) {
+  if (parsedData.type_id !== undefined && !isValidNumber(parsedData.type_id)) {
     errors.push({ field: 'type_id', message: 'Type ID must be a valid number' });
+  } else if (parsedData.type_id !== undefined && parsedData.type_id !== null) {
+    parsedData.type_id = parseInt(parsedData.type_id);
   }
 
-  if (data.index_id !== undefined && (!data.index_id || !isValidNumber(data.index_id))) {
-    errors.push({ field: 'index_id', message: 'Index ID is required and must be a valid number' });
+  if (parsedData.index_id !== undefined && parsedData.index_id !== null && !isValidNumber(parsedData.index_id)) {
+    errors.push({ field: 'index_id', message: 'Index ID must be a valid number' });
+  } else if (parsedData.index_id !== undefined && parsedData.index_id !== null) {
+    parsedData.index_id = parseInt(parsedData.index_id);
   }
 
-  if (data.product_code && !isValidLength(data.product_code, 1, 100)) {
+  if (parsedData.product_code && !isValidLength(parsedData.product_code, 1, 100)) {
     errors.push({ field: 'product_code', message: 'Product code must be between 1 and 100 characters' });
   }
 
-  if (data.lens_name && !isValidLength(data.lens_name, 1, 200)) {
+  if (parsedData.lens_name && !isValidLength(parsedData.lens_name, 1, 200)) {
     errors.push({ field: 'lens_name', message: 'Lens name must be between 1 and 200 characters' });
   }
 
-  if (!data.updatedBy || !isValidNumber(data.updatedBy)) {
+  if (!parsedData.updatedBy || !isValidNumber(parsedData.updatedBy)) {
     errors.push({ field: 'updatedBy', message: 'Updated by user ID is required' });
+  } else {
+    parsedData.updatedBy = parseInt(parsedData.updatedBy);
   }
 
   return {
     isValid: errors.length === 0,
     errors,
-    data: errors.length === 0 ? data : null
+    data: errors.length === 0 ? parsedData : null
   };
 };
 

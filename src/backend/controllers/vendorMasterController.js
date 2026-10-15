@@ -23,8 +23,14 @@ export class VendorMasterController {
    */
   async create(req, res, next) {
     try {
+      const body = {
+        ...req.body,
+        createdBy: req.body.createdBy || req.user?.id || 1,
+        updatedBy: req.body.updatedBy || req.user?.id || 1,
+      };
+
       // Validate request body
-      const validation = validateCreateVendorMaster(req.body);
+      const validation = validateCreateVendorMaster(body);
       
       if (!validation.isValid) {
         return res.status(400).json({
@@ -151,8 +157,13 @@ export class VendorMasterController {
         });
       }
 
+      const body = {
+        ...req.body,
+        updatedBy: req.body.updatedBy || req.user?.id || 1,
+      };
+
       // Validate request body
-      const validation = validateUpdateVendorMaster(req.body);
+      const validation = validateUpdateVendorMaster(body);
       if (!validation.isValid) {
         return res.status(400).json({
           success: false,
@@ -191,13 +202,7 @@ export class VendorMasterController {
       }
 
       // Get updatedBy from request body or user context
-      const updatedBy = req.body.updatedBy || req.user?.id;
-      if (!updatedBy) {
-        return res.status(400).json({
-          success: false,
-          message: 'Updated by user ID is required'
-        });
-      }
+      const updatedBy = req.body?.updatedBy || req.user?.id || 1;
 
       // Delete vendor master
       await this.vendorMasterService.deleteVendorMaster(validation.data, updatedBy);

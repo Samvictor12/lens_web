@@ -228,9 +228,15 @@ function Draw-LensDocument([string]$printer, [string]$jsonPath, [string]$docTitl
   if ($wMm -lt 10) { $wMm = 84 }
   if ($hMm -lt 10) { $hMm = 55 }
 
-  # Convert mm to 1/100 inch (hundredths of an inch for PaperSize)
-  $wHu = [int][Math]::Round($wMm * 100.0 / 25.4)
-  $hHu = [int][Math]::Round($hMm * 100.0 / 25.4)
+  $isCard = ($job.docType -eq 'AUTHENTICITY_CARD')
+  $isLabel = ($job.docType -eq 'BARCODE_LABEL')
+
+  # Determine physical paper size (Hundredths of an inch)
+  # Card printers feed CR80 in portrait (55mm wide x 84mm high).
+  $paperWMm = if ($isCard) { 55.0 } else { $wMm }
+  $paperHMm = if ($isCard) { 84.0 } else { $hMm }
+  $wHu = [int][Math]::Round($paperWMm * 100.0 / 25.4)
+  $hHu = [int][Math]::Round($paperHMm * 100.0 / 25.4)
 
   $pd = New-Object System.Drawing.Printing.PrintDocument
   $pd.PrinterSettings.PrinterName = $printer
@@ -250,26 +256,61 @@ function Draw-LensDocument([string]$printer, [string]$jsonPath, [string]$docTitl
     $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
     $g.Clear([System.Drawing.Color]::White)
 
-    $fontBold = New-Object System.Drawing.Font("Arial", 2.7, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Millimeter)
-    $fontRegular = New-Object System.Drawing.Font("Arial", 2.3, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
-    $fontSmall = New-Object System.Drawing.Font("Arial", 2.1, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
-    $fontTableH = New-Object System.Drawing.Font("Arial", 2.2, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Millimeter)
-    $fontTableR = New-Object System.Drawing.Font("Arial", 2.2, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    # For Card: rotate 90 degrees to map 84x55mm artwork onto physical 55x84mm CR80 feed
+    if ($isCard) {
+      $g.TranslateTransform(55.0, 0)
+      $g.RotateTransform(90)
+    }
+
+    # Margins and scale:
+    # For Barcode labels: use 4.5mm left margin to avoid thermal edge cutoff and slightly smaller font scale.
+    # For Cards: use standard margins.
+    $marginL = if ($isLabel) { 4.5 } else { 2.2 }
+    $marginR = if ($isLabel) { $wMm - 4.0 } else { $wMm - 2.2 }
+    $topGap = [double]$job.topGapMm
+    $offsetY = if ($isLabel) { 1.0 } else { 1.2 }
+    $y = $topGap + $offsetY
+    $lineH = if ($isLabel) { 3.0 } else { 3.4 }
+
+    $fontBold = if ($isLabel) {
+      New-Object System.Drawing.Font("Arial", 2.3, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Millimeter)
+    } else {
+      New-Object System.Drawing.Font("Arial", 2.7, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Millimeter)
+    }
+
+    $fontRegular = if ($isLabel) {
+      New-Object System.Drawing.Font("Arial", 1.9, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    } else {
+      New-Object System.Drawing.Font("Arial", 2.3, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    }
+
+    $fontSmall = if ($isLabel) {
+      New-Object System.Drawing.Font("Arial", 1.7, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    } else {
+      New-Object System.Drawing.Font("Arial", 2.1, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    }
+
+    $fontTableH = if ($isLabel) {
+      New-Object System.Drawing.Font("Arial", 1.9, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Millimeter)
+    } else {
+      New-Object System.Drawing.Font("Arial", 2.2, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Millimeter)
+    }
+
+    $fontTableR = if ($isLabel) {
+      New-Object System.Drawing.Font("Arial", 1.9, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    } else {
+      New-Object System.Drawing.Font("Arial", 2.2, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Millimeter)
+    }
 
     $brushBlack = [System.Drawing.Brushes]::Black
     $penBorder = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(40, 40, 40), 0.25)
     $brushHeaderBg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(245, 245, 245))
 
-    $topGap = [double]$job.topGapMm
-    $marginL = 2.2
-    $marginR = $wMm - 2.2
-    $y = $topGap + 1.2
-    $lineH = 3.4
-
     # QR Code (Top Right)
-    $qrSize = 13.5
+    $qrSize = if ($isLabel) { 11.5 } else { 13.5 }
     $qrX = $marginR - $qrSize
-    $qrY = $topGap + 1.2
+    $qrOffsetY = if ($isLabel) { 1.0 } else { 1.2 }
+    $qrY = $topGap + $qrOffsetY
     if ($job.qrPath -and (Test-Path $job.qrPath)) {
       $qrImg = [System.Drawing.Image]::FromFile($job.qrPath)
       $g.DrawImage($qrImg, [float]$qrX, [float]$qrY, [float]$qrSize, [float]$qrSize)
@@ -301,13 +342,17 @@ function Draw-LensDocument([string]$printer, [string]$jsonPath, [string]$docTitl
     }
 
     # Rx Table
-    $tableTop = [Math]::Max($y + 1.0, $topGap + 18.0)
-    $footerH = 4.5
+    $tableTopBase = if ($isLabel) { 14.5 } else { 18.0 }
+    $tableTop = [Math]::Max($y + 1.0, $topGap + $tableTopBase)
+    $footerH = if ($isLabel) { 3.6 } else { 4.5 }
     $footerY = $hMm - $footerH
-    $tableW = $wMm - (2.0 * $marginL)
+    $rightPad = if ($isLabel) { 4.0 } else { 2.2 }
+    $tableW = $wMm - $marginL - $rightPad
     $rows = @($job.tableRows)
     $rowCount = [Math]::Max(1, $rows.Count)
-    $rowH = [Math]::Max(3.8, ($footerY - $tableTop) / $rowCount)
+    $minRowH = if ($isLabel) { 3.0 } else { 3.8 }
+    $calcRowH = ($footerY - $tableTop) / $rowCount
+    $rowH = [Math]::Max($minRowH, $calcRowH)
 
     $colCount = [Math]::Max(1, $rows[0].Count)
     $colW = $tableW / $colCount
@@ -322,17 +367,20 @@ function Draw-LensDocument([string]$printer, [string]$jsonPath, [string]$docTitl
       for ($ci = 0; $ci -lt $rows[$ri].Count; $ci++) {
         $currX = $marginL + ($ci * $colW)
         $cellRect = New-Object System.Drawing.RectangleF([float]$currX, [float]$currY, [float]$colW, [float]$rowH)
-        if ($ri -eq 0) {
-          $g.FillRectangle($brushHeaderBg, $cellRect)
+        if ($isCard) {
+          if ($ri -eq 0) {
+            $g.FillRectangle($brushHeaderBg, $cellRect)
+          }
+          $g.DrawRectangle($penBorder, $currX, $currY, $colW, $rowH)
         }
-        $g.DrawRectangle($penBorder, $currX, $currY, $colW, $rowH)
         $cellVal = [string]$rows[$ri][$ci]
         $g.DrawString($cellVal, $currFont, $brushBlack, $cellRect, $sf)
       }
     }
 
     # Footer
-    $footY = $hMm - 4.0
+    $footHOffset = if ($isLabel) { 3.2 } else { 4.0 }
+    $footY = $hMm - $footHOffset
     $g.DrawString("cust Ref: " + $job.custRef, $fontSmall, $brushBlack, [float]$marginL, [float]$footY)
     $dateStr = "Date: " + $job.orderDate
     $dateSize = $g.MeasureString($dateStr, $fontSmall)
