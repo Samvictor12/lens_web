@@ -179,9 +179,27 @@ export async function deleteUser(id) {
  * @returns {Promise<Object>} Generated user code
  */
 export async function generateUserCode() {
-  // Get all users to find the next available code
+  try {
+    const response = await apiClient("get", "/user-master/generate-usercode");
+    if (response.success && response.data?.usercode) {
+      return response;
+    }
+  } catch (error) {
+    console.warn(
+      "Failed to get user code from /generate-usercode, falling back to listing:",
+      error
+    );
+  }
+
+  // Fallback: Get all users including soft-deleted ones to find the next available code
   const response = await apiClient("get", "/user-master", {
-    params: { page: 1, limit: 9999, sortBy: "usercode", sortOrder: "desc" },
+    params: {
+      page: 1,
+      limit: 9999,
+      includeDeleted: true,
+      sortBy: "usercode",
+      sortOrder: "desc",
+    },
   });
 
   if (!response.success || !response.data || response.data.length === 0) {
@@ -205,6 +223,18 @@ export async function generateUserCode() {
   const usercode = `USR${String(nextNumber).padStart(3, "0")}`;
 
   return { success: true, data: { usercode } };
+}
+
+/**
+ * Check if user code exists for active users
+ * @param {string} usercode - User code to check
+ * @param {number} excludeId - ID to exclude from check (for edit mode)
+ * @returns {Promise<Object>} Check response { success, data: { exists, usercode } }
+ */
+export async function checkUserCode(usercode, excludeId = null) {
+  return await apiClient("post", "/user-master/check-usercode", {
+    data: { usercode, excludeId },
+  });
 }
 
 /**

@@ -329,6 +329,7 @@ export const validateQueryParams = (query) => {
             role_id: query.role_id ? parseInt(query.role_id) : undefined,
             department_id: query.department_id ? parseInt(query.department_id) : undefined,
             active_status: query.active_status === 'true' ? true : query.active_status === 'false' ? false : undefined,
+            includeDeleted: query.includeDeleted === 'true' || query.includeDeleted === true,
             page,
             limit,
             sortBy,

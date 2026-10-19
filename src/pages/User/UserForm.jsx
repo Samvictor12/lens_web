@@ -401,17 +401,17 @@ export default function UserForm() {
         <form onSubmit={handleSubmit}>
           <Card>
             <CardContent className="p-3 pt-0 space-y-4">
-              {/* Row 1: Name, User Code */}
+              {/* Row 1: User Code, Name */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* <FormInput
+                <FormInput
                   label="User Code"
                   name="usercode"
                   value={formData.usercode}
                   onChange={handleChange}
                   disabled={true} // Always disabled - auto-generated
-                  required
+                  placeholder="Auto-generating..."
                   error={errors.usercode}
-                /> */}
+                />
                 <FormInput
                   label="Name"
                   name="name"

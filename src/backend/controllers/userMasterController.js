@@ -30,6 +30,11 @@ export class UserMasterController {
         updatedBy: req.body.updatedBy || req.user?.id || 1,
       };
 
+      // Auto-generate usercode if not provided or empty
+      if (!body.usercode || (typeof body.usercode === 'string' && body.usercode.trim() === '')) {
+        body.usercode = await this.userMasterService.generateNextUserCode();
+      }
+
       // Validate request body
       const validation = validateCreateUserMaster(body);
       
@@ -270,6 +275,22 @@ export class UserMasterController {
           exists,
           usercode: validation.data.usercode
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Generate next available user code
+   * @route GET /api/user-master/generate-usercode
+   */
+  async generateUserCode(req, res, next) {
+    try {
+      const usercode = await this.userMasterService.generateNextUserCode();
+      res.json({
+        success: true,
+        data: { usercode }
       });
     } catch (error) {
       next(error);

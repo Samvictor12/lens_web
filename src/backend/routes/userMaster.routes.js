@@ -628,6 +628,38 @@ router.post(
 
 /**
  * @swagger
+ * /api/user-master/generate-usercode:
+ *   get:
+ *     summary: Generate next available user code
+ *     tags: [User Master]
+ *     responses:
+ *       200:
+ *         description: Next user code generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     usercode:
+ *                       type: string
+ *                       example: "USR008"
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  "/generate-usercode",
+//   authenticateToken,
+  userMasterController.generateUserCode.bind(userMasterController)
+);
+
+/**
+ * @swagger
  * /api/user-master/{id}:
  *   get:
  *     summary: Get user master by ID

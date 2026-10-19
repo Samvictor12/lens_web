@@ -24,24 +24,128 @@ export class UserMasterService {
    */
   async createUserMaster(userData) {
     try {
-      // Check if email or usercode already exists
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [{ email: userData.email }, { usercode: userData.usercode }],
-        },
-      });
+      // Check for existing records by usercode and email
+      const existingByUsercode = userData.usercode
+        ? await prisma.user.findFirst({
+            where: { usercode: userData.usercode },
+          })
+        : null;
 
-      if (existingUser) {
-        if (existingUser.email === userData.email) {
+      const existingByEmail = userData.email
+        ? await prisma.user.findFirst({
+            where: { email: userData.email },
+          })
+        : null;
+
+      // 1. Check for normal duplicate errors on active records
+      if (existingByUsercode && !existingByUsercode.delete_status) {
+        throw new APIError(
+          "User code already exists",
+          409,
+          "DUPLICATE_USER_CODE"
+        );
+      }
+
+      if (existingByEmail && !existingByEmail.delete_status) {
+        throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
+      }
+
+      // 2. If a soft-deleted user exists with the same usercode or email, reactivate that user
+      const deletedUserToRestore =
+        (existingByUsercode && existingByUsercode.delete_status
+          ? existingByUsercode
+          : null) ||
+        (existingByEmail && existingByEmail.delete_status
+          ? existingByEmail
+          : null);
+
+      if (deletedUserToRestore) {
+        // Prevent collision if existingByEmail is a different active user
+        if (
+          existingByEmail &&
+          existingByEmail.id !== deletedUserToRestore.id &&
+          !existingByEmail.delete_status
+        ) {
           throw new APIError("Email already exists", 409, "DUPLICATE_EMAIL");
         }
-        if (existingUser.usercode === userData.usercode) {
+
+        // Prevent collision if existingByUsercode is a different active user
+        if (
+          existingByUsercode &&
+          existingByUsercode.id !== deletedUserToRestore.id &&
+          !existingByUsercode.delete_status
+        ) {
           throw new APIError(
             "User code already exists",
             409,
             "DUPLICATE_USER_CODE"
           );
         }
+
+        // If the other conflicting user is also a deleted record, rename its email/usercode to avoid PostgreSQL unique constraint collisions
+        if (
+          existingByEmail &&
+          existingByEmail.id !== deletedUserToRestore.id &&
+          existingByEmail.delete_status
+        ) {
+          await prisma.user.update({
+            where: { id: existingByEmail.id },
+            data: { email: `${existingByEmail.email}_deleted_${Date.now()}` },
+          });
+        }
+
+        if (
+          existingByUsercode &&
+          existingByUsercode.id !== deletedUserToRestore.id &&
+          existingByUsercode.delete_status
+        ) {
+          await prisma.user.update({
+            where: { id: existingByUsercode.id },
+            data: {
+              usercode: `${existingByUsercode.usercode}_deleted_${Date.now()}`,
+            },
+          });
+        }
+
+        // Reactivate and update the deleted user record
+        const restoredUser = await prisma.user.update({
+          where: { id: deletedUserToRestore.id },
+          data: {
+            name: userData.name,
+            usercode: userData.usercode || deletedUserToRestore.usercode,
+            email: userData.email || deletedUserToRestore.email,
+            username: `user_${userData.usercode || deletedUserToRestore.usercode}`,
+            phonenumber: userData.phonenumber,
+            alternatenumber: userData.alternatenumber,
+            vehicleNumber: userData.vehicleNumber,
+            bloodgroup: userData.bloodgroup,
+            address: userData.address,
+            city: userData.city,
+            state: userData.state,
+            pincode: userData.pincode,
+            role_id: userData.role_id ?? userData.roleId ?? null,
+            department_id: userData.department_id,
+            salary: userData.salary,
+            active_status:
+              userData.active_status !== undefined
+                ? userData.active_status
+                : true,
+            delete_status: false,
+            updatedBy: userData.updatedBy || userData.createdBy || 1,
+          },
+          include: {
+            role: {
+              select: { id: true, name: true },
+            },
+            departmentDetails: {
+              select: { id: true, department: true },
+            },
+          },
+        });
+
+        // Remove password from response
+        const { password, ...userResponse } = restoredUser;
+        return userResponse;
       }
 
       // Create the user master WITHOUT login credentials
@@ -477,6 +581,50 @@ export class UserMasterService {
   }
 
   /**
+   * Generate next available user code
+   * Looks at all user codes across the system to prevent duplicate collisions
+   * @returns {Promise<string>} Next unique user code (e.g. USR008)
+   */
+  async generateNextUserCode() {
+    try {
+      const users = await prisma.user.findMany({
+        select: { usercode: true },
+      });
+
+      let maxNumber = 0;
+      users.forEach((user) => {
+        if (user.usercode && /^USR\d+$/i.test(user.usercode)) {
+          const num = parseInt(user.usercode.substring(3), 10);
+          if (!isNaN(num) && num > maxNumber) {
+            maxNumber = num;
+          }
+        }
+      });
+
+      let nextNumber = maxNumber + 1;
+      let candidateCode = `USR${String(nextNumber).padStart(3, "0")}`;
+
+      const existingCodes = new Set(
+        users.map((u) => u.usercode?.toUpperCase()).filter(Boolean)
+      );
+
+      while (existingCodes.has(candidateCode.toUpperCase())) {
+        nextNumber++;
+        candidateCode = `USR${String(nextNumber).padStart(3, "0")}`;
+      }
+
+      return candidateCode;
+    } catch (error) {
+      console.error("Error generating next user code:", error);
+      throw new APIError(
+        "Failed to generate user code",
+        500,
+        "GENERATE_USER_CODE_ERROR"
+      );
+    }
+  }
+
+  /**
    * Check if user email exists
    * @param {string} email - Email to check
    * @param {number} excludeId - ID to exclude from check (for updates)
@@ -484,7 +632,7 @@ export class UserMasterService {
    */
   async isUserEmailExists(email, excludeId = null) {
     try {
-      const where = { email };
+      const where = { email, delete_status: false };
       if (excludeId) {
         where.id = { not: excludeId };
       }
@@ -505,7 +653,7 @@ export class UserMasterService {
    */
   async isUserCodeExists(usercode, excludeId = null) {
     try {
-      const where = { usercode };
+      const where = { usercode, delete_status: false };
       if (excludeId) {
         where.id = { not: excludeId };
       }
