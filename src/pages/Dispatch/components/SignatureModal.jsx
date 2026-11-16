@@ -21,7 +21,18 @@ import { PenLine, RotateCcw, CheckCircle } from "lucide-react";
  *   orderCount    — number (shown in header)
  *   isSaving      — boolean (disable confirm while uploading)
  */
-export default function SignatureModal({ open, onClose, onConfirm, customerName, orderCount, isSaving }) {
+export default function SignatureModal({
+    open,
+    isOpen,
+    onClose,
+    onConfirm,
+    customerName,
+    orderCount,
+    isSaving,
+    isSubmitting,
+}) {
+    const isModalOpen = open ?? isOpen ?? false;
+    const isBusy = isSaving ?? isSubmitting ?? false;
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hasSigned, setHasSigned] = useState(false);
@@ -29,10 +40,10 @@ export default function SignatureModal({ open, onClose, onConfirm, customerName,
 
     // Reset canvas when modal opens
     useEffect(() => {
-        if (open) {
+        if (isModalOpen) {
             setTimeout(() => clearCanvas(), 50);
         }
-    }, [open]);
+    }, [isModalOpen]);
 
     const getPos = (e, canvas) => {
         const rect = canvas.getBoundingClientRect();
@@ -91,7 +102,7 @@ export default function SignatureModal({ open, onClose, onConfirm, customerName,
     };
 
     return (
-        <Dialog open={open} onOpenChange={(v) => { if (!v && !isSaving) onClose(); }}>
+        <Dialog open={isModalOpen} onOpenChange={(v) => { if (!v && !isBusy) onClose(); }}>
             <DialogContent className="sm:max-w-lg w-full">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -139,7 +150,7 @@ export default function SignatureModal({ open, onClose, onConfirm, customerName,
                         size="sm"
                         className="self-start gap-1.5 text-muted-foreground"
                         onClick={clearCanvas}
-                        disabled={isSaving}
+                        disabled={isBusy}
                     >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Clear Signature
@@ -147,15 +158,15 @@ export default function SignatureModal({ open, onClose, onConfirm, customerName,
                 </div>
 
                 <DialogFooter className="gap-2 sm:gap-0">
-                    <Button variant="outline" onClick={onClose} disabled={isSaving}>
+                    <Button variant="outline" onClick={onClose} disabled={isBusy}>
                         Cancel
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        disabled={!hasSigned || isSaving}
+                        disabled={!hasSigned || isBusy}
                         className="gap-1.5"
                     >
-                        {isSaving ? (
+                        {isBusy ? (
                             <>
                                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                 Saving...

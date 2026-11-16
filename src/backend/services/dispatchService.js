@@ -278,7 +278,14 @@ export const getDispatchList = async (user, filters = {}) => {
     where.deliveryPersonId = Number(deliveryPersonId);
   }
 
-  if (status) where.status = status;
+  if (status) {
+    const normalizedStatus = String(status).toUpperCase();
+    if (normalizedStatus === 'DISPATCHED') {
+      where.status = 'IN_TRANSIT';
+    } else {
+      where.status = status;
+    }
+  }
   if (customerId) where.customerId = Number(customerId);
   if (dateFrom || dateTo) {
     where.expectedDeliveryDate = {};
@@ -468,6 +475,8 @@ export const updateDispatchStatus = async (dispatchId, action, signature, user, 
 
   switch (action) {
     case 'PICKUP':
+    case 'DISPATCH':
+    case 'DISPATCHED':
       newDispatchStatus = 'IN_TRANSIT';
       newSaleOrderStatus = 'DISPATCHED';
       newSaleOrderDispatchStatus = 'In Transit';
@@ -511,8 +520,8 @@ export const updateDispatchStatus = async (dispatchId, action, signature, user, 
             saleOrderId,
             toStatus: newSaleOrderStatus,
             userId,
-            remark: action === 'PICKUP'
-              ? `Dispatch ${dispatch.dcNumber} picked up`
+            remark: ['PICKUP', 'DISPATCH', 'DISPATCHED'].includes(action)
+              ? `Dispatch ${dispatch.dcNumber} picked up and dispatched`
               : `Dispatch ${dispatch.dcNumber} delivered`,
             source: 'DISPATCH',
             referenceType: 'DispatchCopy',

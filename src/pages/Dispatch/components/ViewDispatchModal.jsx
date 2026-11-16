@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FormSelect } from "@/components/ui/form-select";
 import { Calendar, User, Truck, MapPin, Phone, Package, Clock, Eye, Printer, Tag } from "lucide-react";
-import { updateDispatch, getDispatchById } from "@/services/dispatch";
+import { updateDispatch, getDispatchById, updateDispatchStatus } from "@/services/dispatch";
 import { getDeliveryPersonsDropdown } from "@/services/user";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -41,6 +41,7 @@ export default function ViewDispatchModal({ open, isOpen, onClose, dispatch, onU
     const [isReprintBusy, setIsReprintBusy] = useState(false);
     const [labelPreviewPlan, setLabelPreviewPlan] = useState(null);
     const [isLabelPreviewSubmitting, setIsLabelPreviewSubmitting] = useState(false);
+    const [isDispatching, setIsDispatching] = useState(false);
 
     // Editable fields
     const [expectedDate, setExpectedDate] = useState("");
@@ -232,6 +233,22 @@ export default function ViewDispatchModal({ open, isOpen, onClose, dispatch, onU
         setDeliveryNotes(record.deliveryNotes || "");
         setNotes(record.notes || "");
         setIsEditing(false);
+    };
+
+    const handleDispatchFromModal = async () => {
+        try {
+            setIsDispatching(true);
+            const res = await updateDispatchStatus(record.id, "DISPATCH");
+            toast({ title: "Picked Up", description: "Dispatch marked as picked up — now In Transit" });
+            if (res?.data) {
+                setDetail((prev) => ({ ...(prev || {}), ...res.data }));
+            }
+            onUpdated?.(res?.data);
+        } catch (err) {
+            toast({ title: "Error", description: err?.message || String(err), variant: "destructive" });
+        } finally {
+            setIsDispatching(false);
+        }
     };
 
     return (
@@ -477,8 +494,23 @@ export default function ViewDispatchModal({ open, isOpen, onClose, dispatch, onU
                                     <Printer className="h-3 w-3" />
                                     Reprint Barcode
                                 </Button>
+                                {record.status === "PENDING" && (
+                                    <Button
+                                        size="xs"
+                                        className="h-7 text-xs px-3 gap-1"
+                                        disabled={isDispatching || (isLoadingDetail && !detail)}
+                                        onClick={handleDispatchFromModal}
+                                    >
+                                        {isDispatching ? (
+                                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        ) : (
+                                            <Truck className="h-3 w-3" />
+                                        )}
+                                        Pick up
+                                    </Button>
+                                )}
                                 {record.status !== "DELIVERED" && (
-                                    <Button size="xs" className="h-7 text-xs px-3" onClick={() => setIsEditing(true)}>
+                                    <Button size="xs" variant="outline" className="h-7 text-xs px-3" onClick={() => setIsEditing(true)}>
                                         Edit
                                     </Button>
                                 )}

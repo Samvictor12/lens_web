@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
 const STATUS_OPTIONS = [
     { value: "", label: "All Statuses" },
     { value: "PENDING", label: "Ready for Pickup" },
-    { value: "IN_TRANSIT", label: "In Transit" },
+    { value: "IN_TRANSIT", label: "Dispatched / In Transit" },
     { value: "DELIVERED", label: "Delivered" },
     { value: "ON_HOLD", label: "On Hold" },
 ];
@@ -304,7 +304,7 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
         },
         {
             key: "inTransit",
-            label: "In Transit",
+            label: "Dispatched / In Transit",
             value: statsLoading ? "…" : stats.inTransitCount,
             icon: Truck,
             theme: {
@@ -524,11 +524,8 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
                 {isGrouped ? (
                     <DispatchGroupedList
                         groups={groups}
-                        groupBy={groupBy}
-                        isLoading={isLoading}
-                        onStatusUpdated={handleStatusUpdated}
-                        onSignatureRequest={(id) => setSignatureDispatchId(id)}
-                        onView={openView}
+                        renderItems={renderDispatchCards}
+                        emptyMessage="No dispatch records found matching your filters."
                     />
                 ) : view === "card" ? (
                     <CardGrid
@@ -574,10 +571,20 @@ export default function DispatchList({ refreshKey, onStatusUpdated }) {
             {/* ── Signature Modal ── */}
             {signatureDispatchId && (
                 <SignatureModal
+                    open={!!signatureDispatchId}
                     isOpen={!!signatureDispatchId}
                     onClose={() => setSignatureDispatchId(null)}
                     onConfirm={handleSignatureConfirm}
+                    isSaving={isDelivering}
                     isSubmitting={isDelivering}
+                    customerName={
+                        dispatches.find((d) => d.id === signatureDispatchId)?.customer?.shopname ||
+                        dispatches.find((d) => d.id === signatureDispatchId)?.customer?.name ||
+                        ""
+                    }
+                    orderCount={
+                        dispatches.find((d) => d.id === signatureDispatchId)?.saleOrders?.length ?? 0
+                    }
                 />
             )}
 

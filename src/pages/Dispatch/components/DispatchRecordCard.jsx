@@ -43,7 +43,7 @@ export default function DispatchRecordCard({ dispatch, onStatusUpdated, onSignat
             toast({
                 title: "Updated",
                 description:
-                    action === "PICKUP"
+                    action === "PICKUP" || action === "DISPATCH" || action === "DISPATCHED"
                         ? "Dispatch picked up — now In Transit"
                         : action === "ON_HOLD"
                             ? "Dispatch put on hold"
@@ -177,14 +177,14 @@ export default function DispatchRecordCard({ dispatch, onStatusUpdated, onSignat
                                 variant="default"
                                 className="h-7 text-xs gap-1.5"
                                 disabled={!!isUpdating}
-                                onClick={() => handleAction("PICKUP")}
+                                onClick={() => handleAction("DISPATCH")}
                             >
-                                {isActionLoading("PICKUP") ? (
+                                {isActionLoading("DISPATCH") || isActionLoading("PICKUP") ? (
                                     <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                 ) : (
                                     <Truck className="h-3 w-3" />
                                 )}
-                                Pickup
+                                Pick up
                             </Button>
                         )}
                         {dispatch.status === "IN_TRANSIT" && (
@@ -221,7 +221,7 @@ export default function DispatchRecordCard({ dispatch, onStatusUpdated, onSignat
                                 variant="outline"
                                 className="h-7 text-xs gap-1.5"
                                 disabled={!!isUpdating}
-                                onClick={() => handleAction("PICKUP")}
+                                onClick={() => handleAction("DISPATCH")}
                             >
                                 <Truck className="h-3 w-3" />
                                 Resume
